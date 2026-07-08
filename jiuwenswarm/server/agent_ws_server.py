@@ -6823,6 +6823,31 @@ class AgentWebSocketServer:
             return "poor"
         return "failed"
 
+    @staticmethod
+    def _replay_quality_breakdown(turn: dict) -> list[str]:
+        """Return human-readable lines explaining how the quality score was computed."""
+        lines: list[str] = ["Base score: 0.50"]
+        if turn.get("has_final") and turn.get("final_length", 0) > 0:
+            lines.append("Agent replied with content: +0.20")
+        else:
+            lines.append("No response returned (model failed): −0.20")
+        n_fail: int = turn.get("tool_failures", 0)
+        if n_fail > 0:
+            penalty = min(0.15, 0.05 * n_fail)
+            lines.append(f"Tool failures ×{n_fail}: −{penalty:.2f}")
+        if turn.get("has_error"):
+            lines.append("Error occurred: −0.10")
+        dur: float = turn.get("duration_seconds", 0.0)
+        if dur > 60:
+            lines.append(f"Very slow ({dur:.0f} s): −0.08")
+        elif dur > 30:
+            lines.append(f"Slow ({dur:.0f} s): −0.05")
+        retries: int = turn.get("retry_count", 0)
+        if retries > 1:
+            penalty = min(0.10, 0.03 * (retries - 1))
+            lines.append(f"Needed {retries} retries: −{penalty:.2f}")
+        return lines
+
     async def _handle_replay_request(
         self,
         ws: Any,
@@ -6833,6 +6858,7 @@ class AgentWebSocketServer:
         """Handle Session Replay / Trajectory Viewer requests."""
         from jiuwenswarm.server.runtime.session.session_history import (
             read_session_history_records,
+            get_read_history_path,
         )
         from datetime import datetime, timezone
 
@@ -6934,6 +6960,7 @@ class AgentWebSocketServer:
                     score = self._replay_quality_score(turn)
                     turn["quality_score"] = score
                     turn["quality_label"] = self._replay_quality_label(score)
+                    turn["quality_breakdown"] = self._replay_quality_breakdown(turn)
 
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
@@ -6945,6 +6972,8 @@ class AgentWebSocketServer:
                     hi = datetime.fromtimestamp(max(timestamps), tz=timezone.utc).strftime("%Y-%m-%d")
                     date_range = lo if lo == hi else f"{lo} \u2192 {hi}"
 
+                history_file_path = str(get_read_history_path(session_id))
+
                 payload: dict = {
                     "ok": True,
                     "turns": real_turns,
@@ -6953,6 +6982,7 @@ class AgentWebSocketServer:
                         "error_count": error_count,
                         "total_tokens": all_tokens,
                         "date_range": date_range,
+                        "history_file_path": history_file_path,
                     },
                 }
 

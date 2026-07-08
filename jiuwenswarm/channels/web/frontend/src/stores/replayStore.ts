@@ -39,6 +39,7 @@ export interface TurnSummary {
   query_type: string;
   quality_score: number | null;
   quality_label: string | null;
+  quality_breakdown: string[];
   mode: string | null;
 }
 
@@ -47,6 +48,7 @@ export interface SessionStats {
   error_count: number;
   total_tokens: number;
   date_range: string;
+  history_file_path: string;
 }
 
 export interface HistoryRecord {
