@@ -25,12 +25,13 @@ import logoIcon from '../../assets/sidebar/logo.svg';
 import advancedConfigIcon from '../../assets/sidebar/advanced-config-new.svg';
 import collapseIcon from '../../assets/sidebar/collapse.svg';
 import updateIcon from '../../assets/sidebar/advanced-config.svg';
+import replayIcon from '../../assets/sidebar/replay.svg';
 import appearanceSystemIcon from '../../assets/sidebar/appearance-system.svg';
 import appearanceDarkIcon from '../../assets/sidebar/appearance-dark.svg';
 import appearanceLightIcon from '../../assets/sidebar/appearance-light.svg';
 import { webRequest } from '../../services/webClient';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'replay' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
 
 interface SessionSidebarProps {
   activeNav: MainNavKey;
@@ -54,6 +55,7 @@ const mainNavItems: NavItem[] = [
   { key: 'chat', labelKey: 'nav.chat', icon: <img src={dialogueIcon} alt="" /> },
   { key: 'agents', labelKey: 'nav.agent', icon: <img src={agentIcon} alt="" /> },
   { key: 'sessions', labelKey: 'nav.sessions', icon: <img src={sessionIcon} alt="" /> },
+  { key: 'replay', labelKey: 'nav.replay', icon: <img src={replayIcon} alt="" /> },
   {
     key: 'teams',
     labelKey: 'nav.teams',

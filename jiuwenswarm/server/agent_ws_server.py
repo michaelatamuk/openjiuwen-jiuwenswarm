@@ -1538,6 +1538,12 @@ class AgentWebSocketServer:
             if request.req_method == ReqMethod.ISSUE_MATRIX:
                 await self._handle_schedule_request(ws, request, send_lock, "issue_matrix")
                 return
+            if request.req_method == ReqMethod.REPLAY_TURNS_LIST:
+                await self._handle_replay_request(ws, request, send_lock, "turns_list")
+                return
+            if request.req_method == ReqMethod.REPLAY_TURN_GET:
+                await self._handle_replay_request(ws, request, send_lock, "turn_get")
+                return
             if request.req_method == ReqMethod.AGENTS_LIST:
                 await self._handle_agents_list(ws, request, send_lock)
                 return
@@ -6745,5 +6751,84 @@ class AgentWebSocketServer:
             "[AgentServer] schedule.%s sending response wire: request_id=%s wire_keys=%s",
             action, request.request_id, list(wire.keys())[:10],
         )
+        async with send_lock:
+            await ws.send(json.dumps(wire, ensure_ascii=False))
+
+    async def _handle_replay_request(
+        self,
+        ws: Any,
+        request: "AgentRequest",
+        send_lock: asyncio.Lock,
+        action: str,
+    ) -> None:
+        """Handle Session Replay / Trajectory Viewer requests."""
+        from jiuwenswarm.server.runtime.session.session_history import (
+            read_session_history_records,
+        )
+
+        params = request.params or {}
+        session_id: str = params.get("session_id", "")
+
+        try:
+            if action == "turns_list":
+                records = read_session_history_records(session_id)
+                turns: dict[str, dict] = {}
+                for rec in records:
+                    rid: str = rec.get("request_id") or rec.get("id", "")
+                    if not rid:
+                        continue
+                    if rid not in turns:
+                        turns[rid] = {
+                            "turn_id": rid,
+                            "turn_index": len(turns),
+                            "user_content": "",
+                            "timestamp": rec.get("timestamp", 0),
+                            "tool_names": [],
+                            "has_final": False,
+                            "total_tokens": 0,
+                            "mode": rec.get("mode"),
+                        }
+                    role = rec.get("role", "")
+                    et = rec.get("event_type", "")
+                    if role == "user" and not turns[rid]["user_content"]:
+                        turns[rid]["user_content"] = (rec.get("content") or "")[:120]
+                    elif et == "chat.tool_call":
+                        tn = rec.get("tool_name") or (rec.get("tool_call") or {}).get("name", "")
+                        if tn:
+                            turns[rid]["tool_names"].append(tn)
+                    elif et == "chat.final":
+                        turns[rid]["has_final"] = True
+                    elif et == "chat.usage_summary":
+                        turns[rid]["total_tokens"] += (rec.get("total_tokens") or 0)
+                payload: dict = {"ok": True, "turns": list(turns.values())}
+
+            elif action == "turn_get":
+                turn_id: str = params.get("turn_id", "")
+                records = read_session_history_records(session_id)
+                turn_records = [
+                    r for r in records
+                    if (r.get("request_id") or r.get("id", "")) == turn_id
+                ]
+                payload = {"ok": True, "records": turn_records}
+
+            else:
+                payload = {"ok": False, "error": f"unknown replay action: {action}"}
+
+            resp = AgentResponse(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                ok=True,
+                payload=payload,
+            )
+        except Exception as exc:
+            logger.exception("[AgentServer] replay.%s failed: %s", action, exc)
+            resp = AgentResponse(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                ok=False,
+                payload={"error": str(exc)},
+            )
+
+        wire = encode_agent_response_for_wire(resp, response_id=request.request_id)
         async with send_lock:
             await ws.send(json.dumps(wire, ensure_ascii=False))
