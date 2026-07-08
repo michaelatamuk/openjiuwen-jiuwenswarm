@@ -36,6 +36,7 @@ export interface TurnSummary {
   final_length: number;
   duration_seconds: number;
   retry_count: number;
+  was_deferred: boolean;
   query_type: string;
   quality_score: number | null;
   quality_label: string | null;
@@ -71,6 +72,9 @@ export interface HistoryRecord {
   ttft_ms?: number | null;
   tpot_ms?: number | null;
   total_latency_ms?: number | null;
+  // Per-event timing computed by backend
+  delta_from_prev_s?: number;
+  elapsed_from_start_s?: number;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────

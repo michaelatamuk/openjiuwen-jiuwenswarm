@@ -6893,6 +6893,7 @@ class AgentWebSocketServer:
                             "final_length": 0,
                             "duration_seconds": 0.0,
                             "retry_count": 0,
+                            "was_deferred": False,
                             "query_type": "general",
                             "mode": rec.get("mode"),
                             "_first_ts": None,
@@ -6912,6 +6913,8 @@ class AgentWebSocketServer:
                         raw_q = (rec.get("content") or "")
                         turns[rid]["user_content"] = raw_q[:120]
                         turns[rid]["query_type"] = self._replay_classify_query(raw_q)
+                    elif et == "chat.processing_status_deferred":
+                        turns[rid]["was_deferred"] = True
                     elif et == "chat.tool_call":
                         tn = rec.get("tool_name") or (rec.get("tool_call") or {}).get("name", "")
                         if tn:
@@ -6957,10 +6960,20 @@ class AgentWebSocketServer:
                     last = turn.pop("_last_ts", None)
                     if first and last and last > first:
                         turn["duration_seconds"] = round(last - first, 1)
-                    score = self._replay_quality_score(turn)
-                    turn["quality_score"] = score
-                    turn["quality_label"] = self._replay_quality_label(score)
-                    turn["quality_breakdown"] = self._replay_quality_breakdown(turn)
+                    # Deferred turns: agent never actually handled the message
+                    if turn.get("was_deferred"):
+                        turn["quality_score"] = None
+                        turn["quality_label"] = "deferred"
+                        turn["quality_breakdown"] = [
+                            "This message was received while the agent was busy",
+                            "processing another request. It was queued but never",
+                            "actually handled by the agent.",
+                        ]
+                    else:
+                        score = self._replay_quality_score(turn)
+                        turn["quality_score"] = score
+                        turn["quality_label"] = self._replay_quality_label(score)
+                        turn["quality_breakdown"] = self._replay_quality_breakdown(turn)
 
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
@@ -7010,6 +7023,17 @@ class AgentWebSocketServer:
                                 if timing_key in ro and timing_key not in r:
                                     r[timing_key] = ro[timing_key]
                     turn_records.append(r)
+
+                # Sort by timestamp and add per-event delta timing
+                turn_records.sort(key=lambda r: r.get("timestamp", 0))
+                t0: float = turn_records[0]["timestamp"] if turn_records else 0.0
+                prev_ts: float = t0
+                for r in turn_records:
+                    ts_r: float = r.get("timestamp") or 0.0
+                    r["delta_from_prev_s"] = round(ts_r - prev_ts, 1) if prev_ts and ts_r else 0.0
+                    r["elapsed_from_start_s"] = round(ts_r - t0, 1) if t0 and ts_r else 0.0
+                    prev_ts = ts_r
+
                 payload = {"ok": True, "records": turn_records}
 
             else:
