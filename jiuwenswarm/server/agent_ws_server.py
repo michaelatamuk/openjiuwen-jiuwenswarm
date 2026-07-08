@@ -6848,6 +6848,25 @@ class AgentWebSocketServer:
             lines.append(f"Needed {retries} retries: −{penalty:.2f}")
         return lines
 
+    @staticmethod
+    def _extract_skill_names_from_result(result: str) -> list[str]:
+        """Parse skill names from a recommend_skill tool result string.
+
+        The result format is a Python-ish repr like:
+        ``success=True data={'skills': [{'name': 'dogfood', ...}, ...]} error=None``
+        We use a simple regex to extract the 'name' values from the skills list.
+        """
+        import re
+        names: list[str] = []
+        if not result or ("recommend_skill" not in result and "skills" not in result):
+            return names
+        # Match single-quoted names inside dict-like structures in the result
+        for m in re.finditer(r"'name'\s*:\s*'([^']+)'", result):
+            n = m.group(1)
+            if n and n not in names:
+                names.append(n)
+        return names
+
     async def _handle_replay_request(
         self,
         ws: Any,
@@ -6884,6 +6903,7 @@ class AgentWebSocketServer:
                             "user_content": "",
                             "timestamp": rec.get("timestamp", 0),
                             "tool_names": [],
+                            "skill_names": [],
                             "has_final": False,
                             "has_error": False,
                             "error_category": None,
@@ -6921,6 +6941,14 @@ class AgentWebSocketServer:
                             turns[rid]["tool_names"].append(tn)
                     elif et == "chat.tool_result" and rec.get("error_type"):
                         turns[rid]["tool_failures"] += 1
+                    elif et == "chat.tool_result":
+                        # Extract skill names from recommend_skill results
+                        tname = rec.get("tool_name", "")
+                        if tname == "recommend_skill":
+                            result_str = rec.get("result") or ""
+                            for sk in self._extract_skill_names_from_result(result_str):
+                                if sk not in turns[rid]["skill_names"]:
+                                    turns[rid]["skill_names"].append(sk)
                     elif et == "chat.final":
                         turns[rid]["retry_count"] = turns[rid].get("retry_count", 0) + 1
                         content_len = len(rec.get("content") or "")
@@ -6928,7 +6956,10 @@ class AgentWebSocketServer:
                             turns[rid]["has_final"] = True
                             turns[rid]["final_length"] = content_len
                     elif et == "chat.usage_summary":
-                        turns[rid]["total_tokens"] += (rec.get("total_tokens") or 0)
+                        # total_tokens may be at root (old format) or nested inside usage (new format)
+                        usage = rec.get("usage") or {}
+                        tokens = rec.get("total_tokens") or usage.get("total_tokens") or 0
+                        turns[rid]["total_tokens"] += tokens
                     elif et == "chat.file":
                         turns[rid]["file_count"] += 1
                     elif et == "chat.error" or (role == "assistant" and rec.get("error")):

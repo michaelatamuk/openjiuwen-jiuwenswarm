@@ -27,6 +27,7 @@ export interface TurnSummary {
   user_content: string;
   timestamp: number;
   tool_names: string[];
+  skill_names: string[];
   has_final: boolean;
   has_error: boolean;
   error_category: string | null;

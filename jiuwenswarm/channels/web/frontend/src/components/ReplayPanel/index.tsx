@@ -223,6 +223,10 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   turns.forEach(t => t.tool_names.forEach(n => { toolCounts[n] = (toolCounts[n] ?? 0) + 1; }));
   const topTools = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
+  const skillCounts: Record<string, number> = {};
+  turns.forEach(t => t.skill_names.forEach(n => { skillCounts[n] = (skillCounts[n] ?? 0) + 1; }));
+  const topSkills = Object.entries(skillCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
   const maxTok = Math.max(...turns.map(t => t.total_tokens), 1);
   // For duration chart, only use non-retry turns (wall time is misleading for retry turns)
   const durationTurns = turns.filter(t => t.retry_count <= 1 && t.duration_seconds > 0);
@@ -396,6 +400,24 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 </div>
                 <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
                   <div style={{ height: 3, width: `${(count / topTools[0][1]) * 100}%`, background: '#f59e0b', borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Skill frequency */}
+        {topSkills.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Skill usage</div>
+            {topSkills.map(([skill, count]) => (
+              <div key={skill} style={{ marginBottom: 5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                  <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '78%' }}>🎯 {skill}</span>
+                  <span style={{ color: '#6b7280', flexShrink: 0 }}>×{count}</span>
+                </div>
+                <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
+                  <div style={{ height: 3, width: `${(count / topSkills[0][1]) * 100}%`, background: '#8b5cf6', borderRadius: 2 }} />
                 </div>
               </div>
             ))}
@@ -581,13 +603,17 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                 <div style={{ fontSize: 13, color: turn.user_content ? '#111827' : '#9ca3af', fontStyle: turn.user_content ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {turn.user_content || '(no user message)'}
                 </div>
-                {/* Row 3: tool/file badges */}
-                {(turn.tool_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
+                {/* Row 3: tool/file/skill badges */}
+                {(turn.tool_names.length > 0 || turn.skill_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
                   <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     {turn.tool_names.slice(0, 3).map((t, i) => (
                       <span key={i} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>🔧 {t}</span>
                     ))}
                     {turn.tool_names.length > 3 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.tool_names.length - 3} more</span>}
+                    {turn.skill_names.slice(0, 2).map((s, i) => (
+                      <span key={`sk-${i}`} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }}>🎯 {s}</span>
+                    ))}
+                    {turn.skill_names.length > 2 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.skill_names.length - 2} more</span>}
                     {turn.tool_failures > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
                     {turn.file_count > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
                   </div>
@@ -854,6 +880,7 @@ function TurnDetailView() {
           {turn && <QualityChip label={turn.quality_label} breakdown={turn.quality_breakdown} score={turn.quality_score} />}
           {turn && turn.total_tokens > 0 && <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>}
           {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>{turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}</span>}
+          {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>🎯 {turn.skill_names.length} skill{turn.skill_names.length !== 1 ? 's' : ''}</span>}
           {turn && turn.tool_failures > 0 && <span style={{ ...chipStyle, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
           {turn && turn.file_count > 0 && <span style={{ ...chipStyle, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
           {turn && turn.retry_count > 1 && (
