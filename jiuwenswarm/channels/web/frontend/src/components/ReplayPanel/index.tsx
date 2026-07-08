@@ -3,9 +3,8 @@
  *
  * Three views:
  *   1. Session List    — pick any past session
- *   2. Turn List       — browse turns with quality/duration/error enrichment
- *   3. Turn Detail     — full ReAct trajectory with dangerous-command flags,
- *                        retry indicators, LLM timing, and JSON export
+ *   2. Turn List       — enriched turn cards with quality / duration / error info
+ *   3. Turn Detail     — full ReAct trajectory (noise filtered, JSON export, danger flags)
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -22,12 +21,16 @@ interface ReplayPanelProps {
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
+/** Full-width panel that fills whatever space the app-section flex container gives it */
 const panelStyle: React.CSSProperties = {
   padding: '20px 24px',
   height: '100%',
+  width: '100%',
+  flex: 1,
   overflowY: 'auto',
   boxSizing: 'border-box',
   fontFamily: 'var(--font-family, sans-serif)',
+  minWidth: 0,
 };
 
 const headerStyle: React.CSSProperties = {
@@ -36,6 +39,7 @@ const headerStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   marginBottom: 20,
   gap: 12,
+  flexWrap: 'wrap',
 };
 
 const titleStyle: React.CSSProperties = {
@@ -53,6 +57,7 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 13,
   color: '#374151',
+  whiteSpace: 'nowrap',
 };
 
 const cardStyle: React.CSSProperties = {
@@ -96,8 +101,8 @@ function modeBadge(mode?: string | null): React.ReactNode {
   if (!mode || mode === 'unknown') return null;
   const colors: Record<string, string> = {
     'agent.plan': '#3b82f6',
-    'code.plan': '#8b5cf6',
-    team: '#10b981',
+    'code.plan':  '#8b5cf6',
+    team:         '#10b981',
   };
   const color = colors[mode] ?? '#6b7280';
   return (
@@ -111,15 +116,43 @@ function modeBadge(mode?: string | null): React.ReactNode {
   );
 }
 
-function qualityChip(score: number | null): React.ReactNode {
-  if (score == null) return null;
-  const color = score >= 0.75 ? '#10b981' : score >= 0.5 ? '#f59e0b' : '#ef4444';
+/** Quality label chip — label computed by backend, number in tooltip */
+function qualityChip(score: number | null, label: string | null): React.ReactNode {
+  if (score == null || label == null) return null;
+  const color = label === 'good' ? '#10b981'
+    : label === 'fair'   ? '#f59e0b'
+    : label === 'poor'   ? '#ef4444'
+    : '#9ca3af';  // failed
+  const tooltip =
+    `Quality score: ${score.toFixed(2)}\n` +
+    `Scoring: base 0.5, +0.2 if response received,\n` +
+    `-0.1 per error, -0.05 per tool failure (up to -0.15),\n` +
+    `-0.05 if >30 s, -0.08 if >60 s, -0.03 per extra retry`;
+  return (
+    <span
+      title={tooltip}
+      style={{
+        fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4,
+        background: color + '18', color, border: `1px solid ${color}44`,
+        cursor: 'help',
+      }}
+    >
+      {label.toUpperCase()}
+    </span>
+  );
+}
+
+function queryTypeBadge(qt: string | null | undefined): React.ReactNode {
+  if (!qt || qt === 'general') return null;
+  const icons: Record<string, string> = {
+    coding: '💻', debug: '🐛', file_op: '📁', analysis: '🔍', question: '❓',
+  };
   return (
     <span style={{
-      fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-      background: color + '18', color, border: `1px solid ${color}44`,
+      fontSize: 10, padding: '1px 6px', borderRadius: 3,
+      background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb',
     }}>
-      Q {score.toFixed(2)}
+      {icons[qt] ?? ''} {qt}
     </span>
   );
 }
@@ -135,17 +168,15 @@ function responseLabel(len: number): { label: string; color: string } | null {
 const DANGEROUS_PATTERNS = [
   /rm\s+-rf/i, /rm\s+-r\s+-f/i,
   /DROP\s+TABLE/i, /DROP\s+DATABASE/i,
-  /sudo\s+rm/i,
-  /mkfs/i,
-  /dd\s+if=/i,
-  /chmod\s+777/i,
-  />\s*\/dev\/sd/i,
+  /sudo\s+rm/i, /mkfs/i, /dd\s+if=/i,
+  /chmod\s+777/i, />\s*\/dev\/sd/i,
   /truncate.*--size\s+0/i,
 ];
 
 function isDangerous(rec: HistoryRecord): boolean {
   if (rec.event_type !== 'chat.tool_call') return false;
-  const args = JSON.stringify((rec.tool_call as Record<string, unknown>)?.arguments ?? '') + (rec.content ?? '');
+  const args = JSON.stringify((rec.tool_call as Record<string, unknown>)?.arguments ?? '')
+    + (rec.content ?? '');
   return DANGEROUS_PATTERNS.some(p => p.test(args));
 }
 
@@ -176,11 +207,15 @@ function ErrorBanner({ message, onClose }: { message: string; onClose: () => voi
   return (
     <div style={{
       background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6,
-      padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
+      padding: '8px 12px', marginBottom: 12,
+      display: 'flex', alignItems: 'center', gap: 8,
       fontSize: 13, color: '#991b1b',
     }}>
       <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#991b1b' }}>×</button>
+      <button onClick={onClose}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#991b1b' }}>
+        ×
+      </button>
     </div>
   );
 }
@@ -198,8 +233,13 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
     <div style={panelStyle}>
       <div style={headerStyle}>
         <h2 style={titleStyle}>Session Replay</h2>
-        <button style={btnStyle} onClick={loadSessions} disabled={loading || !isConnected}>
-          {loading ? '…' : '↻ Refresh'}
+        <button
+          style={btnStyle}
+          onClick={loadSessions}
+          disabled={loading || !isConnected}
+          title="Reload session list"
+        >
+          {loading ? 'Loading…' : '↻ Refresh'}
         </button>
       </div>
 
@@ -217,16 +257,16 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
           onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
           onClick={() => selectSession(s)}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {s.title ?? s.session_id.slice(0, 24) + '…'}
               {modeBadge(s.mode)}
             </span>
-            <span style={{ fontSize: 12, color: '#6b7280' }}>
+            <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>
               {relativeTime(s.last_message_at ?? s.created_at ?? 0)}
             </span>
           </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af' }}>
             {s.session_id.slice(0, 20)}…
             {s.message_count != null && (
               <span style={{ marginLeft: 8 }}>{s.message_count} messages</span>
@@ -247,9 +287,11 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
   const [filterTools,  setFilterTools]  = useState(false);
   const [filterSlow,   setFilterSlow]   = useState(false);
 
-  // Compute p90 duration across all turns for the "slow" filter threshold
   const p90dur = useMemo(() => {
-    const sorted = [...turns].map(t => t.duration_seconds).filter(Boolean).sort((a, b) => a - b);
+    const sorted = [...turns]
+      .map(t => t.duration_seconds)
+      .filter(d => d > 0)
+      .sort((a, b) => a - b);
     if (sorted.length === 0) return 0;
     return sorted[Math.floor(sorted.length * 0.9)] ?? sorted[sorted.length - 1];
   }, [turns]);
@@ -267,10 +309,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
     <div style={panelStyle}>
       {/* Header */}
       <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <button style={btnStyle} onClick={back}>← Back</button>
-          <div>
-            <h2 style={{ ...titleStyle, marginBottom: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selectedSession?.title ?? selectedSession?.session_id?.slice(0, 24)}
               {modeBadge(selectedSession?.mode)}
             </h2>
@@ -279,7 +321,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             </div>
           </div>
         </div>
-        <span style={{ fontSize: 13, color: '#6b7280' }}>{turns.length} turns</span>
+        <span style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{turns.length} turns</span>
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
@@ -294,26 +336,24 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
           <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
           {sessionStats.error_count > 0 && (
             <span style={{ color: '#dc2626' }}>
-              <strong>{sessionStats.error_count}</strong> errors
+              <strong>{sessionStats.error_count}</strong> with errors
             </span>
           )}
           {sessionStats.total_tokens > 0 && (
             <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>
           )}
-          {sessionStats.date_range && (
-            <span>{sessionStats.date_range}</span>
-          )}
+          {sessionStats.date_range && <span>{sessionStats.date_range}</span>}
         </div>
       )}
 
       {/* Filter bar */}
       {turns.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-          {[
-            { key: 'errors', label: '⚠ Errors only',    active: filterErrors, toggle: () => setFilterErrors(x => !x) },
+          {([
+            { key: 'errors', label: '⚠ Errors',        active: filterErrors, toggle: () => setFilterErrors(x => !x) },
             { key: 'tools',  label: '🔧 Has tool calls', active: filterTools,  toggle: () => setFilterTools(x => !x) },
             { key: 'slow',   label: '🐢 Slow (>p90)',    active: filterSlow,   toggle: () => setFilterSlow(x => !x) },
-          ].map(f => (
+          ] as const).map(f => (
             <button key={f.key} onClick={f.toggle} style={{
               fontSize: 11, padding: '3px 10px', borderRadius: 12,
               border: `1px solid ${f.active ? '#6366f1' : '#e5e7eb'}`,
@@ -333,15 +373,14 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
       )}
 
       {loading && <div style={emptyStyle}>Loading turns…</div>}
-      {!loading && turns.length === 0 && (
-        <div style={emptyStyle}>No turns found for this session.</div>
-      )}
+      {!loading && turns.length === 0 && <div style={emptyStyle}>No turns found for this session.</div>}
       {!loading && turns.length > 0 && visibleTurns.length === 0 && (
         <div style={emptyStyle}>No turns match the active filters.</div>
       )}
 
       {visibleTurns.map((turn) => {
         const rLabel = responseLabel(turn.final_length);
+        const isSlow = p90dur > 0 && turn.duration_seconds > p90dur;
         return (
           <div
             key={turn.turn_id}
@@ -356,15 +395,17 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Row 1: index badge + mode + error badge */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                {/* Row 1: index + mode + quality label + error category */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                   <span style={{
                     fontSize: 11, fontWeight: 700, color: '#6366f1',
-                    background: '#eef2ff', borderRadius: 4, padding: '1px 6px',
+                    background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0,
                   }}>
                     #{turn.turn_index + 1}
                   </span>
                   {modeBadge(turn.mode)}
+                  {qualityChip(turn.quality_score, turn.quality_label)}
+                  {queryTypeBadge(turn.query_type)}
                   {turn.has_error && (
                     <span style={{
                       fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
@@ -373,20 +414,30 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                       ⚠ {turn.error_category ?? 'error'}
                     </span>
                   )}
-                  {qualityChip(turn.quality_score)}
+                  {turn.retry_count > 1 && (
+                    <span style={{
+                      fontSize: 11, padding: '1px 6px', borderRadius: 4,
+                      background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a',
+                    }}
+                      title={`This request was attempted ${turn.retry_count} times`}
+                    >
+                      ↻ ×{turn.retry_count}
+                    </span>
+                  )}
                 </div>
 
-                {/* Row 2: user content preview */}
+                {/* Row 2: user message preview */}
                 <div style={{
-                  fontSize: 13, color: turn.user_content ? '#111827' : '#9ca3af',
+                  fontSize: 13,
+                  color: turn.user_content ? '#111827' : '#9ca3af',
                   fontStyle: turn.user_content ? 'normal' : 'italic',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {turn.user_content || '(no user message)'}
                 </div>
 
-                {/* Row 3: tool badges */}
-                {(turn.tool_names.length > 0 || turn.tool_failures > 0) && (
+                {/* Row 3: tool badges + failure count + file count */}
+                {(turn.tool_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
                   <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                     {turn.tool_names.slice(0, 3).map((t, i) => (
                       <span key={i} style={{
@@ -409,6 +460,14 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                         {turn.tool_failures} failed
                       </span>
                     )}
+                    {turn.file_count > 0 && (
+                      <span style={{
+                        fontSize: 11, padding: '1px 7px', borderRadius: 3,
+                        background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0',
+                      }}>
+                        📄 {turn.file_count} file{turn.file_count > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -424,8 +483,11 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                 {turn.duration_seconds > 0 && (
                   <div style={{
                     fontSize: 11, marginTop: 2,
-                    color: (filterSlow || turn.duration_seconds > p90dur) ? '#f59e0b' : '#9ca3af',
-                  }}>
+                    color: isSlow ? '#f59e0b' : '#9ca3af',
+                    fontWeight: isSlow ? 600 : 400,
+                  }}
+                    title={isSlow ? `Slow (p90 is ${p90dur}s)` : undefined}
+                  >
                     {turn.duration_seconds}s
                   </div>
                 )}
@@ -435,7 +497,9 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                       fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3,
                       background: rLabel.color + '15', color: rLabel.color,
                       border: `1px solid ${rLabel.color}33`,
-                    }}>
+                    }}
+                      title={`Response length: ${turn.final_length} chars`}
+                    >
                       {rLabel.label}
                     </span>
                   </div>
@@ -462,18 +526,15 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
   'chat.error':         { icon: '🚨', label: 'Error',       color: '#ef4444' },
 };
 
-function toolResultIcon(rec: HistoryRecord): string {
-  if (rec.error_type) return '❌';
-  return '✅';
-}
-
 function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
 
-  const icon  = key === 'chat.tool_result' ? toolResultIcon(rec) : meta.icon;
+  const icon  = (key === 'chat.tool_result')
+    ? (rec.error_type ? '❌' : '✅')
+    : meta.icon;
   const color = (key === 'chat.tool_result' && rec.error_type) ? '#ef4444' : meta.color;
   const danger = isDangerous(rec);
 
@@ -487,8 +548,11 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
     'chat.reasoning', 'chat.tool_call', 'chat.tool_result', 'chat.file', 'chat.error',
   ].includes(key);
 
-  const errorText = rec.error ?? rec.error_detail ?? rec.content;
-  const previewText = (key === 'chat.error' ? errorText : rec.content)?.slice(0, 120) ?? '';
+  // For error records, use the error field as preview text; otherwise content
+  const bodyText = key === 'chat.error'
+    ? (rec.error ?? rec.error_detail ?? rec.content ?? '')
+    : (rec.content ?? '');
+  const previewText = bodyText.slice(0, 120);
 
   return (
     <div style={{
@@ -499,7 +563,7 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
       background: '#fff',
       overflow: 'hidden',
     }}>
-      {/* Header */}
+      {/* Header row */}
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
@@ -512,7 +576,6 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1 }}>{headerLabel}</span>
 
-        {/* Dangerous command badge */}
         {danger && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
@@ -521,8 +584,6 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
             ⚠ DANGEROUS
           </span>
         )}
-
-        {/* Retry badge */}
         {isRetry && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
@@ -540,7 +601,7 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
         )}
       </div>
 
-      {/* Always-visible body for user + final */}
+      {/* Always-visible body for user + response */}
       {(key === 'user' || key === 'chat.final') && rec.content && (
         <div style={{
           padding: '8px 12px', fontSize: 13, color: '#374151',
@@ -551,7 +612,7 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
         </div>
       )}
 
-      {/* Preview when collapsed */}
+      {/* Collapsed preview */}
       {isExpandable && !expanded && previewText && (
         <div style={{
           padding: '4px 12px 8px', fontSize: 12, color: '#6b7280',
@@ -581,29 +642,30 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
             <>
               {rec.error_type && (
                 <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}>
-                  <strong>{rec.error_type}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}
+                  <strong>{rec.error_type}</strong>
+                  {rec.error_detail ? `: ${rec.error_detail}` : ''}
                 </div>
               )}
               <pre style={{
                 margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4,
                 padding: '8px', overflowX: 'auto', color: '#1e293b',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                maxHeight: 300, overflowY: 'auto',
               }}>
                 {rec.result ?? rec.content}
               </pre>
             </>
           )}
           {key === 'chat.error' && (
-            <div style={{
-              fontSize: 13, color: '#dc2626', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>
+            <div style={{ fontSize: 13, color: '#dc2626', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {rec.error ?? rec.error_detail ?? rec.content}
             </div>
           )}
           {(key === 'chat.reasoning' || key === 'chat.file') && (
             <div style={{
               fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word', fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal',
+              wordBreak: 'break-word',
+              fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal',
             }}>
               {rec.content}
             </div>
@@ -618,14 +680,10 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
             <span style={chipStyle}>{rec.total_tokens.toLocaleString()} tokens</span>
           )}
           {rec.ttft_ms != null && (
-            <span style={chipStyle} title="Time to first token">
-              TTFT {rec.ttft_ms.toFixed(0)}ms
-            </span>
+            <span style={chipStyle} title="Time to first token">TTFT {rec.ttft_ms.toFixed(0)}ms</span>
           )}
           {rec.tpot_ms != null && (
-            <span style={chipStyle} title="Time per output token">
-              TPOT {rec.tpot_ms.toFixed(1)}ms
-            </span>
+            <span style={chipStyle} title="Time per output token">TPOT {rec.tpot_ms.toFixed(1)}ms</span>
           )}
           {rec.total_latency_ms != null && (
             <span style={chipStyle} title="Total LLM latency">
@@ -650,9 +708,9 @@ function TurnDetailView() {
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <button style={btnStyle} onClick={back}>← Back</button>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h2 style={{ ...titleStyle, marginBottom: 0, fontSize: 15 }}>
               Turn #{(turn?.turn_index ?? 0) + 1}
               {selectedSession?.title && (
@@ -671,31 +729,39 @@ function TurnDetailView() {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {turn && turn.quality_score != null && qualityChip(turn.quality_score)}
+
+        {/* Header chips */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+          {turn && qualityChip(turn.quality_score, turn.quality_label)}
           {turn && turn.total_tokens > 0 && (
-            <span style={chipStyle}>
-              {turn.total_tokens.toLocaleString()} tokens
-            </span>
+            <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>
           )}
           {turn && turn.tool_names.length > 0 && (
-            <span style={{
-              ...chipStyle,
-              color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a',
-            }}>
-              {turn.tool_names.length} tool call{turn.tool_names.length !== 1 ? 's' : ''}
+            <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>
+              {turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}
             </span>
           )}
           {turn && turn.tool_failures > 0 && (
-            <span style={{
-              ...chipStyle,
-              color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5',
-            }}>
+            <span style={{ ...chipStyle, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5' }}>
               {turn.tool_failures} failed
+            </span>
+          )}
+          {turn && turn.file_count > 0 && (
+            <span style={{ ...chipStyle, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
+              📄 {turn.file_count}
+            </span>
+          )}
+          {turn && turn.retry_count > 1 && (
+            <span
+              style={{ ...chipStyle, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a' }}
+              title={`Request was attempted ${turn.retry_count} times`}
+            >
+              ↻ ×{turn.retry_count}
             </span>
           )}
           <button
             style={{ ...btnStyle, fontSize: 12 }}
+            title="Download trajectory as JSON"
             onClick={() => downloadJson(turnRecords, `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}.json`)}
             disabled={turnRecords.length === 0}
           >
@@ -705,9 +771,7 @@ function TurnDetailView() {
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
-
       {loading && <div style={emptyStyle}>Loading trajectory…</div>}
-
       {!loading && turnRecords.length === 0 && (
         <div style={emptyStyle}>No records found for this turn.</div>
       )}
@@ -728,11 +792,7 @@ function TurnDetailView() {
 export function ReplayPanel({ isConnected }: ReplayPanelProps) {
   const { selectedSessionId, selectedTurnId } = useReplayStore();
 
-  if (selectedTurnId) {
-    return <TurnDetailView />;
-  }
-  if (selectedSessionId) {
-    return <TurnListView isConnected={isConnected} />;
-  }
+  if (selectedTurnId) return <TurnDetailView />;
+  if (selectedSessionId) return <TurnListView isConnected={isConnected} />;
   return <SessionListView isConnected={isConnected} />;
 }

@@ -6756,6 +6756,11 @@ class AgentWebSocketServer:
 
     # ── Replay helpers ────────────────────────────────────────────────────────
 
+    _REPLAY_NOISE_EVENTS: frozenset = frozenset({
+        "chat.processing_status",
+        "chat.processing_status_deferred",
+    })
+
     _REPLAY_ERROR_PATTERNS: list = [
         ("api_auth",   ["401", "403", "authentication", "unauthorized", "token", "insufficient balance", "invalid_api_key"]),
         ("timeout",    ["timeout", "timed out", "deadline"]),
@@ -6767,6 +6772,14 @@ class AgentWebSocketServer:
         ("execution",  ["returncode", "exit code", "subprocess", "nonzeroexitcode"]),
     ]
 
+    _REPLAY_QUERY_TYPES: list = [
+        ("debug",    ["error", "bug", "fix", "broken", "doesn't work", "not working", "failed", "exception", "crash", "issue"]),
+        ("file_op",  ["file", "folder", "directory", "read", "write", "save", "load", "open", "upload", "download"]),
+        ("coding",   ["code", "function", "class", "script", "python", "javascript", "implement", "write a", "create a", "program"]),
+        ("analysis", ["analyze", "analysis", "explain", "what is", "why does", "how does", "describe", "summarize"]),
+        ("question", ["what", "how", "when", "where", "who", "which", "?"]),
+    ]
+
     def _replay_classify_error(self, text: str) -> str:
         low = text.lower()
         for category, keywords in self._REPLAY_ERROR_PATTERNS:
@@ -6774,10 +6787,17 @@ class AgentWebSocketServer:
                 return category
         return "other"
 
+    def _replay_classify_query(self, text: str) -> str:
+        low = text.lower()
+        for qtype, keywords in self._REPLAY_QUERY_TYPES:
+            if any(k in low for k in keywords):
+                return qtype
+        return "general"
+
     @staticmethod
     def _replay_quality_score(turn: dict) -> float:
         score = 0.5
-        if turn.get("has_final"):
+        if turn.get("has_final") and turn.get("final_length", 0) > 0:
             score += 0.2
         n_fail: int = turn.get("tool_failures", 0)
         score -= min(0.15, 0.05 * n_fail)
@@ -6788,7 +6808,20 @@ class AgentWebSocketServer:
             score -= 0.05
         if turn.get("has_error"):
             score -= 0.1
+        retries: int = turn.get("retry_count", 0)
+        if retries > 1:
+            score -= min(0.1, 0.03 * (retries - 1))
         return round(max(0.0, min(1.0, score)), 2)
+
+    @staticmethod
+    def _replay_quality_label(score: float) -> str:
+        if score >= 0.75:
+            return "good"
+        if score >= 0.55:
+            return "fair"
+        if score >= 0.35:
+            return "poor"
+        return "failed"
 
     async def _handle_replay_request(
         self,
@@ -6814,10 +6847,14 @@ class AgentWebSocketServer:
                     rid: str = rec.get("request_id") or rec.get("id", "")
                     if not rid:
                         continue
+                    # Skip pure noise records from creating their own turn slot
+                    et = rec.get("event_type", "")
+                    if et in self._REPLAY_NOISE_EVENTS and rid not in turns:
+                        continue
                     if rid not in turns:
                         turns[rid] = {
                             "turn_id": rid,
-                            "turn_index": len(turns),
+                            "turn_index": 0,  # assigned below after filtering
                             "user_content": "",
                             "timestamp": rec.get("timestamp", 0),
                             "tool_names": [],
@@ -6826,26 +6863,29 @@ class AgentWebSocketServer:
                             "error_category": None,
                             "total_tokens": 0,
                             "tool_failures": 0,
+                            "file_count": 0,
                             "final_length": 0,
                             "duration_seconds": 0.0,
+                            "retry_count": 0,
+                            "query_type": "general",
                             "mode": rec.get("mode"),
-                            # temp tracking fields removed before payload
                             "_first_ts": None,
                             "_last_ts": None,
                         }
                     role = rec.get("role", "")
-                    et = rec.get("event_type", "")
                     ts: float = rec.get("timestamp") or 0.0
 
-                    # Duration tracking
-                    if ts:
+                    # Duration tracking (ignore noise events)
+                    if ts and et not in self._REPLAY_NOISE_EVENTS:
                         if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
                             turns[rid]["_first_ts"] = ts
                         if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
                             turns[rid]["_last_ts"] = ts
 
                     if role == "user" and not turns[rid]["user_content"]:
-                        turns[rid]["user_content"] = (rec.get("content") or "")[:120]
+                        raw_q = (rec.get("content") or "")
+                        turns[rid]["user_content"] = raw_q[:120]
+                        turns[rid]["query_type"] = self._replay_classify_query(raw_q)
                     elif et == "chat.tool_call":
                         tn = rec.get("tool_name") or (rec.get("tool_call") or {}).get("name", "")
                         if tn:
@@ -6853,10 +6893,15 @@ class AgentWebSocketServer:
                     elif et == "chat.tool_result" and rec.get("error_type"):
                         turns[rid]["tool_failures"] += 1
                     elif et == "chat.final":
-                        turns[rid]["has_final"] = True
-                        turns[rid]["final_length"] = len(rec.get("content") or "")
+                        turns[rid]["retry_count"] = turns[rid].get("retry_count", 0) + 1
+                        content_len = len(rec.get("content") or "")
+                        if content_len > 0:
+                            turns[rid]["has_final"] = True
+                            turns[rid]["final_length"] = content_len
                     elif et == "chat.usage_summary":
                         turns[rid]["total_tokens"] += (rec.get("total_tokens") or 0)
+                    elif et == "chat.file":
+                        turns[rid]["file_count"] += 1
                     elif et == "chat.error" or (role == "assistant" and rec.get("error")):
                         if not turns[rid]["has_error"]:
                             error_text = (
@@ -6868,18 +6913,32 @@ class AgentWebSocketServer:
                             turns[rid]["has_error"] = True
                             turns[rid]["error_category"] = self._replay_classify_error(error_text)
 
-                # Post-process: compute duration + quality score, strip temp keys
-                for turn in turns.values():
+                # Filter ghost turns (no user message, no error, no content — pure noise)
+                def _is_real_turn(t: dict) -> bool:
+                    return bool(
+                        t.get("user_content")
+                        or t.get("has_error")
+                        or t.get("has_final")
+                        or t.get("tool_names")
+                    )
+
+                real_turns = [t for t in turns.values() if _is_real_turn(t)]
+
+                # Post-process: assign sequential index, compute duration + quality, strip temp keys
+                for idx, turn in enumerate(real_turns):
+                    turn["turn_index"] = idx
                     first = turn.pop("_first_ts", None)
                     last = turn.pop("_last_ts", None)
                     if first and last and last > first:
                         turn["duration_seconds"] = round(last - first, 1)
-                    turn["quality_score"] = self._replay_quality_score(turn)
+                    score = self._replay_quality_score(turn)
+                    turn["quality_score"] = score
+                    turn["quality_label"] = self._replay_quality_label(score)
 
                 # Session-level aggregate stats
-                all_tokens = sum(t.get("total_tokens", 0) for t in turns.values())
-                error_count = sum(1 for t in turns.values() if t.get("has_error"))
-                timestamps = [t["timestamp"] for t in turns.values() if t.get("timestamp")]
+                all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
+                error_count = sum(1 for t in real_turns if t.get("has_error"))
+                timestamps = [t["timestamp"] for t in real_turns if t.get("timestamp")]
                 date_range = ""
                 if timestamps:
                     lo = datetime.fromtimestamp(min(timestamps), tz=timezone.utc).strftime("%Y-%m-%d")
@@ -6888,9 +6947,9 @@ class AgentWebSocketServer:
 
                 payload: dict = {
                     "ok": True,
-                    "turns": list(turns.values()),
+                    "turns": real_turns,
                     "session_stats": {
-                        "total_turns": len(turns),
+                        "total_turns": len(real_turns),
                         "error_count": error_count,
                         "total_tokens": all_tokens,
                         "date_range": date_range,
@@ -6900,18 +6959,27 @@ class AgentWebSocketServer:
             elif action == "turn_get":
                 turn_id: str = params.get("turn_id", "")
                 records = read_session_history_records(session_id)
-                turn_records = [
+                raw_turn_records = [
                     r for r in records
                     if (r.get("request_id") or r.get("id", "")) == turn_id
                 ]
-                # Enrich usage_summary records with LLM timing from raw_output if present
-                for r in turn_records:
-                    if r.get("event_type") == "chat.usage_summary":
+                turn_records = []
+                for r in raw_turn_records:
+                    et_r = r.get("event_type", "")
+                    # Drop pure noise events
+                    if et_r in self._REPLAY_NOISE_EVENTS:
+                        continue
+                    # Drop empty finals (error caused no response to be generated)
+                    if et_r == "chat.final" and not (r.get("content") or "").strip():
+                        continue
+                    # Enrich usage_summary with LLM timing from raw_output if present
+                    if et_r == "chat.usage_summary":
                         ro = r.get("raw_output")
                         if isinstance(ro, dict):
                             for timing_key in ("ttft_ms", "tpot_ms", "total_latency_ms"):
                                 if timing_key in ro and timing_key not in r:
                                     r[timing_key] = ro[timing_key]
+                    turn_records.append(r)
                 payload = {"ok": True, "records": turn_records}
 
             else:

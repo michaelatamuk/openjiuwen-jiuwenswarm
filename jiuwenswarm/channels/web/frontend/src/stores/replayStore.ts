@@ -32,9 +32,13 @@ export interface TurnSummary {
   error_category: string | null;
   total_tokens: number;
   tool_failures: number;
+  file_count: number;
   final_length: number;
   duration_seconds: number;
+  retry_count: number;
+  query_type: string;
   quality_score: number | null;
+  quality_label: string | null;
   mode: string | null;
 }
 
