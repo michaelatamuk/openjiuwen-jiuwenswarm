@@ -636,7 +636,7 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
   'chat.error':         { icon: '🚨', label: 'Error',       color: '#ef4444' },
 };
 
-function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) {
+function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null }) {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
   const icon  = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
@@ -672,9 +672,9 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
 
   const [expanded, setExpanded] = useState(false);
 
-  // delta_from_prev_s: only show if <= 60s (larger gaps are shown as separators, not inline)
-  const delta = (rec.delta_from_prev_s != null && rec.delta_from_prev_s <= 60 && rec.delta_from_prev_s > 0)
-    ? rec.delta_from_prev_s : null;
+  // displayDelta is computed by TurnDetailView and tracks time within the current attempt,
+  // resetting to 0 at the start of each attempt (after a gap separator). This avoids showing
+  // "+56s" when the actual attempt took ~1s (the 56s was idle time between retries).
 
   return (
     <div style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
@@ -687,13 +687,13 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
         <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1 }}>{headerLabel}</span>
         {danger && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>⚠ DANGEROUS</span>}
         {isRetry && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }}>↻ retry</span>}
-        {/* Timing: absolute time + delta (only when delta <= 60s) */}
+        {/* Timing: absolute time + elapsed time within this attempt */}
         <span style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', flexShrink: 0 }}>
           <span>{fmtTime(rec.timestamp)}</span>
-          {delta != null && (
-            <Tooltip text={`${fmtDelta(delta)} since previous event`}>
-              <span style={{ marginLeft: 5, color: delta > 10 ? '#f59e0b' : '#d1d5db', cursor: 'help' }}>
-                {fmtDelta(delta)}
+          {displayDelta != null && displayDelta > 0 && (
+            <Tooltip text={`${fmtDelta(displayDelta)} since start of this attempt`}>
+              <span style={{ marginLeft: 5, color: displayDelta > 10 ? '#f59e0b' : '#d1d5db', cursor: 'help' }}>
+                {fmtDelta(displayDelta)}
               </span>
             </Tooltip>
           )}
@@ -779,7 +779,7 @@ function RecordCard({ rec, isRetry }: { rec: HistoryRecord; isRetry: boolean }) 
   );
 }
 
-// Gap threshold: if two consecutive records are more than this apart, show an idle separator
+/// Gap threshold: if two consecutive records are more than this apart, show an idle separator
 const IDLE_GAP_THRESHOLD_S = 30;
 
 function TurnDetailView() {
@@ -787,16 +787,45 @@ function TurnDetailView() {
   const turn = turns.find(t => t.turn_id === selectedTurnId);
   const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
 
-  // Build display list: inject idle gap separators between records that are far apart
+  // Build display list: inject idle gap separators between records that are far apart.
+  // Also compute displayDelta per record = elapsed time within the current attempt,
+  // resetting to 0 whenever a new attempt starts (right after a separator).
+  // This means the first record of each attempt shows no "+Xs", and subsequent records
+  // show time elapsed within that attempt — never the misleading idle gap duration.
   const displayItems = useMemo(() => {
-    type Item = { type: 'record'; rec: HistoryRecord } | { type: 'gap'; seconds: number; at: string };
+    type Item =
+      | { type: 'record'; rec: HistoryRecord; displayDelta: number | null }
+      | { type: 'gap'; seconds: number };
     const items: Item[] = [];
+    let attemptStartTs = 0;
+    let prevTs = 0;
+
     turnRecords.forEach((rec, i) => {
-      if (i > 0 && rec.delta_from_prev_s != null && rec.delta_from_prev_s > IDLE_GAP_THRESHOLD_S) {
-        items.push({ type: 'gap', seconds: rec.delta_from_prev_s, at: fmtTime(rec.timestamp) });
+      const ts = rec.timestamp ?? 0;
+
+      if (i === 0) {
+        attemptStartTs = ts;
+        prevTs = ts;
+        items.push({ type: 'record', rec, displayDelta: null });
+        return;
       }
-      items.push({ type: 'record', rec });
+
+      const deltaFromPrev = ts - prevTs;
+
+      if (deltaFromPrev > IDLE_GAP_THRESHOLD_S) {
+        // Large idle gap: separator + reset attempt clock
+        items.push({ type: 'gap', seconds: deltaFromPrev });
+        attemptStartTs = ts;
+        // First record of the new attempt — no delta to show
+        items.push({ type: 'record', rec, displayDelta: null });
+      } else {
+        const attemptDelta = ts - attemptStartTs;
+        items.push({ type: 'record', rec, displayDelta: attemptDelta > 0 ? attemptDelta : null });
+      }
+
+      prevTs = ts;
     });
+
     return items;
   }, [turnRecords]);
 
@@ -859,7 +888,7 @@ function TurnDetailView() {
           );
         }
         const rec = item.rec;
-        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} />;
+        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} />;
       })}
     </div>
   );
