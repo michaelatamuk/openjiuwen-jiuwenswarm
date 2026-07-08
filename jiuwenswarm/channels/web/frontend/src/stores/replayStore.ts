@@ -28,8 +28,21 @@ export interface TurnSummary {
   timestamp: number;
   tool_names: string[];
   has_final: boolean;
+  has_error: boolean;
+  error_category: string | null;
   total_tokens: number;
+  tool_failures: number;
+  final_length: number;
+  duration_seconds: number;
+  quality_score: number | null;
   mode: string | null;
+}
+
+export interface SessionStats {
+  total_turns: number;
+  error_count: number;
+  total_tokens: number;
+  date_range: string;
 }
 
 export interface HistoryRecord {
@@ -46,7 +59,12 @@ export interface HistoryRecord {
   raw_output?: unknown;
   error_type?: string | null;
   error_detail?: string | null;
+  error?: string | null;
   total_tokens?: number;
+  // LLM timing (populated from raw_output when present)
+  ttft_ms?: number | null;
+  tpot_ms?: number | null;
+  total_latency_ms?: number | null;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -56,6 +74,7 @@ interface ReplayState {
   selectedSessionId: string | null;
   selectedSession: ReplaySessionItem | null;
   turns: TurnSummary[];
+  sessionStats: SessionStats | null;
   selectedTurnId: string | null;
   turnRecords: HistoryRecord[];
   loading: boolean;
@@ -73,6 +92,7 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
   selectedSessionId: null,
   selectedSession: null,
   turns: [],
+  sessionStats: null,
   selectedTurnId: null,
   turnRecords: [],
   loading: false,
@@ -97,15 +117,20 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
       selectedSessionId: session.session_id,
       selectedSession: session,
       turns: [],
+      sessionStats: null,
       selectedTurnId: null,
       turnRecords: [],
     });
     try {
-      const res = await webRequest<{ ok: boolean; turns: TurnSummary[] }>(
+      const res = await webRequest<{ ok: boolean; turns: TurnSummary[]; session_stats: SessionStats }>(
         'replay.turns.list',
         { session_id: session.session_id }
       );
-      set({ turns: Array.isArray(res?.turns) ? res.turns : [], loading: false });
+      set({
+        turns: Array.isArray(res?.turns) ? res.turns : [],
+        sessionStats: res?.session_stats ?? null,
+        loading: false,
+      });
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -134,7 +159,7 @@ export const useReplayStore = create<ReplayState>((set, get) => ({
     if (selectedTurnId) {
       set({ selectedTurnId: null, turnRecords: [] });
     } else {
-      set({ selectedSessionId: null, selectedSession: null, turns: [] });
+      set({ selectedSessionId: null, selectedSession: null, turns: [], sessionStats: null });
     }
   },
 

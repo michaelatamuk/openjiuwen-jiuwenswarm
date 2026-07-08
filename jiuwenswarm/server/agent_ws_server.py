@@ -6754,6 +6754,42 @@ class AgentWebSocketServer:
         async with send_lock:
             await ws.send(json.dumps(wire, ensure_ascii=False))
 
+    # ── Replay helpers ────────────────────────────────────────────────────────
+
+    _REPLAY_ERROR_PATTERNS: list = [
+        ("api_auth",   ["401", "403", "authentication", "unauthorized", "token", "insufficient balance", "invalid_api_key"]),
+        ("timeout",    ["timeout", "timed out", "deadline"]),
+        ("filesystem", ["no such file", "permission denied", "filenotfound", "isdirectory", "isadirectory"]),
+        ("network",    ["connection refused", "network", "dns", "socket", "connection reset"]),
+        ("syntax",     ["syntaxerror", "invalid syntax"]),
+        ("import",     ["modulenotfounderror", "importerror", "no module"]),
+        ("model",      ["context length", "max tokens", "model_not_found", "model not found"]),
+        ("execution",  ["returncode", "exit code", "subprocess", "nonzeroexitcode"]),
+    ]
+
+    def _replay_classify_error(self, text: str) -> str:
+        low = text.lower()
+        for category, keywords in self._REPLAY_ERROR_PATTERNS:
+            if any(k in low for k in keywords):
+                return category
+        return "other"
+
+    @staticmethod
+    def _replay_quality_score(turn: dict) -> float:
+        score = 0.5
+        if turn.get("has_final"):
+            score += 0.2
+        n_fail: int = turn.get("tool_failures", 0)
+        score -= min(0.15, 0.05 * n_fail)
+        dur: float = turn.get("duration_seconds", 0.0)
+        if dur > 60:
+            score -= 0.08
+        elif dur > 30:
+            score -= 0.05
+        if turn.get("has_error"):
+            score -= 0.1
+        return round(max(0.0, min(1.0, score)), 2)
+
     async def _handle_replay_request(
         self,
         ws: Any,
@@ -6765,6 +6801,7 @@ class AgentWebSocketServer:
         from jiuwenswarm.server.runtime.session.session_history import (
             read_session_history_records,
         )
+        from datetime import datetime, timezone
 
         params = request.params or {}
         session_id: str = params.get("session_id", "")
@@ -6785,22 +6822,80 @@ class AgentWebSocketServer:
                             "timestamp": rec.get("timestamp", 0),
                             "tool_names": [],
                             "has_final": False,
+                            "has_error": False,
+                            "error_category": None,
                             "total_tokens": 0,
+                            "tool_failures": 0,
+                            "final_length": 0,
+                            "duration_seconds": 0.0,
                             "mode": rec.get("mode"),
+                            # temp tracking fields removed before payload
+                            "_first_ts": None,
+                            "_last_ts": None,
                         }
                     role = rec.get("role", "")
                     et = rec.get("event_type", "")
+                    ts: float = rec.get("timestamp") or 0.0
+
+                    # Duration tracking
+                    if ts:
+                        if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
+                            turns[rid]["_first_ts"] = ts
+                        if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
+                            turns[rid]["_last_ts"] = ts
+
                     if role == "user" and not turns[rid]["user_content"]:
                         turns[rid]["user_content"] = (rec.get("content") or "")[:120]
                     elif et == "chat.tool_call":
                         tn = rec.get("tool_name") or (rec.get("tool_call") or {}).get("name", "")
                         if tn:
                             turns[rid]["tool_names"].append(tn)
+                    elif et == "chat.tool_result" and rec.get("error_type"):
+                        turns[rid]["tool_failures"] += 1
                     elif et == "chat.final":
                         turns[rid]["has_final"] = True
+                        turns[rid]["final_length"] = len(rec.get("content") or "")
                     elif et == "chat.usage_summary":
                         turns[rid]["total_tokens"] += (rec.get("total_tokens") or 0)
-                payload: dict = {"ok": True, "turns": list(turns.values())}
+                    elif et == "chat.error" or (role == "assistant" and rec.get("error")):
+                        if not turns[rid]["has_error"]:
+                            error_text = (
+                                rec.get("error")
+                                or rec.get("error_detail")
+                                or rec.get("content")
+                                or ""
+                            )
+                            turns[rid]["has_error"] = True
+                            turns[rid]["error_category"] = self._replay_classify_error(error_text)
+
+                # Post-process: compute duration + quality score, strip temp keys
+                for turn in turns.values():
+                    first = turn.pop("_first_ts", None)
+                    last = turn.pop("_last_ts", None)
+                    if first and last and last > first:
+                        turn["duration_seconds"] = round(last - first, 1)
+                    turn["quality_score"] = self._replay_quality_score(turn)
+
+                # Session-level aggregate stats
+                all_tokens = sum(t.get("total_tokens", 0) for t in turns.values())
+                error_count = sum(1 for t in turns.values() if t.get("has_error"))
+                timestamps = [t["timestamp"] for t in turns.values() if t.get("timestamp")]
+                date_range = ""
+                if timestamps:
+                    lo = datetime.fromtimestamp(min(timestamps), tz=timezone.utc).strftime("%Y-%m-%d")
+                    hi = datetime.fromtimestamp(max(timestamps), tz=timezone.utc).strftime("%Y-%m-%d")
+                    date_range = lo if lo == hi else f"{lo} \u2192 {hi}"
+
+                payload: dict = {
+                    "ok": True,
+                    "turns": list(turns.values()),
+                    "session_stats": {
+                        "total_turns": len(turns),
+                        "error_count": error_count,
+                        "total_tokens": all_tokens,
+                        "date_range": date_range,
+                    },
+                }
 
             elif action == "turn_get":
                 turn_id: str = params.get("turn_id", "")
@@ -6809,6 +6904,14 @@ class AgentWebSocketServer:
                     r for r in records
                     if (r.get("request_id") or r.get("id", "")) == turn_id
                 ]
+                # Enrich usage_summary records with LLM timing from raw_output if present
+                for r in turn_records:
+                    if r.get("event_type") == "chat.usage_summary":
+                        ro = r.get("raw_output")
+                        if isinstance(ro, dict):
+                            for timing_key in ("ttft_ms", "tpot_ms", "total_latency_ms"):
+                                if timing_key in ro and timing_key not in r:
+                                    r[timing_key] = ro[timing_key]
                 payload = {"ok": True, "records": turn_records}
 
             else:
