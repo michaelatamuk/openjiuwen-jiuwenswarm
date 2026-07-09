@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue, type SessionAnalysis } from '../../stores/traceHoundStore';
+import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
 
 interface TraceHoundPanelProps { isConnected: boolean; }
 
@@ -462,6 +462,68 @@ const PRIORITY_COLORS: Record<number, { bg: string; border: string; text: string
   5: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', label: 'P5' },
 };
 
+/** Splits "1) ... 2) ..." recommendation text into styled numbered rows. */
+function RecommendationList({ text }: { text: string }) {
+  // Normalize common numbered-list patterns: "1) ", "2. ", "(3) ", "1. "
+  const items: { num: number; body: string }[] = [];
+  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+
+  // First try to detect explicit numbered items across lines
+  let currentNum = 1;
+  let currentBody = '';
+  let foundList = false;
+
+  for (const line of lines) {
+    const m = line.match(/^(?:(\d+)[\.)]\s*|\((\d+)\)\s*)/);
+    if (m) {
+      if (currentBody) {
+        items.push({ num: currentNum, body: currentBody.trim() });
+      }
+      currentNum = parseInt(m[1] ?? m[2], 10);
+      currentBody = line.slice(m[0].length).trim();
+      foundList = true;
+    } else if (foundList) {
+      currentBody += ' ' + line;
+    } else {
+      // Not a numbered list — keep as plain text
+      currentBody += (currentBody ? ' ' : '') + line;
+    }
+  }
+  if (currentBody) {
+    items.push({ num: currentNum, body: currentBody.trim() });
+  }
+
+  // If only one item and no list markers detected, render as plain prose
+  if (items.length <= 1 && !foundList) {
+    return (
+      <div style={{ fontSize: 13, color: '#14532d', padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items.map((item) => (
+        <div key={item.num} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{
+            flexShrink: 0,
+            fontSize: 11, fontWeight: 700, color: '#15803d',
+            background: '#bbf7d0', borderRadius: '50%',
+            width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginTop: 1,
+          }}>
+            {item.num}
+          </span>
+          <span style={{ fontSize: 13, color: '#14532d', lineHeight: 1.55, paddingTop: 2 }}>
+            {item.body}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function IssueCard({ issue }: { issue: AnalysisIssue }) {
   const [expanded, setExpanded] = useState(false);
   const p = Math.min(5, Math.max(1, issue.priority ?? 5));
@@ -532,70 +594,8 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#dcfce7', fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 <span>💡</span> Recommendation
               </div>
-              <div style={{ fontSize: 13, color: '#14532d', padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
-                {issue.recommendation}
-              </div>
+              <RecommendationList text={issue.recommendation} />
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AnalysisPanelView({ analysis, sessionFingerprint }: { analysis: SessionAnalysis; sessionFingerprint?: string }) {
-  const isStale = sessionFingerprint != null && sessionFingerprint !== '' && analysis.fingerprint !== sessionFingerprint;
-  const { analyzeSession, analyzing } = useTraceHoundStore();
-  const [collapsed, setCollapsed] = useState(false);
-
-  const sortedIssues = useMemo(
-    () => [...analysis.issues].sort((a, b) => (a.priority ?? 5) - (b.priority ?? 5)),
-    [analysis.issues]
-  );
-
-  return (
-    <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
-      {/* Panel header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderBottom: collapsed ? 'none' : '1px solid #e0e7ff', cursor: 'pointer' }}
-        onClick={() => setCollapsed(x => !x)}>
-        <span style={{ fontSize: 15 }}>🔬</span>
-        <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95', flex: 1 }}>
-          LLM Analysis
-          <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
-            {sortedIssues.length} issue{sortedIssues.length !== 1 ? 's' : ''} found
-          </span>
-        </span>
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>
-          {new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-        </span>
-        {isStale && (
-          <Tooltip text="The session history has changed since this analysis was run. Re-run to get fresh results.">
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>
-              stale
-            </span>
-          </Tooltip>
-        )}
-        {isStale && (
-          <button
-            style={{ ...btnStyle, fontSize: 11, background: '#7c3aed', color: '#fff', border: 'none', padding: '3px 10px' }}
-            onClick={e => { e.stopPropagation(); analyzeSession(); }}
-            disabled={analyzing}
-          >
-            {analyzing ? '…' : '↻ Re-analyze'}
-          </button>
-        )}
-        <span style={{ fontSize: 12, color: '#7c3aed' }}>{collapsed ? '▼' : '▲'}</span>
-      </div>
-
-      {/* Issues list */}
-      {!collapsed && (
-        <div style={{ padding: '12px 14px' }}>
-          {sortedIssues.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
-              No issues found. Session looks healthy!
-            </div>
-          ) : (
-            sortedIssues.map((issue, i) => <IssueCard key={i} issue={issue} />)
           )}
         </div>
       )}
@@ -668,9 +668,14 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
 
   const anyFilter = filterErrors || filterTools || filterSlow;
 
+  const [analyticsOpen, setAnalyticsOpen] = useState(true);
+  const [messagesOpen, setMessagesOpen] = useState(true);
+
+  const [analysisOpen, setAnalysisOpen] = useState(true);
+
   return (
     <div style={panelStyle}>
-      {/* Header */}
+      {/* 1. Header — title + all metadata in one compact block */}
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <button style={btnStyle} onClick={back}>← Back</button>
@@ -678,173 +683,251 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selectedSession?.title ?? selectedSession?.session_id?.slice(0, 24)}{modeBadge(selectedSession?.mode)}
             </h2>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{selectedSession?.session_id}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span>{selectedSession?.session_id}</span>
+              {sessionStats && (
+                <>
+                  <span>·</span>
+                  <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
+                  {sessionStats.error_count > 0 && <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>}
+                  {sessionStats.total_tokens > 0 && <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>}
+                  {sessionStats.date_range && <span>{sessionStats.date_range}</span>}
+                  {sessionStats.history_file_path && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span>·</span>
+                      <span>📁</span>
+                      <code style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 5px', borderRadius: 3, wordBreak: 'break-all' }}>{sessionStats.history_file_path}</code>
+                      <CopyButton text={sessionStats.history_file_path} />
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>{turns.length} turns</span>
-          <Tooltip text={analysis ? 'Re-run LLM deep analysis on this session' : 'Run LLM deep analysis to identify issues, root causes and recommendations'}>
-            <button
-              style={{ ...btnStyle, fontSize: 12, background: analyzing ? '#f5f3ff' : '#7c3aed', color: analyzing ? '#7c3aed' : '#fff', border: '1px solid #7c3aed', padding: '5px 12px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
-              onClick={analyzeSession}
-              disabled={analyzing || !isConnected}
-            >
-              {analyzing ? '🔬 Analyzing…' : analysis ? '↻ Re-analyze' : '🔬 Diagnose'}
-            </button>
-          </Tooltip>
         </div>
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
       {analyzeError && <ErrorBanner message={`Analysis failed: ${analyzeError}`} onClose={clearAnalyzeError} />}
 
-      {/* LLM Analysis result */}
-      {analyzing && !analysis && (
-        <div style={{ padding: '14px 16px', marginBottom: 16, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>🔬</span>
-          <span>Sending session history to LLM for deep analysis… this may take up to 20 minutes for slow models.</span>
+      {/* 2. Analysis — single collapsible section, one naming everywhere */}
+      <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
+        {/* Section header: always visible, click toggles expand */}
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderBottom: analysisOpen ? '1px solid #e0e7ff' : 'none', cursor: 'pointer' }}
+          onClick={() => setAnalysisOpen(x => !x)}
+        >
+          <span style={{ fontSize: 15 }}>🔬</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95', flex: 1 }}>
+            Analysis
+            {analysis && (
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
+                {analysis.issues.length} issue{analysis.issues.length !== 1 ? 's' : ''} · {new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </span>
+          {/* Stale badge */}
+          {analysis && sessionStats?.session_fingerprint && analysis.fingerprint !== sessionStats.session_fingerprint && (
+            <Tooltip text="The session history has changed since this analysis was run. Re-run to get fresh results.">
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>
+                stale
+              </span>
+            </Tooltip>
+          )}
+          {/* Analyze / Re-analyze button — stops propagation so it doesn't toggle */}
+          <Tooltip text={analysis ? 'Re-run deep analysis on this session' : 'Run deep analysis to identify issues, root causes and recommendations'}>
+            <button
+              style={{ ...btnStyle, fontSize: 11, background: analyzing ? '#f5f3ff' : '#7c3aed', color: analyzing ? '#7c3aed' : '#fff', border: '1px solid #7c3aed', padding: '3px 10px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
+              onClick={e => { e.stopPropagation(); analyzeSession(); }}
+              disabled={analyzing || !isConnected}
+            >
+              {analyzing ? '…' : analysis ? '↻ Re-analyze' : '🔬 Analyze'}
+            </button>
+          </Tooltip>
+          <span style={{ fontSize: 12, color: '#7c3aed' }}>{analysisOpen ? '▲' : '▼'}</span>
+        </div>
+
+        {/* Expanded content */}
+        {analysisOpen && (
+          <div style={{ padding: '12px 14px' }}>
+            {analyzing && (
+              <div style={{ padding: '10px 0', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>🔬</span>
+                <span>Sending session history to LLM for deep analysis… this may take up to 2 minutes for slow models.</span>
+              </div>
+            )}
+            {!analyzing && !analysis && (
+              <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
+                No analysis yet. Click <strong>Analyze</strong> to run a deep-dive on this session.
+              </div>
+            )}
+            {!analyzing && analysis && (
+              <>
+                {analysis.issues.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
+                    No issues found. Session looks healthy!
+                  </div>
+                ) : (
+                  [...analysis.issues]
+                    .sort((a, b) => (a.priority ?? 5) - (b.priority ?? 5))
+                    .map((issue, i) => <IssueCard key={i} issue={issue} />)
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Analytics — collapsible */}
+      {!loading && turns.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid #e5e7eb' }}
+            onClick={() => setAnalyticsOpen(x => !x)}
+          >
+            <span style={{ fontSize: 14 }}>📊</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>Analytics</span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{analyticsOpen ? '▲' : '▼'}</span>
+          </div>
+          {analyticsOpen && <AnalyticsPanel turns={turns} />}
         </div>
       )}
-      {analysis && !analyzing && (
-        <AnalysisPanelView analysis={analysis} sessionFingerprint={sessionStats?.session_fingerprint} />
-      )}
 
-      {/* Session stats + file path */}
-      {sessionStats && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', padding: '8px 0 10px', fontSize: 12, color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>
-            <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
-            {sessionStats.error_count > 0 && <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>}
-            {sessionStats.total_tokens > 0 && <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>}
-            {sessionStats.date_range && <span>{sessionStats.date_range}</span>}
+      {/* 4. Messages — collapsible section */}
+      {turns.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}
+            onClick={() => setMessagesOpen(x => !x)}
+          >
+            <span style={{ fontSize: 14 }}>💬</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>
+              Messages
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
+                {visibleTurns.length} of {turns.length}
+              </span>
+            </span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{messagesOpen ? '▲' : '▼'}</span>
           </div>
-          {sessionStats.history_file_path && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 11, color: '#9ca3af', flexWrap: 'wrap' }}>
-              <span>📁 Raw log:</span>
-              <code style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 5px', borderRadius: 3, wordBreak: 'break-all' }}>{sessionStats.history_file_path}</code>
-              <CopyButton text={sessionStats.history_file_path} />
-            </div>
+
+          {messagesOpen && (
+            <>
+              {/* Filter bar */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+                {([
+                  { key: 'errors', label: '⚠ Problems',  active: filterErrors, toggle: () => setFilterErrors(x => !x) },
+                  { key: 'tools',  label: '🔧 Has tools',    active: filterTools,  toggle: () => setFilterTools(x => !x) },
+                  {
+                    key: 'slow', label: '⏱ Slow turns', active: filterSlow, toggle: () => setFilterSlow(x => !x),
+                    tip: `Show turns that took longer than 90% of others${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`,
+                  },
+                ] as const).map((f) => (
+                  <Tooltip key={f.key} text={'tip' in f ? f.tip : ''}>
+                    <button onClick={f.toggle} style={{
+                      fontSize: 11, padding: '3px 10px', borderRadius: 12,
+                      border: `1px solid ${f.active ? '#6366f1' : '#e5e7eb'}`,
+                      background: f.active ? '#eef2ff' : '#f9fafb',
+                      color: f.active ? '#6366f1' : '#6b7280',
+                      cursor: 'pointer', fontWeight: f.active ? 600 : 400,
+                    }}>{f.label}</button>
+                  </Tooltip>
+                ))}
+                {anyFilter && <span style={{ fontSize: 11, color: '#9ca3af' }}>{visibleTurns.length}/{turns.length}</span>}
+              </div>
+
+              {loading && <div style={emptyStyle}>Loading turns…</div>}
+              {!loading && turns.length === 0 && <div style={emptyStyle}>No turns found for this session.</div>}
+              {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>No turns match the active filters.</div>}
+
+              {visibleTurns.map((turn) => {
+                const rLabel = responseLabel(turn.final_length);
+                const isSlow = p90dur > 0 && turn.retry_count <= 1 && turn.duration_seconds > p90dur;
+                const isDeferred = turn.was_deferred;
+                return (
+                  <div key={turn.turn_id}
+                    style={{ ...cardStyle, borderLeftWidth: (turn.has_error || isDeferred) ? 3 : 1, borderLeftColor: isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb', opacity: isDeferred ? 0.75 : 1 }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb')}
+                    onClick={() => isConnected && selectTurn(turn.turn_id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Row 1: badges */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
+                          {modeBadge(turn.mode)}
+                          <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />
+                          {queryTypeBadge(turn.query_type)}
+                          {turn.has_error && !isDeferred && (
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
+                              ⚠ {turn.error_category ?? 'error'}
+                            </span>
+                          )}
+                          {isDeferred && (
+                            <Tooltip text="This message was sent while the agent was busy with another request. It was queued but never actually processed.">
+                              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', border: '1px solid #c4b5fd', cursor: 'help' }}>
+                                ⏸ never processed
+                              </span>
+                            </Tooltip>
+                          )}
+                          {turn.retry_count > 1 && (
+                            <Tooltip text={`The agent attempted this request ${turn.retry_count} times. Each retry was triggered when a new message arrived while the original was still pending.`}>
+                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', cursor: 'help' }}>
+                                {turn.retry_count} attempts
+                              </span>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {/* Row 2: user message */}
+                        <div style={{ fontSize: 13, color: turn.user_content ? '#111827' : '#9ca3af', fontStyle: turn.user_content ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {turn.user_content || '(no user message)'}
+                        </div>
+                        {/* Row 3: tool/file/skill badges */}
+                        {(turn.tool_names.length > 0 || turn.skill_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
+                          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                            {turn.tool_names.slice(0, 3).map((t, i) => (
+                              <span key={i} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>🔧 {t}</span>
+                            ))}
+                            {turn.tool_names.length > 3 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.tool_names.length - 3} more</span>}
+                            {turn.skill_names.slice(0, 2).map((s, i) => (
+                              <span key={`sk-${i}`} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }}>🎯 {s}</span>
+                            ))}
+                            {turn.skill_names.length > 2 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.skill_names.length - 2} more</span>}
+                            {turn.tool_failures > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
+                            {turn.file_count > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
+                          </div>
+                        )}
+                      </div>
+                      {/* Right: time / duration / tokens / response label */}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <Tooltip text={fmtDateTime(turn.timestamp)}>
+                          <div style={{ fontSize: 12, color: '#6b7280', cursor: 'default' }}>{fmtTime(turn.timestamp)}</div>
+                        </Tooltip>
+                        {/* Duration: only show for non-retry turns — wall time is misleading for retried turns */}
+                        {turn.duration_seconds > 0 && turn.retry_count <= 1 && (
+                          <div style={{ fontSize: 11, marginTop: 2, color: isSlow ? '#f59e0b' : '#9ca3af', fontWeight: isSlow ? 600 : 400 }}>
+                            {fmtDuration(turn.duration_seconds)}
+                          </div>
+                        )}
+                        {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.total_tokens.toLocaleString()} tok</div>}
+                        {rLabel && (
+                          <div style={{ marginTop: 3 }}>
+                            <Tooltip text={`Response length: ${turn.final_length} chars`}>
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: rLabel.color + '15', color: rLabel.color, border: `1px solid ${rLabel.color}33`, cursor: 'default' }}>
+                                {rLabel.label}
+                              </span>
+                            </Tooltip>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       )}
-
-      {/* Analytics — always shown */}
-      {!loading && turns.length > 0 && <AnalyticsPanel turns={turns} />}
-
-      {/* Filter bar */}
-      {turns.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-          {([
-            { key: 'errors', label: '⚠ Errors only',  active: filterErrors, toggle: () => setFilterErrors(x => !x) },
-            { key: 'tools',  label: '🔧 Has tools',    active: filterTools,  toggle: () => setFilterTools(x => !x) },
-            {
-              key: 'slow', label: '⏱ Slow turns', active: filterSlow, toggle: () => setFilterSlow(x => !x),
-              tip: `Show turns that took longer than 90% of others${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`,
-            },
-          ] as const).map((f) => (
-            <Tooltip key={f.key} text={'tip' in f ? f.tip : ''}>
-              <button onClick={f.toggle} style={{
-                fontSize: 11, padding: '3px 10px', borderRadius: 12,
-                border: `1px solid ${f.active ? '#6366f1' : '#e5e7eb'}`,
-                background: f.active ? '#eef2ff' : '#f9fafb',
-                color: f.active ? '#6366f1' : '#6b7280',
-                cursor: 'pointer', fontWeight: f.active ? 600 : 400,
-              }}>{f.label}</button>
-            </Tooltip>
-          ))}
-          {anyFilter && <span style={{ fontSize: 11, color: '#9ca3af' }}>{visibleTurns.length}/{turns.length}</span>}
-        </div>
-      )}
-
-      {loading && <div style={emptyStyle}>Loading turns…</div>}
-      {!loading && turns.length === 0 && <div style={emptyStyle}>No turns found for this session.</div>}
-      {!loading && turns.length > 0 && visibleTurns.length === 0 && <div style={emptyStyle}>No turns match the active filters.</div>}
-
-      {visibleTurns.map((turn) => {
-        const rLabel = responseLabel(turn.final_length);
-        const isSlow = p90dur > 0 && turn.retry_count <= 1 && turn.duration_seconds > p90dur;
-        const isDeferred = turn.was_deferred;
-        return (
-          <div key={turn.turn_id}
-            style={{ ...cardStyle, borderLeftWidth: (turn.has_error || isDeferred) ? 3 : 1, borderLeftColor: isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb', opacity: isDeferred ? 0.75 : 1 }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb')}
-            onClick={() => isConnected && selectTurn(turn.turn_id)}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Row 1: badges */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
-                  {modeBadge(turn.mode)}
-                  <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />
-                  {queryTypeBadge(turn.query_type)}
-                  {turn.has_error && !isDeferred && (
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
-                      ⚠ {turn.error_category ?? 'error'}
-                    </span>
-                  )}
-                  {isDeferred && (
-                    <Tooltip text="This message was sent while the agent was busy with another request. It was queued but never actually processed.">
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', border: '1px solid #c4b5fd', cursor: 'help' }}>
-                        ⏸ never processed
-                      </span>
-                    </Tooltip>
-                  )}
-                  {turn.retry_count > 1 && (
-                    <Tooltip text={`The agent attempted this request ${turn.retry_count} times. Each retry was triggered when a new message arrived while the original was still pending.`}>
-                      <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', cursor: 'help' }}>
-                        {turn.retry_count} attempts
-                      </span>
-                    </Tooltip>
-                  )}
-                </div>
-                {/* Row 2: user message */}
-                <div style={{ fontSize: 13, color: turn.user_content ? '#111827' : '#9ca3af', fontStyle: turn.user_content ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {turn.user_content || '(no user message)'}
-                </div>
-                {/* Row 3: tool/file/skill badges */}
-                {(turn.tool_names.length > 0 || turn.skill_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
-                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                    {turn.tool_names.slice(0, 3).map((t, i) => (
-                      <span key={i} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>🔧 {t}</span>
-                    ))}
-                    {turn.tool_names.length > 3 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.tool_names.length - 3} more</span>}
-                    {turn.skill_names.slice(0, 2).map((s, i) => (
-                      <span key={`sk-${i}`} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }}>🎯 {s}</span>
-                    ))}
-                    {turn.skill_names.length > 2 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.skill_names.length - 2} more</span>}
-                    {turn.tool_failures > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
-                    {turn.file_count > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
-                  </div>
-                )}
-              </div>
-              {/* Right: time / duration / tokens / response label */}
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <Tooltip text={fmtDateTime(turn.timestamp)}>
-                  <div style={{ fontSize: 12, color: '#6b7280', cursor: 'default' }}>{fmtTime(turn.timestamp)}</div>
-                </Tooltip>
-                {/* Duration: only show for non-retry turns — wall time is misleading for retried turns */}
-                {turn.duration_seconds > 0 && turn.retry_count <= 1 && (
-                  <div style={{ fontSize: 11, marginTop: 2, color: isSlow ? '#f59e0b' : '#9ca3af', fontWeight: isSlow ? 600 : 400 }}>
-                    {fmtDuration(turn.duration_seconds)}
-                  </div>
-                )}
-                {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.total_tokens.toLocaleString()} tok</div>}
-                {rLabel && (
-                  <div style={{ marginTop: 3 }}>
-                    <Tooltip text={`Response length: ${turn.final_length} chars`}>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: rLabel.color + '15', color: rLabel.color, border: `1px solid ${rLabel.color}33`, cursor: 'default' }}>
-                        {rLabel.label}
-                      </span>
-                    </Tooltip>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
