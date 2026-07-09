@@ -101,7 +101,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   return (
     <span
       ref={ref}
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      style={{ display: 'contents' }}
       onMouseEnter={() => { updatePos(); setShow(true); }}
       onMouseLeave={() => setShow(false)}
     >
@@ -124,11 +124,20 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 
 /** Color for each outcome type — used in charts, badges, timeline bars */
 const OUTCOME_COLORS: Record<string, string> = {
-  completed: '#3b82f6',
+  completed: '#2563eb',
   completed_with_issues: '#f59e0b',
-  no_response: '#8b5cf6',
+  no_response: '#9333ea',
   error: '#ef4444',
-  deferred: '#6366f1',
+  deferred: '#059669',
+};
+
+/** Human-readable display name for each outcome */
+const OUTCOME_LABELS: Record<string, string> = {
+  completed: 'Completed',
+  completed_with_issues: 'With problems',
+  no_response: 'No response',
+  error: 'Error',
+  deferred: 'Deferred',
 };
 
 /** Approximate bar height score for visual charts */
@@ -145,7 +154,7 @@ function outcomeScore(t: TurnSummary): number {
 /** Outcome badge — shows the actual outcome name (completed / with problems / no response / error / deferred) */
 function OutcomeBadge({ outcome, issues }: { outcome: string; issues: string[] }) {
   const color = OUTCOME_COLORS[outcome] ?? '#6b7280';
-  const label = outcome.replace(/_/g, ' ');
+  const label = OUTCOME_LABELS[outcome] ?? outcome.replace(/_/g, ' ');
   const tip = issues.length > 0 ? issues.join('\n') : '';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
@@ -310,8 +319,8 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 const color = OUTCOME_COLORS[outcome] ?? '#9ca3af';
                 const pct = outcomeScore(t);
                 return (
-                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${outcome.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}\n${t.user_content || '(no message)'}`}>
-                    <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(4, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
+                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}\n${t.user_content || '(no message)'}`}>
+                    <div style={{ flex: 1, minWidth: 2, height: `${Math.max(4, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
                   </Tooltip>
                 );
               })}
@@ -319,7 +328,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
               {Object.entries(OUTCOME_COLORS).map(([k, c]) => (
                 <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280', textTransform: 'capitalize' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{k.replace(/_/g, ' ')}
+                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{OUTCOME_LABELS[k] ?? k.replace(/_/g, ' ')}
                 </span>
               ))}
             </div>
@@ -334,7 +343,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                 {turns.map(t => (
                   <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
-                    <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(t.total_tokens > 0 ? 2 : 0, (t.total_tokens / maxTok) * 28)}px`, background: '#6366f1', borderRadius: 1, opacity: 0.65, cursor: 'default' }} />
+                    <div style={{ flex: 1, minWidth: 2, height: `${Math.max(t.total_tokens > 0 ? 2 : 0, (t.total_tokens / maxTok) * 28)}px`, background: '#6366f1', borderRadius: 1, opacity: 0.65, cursor: 'default' }} />
                   </Tooltip>
                 ))}
               </div>
@@ -352,7 +361,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                   if (t.retry_count > 1) {
                     return (
                       <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded`}>
-                        <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: 4, background: '#e5e7eb', borderRadius: 1, cursor: 'default', opacity: 0.4 }} />
+                        <div style={{ flex: 1, minWidth: 2, height: 4, background: '#e5e7eb', borderRadius: 1, cursor: 'default', opacity: 0.4 }} />
                       </Tooltip>
                     );
                   }
@@ -360,13 +369,44 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                   const color = pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
                   return (
                     <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
-                      <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(t.duration_seconds > 0 ? 2 : 0, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default' }} />
+                      <div style={{ flex: 1, minWidth: 2, height: `${Math.max(t.duration_seconds > 0 ? 2 : 0, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default' }} />
                     </Tooltip>
                   );
                 })}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                 {([['#10b981', 'fast'], ['#f59e0b', 'moderate'], ['#ef4444', 'slow']] as const).map(([c, l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Retries row */}
+          {totalRetries > 0 && (
+            <div>
+              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Retries</span><span>{totalRetries} total</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                {(() => {
+                  const maxRetry = Math.max(...turns.map(t => t.retry_count), 1);
+                  return turns.map(t => {
+                    const rc = t.retry_count;
+                    const pct = rc / maxRetry;
+                    const color = rc === 0 ? '#cbd5e1' : rc === 1 ? '#94a3b8' : '#7c3aed';
+                    return (
+                      <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${rc} attempt${rc !== 1 ? 's' : ''}`}>
+                        <div style={{ flex: 1, minWidth: 2, height: `${Math.max(rc > 0 ? 3 : 1, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default' }} />
+                      </Tooltip>
+                    );
+                  });
+                })()}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                {([['#cbd5e1', '0 retries'], ['#94a3b8', '1 retry'], ['#7c3aed', '2+ retries']] as const).map(([c, l]) => (
                   <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
                     <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
                   </span>
