@@ -48,7 +48,7 @@ from jiuwenswarm.agents.harness.common.rails.interrupt.interrupt_helpers import 
 from jiuwenswarm.agents.harness.common.rails.permissions.permissions_persist import persist_cli_trusted_directory
 from jiuwenswarm.extensions.hooks_context import AgentServerChatHookContext
 from jiuwenswarm.server.runtime.agent_manager import AgentManager, ACP_DEFAULT_CAPABILITIES
-from jiuwenswarm.server.runtime.session.session_metadata import get_all_sessions_metadata, remove_session_metadata_cache
+from jiuwenswarm.server.runtime.session.session_metadata import get_all_sessions_metadata, remove_session_metadata_cache, update_session_metadata
 from jiuwenswarm.server.runtime.session.session_history import (
     append_compact_history_records,
     history_exists,
@@ -2162,6 +2162,8 @@ class AgentWebSocketServer:
                             "title": "",
                             "message_count": 0,
                             "last_message_at": entry.stat().st_mtime,
+                            "round_id": 0,
+                            "total_tokens": 0,
                         }
                     sessions.append(meta)
         except Exception as exc:
@@ -6992,6 +6994,20 @@ class AgentWebSocketServer:
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
                 error_count = sum(1 for t in real_turns if t.get("has_error"))
+
+                # Cache total_tokens and round_id in session metadata so session.list can return them
+                try:
+                    current_meta = get_session_metadata(session_id)
+                    cached_tokens = int(current_meta.get("total_tokens", 0))
+                    if all_tokens > cached_tokens:
+                        update_session_metadata(session_id=session_id, add_tokens=all_tokens - cached_tokens)
+                    cached_rounds = int(current_meta.get("round_id", 0))
+                    real_turn_count = len(real_turns)
+                    if real_turn_count > cached_rounds:
+                        update_session_metadata(session_id=session_id, set_round_id=real_turn_count)
+                except Exception:
+                    pass
+
                 timestamps = [t["timestamp"] for t in real_turns if t.get("timestamp")]
                 date_range = ""
                 if timestamps:

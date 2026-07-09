@@ -17,6 +17,8 @@ export interface TraceHoundSessionItem {
   last_message_at?: number;
   created_at?: number;
   message_count?: number;
+  round_id?: number;      // how many LLM turns/rounds occurred
+  total_tokens?: number;  // cumulative tokens consumed
   mode?: string;
 }
 

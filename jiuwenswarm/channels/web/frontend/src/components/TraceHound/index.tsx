@@ -301,7 +301,6 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   });
 
   const totalRetries = turns.reduce((s, t) => s + Math.max(0, t.retry_count - 1), 0);
-  const avgTokens = turns.length > 0 ? Math.round(turns.reduce((s, t) => s + t.total_tokens, 0) / turns.length) : 0;
 
   return (
     <div style={{ marginBottom: 20, padding: '14px 16px', background: '#fafafa', borderRadius: 8, border: '1px solid #e5e7eb' }}>
@@ -315,7 +314,6 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
           { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'Turns that ended in a hard error' },
           { label: 'Deferred', value: String(outcomes.deferred), color: outcomes.deferred > 0 ? '#6366f1' : '#9ca3af', tip: 'Messages sent while agent was busy — never processed' },
           { label: 'Total retries', value: String(totalRetries), color: totalRetries > 0 ? '#f59e0b' : '#9ca3af', tip: 'How many times the agent retried a failed request' },
-          { label: 'Avg tokens/turn', value: avgTokens > 0 ? avgTokens.toLocaleString() : '—', color: '#374151', tip: 'Average token count per turn' },
           ...(longestCascade >= 2 ? [{ label: 'Longest error streak', value: `${longestCascade} turns`, color: '#ef4444', tip: 'Consecutive turns all with errors' }] : []),
         ].map((s, i) => (
           <Tooltip key={i} text={s.tip ?? ''}>
@@ -692,19 +690,43 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
 
 function SessionListView({ isConnected }: { isConnected: boolean }) {
   const { sessions, loading, error, loadSessions, selectSession, clearError } = useTraceHoundStore();
+  const [showEmpty, setShowEmpty] = useState(false);
   useEffect(() => { loadSessions(); }, []); // eslint-disable-line
+
+  const visibleSessions = useMemo(() => {
+    if (showEmpty) return sessions;
+    return sessions.filter(s => (s.message_count ?? 0) > 0);
+  }, [sessions, showEmpty]);
+
+  const emptyCount = sessions.filter(s => (s.message_count ?? 0) === 0).length;
 
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
         <h2 style={titleStyle}>TraceHound</h2>
-        <button style={btnStyle} onClick={loadSessions} disabled={loading || !isConnected} title="Reload session list">
-          {loading ? 'Loading…' : '↻ Refresh'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={showEmpty}
+              onChange={(e) => setShowEmpty(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Show empty sessions{!showEmpty && emptyCount > 0 ? ` (${emptyCount} hidden)` : ''}
+          </label>
+          <button style={btnStyle} onClick={loadSessions} disabled={loading || !isConnected} title="Reload session list">
+            {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+        </div>
       </div>
       {error && <ErrorBanner message={error} onClose={clearError} />}
-      {sessions.length === 0 && !loading && <div style={emptyStyle}>No sessions found.</div>}
-      {sessions.map((s) => (
+
+      {visibleSessions.length === 0 && !loading && (
+        <div style={emptyStyle}>
+          {showEmpty ? 'No sessions found.' : 'No non-empty sessions found.'}
+        </div>
+      )}
+      {visibleSessions.map((s) => (
         <div key={s.session_id} style={cardStyle}
           onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
           onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
@@ -718,7 +740,10 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
           </div>
           <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af' }}>
             {s.session_id.slice(0, 20)}…
-            {s.message_count != null && <span style={{ marginLeft: 8 }}>{s.message_count} messages</span>}
+            <span style={{ marginLeft: 8 }}>
+              {(s.message_count ?? 0)} messages, {(s.round_id ?? 0)} turns
+              {s.total_tokens != null && s.total_tokens > 0 && `, ${s.total_tokens.toLocaleString()} tokens`}
+            </span>
           </div>
         </div>
       ))}
@@ -796,8 +821,11 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
               </Tooltip>
             )}
           </div>
-          {/* Row 2: turns, errors, tokens */}
+          {/* Row 2: messages, turns, errors, tokens */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
+            {selectedSession?.message_count != null && (
+              <span><strong style={{ color: '#374151' }}>{selectedSession.message_count}</strong> messages</span>
+            )}
             {sessionStats && (
               <>
                 <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>

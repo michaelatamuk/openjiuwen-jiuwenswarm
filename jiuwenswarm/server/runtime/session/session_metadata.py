@@ -186,6 +186,7 @@ def init_session_metadata(
         "mode": mode,
         "team_name": team_name,
         "round_id": 0,
+        "total_tokens": 0,
     }
     _write_metadata_sync(session_id, metadata)
 
@@ -199,6 +200,8 @@ def update_session_metadata(
     clear_title: bool = False,
     increment_message_count: bool = False,
     set_message_count: int | None = None,
+    set_round_id: int | None = None,
+    add_tokens: int = 0,
     user_content: str | None = None,
     channel_metadata: dict[str, Any] | None = None,
     mode: str | None = None,
@@ -232,6 +235,7 @@ def update_session_metadata(
             "mode": mode if mode is not None else "unknown",
             "team_name": team_name or "",
             "round_id": 0,
+            "total_tokens": 0,
         }
         # 首次创建时写入 channel_metadata
         if channel_metadata:
@@ -257,6 +261,12 @@ def update_session_metadata(
             metadata["message_count"] = metadata.get("message_count", 0) + 1
         if set_message_count is not None:
             metadata["message_count"] = set_message_count
+        if set_round_id is not None:
+            metadata["round_id"] = set_round_id
+
+        # Accumulate total tokens (from LLM usage events)
+        if add_tokens > 0:
+            metadata["total_tokens"] = metadata.get("total_tokens", 0) + add_tokens
 
         # 自动生成标题: 当 title 为空且提供了用户消息内容时
         if not metadata.get("title") and user_content:
@@ -483,6 +493,8 @@ def get_all_sessions_metadata(
                 "title": "",
                 "message_count": 0,
                 "mode": "unknown",
+                "round_id": 0,
+                "total_tokens": 0,
             }
 
         sessions.append(metadata)
