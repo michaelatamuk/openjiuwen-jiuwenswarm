@@ -20,7 +20,7 @@
     "agent": "Agent",
     "teams": "Teams",
     "sessions": "Sessions",
-    "replay": "Replay",
+    "tracehound": "TraceHound",
     "heartbeat": "Heartbeat",
     "cron": "Scheduled Tasks",
     "skills": "Skills",

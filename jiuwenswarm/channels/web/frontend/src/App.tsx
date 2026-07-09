@@ -20,7 +20,7 @@ import { ChannelsPanel } from './components/ChannelsPanel';
 import { BrowserPanel } from './components/BrowserPanel';
 import { UpdatePanel } from './components/UpdatePanel';
 import { ExtensionsHubPanel } from './components/ExtensionsHubPanel';
-import { ReplayPanel } from './components/ReplayPanel';
+import { TraceHoundPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
   exportShareImageNode,
@@ -61,7 +61,7 @@ import {
 import type { DesktopSaveApiResult } from './utils/desktopSave';
 import './App.css';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'replay' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
 
 type AgentsTeamsSavePayload = {
   agents: Record<string, {
@@ -1608,9 +1608,9 @@ function AppContent() {
             />
           </div>
         )}
-        {activeNav === 'replay' && (
+        {activeNav === 'tracehound' && (
           <div className="app-section">
-            <ReplayPanel isConnected={isConnected} />
+            <TraceHoundPanel isConnected={isConnected} />
           </div>
         )}
         {activeNav === 'heartbeat' && (

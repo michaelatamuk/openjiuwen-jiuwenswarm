@@ -1538,10 +1538,10 @@ class AgentWebSocketServer:
             if request.req_method == ReqMethod.ISSUE_MATRIX:
                 await self._handle_schedule_request(ws, request, send_lock, "issue_matrix")
                 return
-            if request.req_method == ReqMethod.REPLAY_TURNS_LIST:
+            if request.req_method == ReqMethod.TRACEHOUND_TURNS_LIST:
                 await self._handle_replay_request(ws, request, send_lock, "turns_list")
                 return
-            if request.req_method == ReqMethod.REPLAY_TURN_GET:
+            if request.req_method == ReqMethod.TRACEHOUND_TURN_GET:
                 await self._handle_replay_request(ws, request, send_lock, "turn_get")
                 return
             if request.req_method == ReqMethod.AGENTS_LIST:
@@ -6754,7 +6754,7 @@ class AgentWebSocketServer:
         async with send_lock:
             await ws.send(json.dumps(wire, ensure_ascii=False))
 
-    # ── Replay helpers ────────────────────────────────────────────────────────
+    # ── TraceHound helpers ────────────────────────────────────────────────────
 
     _REPLAY_NOISE_EVENTS: frozenset = frozenset({
         "chat.processing_status",
@@ -6795,58 +6795,45 @@ class AgentWebSocketServer:
         return "general"
 
     @staticmethod
-    def _replay_quality_score(turn: dict) -> float:
-        score = 0.5
-        if turn.get("has_final") and turn.get("final_length", 0) > 0:
-            score += 0.2
-        n_fail: int = turn.get("tool_failures", 0)
-        score -= min(0.15, 0.05 * n_fail)
-        dur: float = turn.get("duration_seconds", 0.0)
-        if dur > 60:
-            score -= 0.08
-        elif dur > 30:
-            score -= 0.05
+    def _replay_outcome(turn: dict) -> str:
+        """Return an explicit, human-readable outcome for this turn.
+
+        Outcomes:
+            completed              — agent produced a final response
+            completed_with_issues  — responded, but had tool failures / retries / was slow
+            no_response            — no final output (model failure / timeout / crash)
+            error                  — a hard error occurred (API failure, exception, etc.)
+            deferred               — message queued but never processed
+        """
+        if turn.get("was_deferred"):
+            return "deferred"
         if turn.get("has_error"):
-            score -= 0.1
-        retries: int = turn.get("retry_count", 0)
-        if retries > 1:
-            score -= min(0.1, 0.03 * (retries - 1))
-        return round(max(0.0, min(1.0, score)), 2)
+            return "error"
+        if not turn.get("has_final"):
+            return "no_response"
+        # Has a response — check if there were accompanying issues
+        if turn.get("tool_failures", 0) > 0 or turn.get("retry_count", 1) > 1:
+            return "completed_with_issues"
+        return "completed"
 
     @staticmethod
-    def _replay_quality_label(score: float) -> str:
-        if score >= 0.75:
-            return "good"
-        if score >= 0.55:
-            return "fair"
-        if score >= 0.35:
-            return "poor"
-        return "failed"
-
-    @staticmethod
-    def _replay_quality_breakdown(turn: dict) -> list[str]:
-        """Return human-readable lines explaining how the quality score was computed."""
-        lines: list[str] = ["Base score: 0.50"]
-        if turn.get("has_final") and turn.get("final_length", 0) > 0:
-            lines.append("Agent replied with content: +0.20")
-        else:
-            lines.append("No response returned (model failed): −0.20")
+    def _replay_issues(turn: dict) -> list[str]:
+        """Return a list of human-readable issue descriptions for this turn."""
+        issues: list[str] = []
+        if not turn.get("has_final") and not turn.get("was_deferred"):
+            issues.append("No response from agent")
         n_fail: int = turn.get("tool_failures", 0)
         if n_fail > 0:
-            penalty = min(0.15, 0.05 * n_fail)
-            lines.append(f"Tool failures ×{n_fail}: −{penalty:.2f}")
-        if turn.get("has_error"):
-            lines.append("Error occurred: −0.10")
+            issues.append(f"{n_fail} tool call{'s' if n_fail != 1 else ''} failed")
         dur: float = turn.get("duration_seconds", 0.0)
         if dur > 60:
-            lines.append(f"Very slow ({dur:.0f} s): −0.08")
+            issues.append(f"Very slow ({dur:.0f}s)")
         elif dur > 30:
-            lines.append(f"Slow ({dur:.0f} s): −0.05")
+            issues.append(f"Slow ({dur:.0f}s)")
         retries: int = turn.get("retry_count", 0)
         if retries > 1:
-            penalty = min(0.10, 0.03 * (retries - 1))
-            lines.append(f"Needed {retries} retries: −{penalty:.2f}")
-        return lines
+            issues.append(f"Needed {retries} attempts")
+        return issues
 
     @staticmethod
     def _extract_skill_names_from_result(result: str) -> list[str]:
@@ -6874,7 +6861,7 @@ class AgentWebSocketServer:
         send_lock: asyncio.Lock,
         action: str,
     ) -> None:
-        """Handle Session Replay / Trajectory Viewer requests."""
+        """Handle TraceHound — Session Trajectory Viewer requests."""
         from jiuwenswarm.server.runtime.session.session_history import (
             read_session_history_records,
             get_read_history_path,
@@ -6984,27 +6971,20 @@ class AgentWebSocketServer:
 
                 real_turns = [t for t in turns.values() if _is_real_turn(t)]
 
-                # Post-process: assign sequential index, compute duration + quality, strip temp keys
+                # Post-process: assign sequential index, compute duration + outcome, strip temp keys
                 for idx, turn in enumerate(real_turns):
                     turn["turn_index"] = idx
                     first = turn.pop("_first_ts", None)
                     last = turn.pop("_last_ts", None)
                     if first and last and last > first:
                         turn["duration_seconds"] = round(last - first, 1)
-                    # Deferred turns: agent never actually handled the message
-                    if turn.get("was_deferred"):
-                        turn["quality_score"] = None
-                        turn["quality_label"] = "deferred"
-                        turn["quality_breakdown"] = [
-                            "This message was received while the agent was busy",
-                            "processing another request. It was queued but never",
-                            "actually handled by the agent.",
-                        ]
-                    else:
-                        score = self._replay_quality_score(turn)
-                        turn["quality_score"] = score
-                        turn["quality_label"] = self._replay_quality_label(score)
-                        turn["quality_breakdown"] = self._replay_quality_breakdown(turn)
+                    turn["outcome"] = self._replay_outcome(turn)
+                    turn["issues"] = self._replay_issues(turn)
+                    # Backward-compat: keep quality_* if any downstream code references it,
+                    # but they are no longer the primary fields.
+                    turn.pop("quality_score", None)
+                    turn.pop("quality_label", None)
+                    turn.pop("quality_breakdown", None)
 
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)

@@ -201,9 +201,9 @@ class ReqMethod(Enum):
     ISSUE_DELETE = "issue.delete"
     ISSUE_MATRIX = "issue.matrix"
 
-    # Session Replay / Trajectory Viewer
-    REPLAY_TURNS_LIST = "replay.turns.list"
-    REPLAY_TURN_GET = "replay.turn.get"
+    # TraceHound — Session Trajectory Viewer
+    TRACEHOUND_TURNS_LIST = "tracehound.turns.list"
+    TRACEHOUND_TURN_GET = "tracehound.turn.get"
 
 
 class EventType(Enum):
