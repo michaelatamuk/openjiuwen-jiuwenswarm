@@ -313,6 +313,7 @@ _FORWARD_REQ_METHODS = frozenset({
     # TraceHound
     "tracehound.turns.list",
     "tracehound.turn.get",
+    "tracehound.analyze",
 })
 
 _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
@@ -386,6 +387,7 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     # TraceHound
     "tracehound.turns.list",
     "tracehound.turn.get",
+    "tracehound.analyze",
 })
 
 # 配置信息：config.get 返回、config.set 可修改的键（前端 param 名 -> 环境变量名）

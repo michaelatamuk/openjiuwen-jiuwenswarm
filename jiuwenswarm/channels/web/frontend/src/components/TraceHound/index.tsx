@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useTraceHoundStore, type HistoryRecord, type TurnSummary } from '../../stores/traceHoundStore';
+import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue, type SessionAnalysis } from '../../stores/traceHoundStore';
 
 interface TraceHoundPanelProps { isConnected: boolean; }
 
@@ -452,6 +452,131 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   );
 }
 
+// ── LLM Analysis Panel ────────────────────────────────────────────────────────
+
+const PRIORITY_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
+  1: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', label: 'P1' },
+  2: { bg: '#ffedd5', border: '#fdba74', text: '#ea580c', label: 'P2' },
+  3: { bg: '#fef9c3', border: '#fde047', text: '#ca8a04', label: 'P3' },
+  4: { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8', label: 'P4' },
+  5: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', label: 'P5' },
+};
+
+function IssueCard({ issue }: { issue: AnalysisIssue }) {
+  const [expanded, setExpanded] = useState(false);
+  const p = Math.min(5, Math.max(1, issue.priority ?? 5));
+  const pc = PRIORITY_COLORS[p];
+
+  return (
+    <div style={{ border: `1px solid ${pc.border}`, borderLeft: `3px solid ${pc.text}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', background: pc.bg + '88' }}
+        onClick={() => setExpanded(x => !x)}
+      >
+        <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: pc.bg, color: pc.text, border: `1px solid ${pc.border}`, flexShrink: 0 }}>
+          {pc.label}
+        </span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: '#111827', flex: 1 }}>{issue.title}</span>
+        <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+      </div>
+      {expanded && (
+        <div style={{ padding: '10px 14px', borderTop: `1px solid ${pc.border}66`, display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {issue.description && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Description</div>
+              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.description}</div>
+            </div>
+          )}
+          {issue.evidence && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Evidence</div>
+              <div style={{ fontSize: 12, color: '#374151', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, padding: '6px 8px', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{issue.evidence}</div>
+            </div>
+          )}
+          {issue.impact && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Impact</div>
+              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.impact}</div>
+            </div>
+          )}
+          {issue.root_cause && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Root Cause</div>
+              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.root_cause}</div>
+            </div>
+          )}
+          {issue.recommendation && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Recommendation</div>
+              <div style={{ fontSize: 13, color: '#065f46', whiteSpace: 'pre-wrap', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '6px 8px' }}>{issue.recommendation}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalysisPanelView({ analysis, sessionFingerprint }: { analysis: SessionAnalysis; sessionFingerprint?: string }) {
+  const isStale = sessionFingerprint != null && sessionFingerprint !== '' && analysis.fingerprint !== sessionFingerprint;
+  const { analyzeSession, analyzing } = useTraceHoundStore();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const sortedIssues = useMemo(
+    () => [...analysis.issues].sort((a, b) => (a.priority ?? 5) - (b.priority ?? 5)),
+    [analysis.issues]
+  );
+
+  return (
+    <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
+      {/* Panel header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderBottom: collapsed ? 'none' : '1px solid #e0e7ff', cursor: 'pointer' }}
+        onClick={() => setCollapsed(x => !x)}>
+        <span style={{ fontSize: 15 }}>🔬</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95', flex: 1 }}>
+          LLM Analysis
+          <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
+            {sortedIssues.length} issue{sortedIssues.length !== 1 ? 's' : ''} found
+          </span>
+        </span>
+        <span style={{ fontSize: 11, color: '#9ca3af' }}>
+          {new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </span>
+        {isStale && (
+          <Tooltip text="The session history has changed since this analysis was run. Re-run to get fresh results.">
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>
+              stale
+            </span>
+          </Tooltip>
+        )}
+        {isStale && (
+          <button
+            style={{ ...btnStyle, fontSize: 11, background: '#7c3aed', color: '#fff', border: 'none', padding: '3px 10px' }}
+            onClick={e => { e.stopPropagation(); analyzeSession(); }}
+            disabled={analyzing}
+          >
+            {analyzing ? '…' : '↻ Re-analyze'}
+          </button>
+        )}
+        <span style={{ fontSize: 12, color: '#7c3aed' }}>{collapsed ? '▼' : '▲'}</span>
+      </div>
+
+      {/* Issues list */}
+      {!collapsed && (
+        <div style={{ padding: '12px 14px' }}>
+          {sortedIssues.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
+              No issues found. Session looks healthy!
+            </div>
+          ) : (
+            sortedIssues.map((issue, i) => <IssueCard key={i} issue={issue} />)
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── View 1: Session List ──────────────────────────────────────────────────────
 
 function SessionListView({ isConnected }: { isConnected: boolean }) {
@@ -493,7 +618,10 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
 // ── View 2: Turn List ─────────────────────────────────────────────────────────
 
 function TurnListView({ isConnected }: { isConnected: boolean }) {
-  const { selectedSession, turns, sessionStats, loading, error, selectTurn, back, clearError } = useTraceHoundStore();
+  const {
+    selectedSession, turns, sessionStats, loading, error, selectTurn, back, clearError,
+    analysis, analyzing, analyzeError, analyzeSession, clearAnalyzeError,
+  } = useTraceHoundStore();
   const [filterErrors, setFilterErrors] = useState(false);
   const [filterTools,  setFilterTools]  = useState(false);
   const [filterSlow,   setFilterSlow]   = useState(false);
@@ -527,10 +655,33 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{selectedSession?.session_id}</div>
           </div>
         </div>
-        <span style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{turns.length} turns</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: '#6b7280' }}>{turns.length} turns</span>
+          <Tooltip text={analysis ? 'Re-run LLM deep analysis on this session' : 'Run LLM deep analysis to identify issues, root causes and recommendations'}>
+            <button
+              style={{ ...btnStyle, fontSize: 12, background: analyzing ? '#f5f3ff' : '#7c3aed', color: analyzing ? '#7c3aed' : '#fff', border: '1px solid #7c3aed', padding: '5px 12px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
+              onClick={analyzeSession}
+              disabled={analyzing || !isConnected}
+            >
+              {analyzing ? '🔬 Analyzing…' : analysis ? '↻ Re-analyze' : '🔬 Diagnose'}
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
+      {analyzeError && <ErrorBanner message={`Analysis failed: ${analyzeError}`} onClose={clearAnalyzeError} />}
+
+      {/* LLM Analysis result */}
+      {analyzing && !analysis && (
+        <div style={{ padding: '14px 16px', marginBottom: 16, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>🔬</span>
+          <span>Sending session history to LLM for deep analysis… this may take 10-30 seconds.</span>
+        </div>
+      )}
+      {analysis && !analyzing && (
+        <AnalysisPanelView analysis={analysis} sessionFingerprint={sessionStats?.session_fingerprint} />
+      )}
 
       {/* Session stats + file path */}
       {sessionStats && (

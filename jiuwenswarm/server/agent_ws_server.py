@@ -1544,6 +1544,9 @@ class AgentWebSocketServer:
             if request.req_method == ReqMethod.TRACEHOUND_TURN_GET:
                 await self._handle_replay_request(ws, request, send_lock, "turn_get")
                 return
+            if request.req_method == ReqMethod.TRACEHOUND_ANALYZE:
+                await self._handle_tracehound_analyze(ws, request, send_lock)
+                return
             if request.req_method == ReqMethod.AGENTS_LIST:
                 await self._handle_agents_list(ws, request, send_lock)
                 return
@@ -7007,6 +7010,7 @@ class AgentWebSocketServer:
                         "total_tokens": all_tokens,
                         "date_range": date_range,
                         "history_file_path": history_file_path,
+                        "session_fingerprint": self._session_fingerprint(history_file_path),
                     },
                 }
 
@@ -7068,3 +7072,201 @@ class AgentWebSocketServer:
         wire = encode_agent_response_for_wire(resp, response_id=request.request_id)
         async with send_lock:
             await ws.send(json.dumps(wire, ensure_ascii=False))
+
+    # ── TraceHound: LLM Deep Analysis ─────────────────────────────────────────
+
+    @staticmethod
+    def _session_fingerprint(path: str) -> str:
+        """Cheap fingerprint (size:mtime) for staleness detection."""
+        try:
+            st = Path(path).stat()
+            return f"{st.st_size}:{int(st.st_mtime)}"
+        except OSError:
+            return ""
+
+    @staticmethod
+    def _build_analysis_summary(records: list) -> str:
+        """Compact, LLM-readable summary of session history records."""
+        import datetime as _dt_local
+
+        turns: dict[str, dict] = {}
+        for rec in records:
+            rid = rec.get("request_id", "")
+            if not rid:
+                continue
+            et = rec.get("event_type", "")
+            role = rec.get("role", "")
+            ts = rec.get("timestamp") or 0.0
+            dt_str = _dt_local.datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts else "?"
+
+            if rid not in turns:
+                turns[rid] = {"ts": dt_str, "user": "", "errors": [], "tools": [],
+                               "has_final": False, "tokens": 0, "final_len": 0}
+            t = turns[rid]
+
+            if role == "user" and not t["user"]:
+                t["user"] = (rec.get("content") or "")[:200]
+                t["ts"] = dt_str
+            elif et == "chat.error":
+                err = (rec.get("error") or rec.get("content") or "")[:300]
+                if err:
+                    t["errors"].append(err)
+            elif et == "chat.tool_call":
+                tool = rec.get("tool_name") or ""
+                if tool:
+                    t["tools"].append(tool)
+            elif et == "chat.usage_summary":
+                raw = rec.get("raw_output") or {}
+                if isinstance(raw, dict):
+                    t["tokens"] += int(raw.get("total_tokens") or 0)
+            elif et == "chat.final":
+                content = rec.get("content") or ""
+                if content:
+                    t["has_final"] = True
+                    t["final_len"] = len(content)
+
+        if not turns:
+            return "(empty session — no records)"
+
+        total_errors = sum(1 for t in turns.values() if t["errors"])
+        total_tokens = sum(t["tokens"] for t in turns.values())
+        lines: list[str] = [
+            f"Turns: {len(turns)}  |  Turns with errors: {total_errors}  |  Total tokens: {total_tokens}",
+            "",
+        ]
+        for i, (_, t) in enumerate(turns.items(), 1):
+            user_msg = t["user"] or "(no user message)"
+            if t["errors"]:
+                status = "ERROR"
+            elif not t["has_final"]:
+                status = "NO_RESPONSE"
+            else:
+                status = "OK"
+            lines.append(f"Turn {i} [{t['ts']}] [{status}] User: {user_msg}")
+            if t["tools"]:
+                lines.append(f"  Tools: {', '.join(dict.fromkeys(t['tools']))}")
+            if t["has_final"]:
+                lines.append(f"  Response length: {t['final_len']} chars")
+            for err in t["errors"]:
+                lines.append(f"  ERROR: {err}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    async def _handle_tracehound_analyze(
+        self,
+        ws: Any,
+        request: "AgentRequest",
+        send_lock: asyncio.Lock,
+    ) -> None:
+        """LLM-powered deep diagnostic analysis of a session trajectory."""
+        import re as _re
+        import time as _time
+        from openjiuwen.core.foundation.llm.schema.message import UserMessage
+        from jiuwenswarm.server.runtime.session.session_history import (
+            read_session_history_records,
+            get_read_history_path,
+        )
+
+        params: dict = request.params or {}
+        session_id: str = params.get("session_id", "")
+
+        async def _send(payload: dict) -> None:
+            wire = encode_agent_response_for_wire(
+                AgentResponse(
+                    request_id=request.request_id,
+                    channel_id=request.channel_id,
+                    ok=payload.get("ok", True),
+                    payload=payload,
+                ),
+                response_id=request.request_id,
+            )
+            async with send_lock:
+                await ws.send(json.dumps(wire, ensure_ascii=False))
+
+        if not session_id:
+            await _send({"ok": False, "error": "session_id required"})
+            return
+
+        history_path = str(get_read_history_path(session_id))
+        fingerprint = self._session_fingerprint(history_path)
+
+        try:
+            records = read_session_history_records(session_id)
+        except Exception:
+            logger.exception("[tracehound.analyze] failed to read session %s", session_id)
+            await _send({"ok": False, "error": "Failed to read session history"})
+            return
+
+        summary = self._build_analysis_summary(records)
+
+        model = self._resolve_model(None)
+        if model is None:
+            await _send({"ok": False, "error": "No LLM model configured"})
+            return
+
+        prompt = (
+            "You are an expert AI system diagnostician analyzing an agent session log "
+            "from JiuwenSwarm, an AI agent platform.\n\n"
+            "Analyze the following session and identify all notable issues, problems, "
+            "anomalies, or improvement opportunities.\n\n"
+            f"SESSION LOG SUMMARY:\n{summary}\n\n"
+            "For each issue provide a structured analysis. Return a JSON array sorted by "
+            "priority (most critical first). Each element must have exactly these keys:\n"
+            "  priority        - integer 1-5 (1=Critical 2=High 3=Medium 4=Low 5=Info)\n"
+            "  title           - concise issue title, max 70 chars\n"
+            "  description     - clear explanation of the problem\n"
+            "  evidence        - specific facts: timestamps, error messages, counts\n"
+            "  impact          - effect on user or system reliability\n"
+            "  root_cause      - most likely underlying cause\n"
+            "  recommendation  - specific actionable steps to fix or mitigate\n\n"
+            "Return ONLY a valid JSON array. No markdown fences, no extra text. "
+            "If no issues found, return []."
+        )
+
+        try:
+            result = await model.invoke(
+                [UserMessage(content=prompt)],
+                max_tokens=4000,
+                temperature=0.2,
+            )
+            text = (getattr(result, "content", None) or str(result)).strip()
+        except Exception:
+            logger.exception("[tracehound.analyze] LLM call failed for session %s", session_id)
+            await _send({"ok": False, "error": "LLM analysis failed — check model configuration"})
+            return
+
+        # Parse JSON array from response
+        issues: list = []
+        try:
+            issues = json.loads(text)
+        except json.JSONDecodeError:
+            match = _re.search(r"\[[\s\S]*\]", text)
+            if match:
+                try:
+                    issues = json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    logger.warning("[tracehound.analyze] JSON parse failed: %s", text[:400])
+
+        # Validate and normalise
+        clean: list[dict] = []
+        for item in (issues if isinstance(issues, list) else []):
+            if not isinstance(item, dict):
+                continue
+            clean.append({
+                "priority": max(1, min(5, int(item.get("priority") or 3))),
+                "title": str(item.get("title") or "Unnamed issue")[:100],
+                "description": str(item.get("description") or ""),
+                "evidence": str(item.get("evidence") or ""),
+                "impact": str(item.get("impact") or ""),
+                "root_cause": str(item.get("root_cause") or ""),
+                "recommendation": str(item.get("recommendation") or ""),
+            })
+        clean.sort(key=lambda x: x["priority"])
+
+        await _send({
+            "ok": True,
+            "issues": clean,
+            "fingerprint": fingerprint,
+            "analyzed_at": _time.time(),
+        })

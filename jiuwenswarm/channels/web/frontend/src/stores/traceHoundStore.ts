@@ -50,6 +50,24 @@ export interface SessionStats {
   total_tokens: number;
   date_range: string;
   history_file_path: string;
+  session_fingerprint?: string;
+}
+
+export interface AnalysisIssue {
+  priority: number;          // 1 (highest) – 5 (lowest)
+  title: string;
+  description: string;
+  evidence: string;
+  impact: string;
+  root_cause: string;
+  recommendation: string;
+}
+
+export interface SessionAnalysis {
+  session_id: string;
+  fingerprint: string;       // matches SessionStats.session_fingerprint when fresh
+  analyzed_at: number;       // unix timestamp
+  issues: AnalysisIssue[];
 }
 
 export interface HistoryRecord {
@@ -79,6 +97,22 @@ export interface HistoryRecord {
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
+const ANALYSIS_LS_PREFIX = 'tracehound_analysis_';
+
+function loadAnalysisFromStorage(sessionId: string): SessionAnalysis | null {
+  try {
+    const raw = localStorage.getItem(ANALYSIS_LS_PREFIX + sessionId);
+    if (!raw) return null;
+    return JSON.parse(raw) as SessionAnalysis;
+  } catch { return null; }
+}
+
+function saveAnalysisToStorage(analysis: SessionAnalysis) {
+  try {
+    localStorage.setItem(ANALYSIS_LS_PREFIX + analysis.session_id, JSON.stringify(analysis));
+  } catch { /* ignore quota errors */ }
+}
+
 interface TraceHoundState {
   sessions: TraceHoundSessionItem[];
   selectedSessionId: string | null;
@@ -90,11 +124,18 @@ interface TraceHoundState {
   loading: boolean;
   error: string | null;
 
+  // LLM analysis
+  analysis: SessionAnalysis | null;
+  analyzing: boolean;
+  analyzeError: string | null;
+
   loadSessions: () => Promise<void>;
   selectSession: (session: TraceHoundSessionItem) => Promise<void>;
   selectTurn: (turnId: string) => Promise<void>;
   back: () => void;
   clearError: () => void;
+  analyzeSession: () => Promise<void>;
+  clearAnalyzeError: () => void;
 }
 
 export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
@@ -107,6 +148,10 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
   turnRecords: [],
   loading: false,
   error: null,
+
+  analysis: null,
+  analyzing: false,
+  analyzeError: null,
 
   loadSessions: async () => {
     set({ loading: true, error: null });
@@ -121,6 +166,9 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
   },
 
   selectSession: async (session) => {
+    // Load cached analysis from localStorage immediately so it shows while the
+    // turn list is still loading (may be stale — staleness detected later).
+    const cachedAnalysis = loadAnalysisFromStorage(session.session_id);
     set({
       loading: true,
       error: null,
@@ -130,6 +178,8 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       sessionStats: null,
       selectedTurnId: null,
       turnRecords: [],
+      analysis: cachedAnalysis,
+      analyzeError: null,
     });
     try {
       const res = await webRequest<{ ok: boolean; turns: TurnSummary[]; session_stats: SessionStats }>(
@@ -169,9 +219,42 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
     if (selectedTurnId) {
       set({ selectedTurnId: null, turnRecords: [] });
     } else {
-      set({ selectedSessionId: null, selectedSession: null, turns: [], sessionStats: null });
+      set({ selectedSessionId: null, selectedSession: null, turns: [], sessionStats: null, analysis: null, analyzeError: null });
     }
   },
 
   clearError: () => set({ error: null }),
+
+  analyzeSession: async () => {
+    const { selectedSessionId, analyzing } = get();
+    if (!selectedSessionId || analyzing) return;
+    set({ analyzing: true, analyzeError: null });
+    try {
+      const res = await webRequest<{
+        ok: boolean;
+        issues: AnalysisIssue[];
+        fingerprint: string;
+        analyzed_at: number;
+        error?: string;
+      }>('tracehound.analyze', { session_id: selectedSessionId });
+
+      if (!res?.ok) {
+        set({ analyzing: false, analyzeError: res?.error ?? 'Analysis failed' });
+        return;
+      }
+
+      const analysis: SessionAnalysis = {
+        session_id: selectedSessionId,
+        fingerprint: res.fingerprint ?? '',
+        analyzed_at: res.analyzed_at ?? Date.now() / 1000,
+        issues: Array.isArray(res.issues) ? res.issues : [],
+      };
+      saveAnalysisToStorage(analysis);
+      set({ analyzing: false, analysis });
+    } catch (e) {
+      set({ analyzing: false, analyzeError: String(e) });
+    }
+  },
+
+  clearAnalyzeError: () => set({ analyzeError: null }),
 }));
