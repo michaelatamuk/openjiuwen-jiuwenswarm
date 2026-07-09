@@ -480,35 +480,61 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
         <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div style={{ padding: '10px 14px', borderTop: `1px solid ${pc.border}66`, display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ padding: '14px 16px', borderTop: `1px solid ${pc.border}55`, display: 'flex', flexDirection: 'column', gap: 14, background: '#fff' }}>
+          {/* Description — most prominent narrative block */}
           {issue.description && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Description</div>
-              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.description}</div>
+            <div style={{ color: '#1f2937', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+              {issue.description}
             </div>
           )}
+
+          {/* Evidence — visually distinct raw-data / log card */}
           {issue.evidence && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Evidence</div>
-              <div style={{ fontSize: 12, color: '#374151', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, padding: '6px 8px', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{issue.evidence}</div>
+            <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#e2e8f0', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span>🧾</span> Evidence
+              </div>
+              <div style={{ fontSize: 12, color: '#334155', padding: '8px 10px', whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', lineHeight: 1.45 }}>
+                {issue.evidence}
+              </div>
             </div>
           )}
-          {issue.impact && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Impact</div>
-              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.impact}</div>
-            </div>
-          )}
-          {issue.root_cause && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Root Cause</div>
-              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{issue.root_cause}</div>
-            </div>
-          )}
+
+          {/* Impact + Root Cause — side-by-side when both present, stacked otherwise */}
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
+            {issue.impact && (
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                  <span style={{ fontSize: 12 }}>⚠️</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Impact</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: '#78350f', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                  {issue.impact}
+                </div>
+              </div>
+            )}
+            {issue.root_cause && (
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                  <span style={{ fontSize: 12 }}>🔍</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Root Cause</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: '#312e81', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                  {issue.root_cause}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Recommendation — most visually prominent, actionable */}
           {issue.recommendation && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>Recommendation</div>
-              <div style={{ fontSize: 13, color: '#065f46', whiteSpace: 'pre-wrap', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, padding: '6px 8px' }}>{issue.recommendation}</div>
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#dcfce7', fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span>💡</span> Recommendation
+              </div>
+              <div style={{ fontSize: 13, color: '#14532d', padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+                {issue.recommendation}
+              </div>
             </div>
           )}
         </div>
