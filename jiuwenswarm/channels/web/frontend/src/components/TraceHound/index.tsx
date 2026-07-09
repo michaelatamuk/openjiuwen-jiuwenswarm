@@ -289,89 +289,86 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
 
-        {/* Quality per turn */}
-        <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Quality per turn</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 50 }}>
-            {turns.map(t => {
-              const label = outcomeLabel(t);
-              const color = QUAL_COLORS[label] ?? '#9ca3af';
-              const pct = outcomeScore(t);
-              return (
-                <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${label.toUpperCase()}\n${t.user_content || '(no message)'}`}>
-                  <div
-                    style={{ flex: 1, minWidth: 4, maxWidth: 20, height: `${Math.max(6, pct * 50)}px`, background: color, borderRadius: 2, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }}
-                  />
-                </Tooltip>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#9ca3af', marginTop: 3 }}>
-            <span>#1</span><span>#{turns.length}</span>
-          </div>
-          {/* Legend */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-            {Object.entries(QUAL_COLORS).map(([k, c]) => (
-              <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#6b7280' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: c, display: 'inline-block' }} />
-                {k}
-              </span>
-            ))}
-          </div>
-        </div>
+        {/* Per turn — combined quality, tokens, duration in one card */}
+        <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Per turn</div>
 
-        {/* Token usage */}
-        {maxTok > 0 && (
-          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Tokens per turn</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 50 }}>
-              {turns.map(t => (
-                <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
-                  <div style={{ flex: 1, minWidth: 4, maxWidth: 20, height: `${Math.max(t.total_tokens > 0 ? 3 : 0, (t.total_tokens / maxTok) * 50)}px`, background: '#6366f1', borderRadius: 2, opacity: 0.65, cursor: 'default' }} />
-                </Tooltip>
-              ))}
+          {/* Quality row */}
+          <div>
+            <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+              <span>Quality</span><span>{turns.length} turns</span>
             </div>
-            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>Total: {turns.reduce((s, t) => s + t.total_tokens, 0).toLocaleString()} tokens</div>
-          </div>
-        )}
-
-        {/* Duration per turn — only non-retry turns, since wall time is misleading for retried turns */}
-        {maxDur > 0 && (
-          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-              Duration per turn
-              <span style={{ fontSize: 9, fontWeight: 400, color: '#9ca3af', marginLeft: 6 }}>(single-attempt turns only)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 50 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
               {turns.map(t => {
-                if (t.retry_count > 1) {
-                  return (
-                    <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded (includes idle gaps)`}>
-                      <div style={{ flex: 1, minWidth: 4, maxWidth: 20, height: 6, background: '#e5e7eb', borderRadius: 2, cursor: 'default', opacity: 0.4 }} />
-                    </Tooltip>
-                  );
-                }
-                const pct = t.duration_seconds / maxDur;
-                const color = pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
+                const label = outcomeLabel(t);
+                const color = QUAL_COLORS[label] ?? '#9ca3af';
+                const pct = outcomeScore(t);
                 return (
-                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
-                    <div style={{ flex: 1, minWidth: 4, maxWidth: 20, height: `${Math.max(t.duration_seconds > 0 ? 3 : 0, pct * 50)}px`, background: color, borderRadius: 2, cursor: 'default' }} />
+                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${label.toUpperCase()}\n${t.user_content || '(no message)'}`}>
+                    <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(4, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
                   </Tooltip>
                 );
               })}
             </div>
-            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>Slowest: {fmtDuration(maxDur)}</div>
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              {[['#10b981', 'fast'], ['#f59e0b', 'moderate'], ['#ef4444', 'slow']].map(([c, l]) => (
-                <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#6b7280' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: c, display: 'inline-block' }} />
-                  {l}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+              {Object.entries(QUAL_COLORS).map(([k, c]) => (
+                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{k}
                 </span>
               ))}
             </div>
           </div>
-        )}
+
+          {/* Tokens row */}
+          {maxTok > 0 && (
+            <div>
+              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Tokens</span><span>{turns.reduce((s, t) => s + t.total_tokens, 0).toLocaleString()} total</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                {turns.map(t => (
+                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
+                    <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(t.total_tokens > 0 ? 2 : 0, (t.total_tokens / maxTok) * 28)}px`, background: '#6366f1', borderRadius: 1, opacity: 0.65, cursor: 'default' }} />
+                  </Tooltip>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Duration row */}
+          {maxDur > 0 && (
+            <div>
+              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Duration <span style={{ fontSize: 8 }}>(single-attempt)</span></span><span>slowest {fmtDuration(maxDur)}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                {turns.map(t => {
+                  if (t.retry_count > 1) {
+                    return (
+                      <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded`}>
+                        <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: 4, background: '#e5e7eb', borderRadius: 1, cursor: 'default', opacity: 0.4 }} />
+                      </Tooltip>
+                    );
+                  }
+                  const pct = t.duration_seconds / maxDur;
+                  const color = pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
+                  return (
+                    <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
+                      <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(t.duration_seconds > 0 ? 2 : 0, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default' }} />
+                    </Tooltip>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                {([['#10b981', 'fast'], ['#f59e0b', 'moderate'], ['#ef4444', 'slow']] as const).map(([c, l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Error categories */}
         {Object.keys(errCats).length > 0 && (
@@ -751,10 +748,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
           {/* Status text — sits before the action button */}
           <span style={{ flex: 1, fontSize: 11, color: '#9ca3af', textAlign: 'right', paddingRight: 4 }}>
             {analysis
-              ? `${analysis.issues.length} issue${analysis.issues.length !== 1 ? 's' : ''} · ${new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+              ? `${analysis.issues.length} issue${analysis.issues.length !== 1 ? 's' : ''} · ${new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · uses LLM (costs tokens, takes time)`
               : analyzing
-                ? 'Running LLM diagnosis…'
-                : 'No diagnosis yet · uses LLM (~30-120s, costs tokens)'}
+                ? 'Running LLM diagnosis… · costs tokens'
+                : 'No diagnosis yet · uses LLM (costs tokens, takes time)'}
           </span>
           {analysis && sessionStats?.session_fingerprint && analysis.fingerprint !== sessionStats.session_fingerprint && (
             <Tooltip text="The session history has changed since this diagnosis was run. Re-run to get fresh results.">
@@ -811,7 +808,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>
               Stats
               <span style={{ fontSize: 11, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
-                {statsSummary.completed} OK · {statsSummary.withIssues} issues · {statsSummary.errors} errors{statsSummary.deferred > 0 ? ` · ${statsSummary.deferred} deferred` : ''} · {statsSummary.totalTools} tool calls
+                {statsSummary.completed} OK · {statsSummary.withIssues} issues · {statsSummary.errors} errors{statsSummary.deferred > 0 ? ` · ${statsSummary.deferred} deferred` : ''} · {statsSummary.totalTools} tool calls · locally computed
               </span>
             </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>{analyticsOpen ? '▲' : '▼'}</span>
