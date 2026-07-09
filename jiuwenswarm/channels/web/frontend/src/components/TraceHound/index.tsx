@@ -462,39 +462,49 @@ const PRIORITY_COLORS: Record<number, { bg: string; border: string; text: string
   5: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', label: 'P5' },
 };
 
-/** Splits "1) ... 2) ..." recommendation text into styled numbered rows. */
+/** Splits "1) ... 2) ..." recommendation text into styled numbered rows.
+ *  Handles both multi-line lists and single-line semicolon-separated lists.
+ */
 function RecommendationList({ text }: { text: string }) {
-  // Normalize common numbered-list patterns: "1) ", "2. ", "(3) ", "1. "
+  // Try to detect numbered items. Supports:
+  //   1) ... 2) ...   (inline or multiline)
+  //   1. ... 2. ...
+  //   (1) ... (2) ...
+  //   separated by newlines or by "; " + number pattern
   const items: { num: number; body: string }[] = [];
-  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
 
-  // First try to detect explicit numbered items across lines
-  let currentNum = 1;
-  let currentBody = '';
-  let foundList = false;
+  // First, try inline pattern: split on "; " followed by a number marker
+  // This handles: "1) foo; 2) bar; 3) baz"
+  const inlineSplit = text.split(/;\s*(?=(?:\d+[\.)]|\(\d+\))\s)/);
 
-  for (const line of lines) {
-    const m = line.match(/^(?:(\d+)[\.)]\s*|\((\d+)\)\s*)/);
-    if (m) {
-      if (currentBody) {
-        items.push({ num: currentNum, body: currentBody.trim() });
+  const processChunk = (chunk: string) => {
+    const m = chunk.match(/^(?:(\d+)[\.)]\s*|\((\d+)\)\s*)/);
+    if (!m) return null;
+    const num = parseInt(m[1] ?? m[2], 10);
+    const body = chunk.slice(m[0].length).trim();
+    return { num, body };
+  };
+
+  for (const chunk of inlineSplit) {
+    // A chunk may itself contain newlines; split those too
+    const lines = chunk.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const parsed = processChunk(line);
+      if (parsed) {
+        items.push(parsed);
+      } else if (items.length > 0) {
+        // Continuation line for the previous item
+        items[items.length - 1].body += ' ' + line;
+      } else {
+        // Preamble before any numbered item — create a pseudo-item
+        items.push({ num: 0, body: line });
       }
-      currentNum = parseInt(m[1] ?? m[2], 10);
-      currentBody = line.slice(m[0].length).trim();
-      foundList = true;
-    } else if (foundList) {
-      currentBody += ' ' + line;
-    } else {
-      // Not a numbered list — keep as plain text
-      currentBody += (currentBody ? ' ' : '') + line;
     }
   }
-  if (currentBody) {
-    items.push({ num: currentNum, body: currentBody.trim() });
-  }
 
-  // If only one item and no list markers detected, render as plain prose
-  if (items.length <= 1 && !foundList) {
+  // Fallback: if no numbered items found, render as plain prose
+  if (items.length === 0 || (items.length === 1 && items[0].num === 0)) {
     return (
       <div style={{ fontSize: 13, color: '#14532d', padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
         {text}
@@ -503,9 +513,9 @@ function RecommendationList({ text }: { text: string }) {
   }
 
   return (
-    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {items.map((item) => (
-        <div key={item.num} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div key={item.num} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{
             flexShrink: 0,
             fontSize: 11, fontWeight: 700, color: '#15803d',
