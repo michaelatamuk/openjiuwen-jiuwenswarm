@@ -122,22 +122,16 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   );
 }
 
-const QUAL_COLORS: Record<string, string> = {
-  good: '#10b981', fair: '#f59e0b', poor: '#ef4444', failed: '#9ca3af', deferred: '#6366f1',
+/** Color for each outcome type — used in charts, badges, timeline bars */
+const OUTCOME_COLORS: Record<string, string> = {
+  completed: '#3b82f6',
+  completed_with_issues: '#f59e0b',
+  no_response: '#8b5cf6',
+  error: '#ef4444',
+  deferred: '#6366f1',
 };
 
-// TraceHound uses `outcome` + `issues` instead of `quality_label`/`quality_score`/`quality_breakdown`
-const OUTCOME_TO_LABEL: Record<string, string> = {
-  completed: 'good',
-  completed_with_issues: 'fair',
-  no_response: 'poor',
-  error: 'failed',
-  deferred: 'deferred',
-};
-function outcomeLabel(t: TurnSummary): string {
-  return OUTCOME_TO_LABEL[t.outcome] ?? 'failed';
-}
-/** Approximate bar height score for visual charts — TraceHound has no numeric quality score */
+/** Approximate bar height score for visual charts */
 function outcomeScore(t: TurnSummary): number {
   switch (t.outcome) {
     case 'completed': return 0.9;
@@ -148,15 +142,15 @@ function outcomeScore(t: TurnSummary): number {
   }
 }
 
-/** Quality chip with inline "?" that shows breakdown in a custom hover tooltip */
-function QualityChip({ label, breakdown, score }: { label: string | null; breakdown: string[]; score: number | null }) {
-  if (!label) return null;
-  const color = QUAL_COLORS[label] ?? '#6b7280';
-  const tip = breakdown.join('\n') + (score != null ? `\n\nScore: ${score.toFixed(2)}` : '');
+/** Outcome badge — shows the actual outcome name (completed / with problems / no response / error / deferred) */
+function OutcomeBadge({ outcome, issues }: { outcome: string; issues: string[] }) {
+  const color = OUTCOME_COLORS[outcome] ?? '#6b7280';
+  const label = outcome.replace(/_/g, ' ');
+  const tip = issues.length > 0 ? issues.join('\n') : '';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44` }}>
-        {label.toUpperCase()}
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44`, textTransform: 'capitalize' }}>
+        {label}
       </span>
       {tip && (
         <Tooltip text={tip}>
@@ -242,8 +236,8 @@ function ErrorBanner({ message, onClose }: { message: string; onClose: () => voi
 function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   if (turns.length === 0) return null;
 
-  const outcomes = { good: 0, fair: 0, poor: 0, failed: 0, deferred: 0 };
-  turns.forEach(t => { const l = outcomeLabel(t) as keyof typeof outcomes; if (l && l in outcomes) outcomes[l]++; });
+  const outcomes = { completed: 0, completed_with_issues: 0, no_response: 0, error: 0, deferred: 0 };
+  turns.forEach(t => { const o = t.outcome; if (o && o in outcomes) (outcomes as Record<string, number>)[o]++; });
 
   const errCats: Record<string, number> = {};
   turns.filter(t => t.has_error && t.error_category).forEach(t => {
@@ -281,10 +275,10 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
       {/* Summary stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         {[
-          { label: 'Completed', value: String(outcomes.good), color: '#10b981', tip: 'Turns that finished successfully with no problems' },
-          { label: 'With problems', value: String(outcomes.fair), color: outcomes.fair > 0 ? '#f59e0b' : '#9ca3af', tip: 'Turns that completed but had tool failures, retries, or were slow' },
-          { label: 'No response', value: String(outcomes.poor), color: outcomes.poor > 0 ? '#8b5cf6' : '#9ca3af', tip: 'Turns where the agent produced no output at all' },
-          { label: 'Errors', value: String(outcomes.failed), color: outcomes.failed > 0 ? '#ef4444' : '#9ca3af', tip: 'Turns that ended in a hard error' },
+          { label: 'Completed', value: String(outcomes.completed), color: '#3b82f6', tip: 'Turns that finished successfully with no problems' },
+          { label: 'With problems', value: String(outcomes.completed_with_issues), color: outcomes.completed_with_issues > 0 ? '#f59e0b' : '#9ca3af', tip: 'Turns that completed but had tool failures, retries, or were slow' },
+          { label: 'No response', value: String(outcomes.no_response), color: outcomes.no_response > 0 ? '#8b5cf6' : '#9ca3af', tip: 'Turns where the agent produced no output at all' },
+          { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'Turns that ended in a hard error' },
           { label: 'Deferred', value: String(outcomes.deferred), color: outcomes.deferred > 0 ? '#6366f1' : '#9ca3af', tip: 'Messages sent while agent was busy — never processed' },
           { label: 'Total retries', value: String(totalRetries), color: totalRetries > 0 ? '#f59e0b' : '#9ca3af', tip: 'How many times the agent retried a failed request' },
           { label: 'Avg tokens/turn', value: avgTokens > 0 ? avgTokens.toLocaleString() : '—', color: '#374151', tip: 'Average token count per turn' },
@@ -305,27 +299,27 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
         <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Per turn</div>
 
-          {/* Quality row */}
+          {/* Outcome row */}
           <div>
             <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Quality</span><span>{turns.length} turns</span>
+              <span>Outcome</span><span>{turns.length} turns</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
               {turns.map(t => {
-                const label = outcomeLabel(t);
-                const color = QUAL_COLORS[label] ?? '#9ca3af';
+                const outcome = t.outcome;
+                const color = OUTCOME_COLORS[outcome] ?? '#9ca3af';
                 const pct = outcomeScore(t);
                 return (
-                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${label.toUpperCase()}\n${t.user_content || '(no message)'}`}>
+                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${outcome.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}\n${t.user_content || '(no message)'}`}>
                     <div style={{ flex: 1, minWidth: 3, maxWidth: 14, height: `${Math.max(4, pct * 28)}px`, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
                   </Tooltip>
                 );
               })}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-              {Object.entries(QUAL_COLORS).map(([k, c]) => (
-                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{k}
+              {Object.entries(OUTCOME_COLORS).map(([k, c]) => (
+                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280', textTransform: 'capitalize' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{k.replace(/_/g, ' ')}
                 </span>
               ))}
             </div>
@@ -904,7 +898,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
                           {modeBadge(turn.mode)}
-                          <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />
+                          <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />
                           {queryTypeBadge(turn.query_type)}
                           {turn.has_error && !isDeferred && (
                             <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
@@ -1208,7 +1202,7 @@ function TurnDetailView() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-          {turn && <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />}
+          {turn && <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />}
           {turn && turn.total_tokens > 0 && <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>}
           {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>{turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}</span>}
           {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>🎯 {turn.skill_names.length} skill{turn.skill_names.length !== 1 ? 's' : ''}</span>}
