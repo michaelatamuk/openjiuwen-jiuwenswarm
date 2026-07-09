@@ -55,7 +55,6 @@ const mainNavItems: NavItem[] = [
   { key: 'chat', labelKey: 'nav.chat', icon: <img src={dialogueIcon} alt="" /> },
   { key: 'agents', labelKey: 'nav.agent', icon: <img src={agentIcon} alt="" /> },
   { key: 'sessions', labelKey: 'nav.sessions', icon: <img src={sessionIcon} alt="" /> },
-  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <img src={tracehoundIcon} alt="" /> },
   {
     key: 'teams',
     labelKey: 'nav.teams',
@@ -70,6 +69,7 @@ const mainNavItems: NavItem[] = [
   { key: 'skills', labelKey: 'nav.skills', icon: <img src={skillIcon} alt="" /> },
   { key: 'channels', labelKey: 'nav.channels', icon: <img src={channelIcon} alt="" /> },
   { key: 'extensions', labelKey: 'nav.extensions', icon: <img src={pluginIcon} alt="" /> },
+  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <img src={tracehoundIcon} alt="" /> },
 ];
 
 const settingsNavItems: NavItem[] = [
