@@ -577,20 +577,20 @@ def get_session_history_stats(session_id: str) -> dict[str, int]:
     """Lightweight scan of a session's history to count turns and tokens.
 
     Reads the active history file (JSONL or legacy JSON) and returns:
-      - turn_count: number of chat.final events (each = one user turn)
+      - turn_count: number of unique user-initiated conversation cycles
+        (counted as unique request_ids that have a role="user" record)
       - total_tokens: sum of total_tokens from chat.usage_summary events
       - event_count: total number of history records
 
-    This is intended for on-demand enrichment of session metadata when
-    cached values are stale or missing (e.g. round_id was never set for
-    single-agent sessions).
+    turn_count matches TraceHound's total_turns — both count unique
+    user-initiated turns (grouped by request_id), not raw chat.final events.
     """
     sid = (session_id or "default").strip() or "default"
     fpath = get_read_history_path(sid)
     if not fpath.exists():
         return {"turn_count": 0, "total_tokens": 0, "event_count": 0}
 
-    turn_count = 0
+    user_rids: set[str] = set()
     total_tokens = 0
     event_count = 0
 
@@ -607,9 +607,11 @@ def get_session_history_stats(session_id: str) -> dict[str, int]:
                 if not isinstance(rec, dict):
                     continue
                 event_count += 1
+                rid = rec.get("request_id", "")
+                role = rec.get("role", "")
                 et = rec.get("event_type", "")
-                if et == "chat.final":
-                    turn_count += 1
+                if role == "user" and rid:
+                    user_rids.add(str(rid))
                 elif et == "chat.usage_summary":
                     usage = rec.get("usage") or {}
                     toks = rec.get("total_tokens") or usage.get("total_tokens") or 0
@@ -617,4 +619,4 @@ def get_session_history_stats(session_id: str) -> dict[str, int]:
     except Exception:
         return {"turn_count": 0, "total_tokens": 0, "event_count": 0}
 
-    return {"turn_count": turn_count, "total_tokens": total_tokens, "event_count": event_count}
+    return {"turn_count": len(user_rids), "total_tokens": total_tokens, "event_count": event_count}

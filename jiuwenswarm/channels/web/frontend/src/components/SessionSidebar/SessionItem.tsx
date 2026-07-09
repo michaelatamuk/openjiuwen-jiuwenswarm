@@ -109,11 +109,11 @@ export function SessionItem({ session, isActive, onClick, onDelete }: SessionIte
             'text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1',
             isActive ? 'bg-accent-subtle text-accent' : 'bg-secondary text-text-muted'
           )}>
-            {session.message_count != null && session.message_count > 0 && (
-              <>{session.message_count} ev</>
-            )}
             {session.round_id != null && session.round_id > 0 && (
-              <>, {session.round_id} turn{session.round_id !== 1 ? 's' : ''}</>
+              <>{session.round_id} msg</>
+            )}
+            {session.message_count != null && session.message_count > 0 && (
+              <>, {session.message_count} ev</>
             )}
             {session.total_tokens != null && session.total_tokens > 0 && (
               <>, {session.total_tokens.toLocaleString()} tok</>

@@ -78,7 +78,7 @@ function modeBadge(mode?: string | null): React.ReactNode {
   const colors: Record<string, string> = { 'agent.plan': '#3b82f6', 'code.plan': '#8b5cf6', team: '#10b981' };
   const color = colors[mode] ?? '#6b7280';
   return (
-    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44`, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44`, marginRight: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
       {mode}
     </span>
   );
@@ -308,13 +308,13 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
       {/* Summary stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         {[
-          { label: 'Completed', value: String(outcomes.completed), color: '#3b82f6', tip: 'Turns that finished successfully with no problems' },
-          { label: 'With problems', value: String(outcomes.completed_with_issues), color: outcomes.completed_with_issues > 0 ? '#f59e0b' : '#9ca3af', tip: 'Turns that completed but had tool failures, retries, or were slow' },
-          { label: 'No response', value: String(outcomes.no_response), color: outcomes.no_response > 0 ? '#8b5cf6' : '#9ca3af', tip: 'Turns where the agent produced no output at all' },
-          { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'Turns that ended in a hard error' },
+          { label: 'Completed', value: String(outcomes.completed), color: '#3b82f6', tip: 'User messages that finished successfully with no problems' },
+          { label: 'With problems', value: String(outcomes.completed_with_issues), color: outcomes.completed_with_issues > 0 ? '#f59e0b' : '#9ca3af', tip: 'User messages that completed but had tool failures, retries, or were slow' },
+          { label: 'No response', value: String(outcomes.no_response), color: outcomes.no_response > 0 ? '#8b5cf6' : '#9ca3af', tip: 'User messages where the agent produced no output at all' },
+          { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'User messages that ended in a hard error' },
           { label: 'Deferred', value: String(outcomes.deferred), color: outcomes.deferred > 0 ? '#6366f1' : '#9ca3af', tip: 'Messages sent while agent was busy — never processed' },
           { label: 'Total retries', value: String(totalRetries), color: totalRetries > 0 ? '#f59e0b' : '#9ca3af', tip: 'How many times the agent retried a failed request' },
-          ...(longestCascade >= 2 ? [{ label: 'Longest error streak', value: `${longestCascade} turns`, color: '#ef4444', tip: 'Consecutive turns all with errors' }] : []),
+          ...(longestCascade >= 2 ? [{ label: 'Longest error streak', value: `${longestCascade} user msgs`, color: '#ef4444', tip: 'Consecutive user messages all with errors' }] : []),
         ].map((s, i) => (
           <Tooltip key={i} text={s.tip ?? ''}>
             <div style={{ background: '#fff', borderRadius: 6, padding: '8px 12px', border: '1px solid #e5e7eb', minWidth: 90, cursor: s.tip ? 'help' : 'default' }}>
@@ -327,14 +327,14 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
 
-        {/* Per turn — combined quality, tokens, duration in one card */}
+        {/* Per user message — combined quality, tokens, duration in one card */}
         <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Per turn</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Per user message</div>
 
           {/* Outcome row */}
           <div>
             <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Outcome</span><span>{turns.length} turns</span>
+              <span>Outcome</span><span>{turns.length} user msgs</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
               {turns.map(t => {
@@ -734,16 +734,16 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {s.title ?? s.session_id.slice(0, 24) + '…'}{modeBadge(s.mode)}
+              {modeBadge(s.mode)}{s.title ?? s.session_id}
             </span>
             <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>{relativeTime(s.last_message_at ?? s.created_at ?? 0)}</span>
           </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af' }}>
-            {s.session_id.slice(0, 20)}…
-            <span style={{ marginLeft: 8 }}>
-              {(s.message_count ?? 0)} events, {(s.round_id ?? 0)} turns
+          <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span>
+              {(s.round_id ?? 0)} user msgs, {(s.message_count ?? 0)} events
               {s.total_tokens != null && s.total_tokens > 0 && `, ${s.total_tokens.toLocaleString()} tokens`}
             </span>
+            <span>{s.session_id}</span>
           </div>
         </div>
       ))}
@@ -779,7 +779,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
   const anyFilter = filterErrors || filterTools || filterSlow;
 
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
-  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(true);
 
   const [analysisOpen, setAnalysisOpen] = useState(!!analysis);
 
@@ -803,7 +803,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <button style={btnStyle} onClick={back}>← Back</button>
             <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedSession?.title ?? selectedSession?.session_id?.slice(0, 24)}{modeBadge(selectedSession?.mode)}
+              {modeBadge(selectedSession?.mode)}{selectedSession?.title ?? selectedSession?.session_id}
             </h2>
           </div>
         </div>
@@ -821,14 +821,14 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
               </Tooltip>
             )}
           </div>
-          {/* Row 2: events, turns, errors, tokens */}
+          {/* Row 2: user msgs, events, errors, tokens */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
-            {selectedSession?.message_count != null && (
-              <span><strong style={{ color: '#374151' }}>{selectedSession.message_count}</strong> events</span>
-            )}
             {sessionStats && (
               <>
-                <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
+                <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> user msgs</span>
+                {selectedSession?.message_count != null && (
+                  <span><strong style={{ color: '#374151' }}>{selectedSession.message_count}</strong> events</span>
+                )}
                 {sessionStats.error_count > 0 && <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> errors</span>}
                 {sessionStats.total_tokens > 0 && <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>}
               </>
@@ -936,7 +936,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
         </div>
       )}
 
-      {/* 4. Turns — actual turn-by-turn message list */}
+      {/* 4. User messages — turn-by-turn list */}
       {turns.length > 0 && (
         <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div
@@ -944,11 +944,11 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             onClick={() => setMessagesOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>💬</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>Turns</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>User messages</span>
             <span style={{ flex: 1, fontSize: 11, color: '#6b7280', textAlign: 'right', paddingRight: 4 }}>
               {visibleTurns.length} shown · {turns.length} total{anyFilter ? ` (filtered)` : ''}
             </span>
-            <span style={{ fontSize: 11, color: '#9ca3af', paddingRight: 4 }}>turn-by-turn log</span>
+            <span style={{ fontSize: 11, color: '#9ca3af', paddingRight: 4 }}>one-by-one log</span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>{messagesOpen ? '▲' : '▼'}</span>
           </div>
           {messagesOpen && (
@@ -978,7 +978,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
 
               {loading && <div style={emptyStyle}>Loading turns…</div>}
               {!loading && turns.length === 0 && <div style={emptyStyle}>No turns found for this session.</div>}
-              {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>No turns match the active filters.</div>}
+              {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>No user messages match the active filters.</div>}
 
               {visibleTurns.map((turn) => {
                 const rLabel = responseLabel(turn.final_length);
