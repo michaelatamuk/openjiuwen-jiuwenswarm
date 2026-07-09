@@ -113,6 +113,28 @@ const QUAL_COLORS: Record<string, string> = {
   good: '#10b981', fair: '#f59e0b', poor: '#ef4444', failed: '#9ca3af', deferred: '#6366f1',
 };
 
+// TraceHound uses `outcome` + `issues` instead of `quality_label`/`quality_score`/`quality_breakdown`
+const OUTCOME_TO_LABEL: Record<string, string> = {
+  completed: 'good',
+  completed_with_issues: 'fair',
+  no_response: 'poor',
+  error: 'failed',
+  deferred: 'deferred',
+};
+function outcomeLabel(t: TurnSummary): string {
+  return OUTCOME_TO_LABEL[t.outcome] ?? 'failed';
+}
+/** Approximate bar height score for visual charts — TraceHound has no numeric quality score */
+function outcomeScore(t: TurnSummary): number {
+  switch (t.outcome) {
+    case 'completed': return 0.9;
+    case 'completed_with_issues': return 0.65;
+    case 'no_response': return 0.2;
+    case 'deferred': return 0.3;
+    default: return 0.1;
+  }
+}
+
 /** Quality chip with inline "?" that shows breakdown in a custom hover tooltip */
 function QualityChip({ label, breakdown, score }: { label: string | null; breakdown: string[]; score: number | null }) {
   if (!label) return null;
@@ -206,7 +228,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   if (turns.length === 0) return null;
 
   const outcomes = { good: 0, fair: 0, poor: 0, failed: 0, deferred: 0 };
-  turns.forEach(t => { const l = t.quality_label as keyof typeof outcomes; if (l && l in outcomes) outcomes[l]++; });
+  turns.forEach(t => { const l = outcomeLabel(t) as keyof typeof outcomes; if (l && l in outcomes) outcomes[l]++; });
   const successful = outcomes.good + outcomes.fair;
   const failed = outcomes.poor + outcomes.failed;
   const deferred = outcomes.deferred;
@@ -271,12 +293,13 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Quality per turn</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 50 }}>
             {turns.map(t => {
-              const color = QUAL_COLORS[t.quality_label ?? 'failed'] ?? '#9ca3af';
-              const pct = t.quality_score != null ? t.quality_score : (t.quality_label === 'deferred' ? 0.3 : 0);
+              const label = outcomeLabel(t);
+              const color = QUAL_COLORS[label] ?? '#9ca3af';
+              const pct = outcomeScore(t);
               return (
-                <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.quality_label?.toUpperCase()}\n${t.user_content || '(no message)'}`}>
+                <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${label.toUpperCase()}\n${t.user_content || '(no message)'}`}>
                   <div
-                    style={{ flex: 1, minWidth: 4, maxWidth: 20, height: `${Math.max(6, pct * 50)}px`, background: color, borderRadius: 2, cursor: 'default', opacity: t.quality_label === 'deferred' ? 0.4 : 1 }}
+                    style={{ flex: 1, minWidth: 4, maxWidth: 20, height: `${Math.max(6, pct * 50)}px`, background: color, borderRadius: 2, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }}
                   />
                 </Tooltip>
               );
@@ -577,7 +600,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
                   {modeBadge(turn.mode)}
-                  <QualityChip label={turn.quality_label} breakdown={turn.quality_breakdown} score={turn.quality_score} />
+                  <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />
                   {queryTypeBadge(turn.query_type)}
                   {turn.has_error && !isDeferred && (
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
@@ -877,7 +900,7 @@ function TurnDetailView() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-          {turn && <QualityChip label={turn.quality_label} breakdown={turn.quality_breakdown} score={turn.quality_score} />}
+          {turn && <QualityChip label={outcomeLabel(turn)} breakdown={turn.issues} score={null} />}
           {turn && turn.total_tokens > 0 && <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>}
           {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>{turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}</span>}
           {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>🎯 {turn.skill_names.length} skill{turn.skill_names.length !== 1 ? 's' : ''}</span>}
