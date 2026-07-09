@@ -7026,20 +7026,31 @@ class AgentWebSocketServer:
 
                 history_file_path = str(get_read_history_path(session_id))
 
-                payload: dict = {
-                    "ok": True,
-                    "turns": real_turns,
-                    "session_stats": {
-                        "total_turns": len(real_turns),
-                        "error_count": error_count,
-                        "total_tokens": all_tokens,
+                if params.get("stats_only"):
+                    payload = {
+                        "ok": True,
+                        "stats_cached": True,
+                        "session_id": session_id,
                         "total_llm_calls": total_llm_calls,
                         "total_events": total_events,
-                        "date_range": date_range,
-                        "history_file_path": history_file_path,
-                        "session_fingerprint": self._session_fingerprint(history_file_path),
-                    },
-                }
+                        "total_tokens": all_tokens,
+                        "total_turns": len(real_turns),
+                    }
+                else:
+                    payload = {
+                        "ok": True,
+                        "turns": real_turns,
+                        "session_stats": {
+                            "total_turns": len(real_turns),
+                            "error_count": error_count,
+                            "total_tokens": all_tokens,
+                            "total_llm_calls": total_llm_calls,
+                            "total_events": total_events,
+                            "date_range": date_range,
+                            "history_file_path": history_file_path,
+                            "session_fingerprint": self._session_fingerprint(history_file_path),
+                        },
+                    }
 
             elif action == "turn_get":
                 turn_id: str = params.get("turn_id", "")

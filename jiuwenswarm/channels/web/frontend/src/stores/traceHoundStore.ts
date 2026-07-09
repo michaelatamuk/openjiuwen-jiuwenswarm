@@ -167,7 +167,28 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       const res = await webRequest<{ sessions: TraceHoundSessionItem[] }>('session.list', {
         limit: 100,
       });
-      set({ sessions: Array.isArray(res?.sessions) ? res.sessions : [], loading: false });
+      const sessions = Array.isArray(res?.sessions) ? res.sessions : [];
+      set({ sessions, loading: false });
+      // Background: populate llm_calls/total_events for sessions that don't have them yet
+      const missing = sessions.filter(s => s.llm_calls == null && (s.round_id ?? 0) > 0);
+      if (missing.length > 0) {
+        missing.slice(0, 10).forEach(s => {
+          webRequest<{ ok: boolean; session_id: string; total_llm_calls: number; total_events: number }>(
+            'tracehound.turns_list',
+            { session_id: s.session_id, stats_only: true }
+          ).then(r => {
+            if (r?.ok && r.session_id) {
+              set(state => ({
+                sessions: state.sessions.map(sess =>
+                  sess.session_id === r.session_id
+                    ? { ...sess, llm_calls: r.total_llm_calls, total_events: r.total_events }
+                    : sess
+                ),
+              }));
+            }
+          }).catch(() => {});
+        });
+      }
     } catch (e) {
       set({ error: String(e), loading: false });
     }
