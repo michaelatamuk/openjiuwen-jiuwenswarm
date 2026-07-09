@@ -359,10 +359,10 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                 {turns.map(t => {
-                  const h = Math.max(t.total_tokens > 0 ? 2 : 0, (t.total_tokens / maxTok) * 28);
+                  const h = Math.max(1, (t.total_tokens / maxTok) * 28);
                   return (
                     <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
-                      <div style={{ flex: 1, minWidth: 0, height: h, background: '#6366f1', borderRadius: 1, opacity: 0.65, cursor: 'default' }} />
+                      <div style={{ flex: 1, minWidth: 0, height: h, background: t.total_tokens > 0 ? '#6366f1' : '#e5e7eb', borderRadius: 1, opacity: t.total_tokens > 0 ? 0.65 : 0.3, cursor: 'default' }} />
                     </Tooltip>
                   );
                 })}
@@ -383,11 +383,11 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                   {turns.map(t => {
                     const n = t.llm_call_count ?? 0;
-                    const h = Math.max(n > 0 ? 2 : 0, (n / maxLlm) * 28);
-                    const color = n > 10 ? '#ef4444' : n > 4 ? '#f59e0b' : '#10b981';
+                    const h = Math.max(1, (n / maxLlm) * 28);
+                    const color = n === 0 ? '#e5e7eb' : n > 10 ? '#ef4444' : n > 4 ? '#f59e0b' : '#10b981';
                     return (
                       <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} LLM call${n !== 1 ? 's' : ''}`}>
-                        <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default' }} />
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, opacity: n === 0 ? 0.3 : 1, cursor: 'default' }} />
                       </Tooltip>
                     );
                   })}
@@ -419,11 +419,11 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                     );
                   }
                   const pct = t.duration_seconds / maxDur;
-                  const color = pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
-                  const h = Math.max(t.duration_seconds > 0 ? 2 : 0, pct * 28);
+                  const color = t.duration_seconds === 0 ? '#e5e7eb' : pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
+                  const h = Math.max(1, pct * 28);
                   return (
                     <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
-                      <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default' }} />
+                      <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, opacity: t.duration_seconds === 0 ? 0.3 : 1, cursor: 'default' }} />
                     </Tooltip>
                   );
                 })}
@@ -483,10 +483,10 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                   {turns.map(t => {
                     const n = t.tool_names.length;
-                    const h = Math.max(n > 0 ? 2 : 0, (n / maxTools) * 28);
+                    const h = Math.max(1, (n / maxTools) * 28);
                     return (
                       <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} tool${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.tool_names.slice(0, 5).join(', ') + (t.tool_names.length > 5 ? '…' : '') : ''}`}>
-                        <div style={{ flex: 1, minWidth: 0, height: h, background: '#f59e0b', borderRadius: 1, cursor: 'default', opacity: 0.8 }} />
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? '#e5e7eb' : '#f59e0b', borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.3 : 0.8 }} />
                       </Tooltip>
                     );
                   })}
@@ -508,10 +508,10 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                   {turns.map(t => {
                     const n = t.skill_names.length;
-                    const h = Math.max(n > 0 ? 2 : 0, (n / maxSkills) * 28);
+                    const h = Math.max(1, (n / maxSkills) * 28);
                     return (
                       <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} skill${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.skill_names.join(', ') : ''}`}>
-                        <div style={{ flex: 1, minWidth: 0, height: h, background: '#8b5cf6', borderRadius: 1, cursor: 'default', opacity: 0.8 }} />
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? '#e5e7eb' : '#8b5cf6', borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.3 : 0.8 }} />
                       </Tooltip>
                     );
                   })}
