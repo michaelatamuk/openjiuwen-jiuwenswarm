@@ -44,12 +44,16 @@ export interface TurnSummary {
   outcome: 'completed' | 'completed_with_issues' | 'no_response' | 'error' | 'deferred';
   issues: string[];
   mode: string | null;
+  llm_call_count: number;
+  event_count: number;
 }
 
 export interface SessionStats {
   total_turns: number;
   error_count: number;
   total_tokens: number;
+  total_llm_calls: number;
+  total_events: number;
   date_range: string;
   history_file_path: string;
   session_fingerprint?: string;

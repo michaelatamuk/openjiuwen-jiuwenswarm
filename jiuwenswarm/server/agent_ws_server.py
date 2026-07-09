@@ -6908,18 +6908,22 @@ class AgentWebSocketServer:
                             "was_deferred": False,
                             "query_type": "general",
                             "mode": rec.get("mode"),
+                            "llm_call_count": 0,
+                            "event_count": 0,
                             "_first_ts": None,
                             "_last_ts": None,
                         }
                     role = rec.get("role", "")
                     ts: float = rec.get("timestamp") or 0.0
 
-                    # Duration tracking (ignore noise events)
-                    if ts and et not in self._REPLAY_NOISE_EVENTS:
-                        if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
-                            turns[rid]["_first_ts"] = ts
-                        if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
-                            turns[rid]["_last_ts"] = ts
+                    # Duration tracking + event counting (ignore noise events)
+                    if et not in self._REPLAY_NOISE_EVENTS:
+                        turns[rid]["event_count"] += 1
+                        if ts:
+                            if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
+                                turns[rid]["_first_ts"] = ts
+                            if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
+                                turns[rid]["_last_ts"] = ts
 
                     if role == "user" and not turns[rid]["user_content"]:
                         raw_q = (rec.get("content") or "")
@@ -6947,6 +6951,8 @@ class AgentWebSocketServer:
                         if content_len > 0:
                             turns[rid]["has_final"] = True
                             turns[rid]["final_length"] = content_len
+                    elif et == "chat.usage_metadata":
+                        turns[rid]["llm_call_count"] += 1
                     elif et == "chat.usage_summary":
                         # total_tokens may be at root (old format) or nested inside usage (new format)
                         usage = rec.get("usage") or {}
@@ -6994,6 +7000,8 @@ class AgentWebSocketServer:
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
                 error_count = sum(1 for t in real_turns if t.get("has_error"))
+                total_llm_calls = sum(t.get("llm_call_count", 0) for t in real_turns)
+                total_events = sum(t.get("event_count", 0) for t in real_turns)
 
                 # Cache total_tokens and round_id in session metadata so session.list can return them
                 try:
@@ -7024,6 +7032,8 @@ class AgentWebSocketServer:
                         "total_turns": len(real_turns),
                         "error_count": error_count,
                         "total_tokens": all_tokens,
+                        "total_llm_calls": total_llm_calls,
+                        "total_events": total_events,
                         "date_range": date_range,
                         "history_file_path": history_file_path,
                         "session_fingerprint": self._session_fingerprint(history_file_path),
