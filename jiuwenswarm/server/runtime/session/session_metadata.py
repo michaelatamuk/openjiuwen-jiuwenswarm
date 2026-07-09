@@ -497,6 +497,21 @@ def get_all_sessions_metadata(
                 "total_tokens": 0,
             }
 
+        # 如果 metadata 中的 round_id / total_tokens 为 0，尝试从 history 文件轻量扫描补充
+        if metadata.get("round_id", 0) == 0 or metadata.get("total_tokens", 0) == 0:
+            try:
+                from jiuwenswarm.server.runtime.session.session_history import get_session_history_stats
+                stats = get_session_history_stats(session_id)
+                if metadata.get("round_id", 0) == 0 and stats["turn_count"] > 0:
+                    metadata["round_id"] = stats["turn_count"]
+                if metadata.get("total_tokens", 0) == 0 and stats["total_tokens"] > 0:
+                    metadata["total_tokens"] = stats["total_tokens"]
+                # 同时修正 message_count，因为 message_count 的增量计数可能存在偏差
+                if stats["event_count"] > 0:
+                    metadata["message_count"] = stats["event_count"]
+            except Exception:
+                pass
+
         sessions.append(metadata)
 
     # 清理已有会话中可能被误写入的系统注入标签标题（<system-reminder>、<file-content> 等）

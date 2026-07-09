@@ -545,7 +545,7 @@ export function SessionsPanel({
                     >
                       <span className="truncate block">{session.title || parseSessionDisplayLabel(session.session_id, t)}</span>
                       <span className="mt-0.5 block truncate text-[11px] text-text-muted/80">
-                        {(session.message_count ?? 0)} msg, {(session.round_id ?? 0)} turn{session.round_id !== 1 ? 's' : ''}
+                        {(session.message_count ?? 0)} ev, {(session.round_id ?? 0)} turn{session.round_id !== 1 ? 's' : ''}
                         {session.total_tokens != null && session.total_tokens > 0 && `, ${session.total_tokens.toLocaleString()} tok`}
                       </span>
                       {session.mode === 'team' && session.team_name ? (

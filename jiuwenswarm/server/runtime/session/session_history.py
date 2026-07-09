@@ -571,3 +571,50 @@ def truncate_history_records(*, session_id: str, cut_index: int) -> dict[str, An
             "remaining_records": len(truncated),
             "removed_records": total - len(truncated),
         }
+
+
+def get_session_history_stats(session_id: str) -> dict[str, int]:
+    """Lightweight scan of a session's history to count turns and tokens.
+
+    Reads the active history file (JSONL or legacy JSON) and returns:
+      - turn_count: number of chat.final events (each = one user turn)
+      - total_tokens: sum of total_tokens from chat.usage_summary events
+      - event_count: total number of history records
+
+    This is intended for on-demand enrichment of session metadata when
+    cached values are stale or missing (e.g. round_id was never set for
+    single-agent sessions).
+    """
+    sid = (session_id or "default").strip() or "default"
+    fpath = get_read_history_path(sid)
+    if not fpath.exists():
+        return {"turn_count": 0, "total_tokens": 0, "event_count": 0}
+
+    turn_count = 0
+    total_tokens = 0
+    event_count = 0
+
+    try:
+        with open(fpath, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                event_count += 1
+                et = rec.get("event_type", "")
+                if et == "chat.final":
+                    turn_count += 1
+                elif et == "chat.usage_summary":
+                    usage = rec.get("usage") or {}
+                    toks = rec.get("total_tokens") or usage.get("total_tokens") or 0
+                    total_tokens += int(toks) if isinstance(toks, (int, float)) else 0
+    except Exception:
+        return {"turn_count": 0, "total_tokens": 0, "event_count": 0}
+
+    return {"turn_count": turn_count, "total_tokens": total_tokens, "event_count": event_count}

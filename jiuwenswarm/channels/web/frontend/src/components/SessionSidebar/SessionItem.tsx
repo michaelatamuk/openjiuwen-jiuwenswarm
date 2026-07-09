@@ -100,7 +100,7 @@ export function SessionItem({ session, isActive, onClick, onDelete }: SessionIte
           </div>
         </div>
 
-        {/* 消息计数 */}
+        {/* event count */}
         {((session.message_count && session.message_count > 0)
           || (session.round_id && session.round_id > 0)
           || (session.total_tokens && session.total_tokens > 0))
@@ -110,7 +110,7 @@ export function SessionItem({ session, isActive, onClick, onDelete }: SessionIte
             isActive ? 'bg-accent-subtle text-accent' : 'bg-secondary text-text-muted'
           )}>
             {session.message_count != null && session.message_count > 0 && (
-              <>{session.message_count} msg</>
+              <>{session.message_count} ev</>
             )}
             {session.round_id != null && session.round_id > 0 && (
               <>, {session.round_id} turn{session.round_id !== 1 ? 's' : ''}</>

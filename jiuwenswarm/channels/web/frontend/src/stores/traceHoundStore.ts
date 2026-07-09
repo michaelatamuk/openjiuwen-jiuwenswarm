@@ -193,6 +193,8 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
         sessionStats: res?.session_stats ?? null,
         loading: false,
       });
+      // Refresh session list so metadata caches (round_id, total_tokens) are reflected
+      void get().loadSessions();
     } catch (e) {
       set({ error: String(e), loading: false });
     }

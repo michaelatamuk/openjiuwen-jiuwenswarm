@@ -741,7 +741,7 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
           <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af' }}>
             {s.session_id.slice(0, 20)}…
             <span style={{ marginLeft: 8 }}>
-              {(s.message_count ?? 0)} messages, {(s.round_id ?? 0)} turns
+              {(s.message_count ?? 0)} events, {(s.round_id ?? 0)} turns
               {s.total_tokens != null && s.total_tokens > 0 && `, ${s.total_tokens.toLocaleString()} tokens`}
             </span>
           </div>
@@ -821,10 +821,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
               </Tooltip>
             )}
           </div>
-          {/* Row 2: messages, turns, errors, tokens */}
+          {/* Row 2: events, turns, errors, tokens */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
             {selectedSession?.message_count != null && (
-              <span><strong style={{ color: '#374151' }}>{selectedSession.message_count}</strong> messages</span>
+              <span><strong style={{ color: '#374151' }}>{selectedSession.message_count}</strong> events</span>
             )}
             {sessionStats && (
               <>
