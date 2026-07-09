@@ -469,6 +469,56 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
               </div>
             </div>
           )}
+
+          {/* Tools per user message */}
+          {(() => {
+            const maxTools = Math.max(...turns.map(t => t.tool_names.length), 0);
+            const totalTools = turns.reduce((s, t) => s + t.tool_names.length, 0);
+            if (maxTools === 0) return null;
+            return (
+              <div>
+                <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Tools per msg</span><span>{totalTools} total</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                  {turns.map(t => {
+                    const n = t.tool_names.length;
+                    const h = Math.max(n > 0 ? 2 : 0, (n / maxTools) * 28);
+                    return (
+                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} tool${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.tool_names.slice(0, 5).join(', ') + (t.tool_names.length > 5 ? '…' : '') : ''}`}>
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: '#f59e0b', borderRadius: 1, cursor: 'default', opacity: 0.8 }} />
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Skills per user message */}
+          {(() => {
+            const maxSkills = Math.max(...turns.map(t => t.skill_names.length), 0);
+            const totalSkills = turns.reduce((s, t) => s + t.skill_names.length, 0);
+            if (maxSkills === 0) return null;
+            return (
+              <div>
+                <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Skills per msg</span><span>{totalSkills} total</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                  {turns.map(t => {
+                    const n = t.skill_names.length;
+                    const h = Math.max(n > 0 ? 2 : 0, (n / maxSkills) * 28);
+                    return (
+                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} skill${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.skill_names.join(', ') : ''}`}>
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: '#8b5cf6', borderRadius: 1, cursor: 'default', opacity: 0.8 }} />
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Error categories */}
@@ -766,7 +816,8 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
           </div>
           <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ display: 'flex', gap: 10 }}>
-              {(s.round_id ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.round_id}</strong> user msgs</span>}
+              {(s.round_id ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.round_id}</strong> msgs</span>}
+              {(s.llm_calls ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.llm_calls}</strong> LLM calls</span>}
               {s.total_tokens != null && s.total_tokens > 0 && <span><strong style={{ color: '#6b7280' }}>{s.total_tokens.toLocaleString()}</strong> tokens</span>}
             </span>
             <span style={{ fontSize: 11 }}>{s.session_id}</span>
@@ -987,6 +1038,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
             <div style={{ padding: '12px 14px' }}>
               {/* Filter bar */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+                {/* Outcome filters */}
                 {([
                   { key: 'completed_with_issues', label: '⚠ With Problems', count: statsSummary.withIssues, color: '#f59e0b' },
                   { key: 'no_response', label: '❓ No Response', count: statsSummary.noResp, color: '#8b5cf6' },
@@ -995,11 +1047,14 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                 ] as const).map((f) => {
                   const active = outcomeFilters.has(f.key);
                   return (
-                    <button key={f.key} onClick={() => {
-                      const next = new Set(outcomeFilters);
-                      if (next.has(f.key)) next.delete(f.key);
-                      else next.add(f.key);
-                      setOutcomeFilters(next);
+                    <button key={f.key} onClick={(e) => {
+                      e.stopPropagation();
+                      setOutcomeFilters(prev => {
+                        const next = new Set(prev);
+                        if (next.has(f.key)) next.delete(f.key);
+                        else next.add(f.key);
+                        return next;
+                      });
                     }} style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 12,
                       border: `1px solid ${active ? f.color : '#e5e7eb'}`,
@@ -1009,7 +1064,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                     }}>{f.label}{f.count > 0 ? ` ${f.count}` : ''}</button>
                   );
                 })}
-                <button onClick={() => setFilterRetries(x => !x)} style={{
+                {/* Separator */}
+                <span style={{ color: '#e5e7eb', fontSize: 14, userSelect: 'none' }}>|</span>
+                {/* Behavioral filters */}
+                <button onClick={(e) => { e.stopPropagation(); setFilterRetries(x => !x); }} style={{
                   fontSize: 11, padding: '3px 10px', borderRadius: 12,
                   border: `1px solid ${filterRetries ? '#0369a1' : '#e5e7eb'}`,
                   background: filterRetries ? '#e0f2fe' : '#f9fafb',
@@ -1017,7 +1075,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                   cursor: 'pointer', fontWeight: filterRetries ? 600 : 400,
                 }}>🔁 With Retries{statsSummary.retryCount > 0 ? ` ${statsSummary.retryCount}` : ''}</button>
                 <Tooltip text={`Show slow user messages${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`}>
-                  <button onClick={() => setFilterSlow(x => !x)} style={{
+                  <button onClick={(e) => { e.stopPropagation(); setFilterSlow(x => !x); }} style={{
                     fontSize: 11, padding: '3px 10px', borderRadius: 12,
                     border: `1px solid ${filterSlow ? '#6366f1' : '#e5e7eb'}`,
                     background: filterSlow ? '#eef2ff' : '#f9fafb',
@@ -1026,7 +1084,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                   }}>⏱ Slow</button>
                 </Tooltip>
                 {anyFilter && (
-                  <button onClick={() => { setOutcomeFilters(new Set()); setFilterRetries(false); setFilterSlow(false); }}
+                  <button onClick={(e) => { e.stopPropagation(); setOutcomeFilters(new Set()); setFilterRetries(false); setFilterSlow(false); }}
                     style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer' }}
                   >Reset</button>
                 )}
@@ -1106,10 +1164,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                             {fmtDuration(turn.duration_seconds)}
                           </div>
                         )}
-                        {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.total_tokens.toLocaleString()} tok</div>}
                         {(turn.llm_call_count ?? 0) > 0 && (
                           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.llm_call_count} LLM call{turn.llm_call_count !== 1 ? 's' : ''}</div>
                         )}
+                        {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.total_tokens.toLocaleString()} tok</div>}
                         {turn.final_length > 0 && (
                           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.final_length.toLocaleString()} chars</div>
                         )}

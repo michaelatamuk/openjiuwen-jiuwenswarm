@@ -7013,6 +7013,7 @@ class AgentWebSocketServer:
                     real_turn_count = len(real_turns)
                     if real_turn_count > cached_rounds:
                         update_session_metadata(session_id=session_id, set_round_id=real_turn_count)
+                    update_session_metadata(session_id=session_id, set_llm_calls=total_llm_calls)
                 except Exception:
                     pass
 
