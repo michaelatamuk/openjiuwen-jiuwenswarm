@@ -343,7 +343,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 const pct = outcomeScore(t);
                 const h = Math.max(4, pct * 28);
                 return (
-                  <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}\n${t.user_content || '(no message)'}`}>
+                  <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}\n${t.user_content || '(no message)'}`}>
                     <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
                   </Tooltip>
                 );
@@ -368,7 +368,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 {turns.map(t => {
                   const h = Math.max(t.total_tokens > 0 ? 2 : 0, (t.total_tokens / maxTok) * 28);
                   return (
-                    <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
+                    <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
                       <div style={{ flex: 1, minWidth: 0, height: h, background: '#6366f1', borderRadius: 1, opacity: 0.65, cursor: 'default' }} />
                     </Tooltip>
                   );
@@ -387,7 +387,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 {turns.map(t => {
                   if (t.retry_count > 1) {
                     return (
-                        <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded`}>
+                        <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded`}>
                           <div style={{ flex: 1, minWidth: 0, height: 4, background: '#e5e7eb', borderRadius: 1, cursor: 'default', opacity: 0.4 }} />
                         </Tooltip>
                     );
@@ -396,7 +396,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                   const color = pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
                   const h = Math.max(t.duration_seconds > 0 ? 2 : 0, pct * 28);
                   return (
-                    <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
+                    <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
                       <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default' }} />
                     </Tooltip>
                   );
@@ -427,7 +427,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                     const color = rc === 0 ? '#cbd5e1' : rc === 1 ? '#94a3b8' : '#7c3aed';
                     const h = Math.max(rc > 0 ? 3 : 1, pct * 28);
                     return (
-                      <Tooltip key={t.turn_id} text={`#${t.turn_index + 1}: ${rc} attempt${rc !== 1 ? 's' : ''}`}>
+                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${rc} attempt${rc !== 1 ? 's' : ''}`}>
                         <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default' }} />
                       </Tooltip>
                     );
@@ -758,11 +758,11 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
     selectedSession, turns, sessionStats, loading, error, selectTurn, back, clearError,
     analysis, analyzing, analyzeError, analyzeSession, clearAnalyzeError,
   } = useTraceHoundStore();
-  const [filterErrors, setFilterErrors] = useState(false);
-  const [filterTools,  setFilterTools]  = useState(false);
-  const [filterSlow,   setFilterSlow]   = useState(false);
+  const [outcomeFilters, setOutcomeFilters] = useState<Set<string>>(new Set());
+  const [filterRetries, setFilterRetries] = useState(false);
+  const [filterSlow, setFilterSlow] = useState(false);
 
-  // p90 threshold for slow turns (only from non-retry turns — retry wall time is misleading)
+  // p90 threshold for slow user messages (only from non-retry — wall time is misleading)
   const p90dur = useMemo(() => {
     const sorted = [...turns].filter(t => t.retry_count <= 1).map(t => t.duration_seconds).filter(d => d > 0).sort((a, b) => a - b);
     if (!sorted.length) return 0;
@@ -770,13 +770,13 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
   }, [turns]);
 
   const visibleTurns = useMemo(() => turns.filter(t => {
-    if (filterErrors && !t.has_error) return false;
-    if (filterTools  && t.tool_names.length === 0) return false;
-    if (filterSlow   && (t.retry_count > 1 || t.duration_seconds <= p90dur)) return false;
+    if (outcomeFilters.size > 0 && !outcomeFilters.has(t.outcome)) return false;
+    if (filterRetries && t.retry_count <= 1) return false;
+    if (filterSlow && (t.retry_count > 1 || t.duration_seconds <= p90dur)) return false;
     return true;
-  }), [turns, filterErrors, filterTools, filterSlow, p90dur]);
+  }), [turns, outcomeFilters, filterRetries, filterSlow, p90dur]);
 
-  const anyFilter = filterErrors || filterTools || filterSlow;
+  const anyFilter = outcomeFilters.size > 0 || filterRetries || filterSlow;
 
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
   const [messagesOpen, setMessagesOpen] = useState(true);
@@ -790,9 +790,10 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
     const errors = turns.filter(t => t.outcome === 'error').length;
     const noResp = turns.filter(t => t.outcome === 'no_response').length;
     const deferred = turns.filter(t => t.outcome === 'deferred').length;
+    const retryCount = turns.filter(t => t.retry_count > 1).length;
     const totalTools = turns.reduce((s, t) => s + t.tool_names.length, 0);
     const totalSkills = new Set(turns.flatMap(t => t.skill_names)).size;
-    return { completed, withIssues, errors, noResp, deferred, totalTools, totalSkills };
+    return { completed, withIssues, errors, noResp, deferred, retryCount, totalTools, totalSkills };
   }, [turns]);
 
   return (
@@ -956,28 +957,53 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
               {/* Filter bar */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
                 {([
-                  { key: 'errors', label: '⚠ Problems',  active: filterErrors, toggle: () => setFilterErrors(x => !x) },
-                  { key: 'tools',  label: '🔧 Has tools',    active: filterTools,  toggle: () => setFilterTools(x => !x) },
-                  {
-                    key: 'slow', label: '⏱ Slow turns', active: filterSlow, toggle: () => setFilterSlow(x => !x),
-                    tip: `Show turns that took longer than 90% of others${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`,
-                  },
-                ] as const).map((f) => (
-                  <Tooltip key={f.key} text={'tip' in f ? f.tip : ''}>
-                    <button onClick={f.toggle} style={{
+                  { key: 'completed_with_issues', label: '⚠ With Problems', count: statsSummary.withIssues, color: '#f59e0b' },
+                  { key: 'no_response', label: '❓ No Response', count: statsSummary.noResp, color: '#8b5cf6' },
+                  { key: 'error', label: '❌ Errors', count: statsSummary.errors, color: '#ef4444' },
+                  { key: 'deferred', label: '⏸ Deferred', count: statsSummary.deferred, color: '#6366f1' },
+                ] as const).map((f) => {
+                  const active = outcomeFilters.has(f.key);
+                  return (
+                    <button key={f.key} onClick={() => {
+                      const next = new Set(outcomeFilters);
+                      if (next.has(f.key)) next.delete(f.key);
+                      else next.add(f.key);
+                      setOutcomeFilters(next);
+                    }} style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 12,
-                      border: `1px solid ${f.active ? '#6366f1' : '#e5e7eb'}`,
-                      background: f.active ? '#eef2ff' : '#f9fafb',
-                      color: f.active ? '#6366f1' : '#6b7280',
-                      cursor: 'pointer', fontWeight: f.active ? 600 : 400,
-                    }}>{f.label}</button>
-                  </Tooltip>
-                ))}
+                      border: `1px solid ${active ? f.color : '#e5e7eb'}`,
+                      background: active ? f.color + '18' : '#f9fafb',
+                      color: active ? f.color : '#6b7280',
+                      cursor: 'pointer', fontWeight: active ? 600 : 400,
+                    }}>{f.label}{f.count > 0 ? ` ${f.count}` : ''}</button>
+                  );
+                })}
+                <button onClick={() => setFilterRetries(x => !x)} style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 12,
+                  border: `1px solid ${filterRetries ? '#f59e0b' : '#e5e7eb'}`,
+                  background: filterRetries ? '#fef3c7' : '#f9fafb',
+                  color: filterRetries ? '#f59e0b' : '#6b7280',
+                  cursor: 'pointer', fontWeight: filterRetries ? 600 : 400,
+                }}>🔁 With Retries{statsSummary.retryCount > 0 ? ` ${statsSummary.retryCount}` : ''}</button>
+                <Tooltip text={`Show slow user messages${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`}>
+                  <button onClick={() => setFilterSlow(x => !x)} style={{
+                    fontSize: 11, padding: '3px 10px', borderRadius: 12,
+                    border: `1px solid ${filterSlow ? '#6366f1' : '#e5e7eb'}`,
+                    background: filterSlow ? '#eef2ff' : '#f9fafb',
+                    color: filterSlow ? '#6366f1' : '#6b7280',
+                    cursor: 'pointer', fontWeight: filterSlow ? 600 : 400,
+                  }}>⏱ Slow</button>
+                </Tooltip>
+                {anyFilter && (
+                  <button onClick={() => { setOutcomeFilters(new Set()); setFilterRetries(false); setFilterSlow(false); }}
+                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer' }}
+                  >Reset</button>
+                )}
                 {anyFilter && <span style={{ fontSize: 11, color: '#9ca3af' }}>{visibleTurns.length}/{turns.length}</span>}
               </div>
 
-              {loading && <div style={emptyStyle}>Loading turns…</div>}
-              {!loading && turns.length === 0 && <div style={emptyStyle}>No turns found for this session.</div>}
+              {loading && <div style={emptyStyle}>Loading user messages…</div>}
+              {!loading && turns.length === 0 && <div style={emptyStyle}>No user messages found for this session.</div>}
               {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>No user messages match the active filters.</div>}
 
               {visibleTurns.map((turn) => {
