@@ -202,6 +202,7 @@ def update_session_metadata(
     set_message_count: int | None = None,
     set_round_id: int | None = None,
     set_llm_calls: int | None = None,
+    set_total_events: int | None = None,
     add_tokens: int = 0,
     user_content: str | None = None,
     channel_metadata: dict[str, Any] | None = None,
@@ -266,6 +267,8 @@ def update_session_metadata(
             metadata["round_id"] = set_round_id
         if set_llm_calls is not None:
             metadata["llm_calls"] = set_llm_calls
+        if set_total_events is not None:
+            metadata["total_events"] = set_total_events
 
         # Accumulate total tokens (from LLM usage events)
         if add_tokens > 0:

@@ -20,6 +20,7 @@ export interface TraceHoundSessionItem {
   round_id?: number;      // how many user message turns occurred
   total_tokens?: number;  // cumulative tokens consumed
   llm_calls?: number;     // total LLM API calls across all turns
+  total_events?: number;  // total non-noise events across all turns
   mode?: string;
 }
 
