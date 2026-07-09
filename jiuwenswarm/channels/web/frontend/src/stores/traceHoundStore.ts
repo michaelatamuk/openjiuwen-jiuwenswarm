@@ -236,7 +236,7 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
         fingerprint: string;
         analyzed_at: number;
         error?: string;
-      }>('tracehound.analyze', { session_id: selectedSessionId });
+      }>('tracehound.analyze', { session_id: selectedSessionId }, { timeoutMs: 1_200_000 });
 
       if (!res?.ok) {
         set({ analyzing: false, analyzeError: res?.error ?? 'Analysis failed' });

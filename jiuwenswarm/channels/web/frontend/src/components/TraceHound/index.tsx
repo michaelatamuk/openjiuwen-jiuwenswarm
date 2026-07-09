@@ -207,7 +207,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button style={{ ...btnStyle, fontSize: 11, padding: '2px 8px' }}
-      onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
+        onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
       {copied ? '✓ copied' : '⎘ copy path'}
     </button>
   );
@@ -676,7 +676,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
       {analyzing && !analysis && (
         <div style={{ padding: '14px 16px', marginBottom: 16, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔬</span>
-          <span>Sending session history to LLM for deep analysis… this may take 10-30 seconds.</span>
+          <span>Sending session history to LLM for deep analysis… this may take up to 20 minutes for slow models.</span>
         </div>
       )}
       {analysis && !analyzing && (
