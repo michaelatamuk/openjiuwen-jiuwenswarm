@@ -206,9 +206,11 @@ function downloadJson(data: unknown, filename: string) {
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button style={{ ...btnStyle, fontSize: 11, padding: '2px 8px' }}
-        onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
-      {copied ? '✓ copied' : '⎘ copy path'}
+    <button
+      title={text}
+      style={{ ...btnStyle, fontSize: 11, padding: '2px 8px' }}
+      onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
+      {copied ? '✓ copied' : '⎘ copy'}
     </button>
   );
 }
@@ -265,7 +267,6 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
 
   return (
     <div style={{ marginBottom: 20, padding: '14px 16px', background: '#fafafa', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 14 }}>📊 Session Analytics</div>
 
       {/* Summary stats */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -681,102 +682,113 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
   const [messagesOpen, setMessagesOpen] = useState(true);
 
-  const [analysisOpen, setAnalysisOpen] = useState(true);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+
+  // Auto-expand diagnosis when a fresh analysis arrives while we were waiting
+  const prevAnalysisRef = React.useRef(analysis);
+  React.useEffect(() => {
+    if (analysis && !prevAnalysisRef.current) {
+      setAnalysisOpen(true);
+    }
+    prevAnalysisRef.current = analysis;
+  }, [analysis]);
+
+  // Compute quick summaries for section headers
+  const statsSummary = useMemo(() => {
+    const completed = turns.filter(t => t.outcome === 'completed').length;
+    const withIssues = turns.filter(t => t.outcome === 'completed_with_issues').length;
+    const errors = turns.filter(t => t.outcome === 'error').length;
+    const noResp = turns.filter(t => t.outcome === 'no_response').length;
+    const deferred = turns.filter(t => t.outcome === 'deferred').length;
+    const totalTools = turns.reduce((s, t) => s + t.tool_names.length, 0);
+    return { completed, withIssues, errors, noResp, deferred, totalTools };
+  }, [turns]);
 
   return (
     <div style={panelStyle}>
-      {/* 1. Header — title + all metadata in one compact block */}
+      {/* 1. Header — title left, metadata right */}
       <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <button style={btnStyle} onClick={back}>← Back</button>
-          <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <button style={btnStyle} onClick={back}>← Back</button>
             <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selectedSession?.title ?? selectedSession?.session_id?.slice(0, 24)}{modeBadge(selectedSession?.mode)}
             </h2>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span>{selectedSession?.session_id}</span>
-              {sessionStats && (
-                <>
-                  <span>·</span>
-                  <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
-                  {sessionStats.error_count > 0 && <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>}
-                  {sessionStats.total_tokens > 0 && <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>}
-                  {sessionStats.date_range && <span>{sessionStats.date_range}</span>}
-                  {sessionStats.history_file_path && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                      <span>·</span>
-                      <span>📁</span>
-                      <code style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 5px', borderRadius: 3, wordBreak: 'break-all' }}>{sessionStats.history_file_path}</code>
-                      <CopyButton text={sessionStats.history_file_path} />
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
           </div>
+          <div style={{ fontSize: 11, color: '#9ca3af' }}>{selectedSession?.session_id}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#6b7280', flexShrink: 0 }}>
+          {sessionStats && (
+            <>
+              <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> turns</span>
+              {sessionStats.error_count > 0 && <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> errors</span>}
+              {sessionStats.total_tokens > 0 && <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>}
+              {sessionStats.date_range && <span>{sessionStats.date_range}</span>}
+              {sessionStats.history_file_path && (
+                <Tooltip text={sessionStats.history_file_path}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
+                    <span>📁</span>
+                    <CopyButton text={sessionStats.history_file_path} />
+                  </span>
+                </Tooltip>
+              )}
+            </>
+          )}
         </div>
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
       {analyzeError && <ErrorBanner message={`Analysis failed: ${analyzeError}`} onClose={clearAnalyzeError} />}
 
-      {/* 2. Analysis — single collapsible section, one naming everywhere */}
+      {/* 2. Diagnosis — LLM-powered analysis */}
       <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
-        {/* Section header: always visible, click toggles expand */}
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderBottom: analysisOpen ? '1px solid #e0e7ff' : 'none', cursor: 'pointer' }}
           onClick={() => setAnalysisOpen(x => !x)}
         >
           <span style={{ fontSize: 15 }}>🔬</span>
-          <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95', flex: 1 }}>
-            Analysis
-            {analysis && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
-                {analysis.issues.length} issue{analysis.issues.length !== 1 ? 's' : ''} · {new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+          <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95' }}>Diagnosis</span>
+          {/* Status text — sits before the action button */}
+          <span style={{ flex: 1, fontSize: 11, color: '#9ca3af', textAlign: 'right', paddingRight: 4 }}>
+            {analysis
+              ? `${analysis.issues.length} issue${analysis.issues.length !== 1 ? 's' : ''} · ${new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+              : analyzing
+                ? 'Running LLM diagnosis…'
+                : 'No diagnosis yet · uses LLM (~30-120s, costs tokens)'}
           </span>
-          {/* Stale badge */}
           {analysis && sessionStats?.session_fingerprint && analysis.fingerprint !== sessionStats.session_fingerprint && (
-            <Tooltip text="The session history has changed since this analysis was run. Re-run to get fresh results.">
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>
-                stale
-              </span>
+            <Tooltip text="The session history has changed since this diagnosis was run. Re-run to get fresh results.">
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>stale</span>
             </Tooltip>
           )}
-          {/* Analyze / Re-analyze button — stops propagation so it doesn't toggle */}
-          <Tooltip text={analysis ? 'Re-run deep analysis on this session' : 'Run deep analysis to identify issues, root causes and recommendations'}>
+          <Tooltip text={analysis ? 'Re-run LLM diagnosis on this session (~30-120s, uses tokens)' : 'Run LLM diagnosis to identify issues, root causes and recommendations (~30-120s, uses tokens)'}>
             <button
               style={{ ...btnStyle, fontSize: 11, background: analyzing ? '#f5f3ff' : '#7c3aed', color: analyzing ? '#7c3aed' : '#fff', border: '1px solid #7c3aed', padding: '3px 10px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
               onClick={e => { e.stopPropagation(); analyzeSession(); }}
               disabled={analyzing || !isConnected}
             >
-              {analyzing ? '…' : analysis ? '↻ Re-analyze' : '🔬 Analyze'}
+              {analyzing ? '…' : analysis ? '↻ Re-run' : '🔬 Diagnose'}
             </button>
           </Tooltip>
           <span style={{ fontSize: 12, color: '#7c3aed' }}>{analysisOpen ? '▲' : '▼'}</span>
         </div>
-
-        {/* Expanded content */}
         {analysisOpen && (
           <div style={{ padding: '12px 14px' }}>
             {analyzing && (
               <div style={{ padding: '10px 0', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 18 }}>🔬</span>
-                <span>Sending session history to LLM for deep analysis… this may take up to 2 minutes for slow models.</span>
+                <span>Sending session history to LLM for diagnosis… this may take up to 2 minutes for slow models.</span>
               </div>
             )}
             {!analyzing && !analysis && (
-              <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
-                No analysis yet. Click <strong>Analyze</strong> to run a deep-dive on this session.
+              <div style={{ color: '#9ca3af', fontSize: 12, padding: '4px 0' }}>
+                Nothing to show yet. Click <strong style={{ color: '#6b7280' }}>Diagnose</strong> above to start.
               </div>
             )}
             {!analyzing && analysis && (
               <>
                 {analysis.issues.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>
-                    No issues found. Session looks healthy!
-                  </div>
+                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>No issues found. Session looks healthy!</div>
                 ) : (
                   [...analysis.issues]
                     .sort((a, b) => (a.priority ?? 5) - (b.priority ?? 5))
@@ -788,40 +800,44 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
         )}
       </div>
 
-      {/* 3. Analytics — collapsible */}
+      {/* 3. Stats — local data summary (charts, counts, distributions) */}
       {!loading && turns.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid #e5e7eb' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f9fafb', borderBottom: analyticsOpen ? '1px solid #e5e7eb' : 'none', cursor: 'pointer' }}
             onClick={() => setAnalyticsOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>📊</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>Analytics</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>
+              Stats
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
+                {statsSummary.completed} OK · {statsSummary.withIssues} issues · {statsSummary.errors} errors{statsSummary.deferred > 0 ? ` · ${statsSummary.deferred} deferred` : ''} · {statsSummary.totalTools} tool calls
+              </span>
+            </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>{analyticsOpen ? '▲' : '▼'}</span>
           </div>
           {analyticsOpen && <AnalyticsPanel turns={turns} />}
         </div>
       )}
 
-      {/* 4. Messages — collapsible section */}
+      {/* 4. Turns — actual turn-by-turn message list */}
       {turns.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f9fafb', borderBottom: messagesOpen ? '1px solid #e5e7eb' : 'none', cursor: 'pointer' }}
             onClick={() => setMessagesOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>💬</span>
             <span style={{ fontWeight: 700, fontSize: 13, color: '#374151', flex: 1 }}>
-              Messages
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
-                {visibleTurns.length} of {turns.length}
+              Turns
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
+                {visibleTurns.length} shown · {turns.length} total{anyFilter ? ` (filtered)` : ''}
               </span>
             </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>{messagesOpen ? '▲' : '▼'}</span>
           </div>
-
           {messagesOpen && (
-            <>
+            <div style={{ padding: '12px 14px' }}>
               {/* Filter bar */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
                 {([
@@ -934,7 +950,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                   </div>
                 );
               })}
-            </>
+            </div>
           )}
         </div>
       )}
