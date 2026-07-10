@@ -258,6 +258,48 @@ function ErrorBanner({ message, onClose }: { message: string; onClose: () => voi
   );
 }
 
+/** Find the LLM response events that correspond to a given usage_metadata record.
+ *  Scans forward through the timeline to collect chat.final, chat.tool_call,
+ *  chat.reasoning, chat.delta, and chat.error events until the next usage_metadata.
+ */
+function findLLMResponseForUsage(
+  usageRec: HistoryRecord,
+  allRecords: HistoryRecord[]
+): HistoryRecord[] {
+  if (!allRecords || allRecords.length === 0) return [];
+  // id is NOT unique across events in the same turn (all assistant events share
+  // request_id + ":assistant").  Use timestamp + event_type as a composite key
+  // to pinpoint the exact record position.
+  const usageIndex = allRecords.findIndex(
+    r =>
+      r.id === usageRec.id &&
+      r.timestamp === usageRec.timestamp &&
+      r.event_type === usageRec.event_type
+  );
+  if (usageIndex === -1) return [];
+
+  const responses: HistoryRecord[] = [];
+  for (let i = usageIndex + 1; i < allRecords.length; i++) {
+    const r = allRecords[i];
+    const et = r.event_type ?? '';
+    // Stop at the next usage_metadata — that starts a new LLM call
+    if (et === 'chat.usage_metadata') break;
+    // Stop at user messages — they're not LLM responses
+    if (r.role === 'user') break;
+    // Collect response-type events
+    if (
+      et === 'chat.final' ||
+      et === 'chat.tool_call' ||
+      et === 'chat.reasoning' ||
+      et === 'chat.delta' ||
+      et === 'chat.error'
+    ) {
+      responses.push(r);
+    }
+  }
+  return responses;
+}
+
 // ── Analytics Panel ───────────────────────────────────────────────────────────
 
 function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
@@ -1248,7 +1290,7 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
   'chat.error':         { icon: '🚨', label: 'Error',            color: '#ef4444' },
 };
 
-function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null }) {
+function RecordCard({ rec, isRetry, displayDelta, allRecords }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; allRecords?: HistoryRecord[] }) {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
   const icon  = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
@@ -1468,6 +1510,75 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
               </div>
             );
           })()}
+
+          {/* LLM Response — shows the raw LLM output (final text, tool calls, reasoning, errors) that correspond to this usage_metadata record */}
+          {key === 'chat.usage_metadata' && um && (() => {
+            const responseRecs = findLLMResponseForUsage(rec, allRecords ?? []);
+            const [showFullResponse, setShowFullResponse] = useState(false);
+
+            // Build a combined text representation of the response
+            const responseParts = responseRecs.map(r => {
+              const et = r.event_type ?? '';
+              if (et === 'chat.final') {
+                return { type: 'text' as const, label: 'Text', content: r.content ?? '' };
+              }
+              if (et === 'chat.tool_call') {
+                const tc = r.tool_call as Record<string, unknown> | undefined;
+                const name = tc?.name ?? r.tool_name ?? 'unknown';
+                const args = tc?.arguments ?? r.content ?? '';
+                let fmtArgs = '';
+                try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
+                catch { fmtArgs = String(args ?? ''); }
+                return { type: 'tool_call' as const, label: `Tool: ${name}`, content: fmtArgs };
+              }
+              if (et === 'chat.reasoning') {
+                return { type: 'reasoning' as const, label: 'Reasoning', content: r.content ?? '' };
+              }
+              if (et === 'chat.delta') {
+                return { type: 'delta' as const, label: 'Stream delta', content: r.content ?? '' };
+              }
+              if (et === 'chat.error') {
+                return { type: 'error' as const, label: 'Error', content: r.error ?? r.error_detail ?? r.content ?? '' };
+              }
+              return null;
+            }).filter(Boolean) as { type: string; label: string; content: string }[];
+
+            const hasResponse = responseParts.length > 0;
+            const combinedText = responseParts.map(p => `[${p.label}]\n${p.content}`).join('\n\n---\n\n');
+
+            return (
+              <div style={{ marginTop: 8, padding: '8px 10px', background: '#f0fdf4', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <strong style={{ color: '#166534', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Response</strong>
+                  {hasResponse ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid #86efac', background: '#fff', color: '#166534', cursor: 'pointer' }}
+                        onClick={() => setShowFullResponse(x => !x)}
+                      >
+                        {showFullResponse ? '▲ Collapse' : '▼ Show full'}
+                      </button>
+                      <CopyButton text={combinedText} />
+                    </div>
+                  ) : null}
+                </div>
+                {hasResponse ? (
+                  <div style={{ marginTop: 6, maxHeight: showFullResponse ? undefined : 240, overflowY: 'auto' }}>
+                    {responseParts.map((part, i) => (
+                      <div key={i} style={{ marginBottom: i < responseParts.length - 1 ? 8 : 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#15803d', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{part.label}</div>
+                        <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#14532d', background: '#dcfce7', borderRadius: 3, padding: '6px 8px' }}>{part.content}</pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                    No response events found after this LLM call in the trajectory. The response may have been dropped, not recorded, or this was a usage-only event.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {rec.session_id && (
             <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4, fontFamily: 'monospace' }}>session: {rec.session_id}</div>
           )}
@@ -1645,7 +1756,7 @@ function TurnDetailView() {
           );
         }
         const rec = item.rec;
-        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} />;
+        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} allRecords={turnRecords} />;
       })}
     </div>
   );
