@@ -1441,7 +1441,10 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
           )}
           {/* LLM Prompt — always shown so user knows if it's missing */}
           <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, border: '1px solid #e2e8f0' }}>
-            <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+              {um.prompt ? <CopyButton text={um.prompt} /> : null}
+            </div>
             {um.prompt ? (
               <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155', maxHeight: 240, overflowY: 'auto' }}>{um.prompt}</pre>
             ) : (
