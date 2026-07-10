@@ -1440,19 +1440,34 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
             </div>
           )}
           {/* LLM Prompt — always shown so user knows if it's missing */}
-          <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
-              {um.prompt ? <CopyButton text={um.prompt} /> : null}
-            </div>
-            {um.prompt ? (
-              <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155', maxHeight: 240, overflowY: 'auto' }}>{um.prompt}</pre>
-            ) : (
-              <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                Not recorded in history (backend `usage_metadata` events contain empty `prompt` field).
+          {key === 'chat.usage_metadata' && um && (() => {
+            const [showFullPrompt, setShowFullPrompt] = useState(false);
+            return (
+              <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+                  {um.prompt ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid #d1d5db', background: '#fff', color: '#6b7280', cursor: 'pointer' }}
+                        onClick={() => setShowFullPrompt(x => !x)}
+                      >
+                        {showFullPrompt ? '▲ Collapse' : '▼ Show full'}
+                      </button>
+                      <CopyButton text={um.prompt} />
+                    </div>
+                  ) : null}
+                </div>
+                {um.prompt ? (
+                  <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155', maxHeight: showFullPrompt ? undefined : 240, overflowY: 'auto' }}>{um.prompt}</pre>
+                ) : (
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                    Not recorded in history (backend `usage_metadata` events contain empty `prompt` field).
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
           {rec.session_id && (
             <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4, fontFamily: 'monospace' }}>session: {rec.session_id}</div>
           )}
