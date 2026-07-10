@@ -21,6 +21,7 @@ export interface TraceHoundSessionItem {
   total_tokens?: number;  // cumulative tokens consumed
   llm_calls?: number;     // total LLM API calls across all turns
   total_events?: number;  // total non-noise events across all turns
+  error_count?: number;   // turns with errors
   mode?: string;
 }
 
@@ -169,19 +170,31 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       });
       const sessions = Array.isArray(res?.sessions) ? res.sessions : [];
       set({ sessions, loading: false });
-      // Background: populate llm_calls/total_events for sessions that don't have them yet
-      const missing = sessions.filter(s => s.llm_calls == null && (s.round_id ?? 0) > 0);
+      /* Background: for sessions where cached metadata lacks llm_calls/total_events,
+         request lightweight stats.  The handler returns the full turn list anyway
+         (no separate stats_only path), so we just use the normal endpoint. */
+      const missing = sessions.filter(
+        s => (s.llm_calls == null || s.total_events == null) && (s.round_id ?? 0) > 0
+      );
       if (missing.length > 0) {
-        missing.slice(0, 10).forEach(s => {
-          webRequest<{ ok: boolean; session_id: string; total_llm_calls: number; total_events: number }>(
-            'tracehound.turns_list',
-            { session_id: s.session_id, stats_only: true }
+        missing.slice(0, 5).forEach(s => {
+          webRequest<{ ok: boolean; session_stats: SessionStats }>(
+            'tracehound.turns.list',
+            { session_id: s.session_id }
           ).then(r => {
-            if (r?.ok && r.session_id) {
+            if (r?.ok && r.session_stats) {
+              const stats = r.session_stats;
               set(state => ({
                 sessions: state.sessions.map(sess =>
-                  sess.session_id === r.session_id
-                    ? { ...sess, llm_calls: r.total_llm_calls, total_events: r.total_events }
+                  sess.session_id === s.session_id
+                    ? {
+                        ...sess,
+                        round_id: stats.total_turns ?? sess.round_id,
+                        llm_calls: stats.total_llm_calls ?? sess.llm_calls,
+                        total_events: stats.total_events ?? sess.total_events,
+                        total_tokens: stats.total_tokens ?? sess.total_tokens,
+                        error_count: stats.error_count ?? sess.error_count,
+                      }
                     : sess
                 ),
               }));
@@ -215,12 +228,28 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
         'tracehound.turns.list',
         { session_id: session.session_id }
       );
-      set({
-        turns: Array.isArray(res?.turns) ? res.turns : [],
-        sessionStats: res?.session_stats ?? null,
+      const turns = Array.isArray(res?.turns) ? res.turns : [];
+      const sessionStats = res?.session_stats ?? null;
+      set(state => ({
+        turns,
+        sessionStats,
         loading: false,
-      });
-      // Refresh session list so metadata caches (round_id, total_tokens) are reflected
+        // Merge computed stats into the session list immediately so the
+        // user doesn't have to wait for the async backend metadata write.
+        sessions: state.sessions.map(s =>
+          s.session_id === session.session_id
+            ? {
+                ...s,
+                round_id: sessionStats?.total_turns ?? s.round_id,
+                llm_calls: sessionStats?.total_llm_calls ?? s.llm_calls,
+                total_events: sessionStats?.total_events ?? s.total_events,
+                total_tokens: sessionStats?.total_tokens ?? s.total_tokens,
+                error_count: sessionStats?.error_count ?? s.error_count,
+              }
+            : s
+        ),
+      }));
+      // Refresh session list so metadata caches are reflected (background)
       void get().loadSessions();
     } catch (e) {
       set({ error: String(e), loading: false });
