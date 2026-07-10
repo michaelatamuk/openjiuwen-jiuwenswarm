@@ -1325,6 +1325,7 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
           )}
         </span>
         {needsExpand && <span style={{ fontSize: 12, color: '#9ca3af' }}>{expanded ? '▲' : '▼'}</span>}
+        {rec.id && <span style={{ fontSize: 9, color: '#d1d5db', fontFamily: 'monospace', flexShrink: 0 }} title={`Record ID: ${rec.id}`}>{rec.id.slice(-12)}</span>}
       </div>
 
       {/* Always-visible body for user + response */}
@@ -1365,6 +1366,17 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
           <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
             {resultText}
           </pre>
+          {rec.raw_output && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Raw Output</div>
+              <pre style={{ margin: 0, fontSize: 11, background: '#f1f5f9', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#334155', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
+                {(() => {
+                  try { return JSON.stringify(rec.raw_output, null, 2); }
+                  catch { return String(rec.raw_output); }
+                })()}
+              </pre>
+            </div>
+          )}
         </div>
       )}
       {key === 'chat.tool_result' && needsExpand && !expanded && (
@@ -1413,6 +1425,9 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
               {rec.metadata?.tpot_ms != null && (
                 <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>{rec.metadata.tpot_ms.toFixed(1)}ms TPOT</span></Tooltip>
               )}
+              {um.total_latency != null && um.total_latency > 0 && (
+                <Tooltip text="Raw total_latency value"><span style={{ ...chipStyle, cursor: 'help' }}>raw {um.total_latency.toFixed(2)}s</span></Tooltip>
+              )}
               {um.input_cost != null && um.input_cost > 0 && um.output_cost != null && um.output_cost > 0 && (
                 <span style={chipStyle}>💰 ${um.input_cost.toFixed(4)} in / ${um.output_cost.toFixed(4)} out</span>
               )}
@@ -1420,7 +1435,19 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
                 <span style={chipStyle}>💰 ${um.total_cost.toFixed(4)} total</span>
               )}
               {rec.metadata?.result_type && <span style={chipStyle}>📋 {rec.metadata.result_type}</span>}
+              {um.task_id && <span style={chipStyle}>🎯 {um.task_id}</span>}
+              {um.first_token_time && <span style={chipStyle}>🕐 FT {um.first_token_time}</span>}
+              {um.request_start_time && <span style={chipStyle}>🕐 RS {um.request_start_time}</span>}
             </div>
+          )}
+          {um.prompt && (
+            <div style={{ marginTop: 4, padding: '6px 8px', background: '#f8fafc', borderRadius: 4, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: expanded ? 400 : 80, overflowY: 'auto', border: '1px solid #e2e8f0' }}>
+              <strong style={{ color: '#6b7280' }}>Prompt:</strong>
+              <pre style={{ margin: '4px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{um.prompt}</pre>
+            </div>
+          )}
+          {rec.session_id && (
+            <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4, fontFamily: 'monospace' }}>session: {rec.session_id}</div>
           )}
           {hasUsageError && (
             <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
@@ -1464,6 +1491,7 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
           {rec.ttft_ms != null && <Tooltip text="Time to first token"><span style={{ ...chipStyle, cursor: 'help' }}>TTFT {rec.ttft_ms.toFixed(0)}ms</span></Tooltip>}
           {rec.tpot_ms != null && <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>TPOT {rec.tpot_ms.toFixed(1)}ms</span></Tooltip>}
           {rec.total_latency_ms != null && <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.total_latency_ms / 1000).toFixed(1)}s latency</span></Tooltip>}
+          {rec.session_id && <span style={{ fontSize: 9, color: '#d1d5db', fontFamily: 'monospace', alignSelf: 'center' }}>{rec.session_id.slice(-12)}</span>}
         </div>
       )}
     </div>

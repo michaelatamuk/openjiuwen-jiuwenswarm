@@ -167,7 +167,11 @@ export interface HistoryRecord {
   tool_name?: string;
   tool_call?: { id: string; name: string; arguments: unknown };
   result?: string;
-  raw_output?: unknown;
+  raw_output?: {
+    message?: string;
+    tasks?: unknown[];
+    [key: string]: unknown;
+  };
   error_type?: string | null;
   error_detail?: string | null;
   error?: string | null;
