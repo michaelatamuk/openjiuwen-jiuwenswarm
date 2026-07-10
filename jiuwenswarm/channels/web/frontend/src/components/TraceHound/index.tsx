@@ -1439,12 +1439,17 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
               {um.request_start_time && <span style={chipStyle}>🕐 RS {um.request_start_time}</span>}
             </div>
           )}
-          {um.prompt && (
-            <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 240, overflowY: 'auto', border: '1px solid #e2e8f0' }}>
-              <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
-              <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155' }}>{um.prompt}</pre>
-            </div>
-          )}
+          {/* LLM Prompt — always shown so user knows if it's missing */}
+          <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+            <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+            {um.prompt ? (
+              <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155', maxHeight: 240, overflowY: 'auto' }}>{um.prompt}</pre>
+            ) : (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                Not recorded in history (backend `usage_metadata` events contain empty `prompt` field).
+              </div>
+            )}
+          </div>
           {rec.session_id && (
             <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4, fontFamily: 'monospace' }}>session: {rec.session_id}</div>
           )}
