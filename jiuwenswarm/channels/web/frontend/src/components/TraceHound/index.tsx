@@ -816,10 +816,10 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
           </div>
           <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ display: 'flex', gap: 10 }}>
-              {(s.round_id ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.round_id}</strong> user msgs</span>}
-              {(s.llm_calls ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.llm_calls}</strong> LLM calls</span>}
-              {(s.total_events ?? 0) > 0 && <span><strong style={{ color: '#6b7280' }}>{s.total_events}</strong> events</span>}
-              {s.total_tokens != null && s.total_tokens > 0 && <span><strong style={{ color: '#6b7280' }}>{s.total_tokens.toLocaleString()}</strong> tokens</span>}
+              <span><strong style={{ color: '#6b7280' }}>{s.round_id ?? 0}</strong> user msgs</span>
+              <span><strong style={{ color: '#6b7280' }}>{s.llm_calls ?? 0}</strong> LLM calls</span>
+              <span><strong style={{ color: '#6b7280' }}>{s.total_events ?? s.message_count ?? 0}</strong> events</span>
+              <span><strong style={{ color: '#6b7280' }}>{(s.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
             </span>
             <span style={{ fontSize: 11 }}>{s.session_id}</span>
           </div>
@@ -904,15 +904,9 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
           {sessionStats && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#6b7280', marginTop: 6 }}>
               <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> user msgs</span>
-              {(sessionStats.total_llm_calls ?? 0) > 0 && (
-                <span><strong style={{ color: '#374151' }}>{sessionStats.total_llm_calls}</strong> LLM calls</span>
-              )}
-              {(sessionStats.total_events ?? 0) > 0 && (
-                <span><strong style={{ color: '#374151' }}>{sessionStats.total_events}</strong> events</span>
-              )}
-              {sessionStats.total_tokens > 0 && (
-                <span><strong style={{ color: '#374151' }}>{sessionStats.total_tokens.toLocaleString()}</strong> tokens</span>
-              )}
+              <span><strong style={{ color: '#374151' }}>{sessionStats.total_llm_calls ?? 0}</strong> LLM calls</span>
+              <span><strong style={{ color: '#374151' }}>{sessionStats.total_events ?? selectedSession?.message_count ?? 0}</strong> events</span>
+              <span><strong style={{ color: '#374151' }}>{(sessionStats.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
               {sessionStats.error_count > 0 && (
                 <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>
               )}
