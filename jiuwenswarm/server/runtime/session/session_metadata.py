@@ -209,6 +209,7 @@ def update_session_metadata(
     mode: str | None = None,
     team_name: str | None = None,
     accent_color: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
 ) -> None:
     """更新会话元数据(异步写入,不阻塞调用方)
 
@@ -269,6 +270,8 @@ def update_session_metadata(
             metadata["llm_calls"] = set_llm_calls
         if set_total_events is not None:
             metadata["total_events"] = set_total_events
+        if extra_metadata:
+            metadata.update(extra_metadata)
 
         # Accumulate total tokens (from LLM usage events)
         if add_tokens > 0:

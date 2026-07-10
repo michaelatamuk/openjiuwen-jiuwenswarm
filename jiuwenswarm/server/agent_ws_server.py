@@ -6891,8 +6891,9 @@ class AgentWebSocketServer:
                     if rid not in turns:
                         turns[rid] = {
                             "turn_id": rid,
-                            "turn_index": 0,  # assigned below after filtering
+                            "turn_index": 0,
                             "user_content": "",
+                            "user_message_full": "",
                             "timestamp": rec.get("timestamp", 0),
                             "tool_names": [],
                             "skill_names": [],
@@ -6910,6 +6911,21 @@ class AgentWebSocketServer:
                             "mode": rec.get("mode"),
                             "llm_call_count": 0,
                             "event_count": 0,
+                            "llm_calls_detail": [],
+                            "tool_calls_detail": [],
+                            "tool_updates_detail": [],
+                            "tool_results_detail": [],
+                            "assistant_responses": [],
+                            "context_usage_percent": 0.0,
+                            "context_window_tokens": 0,
+                            "cache_tokens": 0,
+                            "input_cost": 0.0,
+                            "output_cost": 0.0,
+                            "total_cost": 0.0,
+                            "total_latency_ms": 0.0,
+                            "ttft_ms": 0.0,
+                            "tpot_ms": 0.0,
+                            "models_used": set(),
                             "_first_ts": None,
                             "_last_ts": None,
                         }
@@ -6925,39 +6941,93 @@ class AgentWebSocketServer:
                             if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
                                 turns[rid]["_last_ts"] = ts
 
-                    if role == "user" and not turns[rid]["user_content"]:
+                    if role == "user":
                         raw_q = (rec.get("content") or "")
-                        turns[rid]["user_content"] = raw_q[:120]
-                        turns[rid]["query_type"] = self._replay_classify_query(raw_q)
+                        if not turns[rid]["user_content"]:
+                            turns[rid]["user_content"] = raw_q[:120]
+                            turns[rid]["query_type"] = self._replay_classify_query(raw_q)
+                        if not turns[rid]["user_message_full"]:
+                            turns[rid]["user_message_full"] = raw_q
                     elif et == "chat.processing_status_deferred":
                         turns[rid]["was_deferred"] = True
                     elif et == "chat.tool_call":
-                        tn = rec.get("tool_name") or (rec.get("tool_call") or {}).get("name", "")
+                        tc = rec.get("tool_call") or {}
+                        tn = rec.get("tool_name") or tc.get("name", "")
                         if tn:
                             turns[rid]["tool_names"].append(tn)
-                    elif et == "chat.tool_result" and rec.get("error_type"):
-                        turns[rid]["tool_failures"] += 1
+                        turns[rid]["tool_calls_detail"].append({
+                            "name": tc.get("name", ""),
+                            "arguments": tc.get("arguments", ""),
+                            "tool_call_id": tc.get("tool_call_id", "") or tc.get("id", ""),
+                        })
+                    elif et == "chat.tool_update":
+                        turns[rid]["tool_updates_detail"].append({
+                            "tool_name": rec.get("tool_name", ""),
+                            "tool_call_id": rec.get("tool_call_id", ""),
+                            "arguments": rec.get("arguments", ""),
+                            "status": rec.get("status", ""),
+                        })
                     elif et == "chat.tool_result":
-                        # Extract skill names from recommend_skill results
+                        if rec.get("error_type"):
+                            turns[rid]["tool_failures"] += 1
                         tname = rec.get("tool_name", "")
                         if tname == "recommend_skill":
                             result_str = rec.get("result") or ""
                             for sk in self._extract_skill_names_from_result(result_str):
                                 if sk not in turns[rid]["skill_names"]:
                                     turns[rid]["skill_names"].append(sk)
+                        turns[rid]["tool_results_detail"].append({
+                            "tool_name": tname,
+                            "tool_call_id": rec.get("tool_call_id", ""),
+                            "result": rec.get("result", ""),
+                            "error_type": rec.get("error_type"),
+                            "error_detail": rec.get("error_detail"),
+                            "error": rec.get("error"),
+                        })
                     elif et == "chat.final":
                         turns[rid]["retry_count"] = turns[rid].get("retry_count", 0) + 1
-                        content_len = len(rec.get("content") or "")
+                        content = rec.get("content") or ""
+                        content_len = len(content)
                         if content_len > 0:
                             turns[rid]["has_final"] = True
                             turns[rid]["final_length"] = content_len
+                            turns[rid]["assistant_responses"].append(content)
                     elif et == "chat.usage_metadata":
                         turns[rid]["llm_call_count"] += 1
+                        md = rec.get("metadata", {}) or {}
+                        um = md.get("usage_metadata", {}) or {}
+                        turns[rid]["llm_calls_detail"].append({
+                            "model_name": um.get("model_name", ""),
+                            "input_tokens": um.get("input_tokens", 0),
+                            "output_tokens": um.get("output_tokens", 0),
+                            "total_tokens": um.get("total_tokens", 0),
+                            "cache_tokens": um.get("cache_tokens", 0),
+                            "input_cost": um.get("input_cost", 0.0),
+                            "output_cost": um.get("output_cost", 0.0),
+                            "total_cost": um.get("total_cost", 0.0),
+                            "total_latency_ms": md.get("total_latency_ms", 0.0),
+                            "ttft_ms": md.get("ttft_ms", 0.0),
+                            "tpot_ms": md.get("tpot_ms", 0.0),
+                            "result_type": md.get("result_type", ""),
+                            "code": um.get("code", 0),
+                            "err_msg": um.get("err_msg", ""),
+                        })
+                        turns[rid]["cache_tokens"] += um.get("cache_tokens", 0) or 0
+                        turns[rid]["input_cost"] += um.get("input_cost", 0.0) or 0.0
+                        turns[rid]["output_cost"] += um.get("output_cost", 0.0) or 0.0
+                        turns[rid]["total_cost"] += um.get("total_cost", 0.0) or 0.0
+                        turns[rid]["total_latency_ms"] += md.get("total_latency_ms", 0.0) or 0.0
+                        turns[rid]["ttft_ms"] += md.get("ttft_ms", 0.0) or 0.0
+                        turns[rid]["tpot_ms"] += md.get("tpot_ms", 0.0) or 0.0
+                        model = um.get("model_name")
+                        if model:
+                            turns[rid]["models_used"].add(model)
                     elif et == "chat.usage_summary":
-                        # total_tokens may be at root (old format) or nested inside usage (new format)
                         usage = rec.get("usage") or {}
                         tokens = rec.get("total_tokens") or usage.get("total_tokens") or 0
                         turns[rid]["total_tokens"] += tokens
+                        turns[rid]["context_usage_percent"] = rec.get("usage_percent", 0.0) or 0.0
+                        turns[rid]["context_window_tokens"] = rec.get("context_window_tokens", 0) or 0
                     elif et == "chat.file":
                         turns[rid]["file_count"] += 1
                     elif et == "chat.error" or (role == "assistant" and rec.get("error")):
@@ -6991,6 +7061,18 @@ class AgentWebSocketServer:
                         turn["duration_seconds"] = round(last - first, 1)
                     turn["outcome"] = self._replay_outcome(turn)
                     turn["issues"] = self._replay_issues(turn)
+                    # Convert sets to lists for JSON serialization
+                    turn["models_used"] = sorted(turn.get("models_used", set()))
+                    # Compute average latencies per turn
+                    llm_count = turn.get("llm_call_count", 0)
+                    if llm_count > 0:
+                        turn["avg_total_latency_ms"] = round(turn.get("total_latency_ms", 0.0) / llm_count, 1)
+                        turn["avg_ttft_ms"] = round(turn.get("ttft_ms", 0.0) / llm_count, 1)
+                        turn["avg_tpot_ms"] = round(turn.get("tpot_ms", 0.0) / llm_count, 1)
+                    else:
+                        turn["avg_total_latency_ms"] = 0.0
+                        turn["avg_ttft_ms"] = 0.0
+                        turn["avg_tpot_ms"] = 0.0
                     # Backward-compat: keep quality_* if any downstream code references it,
                     # but they are no longer the primary fields.
                     turn.pop("quality_score", None)
@@ -7002,6 +7084,31 @@ class AgentWebSocketServer:
                 error_count = sum(1 for t in real_turns if t.get("has_error"))
                 total_llm_calls = sum(t.get("llm_call_count", 0) for t in real_turns)
                 total_events = sum(t.get("event_count", 0) for t in real_turns)
+                total_cache_tokens = sum(t.get("cache_tokens", 0) for t in real_turns)
+                total_input_cost = sum(t.get("input_cost", 0.0) for t in real_turns)
+                total_output_cost = sum(t.get("output_cost", 0.0) for t in real_turns)
+                total_cost = sum(t.get("total_cost", 0.0) for t in real_turns)
+                all_models: set[str] = set()
+                latencies: list[float] = []
+                ttfts: list[float] = []
+                tpots: list[float] = []
+                max_context_usage = 0.0
+                channel_id = ""
+                for t in real_turns:
+                    all_models.update(t.get("models_used", []))
+                    if t.get("llm_call_count", 0) > 0:
+                        latencies.append(t.get("avg_total_latency_ms", 0.0))
+                        ttfts.append(t.get("avg_ttft_ms", 0.0))
+                        tpots.append(t.get("avg_tpot_ms", 0.0))
+                    cup = t.get("context_usage_percent", 0.0)
+                    if cup > max_context_usage:
+                        max_context_usage = cup
+                    if not channel_id:
+                        channel_id = t.get("channel_id", "") or ""
+
+                avg_total_latency_ms = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
+                avg_ttft_ms = round(sum(ttfts) / len(ttfts), 1) if ttfts else 0.0
+                avg_tpot_ms = round(sum(tpots) / len(tpots), 1) if tpots else 0.0
 
                 # Cache total_tokens and round_id in session metadata so session.list can return them
                 try:
@@ -7013,7 +7120,23 @@ class AgentWebSocketServer:
                     real_turn_count = len(real_turns)
                     if real_turn_count > cached_rounds:
                         update_session_metadata(session_id=session_id, set_round_id=real_turn_count)
-                    update_session_metadata(session_id=session_id, set_llm_calls=total_llm_calls, set_total_events=total_events)
+                    extra_meta: dict[str, Any] = {
+                        "llm_calls": total_llm_calls,
+                        "total_events": total_events,
+                        "total_cache_tokens": total_cache_tokens,
+                        "total_input_cost": round(total_input_cost, 6),
+                        "total_output_cost": round(total_output_cost, 6),
+                        "total_cost": round(total_cost, 6),
+                        "models_used": sorted(all_models),
+                        "avg_total_latency_ms": avg_total_latency_ms,
+                        "avg_ttft_ms": avg_ttft_ms,
+                        "avg_tpot_ms": avg_tpot_ms,
+                        "max_context_usage_percent": round(max_context_usage, 2),
+                        "channel_id": channel_id,
+                    }
+                    # Strip None/empty values to keep metadata clean
+                    extra_meta = {k: v for k, v in extra_meta.items() if v is not None and v != "" and v != []}
+                    update_session_metadata(session_id=session_id, extra_metadata=extra_meta)
                 except Exception:
                     pass
 
@@ -7035,6 +7158,16 @@ class AgentWebSocketServer:
                         "total_events": total_events,
                         "total_tokens": all_tokens,
                         "total_turns": len(real_turns),
+                        "total_cache_tokens": total_cache_tokens,
+                        "total_input_cost": round(total_input_cost, 6),
+                        "total_output_cost": round(total_output_cost, 6),
+                        "total_cost": round(total_cost, 6),
+                        "models_used": sorted(all_models),
+                        "avg_total_latency_ms": avg_total_latency_ms,
+                        "avg_ttft_ms": avg_ttft_ms,
+                        "avg_tpot_ms": avg_tpot_ms,
+                        "max_context_usage_percent": round(max_context_usage, 2),
+                        "channel_id": channel_id,
                     }
                 else:
                     payload = {
@@ -7046,6 +7179,16 @@ class AgentWebSocketServer:
                             "total_tokens": all_tokens,
                             "total_llm_calls": total_llm_calls,
                             "total_events": total_events,
+                            "total_cache_tokens": total_cache_tokens,
+                            "total_input_cost": round(total_input_cost, 6),
+                            "total_output_cost": round(total_output_cost, 6),
+                            "total_cost": round(total_cost, 6),
+                            "models_used": sorted(all_models),
+                            "avg_total_latency_ms": avg_total_latency_ms,
+                            "avg_ttft_ms": avg_ttft_ms,
+                            "avg_tpot_ms": avg_tpot_ms,
+                            "max_context_usage_percent": round(max_context_usage, 2),
+                            "channel_id": channel_id,
                             "date_range": date_range,
                             "history_file_path": history_file_path,
                             "session_fingerprint": self._session_fingerprint(history_file_path),

@@ -820,6 +820,14 @@ function SessionListView({ isConnected }: { isConnected: boolean }) {
               <span><strong style={{ color: '#6b7280' }}>{s.llm_calls ?? 0}</strong> LLM calls</span>
               <span><strong style={{ color: '#6b7280' }}>{s.total_events ?? s.message_count ?? 0}</strong> events</span>
               <span><strong style={{ color: '#6b7280' }}>{(s.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
+              {(s.total_cache_tokens ?? 0) > 0 && <span>🔄 <strong style={{ color: '#6b7280' }}>{(s.total_cache_tokens ?? 0).toLocaleString()}</strong></span>}
+              {(s.total_cost ?? 0) > 0 && <span>💰 <strong style={{ color: '#6b7280' }}>${(s.total_cost ?? 0).toFixed(4)}</strong></span>}
+              {(s.avg_total_latency_ms ?? 0) > 0 && <span>⏱️ <strong style={{ color: '#6b7280' }}>{((s.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s</strong></span>}
+              {(s.max_context_usage_percent ?? 0) > 0 && (
+                <span style={{ color: (s.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#9ca3af' }}>
+                  📏 <strong style={{ color: (s.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#6b7280' }}>{(s.max_context_usage_percent ?? 0).toFixed(1)}%</strong>
+                </span>
+              )}
             </span>
             <span style={{ fontSize: 11 }}>{s.session_id}</span>
           </div>
@@ -900,15 +908,43 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
               </Tooltip>
             )}
           </div>
-          {/* Row 2: user msgs · llm calls · events · tokens */}
+          {/* Row 2: user msgs · llm calls · events · tokens · costs · latencies · models · context */}
           {sessionStats && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#6b7280', marginTop: 6 }}>
               <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> user msgs</span>
               <span><strong style={{ color: '#374151' }}>{sessionStats.total_llm_calls ?? 0}</strong> LLM calls</span>
               <span><strong style={{ color: '#374151' }}>{sessionStats.total_events ?? selectedSession?.message_count ?? 0}</strong> events</span>
               <span><strong style={{ color: '#374151' }}>{(sessionStats.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
+              {(sessionStats.total_cache_tokens ?? 0) > 0 && (
+                <span>🔄 <strong style={{ color: '#374151' }}>{sessionStats.total_cache_tokens?.toLocaleString()}</strong> cache</span>
+              )}
               {sessionStats.error_count > 0 && (
                 <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>
+              )}
+              {(sessionStats.total_cost ?? 0) > 0 && (
+                <span>💰 <strong style={{ color: '#374151' }}>${sessionStats.total_cost?.toFixed(4)}</strong></span>
+              )}
+              {(sessionStats.avg_total_latency_ms ?? 0) > 0 && (
+                <Tooltip text={`Avg TTFT ${(sessionStats.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(sessionStats.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
+                  <span style={{ cursor: 'help' }}>⏱️ <strong style={{ color: '#374151' }}>{((sessionStats.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s</strong> avg latency</span>
+                </Tooltip>
+              )}
+              {(sessionStats.max_context_usage_percent ?? 0) > 0 && (
+                <Tooltip text="Max context window usage across all turns">
+                  <span style={{ cursor: 'help', color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#6b7280' }}>
+                    📏 <strong style={{ color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#374151' }}>{sessionStats.max_context_usage_percent?.toFixed(1)}%</strong> context
+                  </span>
+                </Tooltip>
+              )}
+              {sessionStats.channel_id && (
+                <span>📡 <strong style={{ color: '#374151' }}>{sessionStats.channel_id}</strong></span>
+              )}
+              {sessionStats.models_used && sessionStats.models_used.length > 0 && (
+                <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  🧠 {sessionStats.models_used.map(m => (
+                    <span key={m} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f3f4f6', color: '#374151' }}>{m}</span>
+                  ))}
+                </span>
               )}
             </div>
           )}
@@ -1148,7 +1184,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                           </div>
                         )}
                       </div>
-                      {/* Right: time / duration / tokens / response label */}
+                      {/* Right: time / duration / tokens / models / latency / context / cost */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <Tooltip text={fmtDateTime(turn.timestamp)}>
                           <div style={{ fontSize: 12, color: '#6b7280', cursor: 'default' }}>{fmtTime(turn.timestamp)}</div>
@@ -1166,6 +1202,24 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                         {turn.final_length > 0 && (
                           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.final_length.toLocaleString()} chars</div>
                         )}
+                        {(turn.avg_total_latency_ms ?? 0) > 0 && (
+                          <Tooltip text={`Avg TTFT ${(turn.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(turn.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
+                            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, cursor: 'help' }}>⏱️ {((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s avg</div>
+                          </Tooltip>
+                        )}
+                        {(turn.context_usage_percent ?? 0) > 0 && (
+                          <Tooltip text={`Context window: ${turn.context_window_tokens?.toLocaleString() ?? '?'}`}>
+                            <div style={{ fontSize: 11, color: (turn.context_usage_percent ?? 0) > 80 ? '#dc2626' : '#9ca3af', marginTop: 1, cursor: 'help' }}>
+                              📏 {(turn.context_usage_percent ?? 0).toFixed(1)}%
+                            </div>
+                          </Tooltip>
+                        )}
+                        {(turn.total_cost ?? 0) > 0 && (
+                          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>💰 ${(turn.total_cost ?? 0).toFixed(4)}</div>
+                        )}
+                        {turn.models_used && turn.models_used.length > 0 && (
+                          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{turn.models_used.join(', ')}</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1182,14 +1236,16 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
 // ── View 3: Turn Detail ───────────────────────────────────────────────────────
 
 const EVENT_META: Record<string, { icon: string; label: string; color: string }> = {
-  user:                 { icon: '🧑', label: 'User',        color: '#3b82f6' },
-  'chat.reasoning':     { icon: '🤔', label: 'Reasoning',   color: '#8b5cf6' },
-  'chat.tool_call':     { icon: '🔧', label: 'Tool Call',   color: '#f59e0b' },
-  'chat.tool_result':   { icon: '',  label: 'Tool Result', color: '#10b981' },
-  'chat.final':         { icon: '💬', label: 'Response',    color: '#6366f1' },
-  'chat.file':          { icon: '📄', label: 'File',        color: '#06b6d4' },
-  'chat.usage_summary': { icon: '📊', label: 'Usage',       color: '#6b7280' },
-  'chat.error':         { icon: '🚨', label: 'Error',       color: '#ef4444' },
+  user:                 { icon: '🧑', label: 'User',             color: '#3b82f6' },
+  'chat.reasoning':     { icon: '🤔', label: 'Reasoning',        color: '#8b5cf6' },
+  'chat.tool_call':     { icon: '🔧', label: 'Tool Call',        color: '#f59e0b' },
+  'chat.tool_update':   { icon: '⏳', label: 'Tool Update',      color: '#d97706' },
+  'chat.tool_result':   { icon: '',   label: 'Tool Result',      color: '#10b981' },
+  'chat.final':         { icon: '💬', label: 'Response',         color: '#6366f1' },
+  'chat.file':          { icon: '📄', label: 'File',             color: '#06b6d4' },
+  'chat.usage_metadata':{ icon: '⚡', label: 'LLM Call',         color: '#ec4899' },
+  'chat.usage_summary': { icon: '📊', label: 'Usage Summary',    color: '#6b7280' },
+  'chat.error':         { icon: '🚨', label: 'Error',            color: '#ef4444' },
 };
 
 function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null }) {
@@ -1201,7 +1257,10 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
 
   const headerLabel = key === 'chat.tool_call'
     ? `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}`
-    : key === 'chat.tool_result' ? `${meta.label}: ${rec.tool_name ?? ''}` : meta.label;
+    : key === 'chat.tool_result' ? `${meta.label}: ${rec.tool_name ?? ''}`
+    : key === 'chat.tool_update' ? `${meta.label}: ${rec.tool_name ?? ''}`
+    : key === 'chat.usage_metadata' ? `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}`
+    : meta.label;
 
   // Body text
   const bodyText = key === 'chat.error'
@@ -1217,14 +1276,21 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
 
   const resultText = key === 'chat.tool_result' ? (rec.result ?? rec.content ?? '') : '';
 
-  // Collapse only when content is actually long (>1200 chars)
+  // Extract usage_metadata details
+  const um = key === 'chat.usage_metadata' ? rec.metadata?.usage_metadata : null;
+  const hasUsageError = um && (um.code !== 0 || um.err_msg);
+
+  // Collapse only when content is actually long (>1200 chars) or for data-heavy event types
   const COLLAPSE_THRESHOLD = 1200;
   const needsExpand =
     (key === 'chat.reasoning' && bodyText.length > COLLAPSE_THRESHOLD)
     || (key === 'chat.tool_call' && fmtArgs.length > COLLAPSE_THRESHOLD)
+    || (key === 'chat.tool_update' && ((rec.arguments ?? '').length > COLLAPSE_THRESHOLD || (rec.result ?? '').length > COLLAPSE_THRESHOLD))
     || (key === 'chat.tool_result' && (!!rec.error_type || resultText.length > COLLAPSE_THRESHOLD))
     || (key === 'chat.file' && bodyText.length > COLLAPSE_THRESHOLD)
-    || (key === 'chat.error' && bodyText.length > COLLAPSE_THRESHOLD);
+    || (key === 'chat.error' && bodyText.length > COLLAPSE_THRESHOLD)
+    || key === 'chat.usage_metadata'
+    || key === 'chat.usage_summary';
 
   const [expanded, setExpanded] = useState(false);
 
@@ -1241,6 +1307,10 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
       >
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1 }}>{headerLabel}</span>
+        {rec.mode && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f3f4f6', color: '#6b7280', flexShrink: 0 }}>{rec.mode}</span>}
+        {(key === 'chat.tool_call' || key === 'chat.tool_update' || key === 'chat.tool_result') && rec.tool_call_id && (
+          <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', flexShrink: 0 }}>#{String(rec.tool_call_id).slice(-8)}</span>
+        )}
         {danger && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>⚠ DANGEROUS</span>}
         {isRetry && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }}>↻ retry</span>}
         {/* Timing: absolute time + elapsed time within this attempt */}
@@ -1322,10 +1392,75 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
         </div>
       )}
 
+      {/* Usage metadata: LLM call details */}
+      {key === 'chat.usage_metadata' && um && (
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+            {um.model_name && <span style={chipStyle}>{um.model_name}</span>}
+            {um.input_tokens != null && um.output_tokens != null && (
+              <span style={chipStyle}>{um.input_tokens.toLocaleString()} in / {um.output_tokens.toLocaleString()} out = {um.total_tokens?.toLocaleString() ?? '?'} tot</span>
+            )}
+            {um.cache_tokens != null && um.cache_tokens > 0 && <span style={chipStyle}>🔄 {um.cache_tokens.toLocaleString()} cache</span>}
+          </div>
+          {expanded && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+              {rec.metadata?.total_latency_ms != null && (
+                <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.metadata.total_latency_ms / 1000).toFixed(2)}s total</span></Tooltip>
+              )}
+              {rec.metadata?.ttft_ms != null && (
+                <Tooltip text="Time to first token"><span style={{ ...chipStyle, cursor: 'help' }}>{rec.metadata.ttft_ms.toFixed(0)}ms TTFT</span></Tooltip>
+              )}
+              {rec.metadata?.tpot_ms != null && (
+                <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>{rec.metadata.tpot_ms.toFixed(1)}ms TPOT</span></Tooltip>
+              )}
+              {um.input_cost != null && um.input_cost > 0 && um.output_cost != null && um.output_cost > 0 && (
+                <span style={chipStyle}>💰 ${um.input_cost.toFixed(4)} in / ${um.output_cost.toFixed(4)} out</span>
+              )}
+              {um.total_cost != null && um.total_cost > 0 && (
+                <span style={chipStyle}>💰 ${um.total_cost.toFixed(4)} total</span>
+              )}
+              {rec.metadata?.result_type && <span style={chipStyle}>📋 {rec.metadata.result_type}</span>}
+            </div>
+          )}
+          {hasUsageError && (
+            <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
+              ⚠ Code {um.code}: {um.err_msg}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tool update: status + arguments */}
+      {key === 'chat.tool_update' && (
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
+          {rec.status && (
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: rec.status === 'in_progress' ? '#dbeafe' : '#dcfce7', color: rec.status === 'in_progress' ? '#2563eb' : '#16a34a' }}>
+                {rec.status}
+              </span>
+            </div>
+          )}
+          {rec.arguments && (
+            <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {(() => { try { return JSON.stringify(JSON.parse(rec.arguments), null, 2); } catch { return rec.arguments; } })()}
+            </pre>
+          )}
+        </div>
+      )}
+
       {/* Usage summary chips */}
       {key === 'chat.usage_summary' && (
         <div style={{ padding: '6px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {rec.model && <span style={chipStyle}>{rec.model}</span>}
           {rec.total_tokens != null && <span style={chipStyle}>{rec.total_tokens.toLocaleString()} tokens</span>}
+          {rec.usage?.input_tokens != null && rec.usage?.output_tokens != null && (
+            <span style={chipStyle}>{rec.usage.input_tokens.toLocaleString()} in / {rec.usage.output_tokens.toLocaleString()} out</span>
+          )}
+          {(rec.usage_percent ?? 0) > 0 && (
+            <Tooltip text={`Context window: ${rec.context_window_tokens?.toLocaleString() ?? '?'}`}>
+              <span style={{ ...chipStyle, cursor: 'help' }}>{rec.usage_percent?.toFixed(1) ?? '?'}% context</span>
+            </Tooltip>
+          )}
           {rec.ttft_ms != null && <Tooltip text="Time to first token"><span style={{ ...chipStyle, cursor: 'help' }}>TTFT {rec.ttft_ms.toFixed(0)}ms</span></Tooltip>}
           {rec.tpot_ms != null && <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>TPOT {rec.tpot_ms.toFixed(1)}ms</span></Tooltip>}
           {rec.total_latency_ms != null && <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.total_latency_ms / 1000).toFixed(1)}s latency</span></Tooltip>}
@@ -1409,10 +1544,25 @@ function TurnDetailView() {
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
           {turn && <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />}
           {turn && turn.total_tokens > 0 && <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>}
+          {turn && turn.llm_call_count > 0 && <span style={chipStyle}>{turn.llm_call_count} LLM call{turn.llm_call_count !== 1 ? 's' : ''}</span>}
           {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>{turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}</span>}
           {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>🎯 {turn.skill_names.length} skill{turn.skill_names.length !== 1 ? 's' : ''}</span>}
           {turn && turn.tool_failures > 0 && <span style={{ ...chipStyle, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
           {turn && turn.file_count > 0 && <span style={{ ...chipStyle, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
+          {turn && (turn.avg_total_latency_ms ?? 0) > 0 && (
+            <Tooltip text={`Avg TTFT ${(turn.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(turn.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
+              <span style={{ ...chipStyle, cursor: 'help' }}>⏱️ {((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s avg</span>
+            </Tooltip>
+          )}
+          {turn && (turn.context_usage_percent ?? 0) > 0 && (
+            <Tooltip text={`Context window: ${turn.context_window_tokens?.toLocaleString() ?? '?'}`}>
+              <span style={{ ...chipStyle, cursor: 'help', color: (turn.context_usage_percent ?? 0) > 80 ? '#dc2626' : '#374151' }}>📏 {(turn.context_usage_percent ?? 0).toFixed(1)}%</span>
+            </Tooltip>
+          )}
+          {turn && (turn.total_cost ?? 0) > 0 && <span style={chipStyle}>💰 ${(turn.total_cost ?? 0).toFixed(4)}</span>}
+          {turn && turn.models_used && turn.models_used.length > 0 && (
+            <span style={{ ...chipStyle }}>🧠 {turn.models_used.join(', ')}</span>
+          )}
           {turn && turn.retry_count > 1 && (
             <Tooltip text={`This request was attempted ${turn.retry_count} times. Each retry was triggered when a new message arrived while the original was still pending. Idle time between attempts is shown as grey separators in the timeline below.`}>
               <span style={{ ...chipStyle, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a', cursor: 'help' }}>

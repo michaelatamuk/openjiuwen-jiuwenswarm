@@ -17,11 +17,20 @@ export interface TraceHoundSessionItem {
   last_message_at?: number;
   created_at?: number;
   message_count?: number;
-  round_id?: number;      // how many user message turns occurred
-  total_tokens?: number;  // cumulative tokens consumed
-  llm_calls?: number;     // total LLM API calls across all turns
-  total_events?: number;  // total non-noise events across all turns
-  error_count?: number;   // turns with errors
+  round_id?: number;                      // how many user message turns occurred
+  total_tokens?: number;                  // cumulative tokens consumed
+  llm_calls?: number;                     // total LLM API calls across all turns
+  total_events?: number;                  // total non-noise events across all turns
+  error_count?: number;                   // turns with errors
+  total_cache_tokens?: number;            // total cache tokens
+  total_input_cost?: number;              // total input cost
+  total_output_cost?: number;             // total output cost
+  total_cost?: number;                    // total cost
+  models_used?: string[];                 // unique models used
+  avg_total_latency_ms?: number;          // avg total latency per turn
+  avg_ttft_ms?: number;                   // avg TTFT
+  avg_tpot_ms?: number;                   // avg TPOT
+  max_context_usage_percent?: number;     // max context window usage %
   mode?: string;
 }
 
@@ -30,6 +39,8 @@ export interface TurnSummary {
   turn_index: number;
   /** First 120 chars of the user message for this turn */
   user_content: string;
+  /** Full user message text */
+  user_message_full?: string;
   timestamp: number;
   tool_names: string[];
   skill_names: string[];
@@ -49,6 +60,61 @@ export interface TurnSummary {
   mode: string | null;
   llm_call_count: number;
   event_count: number;
+  // Detailed per-turn data
+  assistant_responses?: string[];
+  models_used?: string[];
+  cache_tokens?: number;
+  input_cost?: number;
+  output_cost?: number;
+  total_cost?: number;
+  avg_total_latency_ms?: number;
+  avg_ttft_ms?: number;
+  avg_tpot_ms?: number;
+  context_usage_percent?: number;
+  context_window_tokens?: number;
+  llm_calls_detail?: LLMCallDetail[];
+  tool_calls_detail?: ToolCallDetail[];
+  tool_updates_detail?: ToolUpdateDetail[];
+  tool_results_detail?: ToolResultDetail[];
+}
+
+export interface LLMCallDetail {
+  model_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cache_tokens: number;
+  input_cost: number;
+  output_cost: number;
+  total_cost: number;
+  total_latency_ms: number;
+  ttft_ms: number;
+  tpot_ms: number;
+  result_type: string;
+  code: number;
+  err_msg: string;
+}
+
+export interface ToolCallDetail {
+  name: string;
+  arguments: string;
+  tool_call_id: string;
+}
+
+export interface ToolUpdateDetail {
+  tool_name: string;
+  tool_call_id: string;
+  arguments: string;
+  status: string;
+}
+
+export interface ToolResultDetail {
+  tool_name: string;
+  tool_call_id: string;
+  result: string;
+  error_type?: string | null;
+  error_detail?: string | null;
+  error?: string | null;
 }
 
 export interface SessionStats {
@@ -60,6 +126,17 @@ export interface SessionStats {
   date_range: string;
   history_file_path: string;
   session_fingerprint?: string;
+  // New aggregate stats
+  total_cache_tokens?: number;
+  total_input_cost?: number;
+  total_output_cost?: number;
+  total_cost?: number;
+  models_used?: string[];
+  avg_total_latency_ms?: number;
+  avg_ttft_ms?: number;
+  avg_tpot_ms?: number;
+  max_context_usage_percent?: number;
+  channel_id?: string;
 }
 
 export interface AnalysisIssue {
@@ -102,6 +179,45 @@ export interface HistoryRecord {
   // Per-event timing computed by backend
   delta_from_prev_s?: number;
   elapsed_from_start_s?: number;
+  // chat.usage_metadata fields
+  metadata?: {
+    usage_metadata?: {
+      model_name?: string;
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      cache_tokens?: number;
+      input_cost?: number;
+      output_cost?: number;
+      total_cost?: number;
+      code?: number;
+      err_msg?: string;
+      prompt?: string;
+      task_id?: string;
+      total_latency?: number;
+      first_token_time?: string;
+      request_start_time?: string;
+    };
+    result_type?: string;
+    total_latency_ms?: number;
+    ttft_ms?: number;
+    tpot_ms?: number;
+    session_id?: string;
+  };
+  // chat.usage_summary fields
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+  };
+  model?: string;
+  usage_percent?: number;
+  context_window_tokens?: number;
+  session_id?: string;
+  // chat.tool_update fields
+  arguments?: string;
+  status?: string;
+  tool_call_id?: string;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -187,13 +303,23 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
               set(state => ({
                 sessions: state.sessions.map(sess =>
                   sess.session_id === s.session_id
-                    ? {
+                     ? {
                         ...sess,
                         round_id: stats.total_turns ?? sess.round_id,
                         llm_calls: stats.total_llm_calls ?? sess.llm_calls,
                         total_events: stats.total_events ?? sess.total_events,
                         total_tokens: stats.total_tokens ?? sess.total_tokens,
                         error_count: stats.error_count ?? sess.error_count,
+                        total_cache_tokens: stats.total_cache_tokens ?? sess.total_cache_tokens,
+                        total_input_cost: stats.total_input_cost ?? sess.total_input_cost,
+                        total_output_cost: stats.total_output_cost ?? sess.total_output_cost,
+                        total_cost: stats.total_cost ?? sess.total_cost,
+                        models_used: stats.models_used ?? sess.models_used,
+                        avg_total_latency_ms: stats.avg_total_latency_ms ?? sess.avg_total_latency_ms,
+                        avg_ttft_ms: stats.avg_ttft_ms ?? sess.avg_ttft_ms,
+                        avg_tpot_ms: stats.avg_tpot_ms ?? sess.avg_tpot_ms,
+                        max_context_usage_percent: stats.max_context_usage_percent ?? sess.max_context_usage_percent,
+                        channel_id: stats.channel_id ?? sess.channel_id,
                       }
                     : sess
                 ),
@@ -245,6 +371,16 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
                 total_events: sessionStats?.total_events ?? s.total_events,
                 total_tokens: sessionStats?.total_tokens ?? s.total_tokens,
                 error_count: sessionStats?.error_count ?? s.error_count,
+                total_cache_tokens: sessionStats?.total_cache_tokens ?? s.total_cache_tokens,
+                total_input_cost: sessionStats?.total_input_cost ?? s.total_input_cost,
+                total_output_cost: sessionStats?.total_output_cost ?? s.total_output_cost,
+                total_cost: sessionStats?.total_cost ?? s.total_cost,
+                models_used: sessionStats?.models_used ?? s.models_used,
+                avg_total_latency_ms: sessionStats?.avg_total_latency_ms ?? s.avg_total_latency_ms,
+                avg_ttft_ms: sessionStats?.avg_ttft_ms ?? s.avg_ttft_ms,
+                avg_tpot_ms: sessionStats?.avg_tpot_ms ?? s.avg_tpot_ms,
+                max_context_usage_percent: sessionStats?.max_context_usage_percent ?? s.max_context_usage_percent,
+                channel_id: sessionStats?.channel_id ?? s.channel_id,
               }
             : s
         ),
