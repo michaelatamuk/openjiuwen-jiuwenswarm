@@ -1289,7 +1289,6 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
     || (key === 'chat.tool_result' && (!!rec.error_type || resultText.length > COLLAPSE_THRESHOLD))
     || (key === 'chat.file' && bodyText.length > COLLAPSE_THRESHOLD)
     || (key === 'chat.error' && bodyText.length > COLLAPSE_THRESHOLD)
-    || key === 'chat.usage_metadata'
     || key === 'chat.usage_summary';
 
   const [expanded, setExpanded] = useState(false);
@@ -1441,9 +1440,9 @@ function RecordCard({ rec, isRetry, displayDelta }: { rec: HistoryRecord; isRetr
             </div>
           )}
           {um.prompt && (
-            <div style={{ marginTop: 4, padding: '6px 8px', background: '#f8fafc', borderRadius: 4, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: expanded ? 400 : 80, overflowY: 'auto', border: '1px solid #e2e8f0' }}>
-              <strong style={{ color: '#6b7280' }}>Prompt:</strong>
-              <pre style={{ margin: '4px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{um.prompt}</pre>
+            <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 240, overflowY: 'auto', border: '1px solid #e2e8f0' }}>
+              <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+              <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155' }}>{um.prompt}</pre>
             </div>
           )}
           {rec.session_id && (
@@ -1555,7 +1554,7 @@ function TurnDetailView() {
           <button style={btnStyle} onClick={back}>← Back</button>
           <div style={{ minWidth: 0 }}>
             <h2 style={{ ...titleStyle, marginBottom: 0, fontSize: 15 }}>
-              Turn #{(turn?.turn_index ?? 0) + 1}
+              User Message #{(turn?.turn_index ?? 0) + 1}
               {selectedSession?.title && <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 13, marginLeft: 8 }}>— {selectedSession.title}</span>}
             </h2>
             {turn?.timestamp && (
