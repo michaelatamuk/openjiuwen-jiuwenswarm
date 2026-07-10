@@ -50,6 +50,10 @@ class TeamEventType(str, Enum):
     MESSAGE_P2P = "team.message.p2p"
     MESSAGE_BROADCAST = "team.message.broadcast"
 
+    # 验证事件
+    VERIFICATION_COMPLETED = "team.verification.completed"
+    VERIFICATION_ERROR = "team.verification.error"
+
 
 EVENT_TYPE_TO_CATEGORY: dict[TeamEventType, TeamEventCategory] = {
     # 成员事件
@@ -67,6 +71,9 @@ EVENT_TYPE_TO_CATEGORY: dict[TeamEventType, TeamEventCategory] = {
     # 消息事件
     TeamEventType.MESSAGE_P2P: TeamEventCategory.MESSAGE,
     TeamEventType.MESSAGE_BROADCAST: TeamEventCategory.MESSAGE,
+    # 验证事件
+    TeamEventType.VERIFICATION_COMPLETED: TeamEventCategory.TASK,
+    TeamEventType.VERIFICATION_ERROR: TeamEventCategory.TASK,
 }
 
 SDK_TO_TEAM_EVENT_MAP: dict[MonitorEventType, TeamEventType] = {
