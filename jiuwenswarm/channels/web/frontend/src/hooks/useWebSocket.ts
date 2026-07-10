@@ -1135,10 +1135,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           session_id: sessionId,
           intent,
         };
-        if (useSessionStore.getState().mode === 'team'
-            && ['pause', 'resume', 'cancel', 'supplement'].includes(intent)) {
-          params.mode = 'team';
-          params.team = true;
+        const currentMode = useSessionStore.getState().mode;
+        if (['pause', 'resume', 'cancel', 'supplement'].includes(intent)) {
+          params.mode = currentMode;
+          if (currentMode === 'team') {
+            params.team = true;
+          }
         }
         if (intent === 'supplement') {
           params.new_input = newInput ?? '';
@@ -1943,6 +1945,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           }
           return;
         }
+        const toolRequestId = getPayloadRequestId(payload) || activeRequestIdRef.current;
         const { currentStreamId, messages } = useChatStore.getState();
         const currentStreamMessage =
           currentMode === 'team'
@@ -1953,8 +1956,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         addToolCall(
           toolCall,
           currentStreamMessage?.timestamp
-            ? { startedAt: currentStreamMessage.timestamp, requestId: activeRequestIdRef.current }
-            : { requestId: activeRequestIdRef.current }
+            ? { startedAt: currentStreamMessage.timestamp, requestId: toolRequestId }
+            : { requestId: toolRequestId }
         );
         if (currentMode === 'team' && !isTeamPanelClearedForPayload(payload)) {
           applyTeamTaskToolCall(toolCall);
@@ -2183,6 +2186,30 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         if (!shouldHandleSessionEvent(payload)) return;
         if (shouldDropDuplicatedEvent('chat.evolution_status', payload)) return;
         setEvolutionStatus(payload as unknown as EvolutionStatusPayload);
+      }),
+      webClient.on('chat.notice', ({ payload }) => {
+        if (!shouldHandleSessionEvent(payload)) return;
+        if (shouldDropDuplicatedEvent('chat.notice', payload)) return;
+        const content = pickString(payload.content, payload.message, payload.text);
+        if (!content) return;
+        const noticeType = pickString(payload.notice_type, payload.type) || 'notice';
+        const requestId = getPayloadRequestId(payload) || `${Date.now()}`;
+        const messageId = `notice-${noticeType}-${requestId}`;
+        const chatState = useChatStore.getState();
+        const existing = chatState.messages.find((message) => message.id === messageId);
+        if (existing) {
+          chatState.updateMessage(messageId, {
+            content,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+        addMessage({
+          id: messageId,
+          role: 'system',
+          content,
+          timestamp: new Date().toISOString(),
+        });
       }),
       webClient.on('chat.error', ({ payload }) => {
         if (!shouldHandleSessionEvent(payload)) return;

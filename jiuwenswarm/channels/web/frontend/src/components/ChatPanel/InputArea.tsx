@@ -22,7 +22,7 @@ interface InputAreaProps {
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
-const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_COUNT = 20;
 
 type AttachmentStatus = 'uploading' | 'ready' | 'error';
@@ -638,18 +638,6 @@ export function InputArea({
   //   [handleVoiceEnd]
   // );
 
-  const handleNewSession = useCallback(async () => {
-    if (isListening || (isInterruptible && !isTeamMode)) return;
-    setInputValue('');
-    setPendingVoiceText('');
-    setAttachments([]);
-    setAttachmentAlerts([]);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-    await onNewSession();
-  }, [isListening, isInterruptible, isTeamMode, onNewSession, setInputValue]);
-
   const handleModeSwitch = useCallback(async (targetMode: AgentMode) => {
     if (mode === targetMode) return;
     
@@ -984,21 +972,6 @@ export function InputArea({
         </div>
 
         <div className="chat-input-actions">
-          <button
-            type="button"
-            onClick={handleNewSession}
-            disabled={isListening || (isInterruptible && !isTeamMode)}
-            className={cx(
-              'chat-input-btn',
-              (isListening || (isInterruptible && !isTeamMode)) && 'chat-input-btn--disabled',
-            )}
-            title={isListening || (isInterruptible && !isTeamMode) ? t('chat.newSessionDisabled') : t('chat.newSession')}
-          >
-            <svg className="chat-input-btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-
           {/* {speechSupported && (
             <button
               type="button"

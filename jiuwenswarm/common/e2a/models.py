@@ -18,6 +18,7 @@ from jiuwenswarm.common.e2a.constants import (
     E2A_SOURCE_PROTOCOL_A2A,
     E2A_SOURCE_PROTOCOL_ACP,
     E2A_SOURCE_PROTOCOL_E2A,
+    E2A_WIRE_INTERNAL_METADATA_KEYS,
 )
 
 
@@ -351,13 +352,18 @@ def _envelope_from_dict(data: dict[str, Any]) -> E2AEnvelope:
             _meta=dict(auth_raw.get("_meta") or {}),
         )
 
-    # channel_context：合并 wire 顶层 metadata 中尚未出现的键。
+    # channel_context：合并 wire 顶层 metadata + app_id 中尚未出现的键。
     channel_context = dict(data.get("channel_context") or {})
     meta_top = data.get("metadata")
     if isinstance(meta_top, dict) and meta_top:
         for k, v in meta_top.items():
+            if k in E2A_WIRE_INTERNAL_METADATA_KEYS:
+                continue
             if k not in channel_context:
                 channel_context[k] = v
+    app_id = data.get("app_id")
+    if app_id and "app_id" not in channel_context:
+        channel_context["app_id"] = app_id
 
     ch = data.get("channel")
     if ch is None:

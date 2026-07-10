@@ -17,7 +17,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, Literal
 from jiuwenswarm.gateway.channel_manager.base import ChannelType
-from jiuwenswarm.common.e2a.constants import E2A_WIRE_INTERNAL_METADATA_KEYS
+from jiuwenswarm.common.e2a.constants import (
+    E2A_CANCEL_SOURCE_CLIENT_DISCONNECT,
+    E2A_INTERNAL_CANCEL_SOURCE_KEY,
+    E2A_WIRE_INTERNAL_METADATA_KEYS,
+)
 from jiuwenswarm.common.config import get_evolution_auto_save_enabled
 from jiuwenswarm.gateway.routing.session_map import SessionMap
 from jiuwenswarm.gateway.routing.agent_request_timeout import (
@@ -103,6 +107,12 @@ class ChannelMode(str, Enum):
     CODE_NORMAL = "code.normal"
     CODE_TEAM = "code.team"
     TEAM = "team"
+    TEAM_PLAN = "team.plan"
+
+    @classmethod
+    def is_team_mode(cls, mode: str) -> bool:
+        """Return True if *mode* resolves to any team variant (case-insensitive)."""
+        return mode.strip().lower() in {cls.TEAM.value, cls.CODE_TEAM.value, cls.TEAM_PLAN.value}
 
 
 @dataclass
@@ -333,7 +343,7 @@ class MessageHandler(ABC):
         godview intent can resolve.
 
         Trigger when:
-        - params.mode == "team", or
+        - params.mode is a team variant (team / code.team / team.plan), or
         - session already has subscribers (already a team session; web mode may be "agent")
         """
         if not msg.session_id:
@@ -345,9 +355,9 @@ class MessageHandler(ABC):
         if isinstance(msg.metadata, dict) and msg.metadata.get("member_name"):
             return
         _params = msg.params if isinstance(msg.params, dict) else {}
-        _mode = str(_params.get("mode") or "").strip()
+        _mode = str(_params.get("mode") or "")
         _session_has_subs = bool(self._session_sharing.lookup_all(msg.session_id))
-        if not (_mode == "team" or _session_has_subs):
+        if not (ChannelMode.is_team_mode(_mode) or _session_has_subs):
             return
         godview_subs = self._session_sharing.lookup_member(msg.session_id, SubRole.GODVIEW)
         _ch = msg.channel_id or "web"
@@ -447,7 +457,7 @@ class MessageHandler(ABC):
     def _is_team_chat_send(msg: "Message") -> bool:
         if not isinstance(msg.params, dict):
             return False
-        return str(msg.params.get("mode") or "").strip().lower() == "team"
+        return ChannelMode.is_team_mode(str(msg.params.get("mode") or ""))
 
     @classmethod
     def _is_interrupt_resume_chat_send(cls, msg: "Message") -> bool:
@@ -492,6 +502,7 @@ class MessageHandler(ABC):
             "code.normal": ChannelMode.CODE_NORMAL,
             "code.team": ChannelMode.CODE_TEAM,
             "team": ChannelMode.TEAM,
+            "team.plan": ChannelMode.TEAM_PLAN,
         }
         mode = mode_map.get(mode_raw, ChannelMode.AGENT_PLAN)
         return ChannelControlState(session_id=sid, mode=mode)
@@ -765,6 +776,7 @@ class MessageHandler(ABC):
         channel_id: str | None = None,
         cancel_gateway_tasks: bool = True,
         agent_notify: Literal["await", "fire_and_forget"] = "await",
+        cancel_source: str | None = None,
     ) -> None:
         """Cancel gateway and AgentServer work for a session.
 
@@ -840,6 +852,11 @@ class MessageHandler(ABC):
             cancel_params["team"] = msg.params["team"]
         if isinstance(msg.params, dict) and msg.params.get("trusted_dirs"):
             cancel_params["trusted_dirs"] = msg.params["trusted_dirs"]
+        cancel_metadata = dict(msg.metadata or {})
+        cancel_metadata.pop(E2A_INTERNAL_CANCEL_SOURCE_KEY, None)
+        cancel_source_value = (
+            cancel_source.strip() if isinstance(cancel_source, str) else ""
+        )
 
         cancel_req = Message(
             id=f"interrupt_{int(time.time() * 1000):x}_{secrets.token_hex(3)}",
@@ -850,7 +867,7 @@ class MessageHandler(ABC):
             timestamp=time.time(),
             ok=True,
             req_method=ReqMethod.CHAT_CANCEL,
-            metadata=msg.metadata,
+            metadata=cancel_metadata or None,
             provider=getattr(msg, "provider", None),
             chat_id=getattr(msg, "chat_id", None),
             user_id=getattr(msg, "user_id", None),
@@ -858,6 +875,8 @@ class MessageHandler(ABC):
         )
         agent_msg = await self._prepare_agent_dispatch_message(cancel_req)
         env_interrupt = self.message_to_e2a(agent_msg)
+        if cancel_source_value:
+            env_interrupt.channel_context[E2A_INTERNAL_CANCEL_SOURCE_KEY] = cancel_source_value
 
         if cancel_gateway_tasks:
             await _cancel_tasks(tasks_to_cancel)
@@ -872,6 +891,14 @@ class MessageHandler(ABC):
                 "[MessageHandler] 已 fire-and-forget 发送 AgentServer 中断: session_id=%s",
                 sid_for_agent,
             )
+            if publish_interrupt_result:
+                await self._send_interrupt_result_notification(
+                    msg.id,
+                    msg.channel_id,
+                    sid_for_agent,
+                    "cancel",
+                    success=True,
+                )
             return
 
         try:
@@ -1069,7 +1096,10 @@ class MessageHandler(ABC):
     def _build_disconnect_cancel_message(self, channel_id: str, session_id: str) -> "Message":
         from jiuwenswarm.common.schema.message import Message, ReqMethod
 
-        disconnect_params = {"intent": "cancel", "session_id": session_id}
+        disconnect_params = {
+            "intent": "cancel",
+            "session_id": session_id,
+        }
         disconnect_state = self._channel_states.get(
             self._get_channel_state_key(channel_id, session_id)
         ) or self._channel_states.get(channel_id)
@@ -1094,7 +1124,11 @@ class MessageHandler(ABC):
     async def _cancel_disconnect_session(self, channel_id: str, session_id: str) -> None:
         stub = self._build_disconnect_cancel_message(channel_id, session_id)
         try:
-            await self._cancel_agent_work_for_session(stub, session_id)
+            await self._cancel_agent_work_for_session(
+                stub,
+                session_id,
+                cancel_source=E2A_CANCEL_SOURCE_CLIENT_DISCONNECT,
+            )
         except Exception:
             logger.warning(
                 "[MessageHandler] disconnect cancel failed: channel_id=%s session_id=%s",
@@ -1267,6 +1301,7 @@ class MessageHandler(ABC):
                 "code.plan",
                 "code.normal",
                 "code.team",
+                "team.plan",
             ):
                 asyncio.create_task(
                     self.send_channel_notice(
@@ -1295,6 +1330,8 @@ class MessageHandler(ABC):
                 state.mode = ChannelMode.CODE_NORMAL
             elif mode_str == "code.team":
                 state.mode = ChannelMode.CODE_TEAM
+            elif mode_str == "team.plan":
+                state.mode = ChannelMode.TEAM_PLAN
             new_label = state.mode.value
             if old_mode != state.mode:
                 asyncio.create_task(
@@ -3201,11 +3238,10 @@ class MessageHandler(ABC):
                         )
 
                     elif intent == "cancel":
-                        # 使用 fire_and_forget 模式，避免 await AgentServer 响应阻塞 _forward_loop，
+                        # 使用 await 模式，若cancel过长时间可能导致session残余
                         # 导致后续 session.create 等请求在队列中等待超时
                         await self._cancel_agent_work_for_session(
-                            msg, msg.session_id,
-                            agent_notify="fire_and_forget",
+                            msg, msg.session_id
                         )
 
                     elif intent in ("pause", "resume"):
