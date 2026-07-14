@@ -1,7 +1,7 @@
 # Team Verification Layer
 
 > **Goal:** Automatically review teammate task outputs for quality, correctness, and consistency before the Leader consolidates results. Inspired by Claude Code's verification subagents.
->
+> 
 > **Scope:** Agent Team mode (Cluster mode) only.
 
 ---
