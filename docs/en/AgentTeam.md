@@ -247,7 +247,7 @@ The **Team Verification Layer** automatically reviews teammate task outputs for 
 - **Accountable** — full verification history persists in team memory
 - **Actionable** — provides per-dimension scores and improvement suggestions
 
-For full configuration options, quality dimensions, and architecture details, see [Team Verification Layer](verification/README.md).
+For full configuration options, quality dimensions, and architecture details, see [Team Verification Layer](TeamVerification.md).
 
 ### 2.6 Team Memory
 

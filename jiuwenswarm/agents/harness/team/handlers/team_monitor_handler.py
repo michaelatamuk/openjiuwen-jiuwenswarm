@@ -159,8 +159,7 @@ class TeamMonitorHandler(BaseMonitorHandler):
         base["task_id"] = event.task_id
         return base
 
-    @staticmethod
-    def _handle_task_unblocked(base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
+    async def _handle_task_unblocked(self, base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
         base["task_id"] = event.task_id
 
         # Trigger verification if the verification rail is configured
