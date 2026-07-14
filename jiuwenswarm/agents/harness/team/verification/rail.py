@@ -22,7 +22,7 @@ from openjiuwen.core.single_agent.rail.base import AgentCallbackContext
 from openjiuwen.harness.rails.base import DeepAgentRail
 
 from jiuwenswarm.agents.harness.team.verification.memory import VerificationMemory
-from jiuwenswarm.agents.harness.team.verification.result import VerificationStatus
+from jiuwenswarm.agents.harness.team.verification.result import VerificationInput
 from jiuwenswarm.agents.harness.team.verification.reviewer import VerificationReviewer
 
 logger = logging.getLogger(__name__)
@@ -118,27 +118,14 @@ class TeamVerificationRail(DeepAgentRail):
     # Public API for external integration (called by TeamMonitorHandler)
     # ------------------------------------------------------------------
 
-    async def on_task_completed(
-        self,
-        task_id: str,
-        task_title: str,
-        task_content: str,
-        assignee: str,
-        output: str,
-        team_context: str = "",
-    ) -> dict[str, Any]:
+    async def on_task_completed(self, inp: VerificationInput) -> dict[str, Any]:
         """Handle a task completion event — the main entry point.
 
         Called by the team monitor handler when a teammate marks a task complete.
         Runs verification asynchronously and returns the result.
 
         Args:
-            task_id: Unique task identifier
-            task_title: Task title
-            task_content: Original task description
-            assignee: Teammate who completed the task
-            output: The teammate's output
-            team_context: Shared team context/memory
+            inp: VerificationInput with task details and output to verify
 
         Returns:
             Dict with verification result for event emission
@@ -146,25 +133,18 @@ class TeamVerificationRail(DeepAgentRail):
         if not self._enabled:
             return {"status": "skipped", "reason": "verification_disabled"}
 
-        if self._should_skip(task_title):
+        if self._should_skip(inp.task_title):
             return {"status": "skipped", "reason": "pattern_excluded"}
 
         # Deduplicate: don't verify the same task twice
-        if task_id in self._pending_verifications:
+        if inp.task_id in self._pending_verifications:
             logger.debug(
-                "[TeamVerificationRail] Task %s already being verified", task_id
+                "[TeamVerificationRail] Task %s already being verified", inp.task_id
             )
-            return {"status": "pending", "task_id": task_id}
+            return {"status": "pending", "task_id": inp.task_id}
 
         try:
-            result = await self._reviewer.review(
-                task_id=task_id,
-                task_title=task_title,
-                task_content=task_content,
-                assignee=assignee,
-                output=output,
-                team_context=team_context,
-            )
+            result = await self._reviewer.review(inp)
 
             # Persist to team memory
             self._memory.store(result)
@@ -172,8 +152,8 @@ class TeamVerificationRail(DeepAgentRail):
             # Build event payload
             event_payload = {
                 "event_type": "team.verification.completed",
-                "task_id": task_id,
-                "assignee": assignee,
+                "task_id": inp.task_id,
+                "assignee": inp.assignee,
                 "status": result.status.value,
                 "overall_score": result.overall_score,
                 "summary": result.summary,
@@ -186,7 +166,7 @@ class TeamVerificationRail(DeepAgentRail):
 
             logger.info(
                 "[TeamVerificationRail] Verified task=%s status=%s score=%d",
-                task_id,
+                inp.task_id,
                 result.status.value,
                 result.overall_score,
             )
@@ -196,17 +176,17 @@ class TeamVerificationRail(DeepAgentRail):
         except Exception as exc:
             logger.error(
                 "[TeamVerificationRail] Verification failed for task=%s: %s",
-                task_id,
+                inp.task_id,
                 exc,
                 exc_info=True,
             )
             return {
                 "event_type": "team.verification.error",
-                "task_id": task_id,
+                "task_id": inp.task_id,
                 "error": str(exc),
             }
         finally:
-            self._pending_verifications.pop(task_id, None)
+            self._pending_verifications.pop(inp.task_id, None)
 
     def _should_skip(self, task_title: str) -> bool:
         """Check if a task should be skipped based on title patterns."""

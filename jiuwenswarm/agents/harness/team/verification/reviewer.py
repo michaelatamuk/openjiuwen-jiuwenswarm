@@ -253,7 +253,8 @@ class VerificationReviewer:
             )
             return response
 
-    def _parse_response(self, raw: str) -> dict[str, Any]:
+    @staticmethod
+    def _parse_response(raw: str) -> dict[str, Any]:
         """Parse the model's JSON response."""
         # Extract JSON from markdown code blocks if present
         text = raw.strip()
@@ -314,7 +315,8 @@ class VerificationReviewer:
             reviewer_model=getattr(self._model_client, "model_name", "unknown"),
         )
 
-    def _mock_response(self) -> str:
+    @staticmethod
+    def _mock_response() -> str:
         """Return a mock JSON response for testing without a model client."""
         return json.dumps(
             {

@@ -7,7 +7,10 @@ import json
 
 import pytest
 
-from jiuwenswarm.agents.harness.team.verification.result import VerificationStatus
+from jiuwenswarm.agents.harness.team.verification.result import (
+    VerificationInput,
+    VerificationStatus,
+)
 from jiuwenswarm.agents.harness.team.verification.reviewer import VerificationReviewer
 
 
@@ -40,12 +43,14 @@ class TestVerificationReviewer:
         )
 
         result = await reviewer.review(
-            task_id="task-1",
-            task_title="Implement feature X",
-            task_content="Add feature X to the codebase",
-            assignee="teammate-a",
-            output="Here is the implementation...",
-            team_context="Team is working on v2.0",
+            VerificationInput(
+                task_id="task-1",
+                task_title="Implement feature X",
+                task_content="Add feature X to the codebase",
+                assignee="teammate-a",
+                output="Here is the implementation...",
+                team_context="Team is working on v2.0",
+            )
         )
 
         assert result.task_id == "task-1"
@@ -61,11 +66,13 @@ class TestVerificationReviewer:
         reviewer = VerificationReviewer(model_client=None, language="en")
 
         result = await reviewer.review(
-            task_id="task-2",
-            task_title="Simple task",
-            task_content="Do something",
-            assignee="teammate-b",
-            output="Done",
+            VerificationInput(
+                task_id="task-2",
+                task_title="Simple task",
+                task_content="Do something",
+                assignee="teammate-b",
+                output="Done",
+            )
         )
 
         assert result.status == VerificationStatus.PASS
@@ -91,11 +98,13 @@ class TestVerificationReviewer:
         )
 
         result = await reviewer.review(
-            task_id="task-3",
-            task_title="Task",
-            task_content="Content",
-            assignee="teammate-c",
-            output="Output",
+            VerificationInput(
+                task_id="task-3",
+                task_title="Task",
+                task_content="Content",
+                assignee="teammate-c",
+                output="Output",
+            )
         )
 
         # Score 50 < pass_threshold 70, so should be NEEDS_REWORK
@@ -124,11 +133,13 @@ class TestVerificationReviewer:
         )
 
         result = await reviewer.review(
-            task_id="task-4",
-            task_title="Task",
-            task_content="Content",
-            assignee="teammate-d",
-            output="Output",
+            VerificationInput(
+                task_id="task-4",
+                task_title="Task",
+                task_content="Content",
+                assignee="teammate-d",
+                output="Output",
+            )
         )
 
         assert result.status == VerificationStatus.FAIL
@@ -144,11 +155,13 @@ class TestVerificationReviewer:
         reviewer = VerificationReviewer(model_client=FailingMockClient())
 
         result = await reviewer.review(
-            task_id="task-5",
-            task_title="Task",
-            task_content="Content",
-            assignee="teammate-e",
-            output="Output",
+            VerificationInput(
+                task_id="task-5",
+                task_title="Task",
+                task_content="Content",
+                assignee="teammate-e",
+                output="Output",
+            )
         )
 
         assert result.status == VerificationStatus.SKIPPED

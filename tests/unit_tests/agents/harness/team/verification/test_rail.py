@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from jiuwenswarm.agents.harness.team.verification.rail import TeamVerificationRail
-from jiuwenswarm.agents.harness.team.verification.result import VerificationStatus
+from jiuwenswarm.agents.harness.team.verification.result import (
+    VerificationInput,
+    VerificationStatus,
+)
 
 
 class TestTeamVerificationRail:
@@ -29,11 +32,13 @@ class TestTeamVerificationRail:
     async def test_on_task_completed_disabled(self):
         rail = TeamVerificationRail(enabled=False)
         result = await rail.on_task_completed(
-            task_id="task-1",
-            task_title="Test",
-            task_content="Content",
-            assignee="teammate-a",
-            output="Output",
+            VerificationInput(
+                task_id="task-1",
+                task_title="Test",
+                task_content="Content",
+                assignee="teammate-a",
+                output="Output",
+            )
         )
         assert result["status"] == "skipped"
         assert result["reason"] == "verification_disabled"
@@ -41,11 +46,13 @@ class TestTeamVerificationRail:
     @pytest.mark.asyncio
     async def test_on_task_completed_skipped_pattern(self, rail):
         result = await rail.on_task_completed(
-            task_id="task-1",
-            task_title="Daily heartbeat check",
-            task_content="Content",
-            assignee="teammate-a",
-            output="Output",
+            VerificationInput(
+                task_id="task-1",
+                task_title="Daily heartbeat check",
+                task_content="Content",
+                assignee="teammate-a",
+                output="Output",
+            )
         )
         assert result["status"] == "skipped"
         assert result["reason"] == "pattern_excluded"
@@ -54,12 +61,14 @@ class TestTeamVerificationRail:
     async def test_on_task_completed_mock_mode(self, rail):
         """Test verification in mock mode (no model client)."""
         result = await rail.on_task_completed(
-            task_id="task-2",
-            task_title="Implement feature",
-            task_content="Add new feature",
-            assignee="teammate-b",
-            output="Here is my implementation...",
-            team_context="Working on v2.0",
+            VerificationInput(
+                task_id="task-2",
+                task_title="Implement feature",
+                task_content="Add new feature",
+                assignee="teammate-b",
+                output="Here is my implementation...",
+                team_context="Working on v2.0",
+            )
         )
 
         assert result["event_type"] == "team.verification.completed"
