@@ -27,6 +27,15 @@ DISPATCH_PACKAGE_ROOTS = ("indexing", "models", "orchestration", "retrieval", "s
 EXCLUDED_RESOURCE_DIRS = (
     os.path.join("agent", "workspace", "skills", "project-maintainer"),
 )
+OPENJIUWEN_DATA_EXCLUDES = [
+    "**/AGENTS.md",
+    "**/CLAUDE.md",
+    "**/deepagents/tools/browser_move/.browser/**",
+    "**/deepagents/tools/browser_move/.browser-profiles/**",
+    "**/deepagents/tools/browser_move/.venv/**",
+    "**/deepagents/tools/browser_move/logs/**",
+    "**/deepagents/tools/browser_move/.env",
+]
 
 
 def collect_tree_data_files(source_dir, target_dir, patterns):
@@ -128,7 +137,7 @@ datas += collect_resources_data_files(
 datas += copy_metadata("fastmcp", recursive=True)
 datas += copy_metadata("mcp", recursive=True)
 datas += copy_metadata("openjiuwen", recursive=True)
-datas += collect_data_files("openjiuwen", include_py_files=False)
+datas += collect_data_files("openjiuwen", include_py_files=False, excludes=OPENJIUWEN_DATA_EXCLUDES)
 datas += collect_data_files(
     "jiuwenswarm.extensions",
     include_py_files=True,
@@ -290,7 +299,10 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path,
-    uac_admin=True,
+    # 运行时数据全部落在用户目录 ~/.jiuwenswarm（cwd、单实例锁、日志、工作区），
+    # 不写 Program Files / HKLM，因此运行时不需要管理员权限。
+    # uac_admin=True 会让双击 exe 时弹 UAC，去掉它实现"安装需管理员、运行不需要"。
+    uac_admin=False,
 )
 
 coll = COLLECT(
