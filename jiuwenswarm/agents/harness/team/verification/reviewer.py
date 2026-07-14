@@ -17,6 +17,7 @@ from typing import Any
 from jiuwenswarm.agents.harness.team.verification.result import (
     DimensionScore,
     QualityDimension,
+    VerificationInput,
     VerificationResult,
     VerificationStatus,
 )
@@ -151,34 +152,21 @@ class VerificationReviewer:
         self._pass_threshold = pass_threshold
         self._rework_threshold = rework_threshold
 
-    async def review(
-        self,
-        task_id: str,
-        task_title: str,
-        task_content: str,
-        assignee: str,
-        output: str,
-        team_context: str = "",
-    ) -> VerificationResult:
+    async def review(self, inp: VerificationInput) -> VerificationResult:
         """Review a teammate's task output and return a structured result.
 
         Args:
-            task_id: Unique task identifier
-            task_title: Task title
-            task_content: Original task description/requirements
-            assignee: Name of the teammate who completed the task
-            output: The teammate's output to review
-            team_context: Optional team context (shared memory, previous decisions)
+            inp: VerificationInput with task details and output to review
 
         Returns:
             VerificationResult with quality assessment
         """
         prompt = self._build_prompt(
-            task_title=task_title,
-            task_content=task_content,
-            assignee=assignee,
-            output=output,
-            team_context=team_context,
+            task_title=inp.task_title,
+            task_content=inp.task_content,
+            assignee=inp.assignee,
+            output=inp.output,
+            team_context=inp.team_context,
         )
 
         system_prompt = (
@@ -190,11 +178,11 @@ class VerificationReviewer:
         try:
             raw_response = await self._call_model(system_prompt, prompt)
             parsed = self._parse_response(raw_response)
-            result = self._build_result(task_id, task_title, assignee, parsed)
+            result = self._build_result(inp.task_id, inp.task_title, inp.assignee, parsed)
             logger.info(
                 "[VerificationReviewer] Reviewed task=%s assignee=%s status=%s score=%d",
-                task_id,
-                assignee,
+                inp.task_id,
+                inp.assignee,
                 result.status.value,
                 result.overall_score,
             )
@@ -202,15 +190,15 @@ class VerificationReviewer:
         except Exception as exc:
             logger.warning(
                 "[VerificationReviewer] Review failed for task=%s: %s",
-                task_id,
+                inp.task_id,
                 exc,
                 exc_info=True,
             )
             # Graceful degradation: return SKIPPED on failure
             return VerificationResult(
-                task_id=task_id,
-                task_title=task_title,
-                assignee=assignee,
+                task_id=inp.task_id,
+                task_title=inp.task_title,
+                assignee=inp.assignee,
                 status=VerificationStatus.SKIPPED,
                 overall_score=0,
                 summary=f"Verification skipped due to error: {exc}",

@@ -40,6 +40,18 @@ class DimensionScore:
 
 
 @dataclass
+class VerificationInput:
+    """Input parameters for triggering a verification review."""
+
+    task_id: str
+    task_title: str
+    task_content: str
+    assignee: str
+    output: str
+    team_context: str = ""
+
+
+@dataclass
 class VerificationResult:
     """Structured result of a teammate output verification."""
 

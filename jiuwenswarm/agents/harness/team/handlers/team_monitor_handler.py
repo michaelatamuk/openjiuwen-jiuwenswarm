@@ -15,6 +15,7 @@ from typing import Any
 from openjiuwen.agent_teams.monitor import TeamMonitor
 from openjiuwen.agent_teams.monitor.models import MonitorEvent, MonitorEventType
 
+from jiuwenswarm.agents.harness.team.verification.result import VerificationInput
 from jiuwenswarm.agents.harness.team.event_types import (
     get_team_event_type,
     get_event_category,
@@ -125,25 +126,10 @@ class TeamMonitorHandler(BaseMonitorHandler):
         base["task_id"] = event.task_id
         return base
 
-    async def _run_verification(
-        self,
-        task_id: str,
-        task_title: str,
-        task_content: str,
-        assignee: str,
-        output: str,
-        team_context: str,
-    ) -> None:
+    async def _run_verification(self, inp: VerificationInput) -> None:
         """Run verification and emit the result as a team event."""
         try:
-            result = await self._verification_rail.on_task_completed(
-                task_id=task_id,
-                task_title=task_title,
-                task_content=task_content,
-                assignee=assignee,
-                output=output,
-                team_context=team_context,
-            )
+            result = await self._verification_rail.on_task_completed(inp)
             if result and result.get("event_type"):
                 event_dict = {
                     "event_type": "team.task",
@@ -186,18 +172,23 @@ class TeamMonitorHandler(BaseMonitorHandler):
                             f"{m.from_member_name}: {m.content[:200]}"
                             for m in recent if hasattr(m, "content")
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "[TeamMonitorHandler] Could not build team context for verification: %s",
+                            exc,
+                        )
 
                     # Run verification asynchronously (fire-and-forget to not block event flow)
                     asyncio.create_task(
                         self._run_verification(
-                            task_id=event.task_id,
-                            task_title=task_info.title or "",
-                            task_content=task_info.content or "",
-                            assignee=task_info.assignee or event.member_name or "",
-                            output=task_info.result or "",
-                            team_context=team_context,
+                            VerificationInput(
+                                task_id=event.task_id,
+                                task_title=task_info.title or "",
+                                task_content=task_info.content or "",
+                                assignee=task_info.assignee or event.member_name or "",
+                                output=task_info.result or "",
+                                team_context=team_context,
+                            )
                         )
                     )
             except Exception as e:

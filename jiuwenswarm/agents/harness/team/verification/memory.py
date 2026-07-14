@@ -140,8 +140,11 @@ class VerificationMemory:
                     try:
                         data = json.loads("\n".join(json_lines))
                         results.append(VerificationResult.from_dict(data))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "[VerificationMemory] Failed to parse JSON block: %s",
+                            exc,
+                        )
                 else:
                     i += 1
 
@@ -184,7 +187,8 @@ class VerificationMemory:
             "weak_dimensions": weak_dimensions,
         }
 
-    def _format_entry(self, result: VerificationResult) -> str:
+    @staticmethod
+    def _format_entry(result: VerificationResult) -> str:
         """Format a verification result as a markdown entry."""
         rework_block = ""
         if result.rework_instructions:
