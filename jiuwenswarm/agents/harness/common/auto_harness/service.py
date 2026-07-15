@@ -759,6 +759,23 @@ class AutoHarnessService:
             config.upstream_owner = parts[0]
             config.upstream_repo = parts[1]
 
+        # Override best-of-n settings from JiuwenSwarm main config.yaml
+        try:
+            from jiuwenswarm.common.config import get_config
+            jw_config = get_config()
+            ah_cfg = jw_config.get("auto_harness", {})
+            bn_cfg = ah_cfg.get("best_of_n", {})
+            if "enabled" in bn_cfg:
+                config.best_of_n_enabled = bool(bn_cfg["enabled"])
+            if "attempts" in bn_cfg:
+                config.best_of_n_attempts = int(bn_cfg["attempts"])
+            if "timeout_per_attempt" in bn_cfg:
+                config.best_of_n_timeout_per_attempt = float(bn_cfg["timeout_per_attempt"])
+        except Exception as exc:
+            logger.debug(
+                "[AutoHarnessService] Failed to read jiuwenswarm best_of_n config: %s", exc
+            )
+
         logger.info(
             "[AutoHarnessService] Built config: data_dir=%s, local_repo=%s, repo_url=%s, model=%s",
             config.data_dir,

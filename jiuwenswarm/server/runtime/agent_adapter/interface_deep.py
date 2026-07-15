@@ -50,6 +50,7 @@ from openjiuwen.harness import (
     AudioModelConfig,
     DeepAgent,
     DeepAgentConfig,
+    MultiRolloutConfig,
     VisionModelConfig,
 )
 from openjiuwen.harness.factory import create_deep_agent
@@ -3926,6 +3927,17 @@ class JiuWenSwarmDeepAdapter:
             tool.card if hasattr(tool, "card") else tool for tool in (tool_cards or [])
         ]
         configured_subagents, should_add_general_agent = self._build_configured_subagents(model, config, config_base)
+
+        # Parse optional multi-rollout config from react section
+        _mr_cfg = config.get("multi_rollout", {})
+        multi_rollout = MultiRolloutConfig(
+            enabled=bool(_mr_cfg.get("enabled", False)),
+            n_rollouts=int(_mr_cfg.get("n_rollouts", 3)),
+            max_parallel=int(_mr_cfg.get("max_parallel", 0)),
+            timeout_per_rollout=float(_mr_cfg.get("timeout_per_rollout", 600.0)),
+            selector_kind=str(_mr_cfg.get("selector_kind", "first_successful")),
+        )
+
         return DeepAgentConfig(
             model=model,
             card=agent_card,
@@ -3949,6 +3961,7 @@ class JiuWenSwarmDeepAdapter:
             audio_model_config=self._audio_model_config,
             enable_read_image_multimodal=self._resolve_enable_read_image_multimodal(config),
             completion_timeout=config.get("completion_timeout", 3600.0),
+            multi_rollout=multi_rollout,
         )
 
     def _update_permission_rail(self, config_base: dict[str, Any] | None) -> None:
