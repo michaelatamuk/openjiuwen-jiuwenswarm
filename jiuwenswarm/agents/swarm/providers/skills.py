@@ -52,6 +52,7 @@ def _link_member_configured_skills(
     member_skills_dir: Path,
     selected_skills: list[str],
     global_skills_dir: Path,
+    extra_skill_dirs: list[Path] | None = None,
 ) -> None:
     """Link the member's configured skills into its own skills directory.
 
@@ -64,6 +65,8 @@ def _link_member_configured_skills(
         member_skills_dir: Member workspace ``skills`` directory.
         selected_skills: Skill names selected for this member.
         global_skills_dir: Global agent skills directory to link from.
+        extra_skill_dirs: Additional external skill directories (from
+            ``skills.external_dirs`` config) to also link from.
     """
     if not global_skills_dir.exists():
         logger.warning(
@@ -76,20 +79,26 @@ def _link_member_configured_skills(
     member_skills_dir.mkdir(parents=True, exist_ok=True)
     prune_skill_dir_links(global_skills_dir, member_skills_dir, selected_skill_set)
     linked_count = 0
-    for skill_dir in global_skills_dir.iterdir():
-        if not is_valid_skill_dir(skill_dir):
+
+    # Scan the global skills dir plus all configured external dirs.
+    all_source_dirs = [global_skills_dir] + (extra_skill_dirs or [])
+    for source_dir in all_source_dirs:
+        if not source_dir.exists():
             continue
-        if skill_dir.name not in selected_skill_set:
-            continue
-        dest = member_skills_dir / skill_dir.name
-        if path_exists_or_link(dest):
-            continue
-        link_skill_dir(skill_dir, dest)
-        linked_count += 1
-        logger.info(
-            "[swarm.member_skill_toolkit] Linked skill '%s' to member workspace",
-            skill_dir.name,
-        )
+        for skill_dir in source_dir.iterdir():
+            if not is_valid_skill_dir(skill_dir):
+                continue
+            if skill_dir.name not in selected_skill_set:
+                continue
+            dest = member_skills_dir / skill_dir.name
+            if path_exists_or_link(dest):
+                continue
+            link_skill_dir(skill_dir, dest)
+            linked_count += 1
+            logger.info(
+                "[swarm.member_skill_toolkit] Linked skill '%s' to member workspace",
+                skill_dir.name,
+            )
 
     existing_skill_names = {
         path.name for path in member_skills_dir.iterdir() if path_exists_or_link(path)
@@ -193,27 +202,31 @@ def build_member_skill_toolkit(params: dict, ctx: Any) -> object | None:
     session_id = inp.session_id
     channel = inp.channel
 
-    # Link member-configured skills so the member workspace exposes only that
-    # member's skill view (no copies, no per-member skills_state.json).
-    try:
-        member_skills_dir.mkdir(parents=True, exist_ok=True)
-        if selected_skills:
-            _link_member_configured_skills(
-                member_skills_dir, selected_skills, global_skills_dir
-            )
-    except Exception as exc:
-        logger.warning(
-            "[swarm.member_skill_toolkit] skill link refresh failed: %s", exc
-        )
-
     # The skill manager / toolkit operate on the shared agent workspace so
     # installs are shared; each member only sees its own linked view.
+    # Build this first so we can pass external_dirs to the link helper below.
     member_skill_manager: Any | None = None
     try:
         member_skill_manager = SkillManager(workspace_dir=str(agent_workspace_dir))
     except Exception as exc:
         logger.warning(
             "[swarm.member_skill_toolkit] member SkillManager setup failed: %s", exc
+        )
+
+    # Link member-configured skills so the member workspace exposes only that
+    # member's skill view (no copies, no per-member skills_state.json).
+    # Also include external skill dirs so they are visible to team members.
+    try:
+        member_skills_dir.mkdir(parents=True, exist_ok=True)
+        if selected_skills:
+            extra_dirs = member_skill_manager.get_external_skill_dirs() if member_skill_manager is not None else []
+            _link_member_configured_skills(
+                member_skills_dir, selected_skills, global_skills_dir,
+                extra_skill_dirs=extra_dirs,
+            )
+    except Exception as exc:
+        logger.warning(
+            "[swarm.member_skill_toolkit] skill link refresh failed: %s", exc
         )
 
     def refresh_member_skill_links(result: dict[str, object]) -> None:

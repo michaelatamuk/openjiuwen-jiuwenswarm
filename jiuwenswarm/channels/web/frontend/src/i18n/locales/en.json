@@ -17,6 +17,7 @@
   },
   "nav": {
     "chat": "Chat",
+    "work": "Work",
     "agent": "Agent",
     "teams": "Teams",
     "sessions": "Sessions",
@@ -27,6 +28,7 @@
     "extensions": "Harness",
     "rails": "Rails",
     "harnesspkg": "Harness Package",
+    "more": "More",
     "settings": "Settings",
     "config": "Configuration",
     "browser": "Browser Service",
@@ -35,7 +37,7 @@
   },
   "team": {
     "members": "Team Members",
-    "membersTab": "Team Members",
+    "membersTab": "Team",
     "statusTab": "Status",
     "filesTab": "Files",
     "taskEventLog": "Task Event Log",
@@ -149,7 +151,6 @@
       "tab": "Task Planning",
       "progressTitle": "Task Progress",
       "token": "Token",
-      "elapsedTime": "Elapsed {{value}}",
       "taskList": "Task List",
       "taskListAria": "{{task}} task list",
       "resources": "Task resources",
@@ -162,6 +163,9 @@
         "structure": "Structure view",
         "board": "Board view"
       },
+      "metrics": {
+        "progress": "Progress"
+      },
       "columns": {
         "waiting": "Waiting",
         "running": "Running",
@@ -170,6 +174,17 @@
         "failed": "Failed"
       }
     }
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "tab": "Artifacts",
+    "count": "{{count}} item(s)",
+    "empty": "No artifacts",
+    "download": "Download",
+    "selectArtifact": "Select an artifact to preview",
+    "previewUnsupported": "Preview is only supported for Markdown files",
+    "previewMissingPath": "No readable local path is available for this artifact",
+    "previewFailed": "Failed to load Markdown preview"
   },
   "teams": {
     "title": "Team Management",
@@ -220,7 +235,6 @@
     "placeholderVoice": "Listening...",
     "welcomeLogoAlt": "JiuwenSwarm logo",
     "welcomeHeading": "Hi, I'm JiuwenSwarm. Nice to meet you!",
-    "welcomeSubtext": "I can answer questions, clear up confusion, and help you complete tasks.",
     "welcomeSuggestions": {
       "journey": "Let's begin a brand-new journey!",
       "skills": "Can you tell me what skills you have?"
@@ -228,6 +242,8 @@
     "newSession": "New Session",
     "sessionCreated": "Session created",
     "modeAgentSingle": "Agent Mode",
+    "modePlan": "Planning Mode",
+    "modeAgent": "Performance Mode",
     "modeAgentTeam": "Cluster Mode",
     "modeAutoHarness": "Auto-Harness Mode",
     "modeAutoHarnessDesc": "Automatically analyze and optimize target repository",
@@ -238,14 +254,34 @@
     "addImage": "Add image",
     "addImageDisabled": "Cannot add images while processing or recording",
     "removeImage": "Remove image",
+    "sendTask": "Send message without interrupting model",
+    "editTask": "Edit",
+    "dragTask": "Drag to reorder",
+    "queueModeEnabled": "Queue mode enabled",
+    "paused": "Paused",
+    "resume": "Resume",
+    "queuePausedConfirm": "You are about to send a message. Clear the {{count}} queued message(s)?\n\nClick \"OK\" to clear the queue and send; click \"Cancel\" to keep the queue (message will be added to the queue).",
     "holdToSpeak": "Hold to speak",
     "send": "Send (Enter)",
     "stop": "Stop",
     "modelSelector": {
-      "tooltip": "Switch the model used for chat"
+      "tooltip": "Switch the model used for chat",
+      "configured": "Configured Models",
+      "addModel": "Add Custom Model",
+      "placeholder": "Select Model"
     },
+    "configLockedHistory": "Session has messages — create a new session to change config",
+    "modeSwitchDisabledProcessing":"This conversation is running. Start a new conversation to choose another mode",
     "modeSwitchTitle": "Switch Mode",
     "modeSwitchConfirm": "Current session has history messages. Switching mode will create a new session. Continue?",
+    "skills": "Skills",
+    "skillsToggle": "View installed skills",
+    "noInstalledSkills": "No installed skills",
+    "skillsSearchPlaceholder": "Search skill name or description",
+    "skillsManage": "Skill Management",
+    "skillsAdd": "Add to composer",
+    "skillsRemove": "Remove",
+    "recentTasks": "Recent Tasks",
     "teamPause": "Pause",
     "teamPauseHint": "After pausing a team, send the next message to continue",
     "teamBroadcastTarget": "@all",
@@ -253,10 +289,28 @@
     "historyPager": {
       "loadedOfTotal": "Loaded {{loaded}} / {{total}} pages",
       "loadingMore": "Loading...",
-      "allLoaded": "All history shown",
-      "wheelToLoadMore": "Scroll up to load more",
-      "clickToLoadMore": "Click to load more",
-      "clickOrScrollToLoadMore": "Click or scroll up to load more"
+      "clickOrScrollToLoadMore": "Click or scroll up to load more",
+      "allLoaded": "All history loaded"
+    },
+    "config": {
+      "mode": {
+        "cluster": "Cluster",
+        "clusterDesc": "Deep reasoning, complex tasks, long-running workflows",
+        "singleAgent": "Agent"
+      },
+      "permission": {
+        "default": "Default",
+        "defaultDesc": "Always ask when editing external files or accessing the internet",
+        "fullAccess": "Full Access",
+        "fullAccessDesc": "Unrestricted access to the internet and any files on your computer",
+        "fullAccessWarning": {
+          "title": "Warning",
+          "body1": "In full access mode, Jiuwen can edit any file on your computer and run internet-connected commands without your approval.",
+          "body2": "Please evaluate carefully before enabling full access. This significantly increases the risk of data loss, leakage, or unexpected behavior.",
+          "cancel": "Cancel",
+          "confirm": "Continue Anyway"
+        }
+      }
     }
   },
   "autoHarness": {
@@ -403,18 +457,15 @@
       "loadSessions": "Failed to load sessions",
       "loadFiles": "Failed to load session files",
       "deleteSession": "Failed to delete session: {{sessionId}}",
-      "switchSession": "Failed to switch team session",
       "restoreFailed": "Failed to restore session: {{sessionId}}"
     }
   },
   "sessionSidebar": {
     "newSession": "New session",
-    "advancedConfig": "Advanced Config",
-    "expandSidebar": "Expand Sidebar",
-    "collapseSidebar": "Collapse Sidebar",
     "connectionStatus": "Connection Status",
+    "version": "Version",
     "language": "Language",
-    "appearance": "Appearance"
+    "moreSettings": "More Settings"
   },
   "heartbeat": {
     "title": "Heartbeat Management",
@@ -909,10 +960,181 @@
     "autoManaged": "Auto-managed",
     "autoManagedHint": "This task is auto-created/deleted by the proactive recommendation toggle (Settings → Proactive Recommendation). Only the cron expression and timezone can be edited here; other fields (name/status/description/offset/channel) are read-only. To remove it, turn off the toggle in Settings.",
     "autoManagedToggleDisabled": "The toggle of an auto-managed task is controlled by Settings → Proactive Recommendation and cannot be switched here.",
+    "pageTitle": "Scheduled Tasks",
+    "pageSubtitle": "Configure automated tasks that Jiuwen runs on schedule.",
+    "actions": {
+      "confirm": "Confirm"
+    },
+    "createMenu": {
+      "trigger": "Create",
+      "manual": "Create manually",
+      "viaChat": "Create via chat",
+      "viaChatPrompt": "Let's set up a scheduled task together. First, explain how scheduled tasks work in JiuwenSwarm. Then ask me what I'd like to schedule and when it should run."
+    },
+    "stats": {
+      "total": "Total tasks ({{count}})"
+    },
+    "tabs": {
+      "list": "Tasks",
+      "template": "Templates",
+      "history": "Run History"
+    },
+    "search": {
+      "placeholder": "Search"
+    },
+    "table": {
+      "name": "Name",
+      "project": "Project",
+      "schedule": "Scheduled",
+      "status": "Status",
+      "timezone": "Timezone",
+      "channel": "Channel",
+      "actions": "Actions",
+      "noProject": "–",
+      "runNow": "Run now",
+      "stop": "Stop",
+      "edit": "Edit",
+      "more": "More",
+      "history": "Run history",
+      "triggeredSessions": "Triggered sessions",
+      "noTriggeredSessions": "No trigger records"
+    },
+    "empty": {
+      "createButton": "Create scheduled task",
+      "templateSectionTitle": "Templates",
+      "templateMore": "More"
+    },
+    "history": {
+      "comingSoon": "Coming soon"
+    },
+    "confirm": {
+      "deleteTitle": "Delete",
+      "deleteMessage": "Delete task \"{{name}}\"?",
+      "stopTitle": "Stop",
+      "stopMessage": "Stop task \"{{name}}\"?",
+      "runNowTitle": "Run now",
+      "runNowMessage": "Run task \"{{name}}\" now?"
+    },
+    "drawer": {
+      "titleCreate": "Create scheduled task",
+      "titleEdit": "Edit",
+      "titleTemplate": "Create from template",
+      "switchToManual": "Create manually",
+      "switchToTemplate": "Create from template",
+      "fieldName": "Task name",
+      "fieldProject": "Project (optional)",
+      "fieldModel": "Model",
+      "fieldDescription": "Description",
+      "fieldChannel": "Channel",
+      "fieldTimezone": "Timezone",
+      "fieldEffectiveDate": "Effective date (optional)",
+      "effectiveDateComingSoon": "Coming soon — your selection does not take effect yet",
+      "fieldEnabled": "Enabled",
+      "placeholderInput": "Enter",
+      "placeholderSelect": "Select",
+      "placeholderEffectiveDate": "Select effective date",
+      "missingFieldsHint": "Still needed: {{fields}}"
+    },
+    "schedule": {
+      "title": "Schedule",
+      "help": "Choose how often this task runs",
+      "modePeriod": "Recurring",
+      "modeInterval": "Interval",
+      "modeOnce": "Once",
+      "modeCronExpr": "Cron expression",
+      "cronExprPlaceholder": "e.g. 0 0 9 * * ? *",
+      "cronExprHelp": "7-field Quartz: second minute hour day month weekday year",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "selectTime": "Select time",
+      "selectMonth": "Select month",
+      "selectDay": "Select day",
+      "every": "Every",
+      "everyHoursPlaceholder": "Hours",
+      "hoursUnit": "hours",
+      "dayOption": "{{day}}",
+      "monthOption": "{{month}}",
+      "lastDayOfMonth": "Last day of month",
+      "listSeparator": ", ",
+      "weekday": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "summary": {
+        "daily": "Daily at {{time}}",
+        "weekly": "Weekly on {{days}} at {{time}}",
+        "monthly": "Monthly on {{day}} at {{time}}",
+        "monthlyWeekday": "Monthly, {{weekOfMonth}}, {{days}} at {{time}}",
+        "yearly": "Yearly on {{month}}/{{day}} at {{time}}",
+        "interval": "Every {{n}}h",
+        "intervalWithWeekdays": "Every {{n}}h ({{days}})",
+        "once": "{{date}} {{time}}",
+        "lastDay": "the last day"
+      },
+      "monthlySubMode": {
+        "date": "By date",
+        "week": "By week"
+      },
+      "weekOfMonth": {
+        "1": "week 1",
+        "2": "week 2",
+        "3": "week 3",
+        "4": "week 4",
+        "last": "last week"
+      }
+    },
+    "modelPicker": {
+      "configured": "Configured",
+      "empty": "No models available yet, add one in the config panel first"
+    },
+    "timePicker": {
+      "hour": "Hr",
+      "minute": "Min"
+    },
+    "datePicker": {
+      "prevYear": "Previous year",
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "nextYear": "Next year",
+      "yearMonthHeader": "{{month}}/{{year}}",
+      "monthItem": "{{month}}",
+      "weekday": {
+        "sun": "Su",
+        "mon": "Mo",
+        "tue": "Tu",
+        "wed": "We",
+        "thu": "Th",
+        "fri": "Fr",
+        "sat": "Sa"
+      }
+    },
+    "template": {
+      "trend": {
+        "title": "Daily industry news",
+        "description": "Every day at 8am, send me the latest industry news for [your industry, e.g. customer service / finance / new energy], organized into a structured document."
+      },
+      "newspaper": {
+        "title": "Market sentiment tracking",
+        "description": "Every day at noon, search and summarize the latest news and sentiment about [a company or product] from the past 24 hours"
+      },
+      "briefcase": {
+        "title": "Weekly work report",
+        "description": "Every Friday at 6pm, generate my weekly report based on this week's chats, docs and sheets, including task progress and next week's plan, delivered as a document."
+      }
+    },
     "status": {
       "enabled": "Enabled",
       "disabled": "Disabled",
-      "expired": "Expired"
+      "expired": "Expired",
+      "running": "Running",
+      "paused": "Paused"
     },
     "columns": {
       "name": "Task Name",
@@ -973,7 +1195,7 @@
       "cronHourStep": "Hour step must divide 24",
       "cronDay": "Invalid day field (1-31, supports * ? - ,)",
       "cronMonth": "Invalid month field (1-12, supports * - ,)",
-      "cronWeek": "Invalid dow field (1-7, supports * ? - ,, 1=SUN)",
+      "cronWeek": "Invalid dow field (0-6, supports * ? - ,, 0=Sun, 1=Mon...6=Sat)",
       "cronYear": "Invalid year field (1970-2099 or *)",
       "timezoneRequired": "Time zone is required",
       "targetRequired": "Target channel is required",
@@ -1481,6 +1703,12 @@
     "stopReading": "Stop reading",
     "readMessage": "Read message",
     "fileExpired": "Expired",
+    "agentProcessing": "Agent Processing",
+    "thinking": "Thinking...",
+    "processing": "Processing...",
+    "paused": "Paused",
+    "waitingTasks": "Waiting Tasks",
+    "messageQueue": "Message Queue",
     "parallelProgress": "Parallel tasks running ({{completedCount}}/{{total}} complete)",
     "subtask": {
       "starting": "Starting...",
@@ -1559,7 +1787,7 @@
     "groupChat": "Group chat",
     "noGroupChat": "No group chat messages",
     "everyone": "Everyone",
-    "generatedBy": "Generated by openJiuwen AI",
+    "aiNotice": "Answers are AI-generated, for reference only",
     "website": "Website: {{url}}",
     "repository": "Repository: {{url}}"
   },
@@ -1679,9 +1907,6 @@
     "errorTitle": "Application Error",
     "unknownError": "Unknown error",
     "reload": "Reload page",
-    "themeSystem": "Follow system",
-    "themeDark": "Dark mode",
-    "themeLight": "Light mode",
     "configError": "Failed to fetch config via WebSocket, using defaults",
     "configErrorHint": "Please start the backend first (e.g.",
     "configErrorDefault": ", default port 19000). If backend is remote, set",
@@ -1750,5 +1975,104 @@
       "sendFile": "Send File",
       "sendFileDesc": "Send files to user"
     }
+  },
+  "multiSession": {
+    "title": "Work",
+    "conversations": "Conversations",
+    "newConversation": "New task",
+    "empty": "No chat yet",
+    "untitled": "Untitled conversation",
+    "showMore": "Show more",
+    "collapse": "Show less",
+    "waitingReply": "Needs input",
+    "completedUnread": "Background task completed",
+    "moreActions": "More actions",
+    "cronJobs": "Cron Jobs",
+    "delete": "Delete",
+    "deleteRunningDisabled": "Running conversations and conversations awaiting input cannot be deleted",
+    "status": {
+      "waiting": "Waiting for approval",
+      "processing": "Running",
+      "unread": "Completed unread",
+      "error": "Execution error",
+      "read": "Completed read"
+    },
+    "project": {
+      "projects": "Projects",
+      "newConversation": "New conversation",
+      "pinned": "Pinned",
+      "newProject": "New project",
+      "createBlank": "Create blank project",
+      "selectExisting": "Select existing directory",
+      "addNewProject": "Add new project",
+      "namePlaceholder": "Enter a short, recognizable project name",
+      "chooseProjectDirectory": "Choose project directory",
+      "directoryPickerUnsupported": "This environment cannot open the system directory picker. Enter the project name and path manually.",
+      "directoryPickerFailed": "Failed to choose directory. Please try again.",
+      "lockedProjectTitle": "Project assignment cannot be changed from the input box for an existing conversation",
+      "clearProject": "Do not use a project",
+      "searchProject": "Search projects",
+      "noProjectMatches": "No matching projects",
+      "noProjects": "No projects",
+      "noConversations": "No conversations",
+      "noSessions": "No trigger sessions",
+      "startConversation": "Start a new conversation from {{projectName}}",
+      "pinProject": "Pin project",
+      "unpinProject": "Unpin project",
+      "pinConversation": "Pin conversation",
+      "unpinConversation": "Unpin",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "pinFailed": "Pin action failed",
+      "rename": "Rename",
+      "renamePlaceholder": "Enter a new name",
+      "deleteProject": "Delete project",
+      "deleteProjectDescription": "Remove “{{projectName}}”? Unpinned conversations in this project will temporarily move to the default project.",
+      "absolutePathError": "Enter an absolute path, for example /Users/name/work/project",
+      "errors": {
+        "pathExists": "This project path already exists. Choose another directory or start a new conversation from the existing project.",
+        "nameExists": "This project name already exists. Please choose another name."
+      },
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
+    "runtime": { "processing": "Processing" },
+    "deleteDialog": { "title": "Delete", "description": "Delete “{{title}}”? This action cannot be undone." },
+    "notFound": { "title": "Conversation not found or deleted", "newConversation": "New conversation" },
+    "errors": { "delete": "Failed to delete conversation", "create": "Failed to create conversation", "send": "Failed to send message" }
+  },
+  "mermaid": {
+    "image": "Image",
+    "code": "Code",
+    "copyCode": "Copy code",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitView": "Fit view"
+  },
+  "authPrompt": {
+    "title": "Authorization",
+    "titleConfirm": "Confirm action",
+    "allowOnce": "Allow once",
+    "allowAlways": "Always allow",
+    "skip": "Skip",
+    "tip": {
+      "allowOnce": "Allow this action only this time",
+      "allowAlways": "Remember this rule and auto-allow from now on",
+      "skip": "Reject this action"
+    }
+  },
+  "interactionPrompt": {
+    "title": "Please answer",
+    "prev": "Previous",
+    "next": "Next",
+    "cancel": "Cancel",
+    "skip": "Skip",
+    "nextStep": "Next",
+    "confirm": "Confirm",
+    "customOption": "Custom",
+    "customPlaceholder": "No suitable option? Type your answer..."
+  },
+  "qaSummary": {
+    "title": "Clarifications"
   }
 }
