@@ -2547,7 +2547,8 @@ class SkillManager:
     # 目录扫描
     # -----------------------------------------------------------------------
 
-    def _load_external_skill_dirs(self) -> list[Path]:
+    @staticmethod
+    def _load_external_skill_dirs() -> list[Path]:
         """从 config.yaml skills.external_dirs（或 EXTERNAL_SKILL_DIRS 环境变量）加载外部技能目录.
 
         支持两种配置方式：
