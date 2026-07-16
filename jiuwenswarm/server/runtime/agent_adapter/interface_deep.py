@@ -2816,23 +2816,27 @@ class JiuWenSwarmDeepAdapter:
 
     def _visible_skill_names_for_list_skill(self) -> set[str]:
         """Return the skill names exposed by the matching SkillUseRail setup."""
-        skills_dir = get_agent_skills_dir()
         disabled_skills = set(
             self._skill_manager.list_execution_disabled_skills()
             if self._skill_manager is not None
             else []
         )
+        # Include main skills dir plus any configured external dirs.
+        all_dirs = [get_agent_skills_dir()]
+        if self._skill_manager is not None:
+            all_dirs.extend(self._skill_manager.get_external_skill_dirs())
         visible: set[str] = set()
-        try:
-            for child in sorted(skills_dir.iterdir(), key=lambda path: path.name.lower()):
-                if not child.is_dir() or child.name.startswith("_") or child.name.startswith("."):
-                    continue
-                if child.name in disabled_skills:
-                    continue
-                if (child / "SKILL.md").is_file():
-                    visible.add(child.name)
-        except OSError as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] failed to scan visible skills: %s", exc)
+        for skills_dir in all_dirs:
+            try:
+                for child in sorted(skills_dir.iterdir(), key=lambda path: path.name.lower()):
+                    if not child.is_dir() or child.name.startswith("_") or child.name.startswith("."):
+                        continue
+                    if child.name in disabled_skills:
+                        continue
+                    if (child / "SKILL.md").is_file():
+                        visible.add(child.name)
+            except OSError as exc:
+                logger.warning("[JiuWenSwarmDeepAdapter] failed to scan visible skills in %s: %s", skills_dir, exc)
         return visible
 
     @staticmethod
@@ -3259,8 +3263,16 @@ class JiuWenSwarmDeepAdapter:
         try:
             skill_mode = self._resolve_skill_mode(config)
             logger.info("[JiuWenSwarmDeepAdapter] current skill_mode: %s", skill_mode)
+            # Combine the main skills dir with any external dirs from config so
+            # skills.external_dirs are visible in the system prompt (mode=all) and
+            # available to the list_skill tool (mode=auto_list).
+            all_skill_dirs: list[str] = [str(get_agent_skills_dir())]
+            if self._skill_manager is not None:
+                all_skill_dirs.extend(
+                    str(p) for p in self._skill_manager.get_external_skill_dirs()
+                )
             skill_rail = SkillUseRail(
-                skills_dir=str(get_agent_skills_dir()),
+                skills_dir=all_skill_dirs,
                 skill_mode=skill_mode,
                 include_tools=include_tools,
                 disabled_skills=self._skill_manager.list_execution_disabled_skills(),
