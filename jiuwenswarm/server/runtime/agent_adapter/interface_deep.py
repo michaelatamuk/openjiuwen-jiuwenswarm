@@ -135,6 +135,9 @@ from jiuwenswarm.agents.harness.common.rails.execution_guard import (
     CircuitBreakerRail,
     CircuitBreakerConfig,
 )
+from jiuwenswarm.agents.harness.common.rails.task_description_rail import (
+    TaskDescriptionRail,
+)
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
@@ -3871,6 +3874,18 @@ class JiuWenSwarmDeepAdapter:
                 )
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to load UserHookRail: %s", e)
+        # Task description pinning: keep task file content visible throughout the run
+        try:
+            _td_cfg = config_base.get("task_description") or {}
+            if bool(_td_cfg.get("enabled", False)):
+                _td_path = str(_td_cfg.get("path", "/app/task.md"))
+                self._task_description_rail = TaskDescriptionRail(_td_path)
+                rails_list.append(self._task_description_rail)
+                logger.info(
+                    "[JiuWenSwarmDeepAdapter] TaskDescriptionRail loaded from %s", _td_path
+                )
+        except Exception as e:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", e)
         # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
         # for task-loop runs, or agent.<name>.invoke for single-round) under the root
         # run span per iteration/round. It is the only thing that creates the
