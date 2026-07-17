@@ -430,6 +430,7 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `skills.external_only` | When `true` and `skills.external_dirs` is non-empty, the personal skills directory is excluded — only external-dir skills are visible to the agent. Use in benchmark / CI environments to prevent unrelated installed skills from appearing. | `false` |
 | `shell_output.max_chars` | Maximum characters returned to the model per shell command output (BashTool and mcp_exec_command). `0` = no limit. | `20000` |
 | `shell_output.head_ratio` | Fraction of `max_chars` kept from the beginning of output; remainder from the end (tail). Lower values surface more of the tail where errors appear. | `0.6` |
+| `autonomy.enabled` | When `true`, injects autonomous-execution directives at the top of the system prompt, overriding interactive confirmation requests and hedging language. Suitable for CI pipelines, automated scripts, benchmark environments, or any deployment without a human supervisor | `false` |
 
 <a id="dotenv-configuration"></a>
 
