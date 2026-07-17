@@ -478,6 +478,11 @@ tools:
 #
 skills:
   external_dirs: ${EXTERNAL_SKILL_DIRS:-}
+  # When true and external_dirs is non-empty, only skills from external_dirs
+  # are shown to the agent — the personal skills dir is excluded entirely.
+  # Ideal for benchmark / CI environments where task-provided skills should
+  # not compete with unrelated personally-installed skills.
+  external_only: false
 
 email_settings:
   email_address: ${EMAIL_ADDRESS}
