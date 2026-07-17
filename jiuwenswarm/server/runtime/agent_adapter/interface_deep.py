@@ -135,6 +135,9 @@ from jiuwenswarm.agents.harness.common.rails.execution_guard import (
     CircuitBreakerRail,
     CircuitBreakerConfig,
 )
+from jiuwenswarm.agents.harness.common.rails.autonomous_mode_rail import (
+    AutonomousModeRail,
+)
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
@@ -3859,6 +3862,11 @@ class JiuWenSwarmDeepAdapter:
             len(rails_list),
             [type(r).__name__ for r in rails_list],
         )
+        # Autonomous execution mode: override interactive hedging when running unattended
+        _autonomy_enabled = bool((config_base.get("autonomy") or {}).get("enabled", False))
+        self._autonomous_mode_rail = AutonomousModeRail(_autonomy_enabled)
+        rails_list.append(self._autonomous_mode_rail)
+
         # 用户配置的 hooks（UserHookRail）
         try:
             hooks_config = load_hooks_config(config_base)

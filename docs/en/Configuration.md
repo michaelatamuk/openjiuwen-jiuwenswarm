@@ -423,6 +423,7 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `autonomy.enabled` | When `true`, injects autonomous-execution directives at the top of the system prompt, overriding interactive confirmation requests and hedging language. Suitable for CI pipelines, automated scripts, benchmark environments, or any deployment without a human supervisor | `false` |
 
 <a id="dotenv-configuration"></a>
 
