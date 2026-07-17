@@ -423,6 +423,7 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `react.budget_warning_threshold` | Number of remaining iterations at which the agent receives a wrap-up warning in its system prompt, telling it to prioritise finishing current work | `10` |
 
 <a id="dotenv-configuration"></a>
 

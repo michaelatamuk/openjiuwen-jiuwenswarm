@@ -135,6 +135,9 @@ from jiuwenswarm.agents.harness.common.rails.execution_guard import (
     CircuitBreakerRail,
     CircuitBreakerConfig,
 )
+from jiuwenswarm.agents.harness.common.rails.iteration_budget_rail import (
+    IterationBudgetRail,
+)
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
@@ -3859,6 +3862,12 @@ class JiuWenSwarmDeepAdapter:
             len(rails_list),
             [type(r).__name__ for r in rails_list],
         )
+        # Iteration budget awareness: warn the agent when iterations are nearly exhausted
+        _max_iter = int(config.get("max_iterations", 100))
+        _warn_threshold = int(config.get("budget_warning_threshold", 10))
+        self._iteration_budget_rail = IterationBudgetRail(_max_iter, _warn_threshold)
+        rails_list.append(self._iteration_budget_rail)
+
         # 用户配置的 hooks（UserHookRail）
         try:
             hooks_config = load_hooks_config(config_base)
