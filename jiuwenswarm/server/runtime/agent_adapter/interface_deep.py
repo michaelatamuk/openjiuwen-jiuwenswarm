@@ -3269,14 +3269,25 @@ class JiuWenSwarmDeepAdapter:
         try:
             skill_mode = self._resolve_skill_mode(config)
             logger.info("[JiuWenSwarmDeepAdapter] current skill_mode: %s", skill_mode)
-            # Combine the main skills dir with any external dirs from config so
-            # skills.external_dirs are visible in the system prompt (mode=all) and
-            # available to the list_skill tool (mode=auto_list).
-            all_skill_dirs: list[str] = [str(get_agent_skills_dir())]
+            # Build the skill directory list for SkillUseRail.
+            # Normally: main personal skills dir + any external dirs from config.
+            # With skills.external_only=true and non-empty external_dirs: skip the
+            # personal dir so only task-provided skills are visible to the agent
+            # (prevents unrelated installed skills from acting as distractors).
+            external_dirs: list[str] = []
             if self._skill_manager is not None:
-                all_skill_dirs.extend(
+                external_dirs = [
                     str(p) for p in self._skill_manager.get_external_skill_dirs()
-                )
+                ]
+
+            _skills_cfg = (config.get("skills") or {})
+            _external_only = bool(_skills_cfg.get("external_only", False))
+
+            if _external_only and external_dirs:
+                # Benchmark / CI mode: show only task-provided skills.
+                all_skill_dirs = external_dirs
+            else:
+                all_skill_dirs = [str(get_agent_skills_dir())] + external_dirs
             skill_rail = SkillUseRail(
                 skills_dir=all_skill_dirs,
                 skill_mode=skill_mode,

@@ -425,6 +425,10 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `skills.external_dirs` | Extra skill directories loaded as if locally installed. Accepts a YAML list or a semicolon-separated string (also settable via `EXTERNAL_SKILL_DIRS` env var). Skills here are fully equivalent to UI-installed skills. | `""` (empty) |
+| `skills.external_only` | When `true` and `skills.external_dirs` is non-empty, the personal skills directory is excluded — only external-dir skills are visible to the agent. Use in benchmark / CI environments to prevent unrelated installed skills from appearing. | `false` |
+| `shell_output.max_chars` | Maximum characters returned to the model per shell command output (BashTool and mcp_exec_command). `0` = no limit. | `20000` |
+| `shell_output.head_ratio` | Fraction of `max_chars` kept from the beginning of output; remainder from the end (tail). Lower values surface more of the tail where errors appear. | `0.6` |
 
 <a id="dotenv-configuration"></a>
 
