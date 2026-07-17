@@ -148,6 +148,7 @@ from jiuwenswarm.agents.harness.common.rails.task_description_rail import (
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
+from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDeduplicationRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
     setup_permission_context,
@@ -3927,6 +3928,15 @@ class JiuWenSwarmDeepAdapter:
                 )
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", e)
+        # Tool-call deduplication
+        try:
+            _td_cfg = config_base.get("tool_dedup") or {}
+            if bool(_td_cfg.get("enabled", False)):
+                _warn_after = int(_td_cfg.get("warn_after", 3))
+                rails_list.append(ToolCallDeduplicationRail(_warn_after))
+                logger.info("[JiuWenSwarmDeepAdapter] ToolCallDeduplicationRail attached (warn_after=%d)", _warn_after)
+        except Exception as e:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ToolCallDeduplicationRail: %s", e)
         # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
         # for task-loop runs, or agent.<name>.invoke for single-round) under the root
         # run span per iteration/round. It is the only thing that creates the

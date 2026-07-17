@@ -433,6 +433,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `autonomy.enabled` | When `true`, injects autonomous-execution directives at the top of the system prompt, overriding interactive confirmation requests and hedging language. Suitable for CI pipelines, automated scripts, benchmark environments, or any deployment without a human supervisor | `false` |
 | `task_description.enabled` | When `true`, reads the file at `task_description.path` and pins its content as a permanent system-prompt section (priority 12), ensuring the task goal survives context compression | `false` |
 | `task_description.path` | Path to the task description file to pin in the system prompt | `/app/task.md` |
+| `tool_dedup.enabled` | When true, intercepts duplicate tool calls within the same model turn and returns the cached result without invoking the tool again. Also tracks cross-turn repetitions and injects a system-prompt notice when a call is repeated more than `warn_after` times | `false` |
+| `tool_dedup.warn_after` | Number of identical cross-turn executions of the same tool+args before the agent receives a system-prompt reminder to stop repeating the call | `3` |
 
 <a id="dotenv-configuration"></a>
 

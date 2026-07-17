@@ -605,6 +605,10 @@ task_description:
   enabled: false          # set true when a task file is reliably present
   path: /app/task.md      # path to the task description file
 
+tool_dedup:
+  enabled: false      # suppress identical repeat tool calls within a turn
+  warn_after: 3       # inject a system-prompt notice after this many cross-turn repeats
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}
