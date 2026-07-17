@@ -431,6 +431,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `shell_output.max_chars` | Maximum characters returned to the model per shell command output (BashTool and mcp_exec_command). `0` = no limit. | `20000` |
 | `shell_output.head_ratio` | Fraction of `max_chars` kept from the beginning of output; remainder from the end (tail). Lower values surface more of the tail where errors appear. | `0.6` |
 | `autonomy.enabled` | When `true`, injects autonomous-execution directives at the top of the system prompt, overriding interactive confirmation requests and hedging language. Suitable for CI pipelines, automated scripts, benchmark environments, or any deployment without a human supervisor | `false` |
+| `task_description.enabled` | When `true`, reads the file at `task_description.path` and pins its content as a permanent system-prompt section (priority 12), ensuring the task goal survives context compression | `false` |
+| `task_description.path` | Path to the task description file to pin in the system prompt | `/app/task.md` |
 
 <a id="dotenv-configuration"></a>
 
