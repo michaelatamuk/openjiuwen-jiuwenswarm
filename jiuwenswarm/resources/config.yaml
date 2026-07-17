@@ -423,6 +423,7 @@ react:
   agent_name: main_agent
   enable_task_loop: false
   max_iterations: 100
+  budget_warning_threshold: 10  # warn agent when this many iterations remain
   # Multi-rollout: spawn N parallel agent attempts with different strategies
   # and return the best result. Increases cost ~N× but improves quality
   # on hard tasks. Only affects DeepAgent.invoke() (not streaming).
