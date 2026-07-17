@@ -423,6 +423,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `tool_dedup.enabled` | When true, intercepts duplicate tool calls within the same model turn and returns the cached result without invoking the tool again. Also tracks cross-turn repetitions and injects a system-prompt notice when a call is repeated more than `warn_after` times | `false` |
+| `tool_dedup.warn_after` | Number of identical cross-turn executions of the same tool+args before the agent receives a system-prompt reminder to stop repeating the call | `3` |
 
 <a id="dotenv-configuration"></a>
 
