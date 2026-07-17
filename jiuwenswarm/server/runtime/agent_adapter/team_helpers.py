@@ -95,7 +95,12 @@ _STREAM_TRACE_ENV_KEY = "JIUWENSWARM_TEAM_STREAM_TRACE"
 # When set to "true", non-leader teammate frames are filtered out in team
 # streaming so the frontend only receives leader output.
 _HIDE_TEAMMATE_ENV_KEY = "JIUWENSWARM_TEAM_HIDE_TEAMMATE"
-_DEBUG_PREFIX = "/debug"
+# /debug 剥离原语与 Agent/Code 共享（debug_trace.directives），消除两份实现。
+# 别名保持 _DEBUG_PREFIX / _strip_directive 不变，_extract_query_directives 零改动。
+from jiuwenswarm.server.runtime.debug_trace.directives import (
+    DEBUG_PREFIX as _DEBUG_PREFIX,
+    strip_slash_directive as _strip_directive,
+)
 _FOLLOWUP_INTERACT_RETRY_TIMEOUT_SEC = 1.0
 _FOLLOWUP_INTERACT_RACE_WAIT_TIMEOUT_SEC = 3.0
 _FOLLOWUP_INTERACT_POLL_INTERVAL_SEC = 0.05
@@ -311,20 +316,6 @@ def _build_team_event_chunk_meta(event: Any) -> tuple[dict | None, dict]:
     fan_out = _build_logical_targets(event)
     metadata = {"fan_out_targets": fan_out} if fan_out else {}
     return agent_ref, metadata
-
-
-def _strip_directive(query: str, prefix: str) -> tuple[str, bool]:
-    """Strip a leading slash directive from a query string.
-
-    Returns the cleaned query and whether the directive was present.
-    """
-    stripped = query.lstrip()
-    if not stripped.startswith(prefix):
-        return query, False
-    remainder = stripped[len(prefix):]
-    if remainder and not remainder[0].isspace():
-        return query, False
-    return remainder.lstrip(), True
 
 
 def _extract_query_directives(query: str) -> tuple[str, bool, bool]:
@@ -2149,12 +2140,16 @@ async def _consume_monitor_events(
 #
 # member_id / task_id 均以 run_id 前缀做命名空间，避免与真实 teammate/task 冲突。
 
-_WF_PHASE_STATUS_TO_TASK_TYPE: dict[str, str] = {
-    "planned": "team.task.created",
-    "running": "team.task.claimed",
-    "completed": "team.task.completed",
-    "failed": "team.task.cancelled",
-    "stopped": "team.task.cancelled",
+# swarmflow phase status -> (web team.task event type, authoritative TeamTaskStatus).
+# The status is resolved here (server-side) so the web frontend consumes it
+# directly, consistent with TeamMonitorHandler's convergence. The event ``type``
+# only drives the activity-log label; ``status`` alone decides the board column.
+_WF_PHASE_STATUS_TO_TASK: dict[str, tuple[str, str]] = {
+    "planned": ("team.task.created", "pending"),
+    "running": ("team.task.claimed", "in_progress"),
+    "completed": ("team.task.completed", "completed"),
+    "failed": ("team.task.cancelled", "cancelled"),
+    "stopped": ("team.task.cancelled", "cancelled"),
 }
 
 
@@ -2198,8 +2193,9 @@ def _workflow_updated_to_team_events(
         task_id = f"{run_id}:{phase_id}"
         if seen_phase.get(task_id) != status:
             seen_phase[task_id] = status
-            task_type = _WF_PHASE_STATUS_TO_TASK_TYPE.get(status)
-            if task_type is not None:
+            mapping = _WF_PHASE_STATUS_TO_TASK.get(status)
+            if mapping is not None:
+                task_type, task_status = mapping
                 out.append(
                     _team_event_envelope(
                         "team.task",
@@ -2209,7 +2205,7 @@ def _workflow_updated_to_team_events(
                             "team_id": team_id,
                             "task_id": task_id,
                             "title": phase.get("name") or phase_id,
-                            "status": status,
+                            "status": task_status,
                         },
                     )
                 )

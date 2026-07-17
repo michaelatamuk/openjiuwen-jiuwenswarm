@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 """Standalone AgentServer entrypoint.
 
 This process only starts:
@@ -28,6 +28,7 @@ from jiuwenswarm.dotenv_early import parse_dotenv_early
 parse_dotenv_early("jiuwenswarm-agentserver")
 
 # --- Now safe to import jiuwenswarm modules ---
+from jiuwenswarm.common.debug_dump import install_async_dump_handler
 from jiuwenswarm.common.utils import (
     get_env_file,
     get_root_dir,
@@ -224,6 +225,16 @@ async def _run(host: str, port: int) -> None:
             shutdown_team_observability()
         except Exception as exc:
             logger.warning("[AgentServer] team observability shutdown failed: %s", exc)
+        # Shutdown single-agent / coding-agent observability. Independently
+        # tracked from team observability; no-op unless an agent run owned the
+        # provider (it will not tear down a provider the team still owns).
+        try:
+            from jiuwenswarm.agents.harness.agent_observability import (
+                shutdown_agent_observability,
+            )
+            shutdown_agent_observability()
+        except Exception as exc:
+            logger.warning("[AgentServer] agent observability shutdown failed: %s", exc)
         logger.info("[AgentServer] stopped")
 
 
@@ -271,6 +282,7 @@ def main() -> None:
         else:
             port = 18092
 
+    install_async_dump_handler("agentserver")
     asyncio.run(_run(host=host, port=port))
 
 
