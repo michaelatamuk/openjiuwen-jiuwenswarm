@@ -3901,8 +3901,7 @@ class JiuWenSwarmDeepAdapter:
         # Iteration budget awareness: warn the agent when iterations are nearly exhausted
         _max_iter = int(config.get("max_iterations", 100))
         _warn_threshold = int(config.get("budget_warning_threshold", 10))
-        self._iteration_budget_rail = IterationBudgetRail(_max_iter, _warn_threshold)
-        rails_list.append(self._iteration_budget_rail)
+        rails_list.append(IterationBudgetRail(_max_iter, _warn_threshold))
 
         # Autonomous execution mode: override interactive hedging when running unattended
         _autonomy_enabled = bool((config_base.get("autonomy") or {}).get("enabled", False))
