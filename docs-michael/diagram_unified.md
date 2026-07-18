@@ -82,6 +82,8 @@ flowchart TD
         ─── failure-pattern-memory  #396"]:::pre
         SBR["Forces full strategy rethink after N consecutive shell failures
         ─── step-back-rail  #399"]:::pre
+        VCB_pre["Injects rethink directive after N identical verifier failures · escalates to reset at 2N
+        ─── verifier-circuit-breaker  #409"]:::pre
     end
 
     LoopLabel --> PreLLM
@@ -110,6 +112,8 @@ flowchart TD
         ─── bash-output-truncation  #334"]:::post
         FPM2["Records error in session state if tool returned non-zero
         ─── failure-pattern-memory  #396"]:::post
+        VCB_post["Fingerprints verifier failure · tracks consecutive identical failures in session state
+        ─── verifier-circuit-breaker  #409"]:::post
     end
 
     ToolNode --> PostTool
@@ -162,10 +166,10 @@ flowchart TD
 | **Runtime stability** | jiuwenswarm | Event loop fix, ACP tool unblock | #119, #139 |
 | **Session start** | jiuwenswarm | Task pin, format pin, skill discovery | #371, #401, #214 |
 | **Leader/sub-agent mode** | jiuwenswarm | Reviewer scores each sub-agent; leader gets result + score | #121 |
-| **Before LLM call** | jiuwenswarm | Budget warn, context guard, failure list, step-back | #368, #397, #396, #399 |
+| **Before LLM call** | jiuwenswarm | Budget warn, context guard, failure list, step-back, verifier circuit breaker | #368, #397, #396, #399, #409 |
 | **LLM call** | agent-core | Anti-repetition prompt, prompt serialisation | #26, #21 |
 | **Before tool** | jiuwenswarm | Dedup cache, autonomous mode | #372, #370 |
-| **After tool** | jiuwenswarm | Bash truncation, record failure | #334, #396 |
+| **After tool** | jiuwenswarm | Bash truncation, record failure, fingerprint verifier failure | #334, #396, #409 |
 | **Self-verification** | jiuwenswarm | Runs verifier; loops back to fix if it fails | #328 |
 | **Multi-rollout selector** | agent-core | Picks winner: first\_successful / longest / shortest | #38 |
 | **CI repair (if CI fails)** | agent-core | N repair strategies → score → promote best patch | #37 |
