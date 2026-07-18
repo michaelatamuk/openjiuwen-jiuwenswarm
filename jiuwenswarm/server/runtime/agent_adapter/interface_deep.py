@@ -152,6 +152,7 @@ from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDedu
 from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import ContextHeadroomRail
+from jiuwenswarm.agents.harness.common.rails.step_back_rail import StepBackRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
     setup_permission_context,
@@ -3968,6 +3969,15 @@ class JiuWenSwarmDeepAdapter:
                 logger.info("[JiuWenSwarmDeepAdapter] ContextHeadroomRail attached (warn=%.0f%%, critical=%.0f%%)", _warn_ratio * 100, _critical_ratio * 100)
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ContextHeadroomRail: %s", e)
+        # Step-back prompt — rethink directive after consecutive shell failures
+        try:
+            _sb_cfg = config_base.get("step_back") or {}
+            if bool(_sb_cfg.get("enabled", False)):
+                _step_back_after = int(_sb_cfg.get("step_back_after", 3))
+                rails_list.append(StepBackRail(_step_back_after))
+                logger.info("[JiuWenSwarmDeepAdapter] StepBackRail attached (step_back_after=%d)", _step_back_after)
+        except Exception as e:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach StepBackRail: %s", e)
         # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
         # for task-loop runs, or agent.<name>.invoke for single-round) under the root
         # run span per iteration/round. It is the only thing that creates the

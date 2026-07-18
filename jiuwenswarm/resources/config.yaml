@@ -613,6 +613,10 @@ failure_memory:
   enabled: false      # track failed tool calls and inject a "do not repeat" notice
   max_failures: 10    # maximum number of failure entries to retain per session
 
+step_back:
+  enabled: false       # inject a "stop and rethink" directive after repeated shell failures
+  step_back_after: 3   # number of consecutive non-zero exit codes before directive fires
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}
