@@ -32,6 +32,7 @@ from jiuwenswarm.agents.harness.common.rails.response_prompt_rail import Respons
 from jiuwenswarm.agents.harness.common.rails.runtime_prompt_rail import RuntimePromptRail
 from jiuwenswarm.agents.harness.common.rails.stream_event_rail import JiuSwarmStreamEventRail
 from jiuwenswarm.agents.harness.team.rails.team_workspace_report_path_rail import TeamWorkspaceReportPathRail
+from jiuwenswarm.agents.harness.team.verification.rail import TeamVerificationRail
 from jiuwenswarm.common.config import (
     get_config,
     get_evolution_auto_save_enabled,
@@ -86,6 +87,7 @@ RAIL_WHITELIST = frozenset({
     "SkillEvolutionRail",
     "TeamWorkspaceReportPathRail",
     "ContextProcessorRail",
+    "TeamVerificationRail",
 })
 
 TOOL_WHITELIST = frozenset({
@@ -341,6 +343,29 @@ def build_member_rails(
             except Exception as exc:
                 logger.warning("[TeamRuntime] EvolutionInterruptRail failed: %s", exc, exc_info=True)
             rails_list.append(evo_rail)
+
+    # Leader-only: TeamVerificationRail for quality assurance on teammate outputs.
+    if role == "leader" and team_ws_root:
+        try:
+            verification_enabled = bool(
+                (config or {}).get("team", {}).get("verification", {}).get("enabled", True)
+            )
+            if verification_enabled:
+                verification_rail = TeamVerificationRail(
+                    team_workspace_root=team_ws_root,
+                    language=language,
+                    enabled=True,
+                    block_on_fail=False,
+                    auto_rework=False,
+                )
+                rails_list.append(verification_rail)
+                logger.info(
+                    "[TeamRuntime] TeamVerificationRail created: workspace=%s, language=%s",
+                    team_ws_root,
+                    language,
+                )
+        except Exception as exc:
+            logger.warning("[TeamRuntime] TeamVerificationRail failed: %s", exc, exc_info=True)
 
     # Context compression rail for all members (leader + teammates).
     # ``config`` here is the full config.yaml mapping (hot-reload path passes

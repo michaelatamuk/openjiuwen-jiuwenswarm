@@ -37,6 +37,7 @@
   - [Skill self-evolution](SkillSelfEvolution.md)
   - [Agent & workspace](Agent.md)
   - [Session management](Session.md)
+  - [Team Verification Layer](TeamVerification.md)
   - [Browser tools](Browser.md)
   - [MCP Configuration](MCPConfiguration.md)
   - [Packaging desktop executables](PackExeGuide.md)
