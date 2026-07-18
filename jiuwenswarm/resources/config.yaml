@@ -609,6 +609,10 @@ tool_dedup:
   enabled: false      # suppress identical repeat tool calls within a turn
   warn_after: 3       # inject a system-prompt notice after this many cross-turn repeats
 
+failure_memory:
+  enabled: false      # track failed tool calls and inject a "do not repeat" notice
+  max_failures: 10    # maximum number of failure entries to retain per session
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}

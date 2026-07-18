@@ -435,6 +435,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `task_description.path` | Path to the task description file to pin in the system prompt | `/app/task.md` |
 | `tool_dedup.enabled` | When true, intercepts duplicate tool calls within the same model turn and returns the cached result without invoking the tool again. Also tracks cross-turn repetitions and injects a system-prompt notice when a call is repeated more than `warn_after` times | `false` |
 | `tool_dedup.warn_after` | Number of identical cross-turn executions of the same tool+args before the agent receives a system-prompt reminder to stop repeating the call | `3` |
+| `failure_memory.enabled` | When true, detects failed tool calls (exceptions and error-containing results) and injects a growing "do not repeat these" notice into the system prompt, preventing the agent from retrying approaches that have already been proven not to work | `false` |
+| `failure_memory.max_failures` | Maximum number of failure entries retained per session; oldest entries are dropped when the limit is exceeded | `10` |
 
 <a id="dotenv-configuration"></a>
 

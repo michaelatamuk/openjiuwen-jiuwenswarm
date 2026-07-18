@@ -149,6 +149,7 @@ from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
 from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDeduplicationRail
+from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
     setup_permission_context,
@@ -3937,6 +3938,15 @@ class JiuWenSwarmDeepAdapter:
                 logger.info("[JiuWenSwarmDeepAdapter] ToolCallDeduplicationRail attached (warn_after=%d)", _warn_after)
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ToolCallDeduplicationRail: %s", e)
+        # Failure-pattern memory
+        try:
+            _fm_cfg = config_base.get("failure_memory") or {}
+            if bool(_fm_cfg.get("enabled", False)):
+                _max_failures = int(_fm_cfg.get("max_failures", 10))
+                rails_list.append(FailureMemoryRail(_max_failures))
+                logger.info("[JiuWenSwarmDeepAdapter] FailureMemoryRail attached (max_failures=%d)", _max_failures)
+        except Exception as e:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", e)
         # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
         # for task-loop runs, or agent.<name>.invoke for single-round) under the root
         # run span per iteration/round. It is the only thing that creates the
