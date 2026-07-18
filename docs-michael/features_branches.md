@@ -23,7 +23,6 @@ Base development branch. All new independent features are branched from here and
 
 | Branch | Description |
 |--------|-------------|
-| `trajectories_analyzer` | Adds prompt-to-LLM logging — captures every prompt sent to the model and its response to disk, enabling offline trajectory inspection and debugging |
 | `feature/self-evolution_hermess_style` | GEPA-based skills evolution engine: automatically discovers successful task patterns, promotes them to reusable skills, and injects a recommendation rail that surfaces relevant skills at the start of each task |
 
 ### Not yet implemented
