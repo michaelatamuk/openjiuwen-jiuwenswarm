@@ -437,6 +437,9 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `tool_dedup.warn_after` | Number of identical cross-turn executions of the same tool+args before the agent receives a system-prompt reminder to stop repeating the call | `3` |
 | `failure_memory.enabled` | When true, detects failed tool calls (exceptions and error-containing results) and injects a growing "do not repeat these" notice into the system prompt, preventing the agent from retrying approaches that have already been proven not to work | `false` |
 | `failure_memory.max_failures` | Maximum number of failure entries retained per session; oldest entries are dropped when the limit is exceeded | `10` |
+| `context_headroom.enabled` | When true, monitors context token usage before every model call and injects escalating conciseness directives into the system prompt as the context window fills up, reducing token waste and slowing the rate at which useful information is lost to automatic compression | `false` |
+| `context_headroom.warn_ratio` | Fraction of the context window used before a moderate "be concise" directive is injected | `0.60` |
+| `context_headroom.critical_ratio` | Fraction used before a strong "be extremely brief" directive is injected, signalling that automatic compression is imminent | `0.80` |
 
 <a id="dotenv-configuration"></a>
 
