@@ -135,23 +135,6 @@ class TeamMonitorHandler(BaseMonitorHandler):
         })
         return base
 
-    @staticmethod
-    def _handle_task_created(base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
-        base.update({
-            "task_id": event.task_id,
-            "status": event.status,
-        })
-        return base
-
-    @staticmethod
-    def _handle_task_claimed(base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
-        base["task_id"] = event.task_id
-        return base
-
-    async def _handle_task_completed(self, base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
-        base["task_id"] = event.task_id
-        return base
-
     async def _run_verification(self, inp: VerificationInput) -> None:
         """Run verification and emit the result as a team event."""
         try:
@@ -167,7 +150,6 @@ class TeamMonitorHandler(BaseMonitorHandler):
             logger.warning("[TeamMonitorHandler] Verification execution failed: %s", e)
 
     @staticmethod
-    def _handle_task_cancelled(base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
     def _handle_task(base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
         """Converge every task event into the frontend-ready task shape.
 
@@ -189,7 +171,8 @@ class TeamMonitorHandler(BaseMonitorHandler):
         return base
 
     async def _handle_task_unblocked(self, base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
-        base["task_id"] = event.task_id
+        # task_id and status already set by _handle_task; this method only
+        # adds the verification side-effect for TASK_UNBLOCKED events.
 
         # Trigger verification if the verification rail is configured
         if self._verification_rail is not None:
@@ -317,6 +300,8 @@ class TeamMonitorHandler(BaseMonitorHandler):
         # dedicated handlers because they carry distinct fields.
         if event_category == TeamEventCategory.TASK:
             event_data = self._handle_task(event_data, event)
+            if event.event_type == MonitorEventType.TASK_UNBLOCKED:
+                event_data = await self._handle_task_unblocked(event_data, event)
         else:
             non_task_handlers = {
                 MonitorEventType.MEMBER_SPAWNED: self._handle_member_spawned,

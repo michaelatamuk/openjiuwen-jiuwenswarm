@@ -79,19 +79,6 @@ EVENT_TYPE_TO_CATEGORY: dict[TeamEventType, TeamEventCategory] = {
     TeamEventType.VERIFICATION_ERROR: TeamEventCategory.TASK,
 }
 
-SDK_TO_TEAM_EVENT_MAP: dict[MonitorEventType, TeamEventType] = {
-    MonitorEventType.MEMBER_SPAWNED: TeamEventType.MEMBER_SPAWNED,
-    MonitorEventType.MEMBER_STATUS_CHANGED: TeamEventType.MEMBER_STATUS_CHANGED,
-    MonitorEventType.MEMBER_EXECUTION_CHANGED: TeamEventType.MEMBER_EXECUTION_CHANGED,
-    MonitorEventType.MEMBER_RESTARTED: TeamEventType.MEMBER_RESTARTED,
-    MonitorEventType.MEMBER_SHUTDOWN: TeamEventType.MEMBER_SHUTDOWN,
-    MonitorEventType.TASK_CREATED: TeamEventType.TASK_CREATED,
-    MonitorEventType.TASK_CLAIMED: TeamEventType.TASK_CLAIMED,
-    MonitorEventType.TASK_COMPLETED: TeamEventType.TASK_COMPLETED,
-    MonitorEventType.TASK_CANCELLED: TeamEventType.TASK_CANCELLED,
-    MonitorEventType.TASK_UNBLOCKED: TeamEventType.TASK_UNBLOCKED,
-    MonitorEventType.MESSAGE: TeamEventType.MESSAGE_P2P,
-    MonitorEventType.BROADCAST: TeamEventType.MESSAGE_BROADCAST,
 # 不符合 ``<category>_<action>`` 结构、无法从 SDK 事件值推导的特例。
 _TYPE_OVERRIDES: dict[MonitorEventType, str] = {
     MonitorEventType.MESSAGE: "team.message.p2p",
