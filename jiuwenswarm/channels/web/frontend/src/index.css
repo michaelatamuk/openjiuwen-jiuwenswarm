@@ -16,7 +16,7 @@ body {
 }
 
 html {
-  min-width: 1300px;
+  min-width: 1200px;
 }
 
 body {
@@ -71,6 +71,30 @@ select {
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+.resize-divider {
+  position: relative;
+  flex-shrink: 0;
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-divider::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  content: '';
+  background: var(--color-border-default);
+  transform: translateX(-50%);
+}
+
+.resize-divider:hover::before,
+.resize-divider:active::before {
+  width: 2px;
   background: var(--color-border-strong);
 }
 
@@ -636,6 +660,7 @@ select {
   .chat-markdown :where(pre, table) {
     max-width: 100%;
     overflow-x: auto;
+    font-size: 1em;
   }
 
   .chat-markdown :where(pre code) {
@@ -647,6 +672,15 @@ select {
   .chat-markdown :where(:not(pre) > code) {
     overflow-wrap: anywhere;
     white-space: break-spaces;
+    font-size: 1em;
+  }
+
+  /* Typography's own `code { font-size: .857em }` rule comes after its
+     `pre code { font-size: inherit }` reset in the generated CSS, with equal
+     specificity, so it wins and shrinks code-block text too. Override `code`
+     itself (not just `pre`) so both inline and fenced code end up at 1em. */
+  .chat-markdown :where(code) {
+    font-size: 1em;
   }
 
   /* Remove the default prose paragraph margins so single-line messages sit flush
@@ -853,7 +887,7 @@ select {
 
   /* Chat compose wrapper */
   .chat-compose {
-    width: var(--chat-content-width);
+    width: min(var(--chat-page-max-width), calc(100% - 16px));
     margin-inline: auto;
     padding-top: 4px;
   }
@@ -893,7 +927,7 @@ select {
 
   /* ====== Team Timeline Messages ====== */
   .team-member-message {
-    width: min(95%, 920px);
+    width: min(100%, 920px);
     margin: 12px auto;
     display: grid;
     grid-template-columns: 36px minmax(0, 1fr);
@@ -938,7 +972,7 @@ select {
   }
 
   .team-member-message__plain {
-    max-width: min(82%, 720px);
+    max-width: min(100%, 720px);
     min-width: 0;
     overflow-x: auto;
     color: var(--color-text-primary);
