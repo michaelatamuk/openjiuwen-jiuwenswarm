@@ -617,6 +617,11 @@ step_back:
   enabled: false       # inject a "stop and rethink" directive after repeated shell failures
   step_back_after: 3   # number of consecutive non-zero exit codes before directive fires
 
+output_format:
+  enabled: false      # pin extracted output-format hints from task file in the system prompt
+  path: /app/task.md  # task description file to extract output format from
+  max_chars: 800      # maximum characters of extracted content to inject
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}

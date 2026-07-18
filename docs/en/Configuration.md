@@ -442,6 +442,9 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `context_headroom.critical_ratio` | Fraction used before a strong "be extremely brief" directive is injected, signalling that automatic compression is imminent | `0.80` |
 | `step_back.enabled` | When true, tracks consecutive shell command failures across turns. Once the count reaches `step_back_after`, a high-priority system-prompt directive instructs the agent to abandon its current approach, re-read the task, and design a completely different strategy | `false` |
 | `step_back.step_back_after` | Number of consecutive non-zero shell exit codes before the step-back directive fires | `3` |
+| `output_format.enabled` | When true, reads the task file, strips its YAML front-matter, and extracts the last 1–2 prose paragraphs plus any structured code blocks (JSON, CSV, YAML, etc.) as a concise "Required Output Format" reminder pinned in the system prompt at priority 14, ensuring the agent never forgets what it needs to produce even after context compression | `false` |
+| `output_format.path` | Path to the task description file to extract output format hints from | `/app/task.md` |
+| `output_format.max_chars` | Maximum characters of extracted output-format content to inject into the system prompt | `800` |
 
 <a id="dotenv-configuration"></a>
 
