@@ -4,36 +4,27 @@
 
 ## Agent Core
 
+### `develop`
+
+Base development branch. All new independent features are branched from here and merged back via PR.
+
+
 ### GitHub (`michael/`)
 
-| Branch | Description | Benchmark Impact |
-|--------|-------------|-----------------|
-| `main` | Main stable branch | — |
-| `feat/multi-rollout-task-execution` | Run the same task N times independently | Multiple independent attempts cover different solution paths; directly improves pass@k |
-| `feat/auto-harness-best-of-n` | Auto-harness selects best result across N runs | Aggregate pass rate increases because the strongest of N solutions is submitted |
-| `feat/react-agent-prompt-serialization` | Serialize ReAct agent prompt for reproducibility | Enables systematic prompt comparison and regression testing; identifies prompt-level score regressions |
-| `fix/react-anti-repetition-prompt` | Prompt fix reducing ReAct repetition loops | Repetition loops burn iteration budget without progress; fixing them frees budget for productive work, increasing tasks completed |
-| `fix/event-loop-blocking` | Fix async event loop blocking during task execution | Prevents mid-task crashes from async stalls; improves overall task completion rate and reliability |
+| Branch | PR | Description & Benchmark Impact |
+|--------|----|-------------------------------|
+| `feat/multi-rollout-task-execution` | [#38](https://github.com/openJiuwen-ai/agent-core/pull/38) | Run the same task N times independently. Multiple independent attempts cover different solution paths; directly improves pass@k |
+| `feat/auto-harness-best-of-n` | [#37](https://github.com/openJiuwen-ai/agent-core/pull/37) | Auto-harness selects best result across N runs. Aggregate pass rate increases because the strongest of N solutions is submitted |
+| `fix/event-loop-blocking` | [#28](https://github.com/openJiuwen-ai/agent-core/pull/28) | Fix async event loop blocking during task execution. Prevents mid-task crashes from async stalls; improves overall task completion rate and reliability |
+| `fix/react-anti-repetition-prompt` | [#26](https://github.com/openJiuwen-ai/agent-core/pull/26) | Prompt fix reducing ReAct repetition loops. Repetition loops burn iteration budget without progress; fixing them frees budget for productive work, increasing tasks completed |
+| `feat/react-agent-prompt-serialization` | [#21](https://github.com/openJiuwen-ai/agent-core/pull/21) | Serialize ReAct agent prompt for reproducibility. Enables systematic prompt comparison and regression testing; identifies prompt-level score regressions |
 
 ### Gitcode (`gitcode_michael/`)
 
 | Branch | Description |
 |--------|-------------|
-| `develop` | Main development base |
-| `bugfix/event-loop-blocking` | Same async event loop blocking fix as `fix/event-loop-blocking` on GitHub |
-| `feature/self-evolution_hermess_style` | Self-evolution engine (Hermes style) |
-| `feature/self-healing-engine` | Self-healing engine for failed tasks |
-| `browser-component` | — |
-| `fix/mcp-openapi-parameters` | — |
-| `ftp_component` | — |
-| `rest_api_curl` | — |
-| `trajectories_analyzer` | — |
-
-### Local only
-
-| Branch | Description |
-|--------|-------------|
-| `origin-develop` | Current working branch, tracking `origin/develop` |
+| `trajectories_analyzer` | Adds prompt-to-LLM logging — captures every prompt sent to the model and its response to disk, enabling offline trajectory inspection and debugging |
+| `feature/self-evolution_hermess_style` | GEPA-based skills evolution engine: automatically discovers successful task patterns, promotes them to reusable skills, and injects a recommendation rail that surfaces relevant skills at the start of each task |
 
 ---
 
@@ -45,54 +36,40 @@ Base development branch. All new independent features are branched from here and
 
 ### GitHub (`michael/`)
 
-| Branch | Description | Benchmark Impact |
-|--------|-------------|-----------------|
-| `develop` | Main development base | — |
-| `New-Features-Integration` | Integration branch — combines all feature branches for joint testing | All rails active together; cumulative benchmark benefit across all improvements |
-| `bugfix/event-loop-blocking` | Same async event loop blocking fix as in agent-core, applied to jiuwenswarm | Prevents mid-task crashes from async stalls; improves task completion rate |
-| `feat/iteration-budget-awareness` | Injects a warning into the system prompt when remaining iterations fall below a threshold | Agent shifts focus to completing the task before the budget runs out, reducing timeouts and partial solutions |
-| `feat/autonomous-execution-mode` | Replaces hedging and confirmation-request language with autonomous-execution directives | Removes confirmation pauses and indecision; agent acts decisively without stalling for human input, completing more tasks per budget |
-| `feat/task-description-reinjection` | Pins `/app/task.md` content as a permanent system-prompt section | Task goal survives context compression; agent does not drift from requirements mid-task, preventing misaligned final output |
-| `feat/tool-call-dedup-cache` | Deduplicates identical tool calls within and across turns | Prevents iteration budget waste on redundant reads and searches; more budget available for productive progress |
-| `feat/self-verification-loop` | Agent self-checks its output after completing a task | Catches output errors before the verifier runs; increases first-attempt pass rate |
-| `feat/bash-output-head-tail-truncation` | Truncates long shell output preserving both the head and the tail | Verifier error messages (typically at the end of output) are never truncated; agent can read and act on failure diagnostics |
-| `feat/external-skill-discovery` | Discovers and exposes skills provided by the task environment | Agent finds and uses the correct task-specific tools; fewer failures caused by missing skill visibility |
-| `feat/team-verification-layer` | Secondary agent independently verifies the primary agent's output | Independent review catches errors the primary agent missed; higher final pass rate |
-| `feat/failure-pattern-memory-rail` | Tracks failed tool calls in session state; injects a growing "do not repeat" notice | Prevents wasted iterations on approaches already proven not to work; agent explores alternative strategies instead |
-| `feat/context-headroom-guard` | Monitors context token usage and injects escalating conciseness directives at 60% and 80% fill | Reduces token waste from verbose responses; slows the rate of destructive context compression; agent retains more useful working context |
-| `feat/step-back-rail` | Counts consecutive non-zero shell exits; injects a "stop and rethink strategy" directive after N failures | Breaks stuck retry loops before the iteration budget is exhausted; forces a strategy change that incremental tweaks would never produce |
-| `feat/output-format-reminder-rail` | Extracts output-format hints from `task.md` (final paragraphs + structured code blocks) and pins them in the system prompt | Agent always knows exactly what format and file path the output must take; prevents format-mismatch verifier failures caused by context compression |
-| `fix/acp-runtime-tool-blocking` | Fix for ACP runtime incorrectly blocking tools at runtime | Tasks that were failing because required tools were wrongly blocked now complete successfully |
+| Branch | PR | Description & Benchmark Impact |
+|--------|----|-------------------------------|
+| `bugfix/event-loop-blocking` | [#119](https://github.com/openJiuwen-ai/jiuwenswarm/pull/119) | Same async event loop blocking fix as in agent-core, applied to jiuwenswarm. Prevents mid-task crashes from async stalls; improves task completion rate |
+| `fix/acp-runtime-tool-blocking` | [#139](https://github.com/openJiuwen-ai/jiuwenswarm/pull/139) | Fix for ACP runtime incorrectly blocking tools at runtime. Tasks that were failing because required tools were wrongly blocked now complete successfully |
+| `feat/external-skill-discovery` | [#214](https://github.com/openJiuwen-ai/jiuwenswarm/pull/214) | Discovers and exposes skills provided by the task environment. Agent finds and uses the correct task-specific tools; fewer failures caused by missing skill visibility |
+| `feat/self-verification-loop` | [#328](https://github.com/openJiuwen-ai/jiuwenswarm/pull/328) | Agent self-checks its output after completing a task. Catches output errors before the verifier runs; increases first-attempt pass rate |
+| `feat/bash-output-head-tail-truncation` | [#334](https://github.com/openJiuwen-ai/jiuwenswarm/pull/334) | Truncates long shell output preserving both the head and the tail. Verifier error messages (typically at the end of output) are never truncated; agent can read and act on failure diagnostics |
+| `feat/team-verification-layer` | [#121](https://github.com/openJiuwen-ai/jiuwenswarm/pull/121) | Secondary agent independently verifies the primary agent's output. Independent review catches errors the primary agent missed; higher final pass rate |
+| `feat/iteration-budget-awareness` | [#368](https://github.com/openJiuwen-ai/jiuwenswarm/pull/368) | Injects a warning into the system prompt when remaining iterations fall below a threshold. Agent shifts focus to completing the task before the budget runs out, reducing timeouts and partial solutions |
+| `feat/autonomous-execution-mode` | [#370](https://github.com/openJiuwen-ai/jiuwenswarm/pull/370) | Replaces hedging and confirmation-request language with autonomous-execution directives. Removes confirmation pauses and indecision; agent acts decisively without stalling for human input, completing more tasks per budget |
+| `feat/task-description-reinjection` | [#371](https://github.com/openJiuwen-ai/jiuwenswarm/pull/371) | Pins `/app/task.md` content as a permanent system-prompt section. Task goal survives context compression; agent does not drift from requirements mid-task, preventing misaligned final output |
+| `feat/tool-call-dedup-cache` | [#372](https://github.com/openJiuwen-ai/jiuwenswarm/pull/372) | Deduplicates identical tool calls within and across turns. Prevents iteration budget waste on redundant reads and searches; more budget available for productive progress |
+| `feat/failure-pattern-memory-rail` | [#396](https://github.com/openJiuwen-ai/jiuwenswarm/pull/396) | Tracks failed tool calls in session state; injects a growing "do not repeat" notice. Prevents wasted iterations on approaches already proven not to work; agent explores alternative strategies instead |
+| `feat/context-headroom-guard` | [#397](https://github.com/openJiuwen-ai/jiuwenswarm/pull/397) | Monitors context token usage and injects escalating conciseness directives at 60% and 80% fill. Reduces token waste from verbose responses; slows the rate of destructive context compression; agent retains more useful working context |
+| `feat/step-back-rail` | [#399](https://github.com/openJiuwen-ai/jiuwenswarm/pull/399) | Counts consecutive non-zero shell exits; injects a "stop and rethink strategy" directive after N failures. Breaks stuck retry loops before the iteration budget is exhausted; forces a strategy change that incremental tweaks would never produce |
+| `feat/output-format-reminder-rail` | [#401](https://github.com/openJiuwen-ai/jiuwenswarm/pull/401) | Extracts output-format hints from `task.md` (final paragraphs + structured code blocks) and pins them in the system prompt. Agent always knows exactly what format and file path the output must take; prevents format-mismatch verifier failures caused by context compression |
+| `New-Features-Integration` | — | Integration branch — combines all feature branches for joint testing. All rails active together; cumulative benchmark benefit across all improvements |
 
 ### Gitcode (`gitcode_michael/`)
 
 | Branch | Description |
 |--------|-------------|
-| `develop` | — |
-| `my_branch` | — |
-| `swarm_evaluation` | — |
-| `swarm_trajectory_viewer` | — |
-| `team_verification_layer` | Team verification layer (same feature as `feat/team-verification-layer` on GitHub) |
-
-### Local only
-
-| Branch | Description |
-|--------|-------------|
-| `michael-develop` | — |
-| `my_branch` | — |
-| `swarm_openjiuwen-develop` | — |
-| `swarm_evaluation` | — |
-| `swarm_trajectory_viewer` | — |
+| `swarm_trajectory_viewer` | **TraceHound** — JiuwenSwarm's built-in session trajectory viewer and analyser. Inspect any past agent session turn-by-turn, measure performance, diagnose failures, and run an LLM-powered deep analysis to surface improvement opportunities — all without re-running the agent |
+| `swarm_evaluation` | **Built-in Evaluation Framework** — structured way to define test suites, run them against the live agent, score results automatically (exact_match / contains / llm_judge), and enforce quality gates — all from the web UI, without any external tooling. Supports gate checks with a configurable pass-rate threshold for use as a pre-deploy quality gate |
 
 ---
 
 ## Suggested — Not yet implemented
 
-| # | Repo | Feature | Benchmark Impact |
-|---|------|---------|-----------------|
-| 9 | jiuwenswarm | Skill outcome caching rail | Cache successful skill invocations; skip redundant re-runs to save iteration budget |
-| 10 | jiuwenswarm | Structured error extraction rail | Parse stderr and exit codes into typed error categories to guide recovery strategy |
-| 13 | jiuwenswarm | Shell safety guard rail | Warn before destructive shell patterns to prevent self-inflicted task failures |
-| 14 | jiuwenswarm | Exploration budget rail | Track read/search vs write/action ratio; nudge agent to stop over-researching and start producing output |
-| A | agent-core | Complete anti-repetition fix (`fix/react-anti-repetition-prompt`) | Reduce repetition loops that burn iteration budget without progress |
-| B | agent-core | Multi-rollout + best-of-N (`feat/multi-rollout-task-execution`) | Run task N times and select best — directly raises aggregate pass rate |
+| # | Repo | Type | Feature | Benchmark Impact |
+|---|------|------|---------|-----------------|
+| 9 | jiuwenswarm | **Extension** of `feat/tool-call-dedup-cache` [#372](https://github.com/openJiuwen-ai/jiuwenswarm/pull/372) | **Skill outcome caching rail** — cache successful skill invocations across sessions; skip redundant re-runs entirely | Eliminates repeated execution of identical skill calls; saves iteration budget for unique work; stacks on top of the per-session dedup already gained from #372 |
+| 10 | jiuwenswarm | **Extension** of `feat/failure-pattern-memory-rail` [#396](https://github.com/openJiuwen-ai/jiuwenswarm/pull/396) | **Structured error extraction rail** — parse stderr and exit codes into typed error categories (ImportError, PermissionError, NetworkError, …) and route each category to a specific recovery hint | More precise recovery guidance than the generic "do not repeat" notice in #396; typed categories enable targeted fix strategies, further reducing wasted iterations |
+| 13 | jiuwenswarm | **New** | **Shell safety guard rail** — intercept destructive shell patterns (`rm -rf`, `truncate`, `dd`, `mkfs`, …) before execution; inject a confirmation prompt or block entirely | Prevents self-inflicted task failures where the agent accidentally deletes its own working files or corrupts the task environment |
+| 14 | jiuwenswarm | **New** | **Exploration budget rail** — track the ratio of read/search tool calls vs. write/action tool calls per session; inject a directive to stop exploring and start producing output when the ratio exceeds a threshold | Combats over-researching: agents that spend most of their budget reading files and grep-ing never reach the output stage; this rail forces a transition from exploration to execution |
+| A | agent-core | **Extension** of `fix/react-anti-repetition-prompt` [#26](https://github.com/openJiuwen-ai/agent-core/pull/26) | **Complete anti-repetition fix** — extend the prompt fix with a runtime detector that identifies repeated reasoning blocks in the message history and actively interrupts the loop | #26 reduces repetition at the prompt level; the runtime detector adds a second layer that catches loops the prompt alone does not prevent; together they virtually eliminate iteration budget loss from repetition |
+| B | agent-core | **Extension** of `feat/multi-rollout-task-execution` [#38](https://github.com/openJiuwen-ai/agent-core/pull/38) + `feat/auto-harness-best-of-n` [#37](https://github.com/openJiuwen-ai/agent-core/pull/37) | **Multi-rollout + best-of-N (full integration)** — run the same task N times in parallel and let the auto-harness select the best result via the verifier | The individual branches (#38, #37) exist but are not yet active together end-to-end; enabling both jointly delivers the direct pass@k gain: the strongest of N independent attempts is submitted rather than a single attempt |
