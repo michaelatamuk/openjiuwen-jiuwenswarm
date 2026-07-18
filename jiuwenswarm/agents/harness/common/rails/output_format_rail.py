@@ -16,8 +16,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from openjiuwen.harness.agent.rails.base import DeepAgentRail
-from openjiuwen.harness.agent.rails.callback_context import AgentCallbackContext
+from openjiuwen.harness.rails.base import DeepAgentRail
+from openjiuwen.core.single_agent.rail.base import AgentCallbackContext
 from openjiuwen.harness.prompts import PromptSection
 
 logger = logging.getLogger(__name__)
