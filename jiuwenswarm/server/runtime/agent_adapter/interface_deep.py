@@ -3879,8 +3879,7 @@ class JiuWenSwarmDeepAdapter:
             _td_cfg = config_base.get("task_description") or {}
             if bool(_td_cfg.get("enabled", False)):
                 _td_path = str(_td_cfg.get("path", "/app/task.md"))
-                self._task_description_rail = TaskDescriptionRail(_td_path)
-                rails_list.append(self._task_description_rail)
+                rails_list.append(TaskDescriptionRail(_td_path))
                 logger.info(
                     "[JiuWenSwarmDeepAdapter] TaskDescriptionRail loaded from %s", _td_path
                 )
