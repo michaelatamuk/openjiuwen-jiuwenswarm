@@ -445,6 +445,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `output_format.enabled` | When true, reads the task file, strips its YAML front-matter, and extracts the last 1–2 prose paragraphs plus any structured code blocks (JSON, CSV, YAML, etc.) as a concise "Required Output Format" reminder pinned in the system prompt at priority 14, ensuring the agent never forgets what it needs to produce even after context compression | `false` |
 | `output_format.path` | Path to the task description file to extract output format hints from | `/app/task.md` |
 | `output_format.max_chars` | Maximum characters of extracted output-format content to inject into the system prompt | `800` |
+| `verifier_circuit_breaker.enabled` | Enable the verifier-aware circuit breaker rail; when `true`, `VerifierCircuitBreakerRail` is registered automatically | `true` |
+| `verifier_circuit_breaker.break_after` | Number of consecutive identical verifier failures before a rethink directive is injected into the system prompt; escalates to an "abandon approach entirely" directive at `break_after × 2` | `3` |
 
 <a id="dotenv-configuration"></a>
 

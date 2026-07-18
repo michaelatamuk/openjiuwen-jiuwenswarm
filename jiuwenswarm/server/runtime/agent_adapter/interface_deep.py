@@ -154,6 +154,7 @@ from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureM
 from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import ContextHeadroomRail
 from jiuwenswarm.agents.harness.common.rails.step_back_rail import StepBackRail
 from jiuwenswarm.agents.harness.common.rails.output_format_rail import OutputFormatRail
+from jiuwenswarm.agents.harness.common.rails.verifier_circuit_breaker_rail import VerifierCircuitBreakerRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
     setup_permission_context,
@@ -4003,6 +4004,21 @@ class JiuWenSwarmDeepAdapter:
             logger.info("[JiuWenSwarmDeepAdapter] ObservabilityRail attached")
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ObservabilityRail: %s", e)
+        # Verifier-aware circuit breaker: forces a strategy change when the same
+        # verifier failure repeats N times in a row without improvement.
+        try:
+            _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+            if bool(_vcb_cfg.get("enabled", True)):
+                _break_after = int(_vcb_cfg.get("break_after", 3))
+                rails_list.append(VerifierCircuitBreakerRail(_break_after))
+                logger.info(
+                    "[JiuWenSwarmDeepAdapter] VerifierCircuitBreakerRail attached (break_after=%d)",
+                    _break_after,
+                )
+        except Exception as e:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] Failed to attach VerifierCircuitBreakerRail: %s", e
+            )
         return rails_list
 
     @staticmethod
