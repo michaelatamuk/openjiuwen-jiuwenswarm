@@ -27,10 +27,11 @@ Base development branch. All new independent features are branched from here and
 
 ### Not yet implemented
 
-| # | Type | Feature | Benchmark Impact |
-|---|------|---------|-----------------|
-| A | **Extension** of `fix/react-anti-repetition-prompt` [#26](https://github.com/openJiuwen-ai/agent-core/pull/26) | **Complete anti-repetition fix** — extend the prompt fix with a runtime detector that identifies repeated reasoning blocks in the message history and actively interrupts the loop.<br>_#26 reduces repetition at the prompt level; the runtime detector adds a second layer that catches loops the prompt alone does not prevent; together they virtually eliminate iteration budget loss from repetition._ | Virtually eliminates iteration budget loss from repetition loops |
-| B | **Extension** of `feat/multi-rollout-task-execution` [#38](https://github.com/openJiuwen-ai/agent-core/pull/38) + `feat/auto-harness-best-of-n` [#37](https://github.com/openJiuwen-ai/agent-core/pull/37) | **Multi-rollout + best-of-N (full integration)** — run the same task N times in parallel and let the auto-harness select the best result via the verifier.<br>_The individual branches (#38, #37) exist but are not yet active together end-to-end; enabling both jointly delivers the direct pass@k gain: the strongest of N independent attempts is submitted rather than a single attempt._ | Direct pass@k improvement — strongest of N attempts submitted |
+| # | Type | Feature & Benchmark Impact |
+|---|------|---------------------------|
+| A | **Extension** of `fix/react-anti-repetition-prompt` [#26](https://github.com/openJiuwen-ai/agent-core/pull/26) | **Complete anti-repetition fix** — extend the prompt fix with a runtime detector that identifies repeated reasoning blocks in the message history and actively interrupts the loop.<br>_#26 reduces repetition at the prompt level; the runtime detector adds a second layer that catches loops the prompt alone does not prevent; together they virtually eliminate iteration budget loss from repetition._ |
+| B | **Extension** of `feat/multi-rollout-task-execution` [#38](https://github.com/openJiuwen-ai/agent-core/pull/38) + `feat/auto-harness-best-of-n` [#37](https://github.com/openJiuwen-ai/agent-core/pull/37) | **Multi-rollout + best-of-N (full integration)** — run the same task N times in parallel and let the auto-harness select the best result via the verifier.<br>_The individual branches (#38, #37) exist but are not yet active together end-to-end; enabling both jointly delivers the direct pass@k gain: the strongest of N independent attempts is submitted rather than a single attempt._ |
+| C | **New** | **Compression-safe pinned context** — mark the task description and the most recent verifier stderr as compression-exempt at the agent-core context layer, so they survive automatic summarisation unconditionally.<br>_Prevents the most destructive form of context loss: the agent re-attempting tasks with a lossy memory of the goal, or re-diagnosing failures it has already seen. Stronger guarantee than `feat/task-description-reinjection` [#371] which re-injects but does not prevent compression._ |
 
 ---
 
