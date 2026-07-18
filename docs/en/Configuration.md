@@ -423,6 +423,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `step_back.enabled` | When true, tracks consecutive shell command failures across turns. Once the count reaches `step_back_after`, a high-priority system-prompt directive instructs the agent to abandon its current approach, re-read the task, and design a completely different strategy | `false` |
+| `step_back.step_back_after` | Number of consecutive non-zero shell exit codes before the step-back directive fires | `3` |
 
 <a id="dotenv-configuration"></a>
 
