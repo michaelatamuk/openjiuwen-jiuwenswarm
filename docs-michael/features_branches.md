@@ -17,6 +17,7 @@ Base development branch. All new independent features are branched from here and
 | `fix/event-loop-blocking` | [#28](https://github.com/openJiuwen-ai/agent-core/pull/28) | Fix async event loop blocking during task execution.<br>_Prevents mid-task crashes from async stalls; improves overall task completion rate and reliability._ |
 | `fix/react-anti-repetition-prompt` | [#26](https://github.com/openJiuwen-ai/agent-core/pull/26) | Prompt fix reducing ReAct repetition loops.<br>_Repetition loops burn iteration budget without progress; fixing them frees budget for productive work, increasing tasks completed._ |
 | `feat/react-agent-prompt-serialization` | [#21](https://github.com/openJiuwen-ai/agent-core/pull/21) | Serialize ReAct agent prompt for reproducibility.<br>_Enables systematic prompt comparison and regression testing; identifies prompt-level score regressions._ |
+| `New-Features-Integration` | — | Integration branch — combines all feature branches: [#38](https://github.com/openJiuwen-ai/agent-core/pull/38), [#37](https://github.com/openJiuwen-ai/agent-core/pull/37), [#28](https://github.com/openJiuwen-ai/agent-core/pull/28), [#26](https://github.com/openJiuwen-ai/agent-core/pull/26), [#21](https://github.com/openJiuwen-ai/agent-core/pull/21) for joint testing.<br>_All improvements active together; cumulative benchmark benefit across multi-rollout, best-of-N, async stability, anti-repetition, and prompt serialization._ |
 
 ### Gitcode (`gitcode_michael/`)
 
