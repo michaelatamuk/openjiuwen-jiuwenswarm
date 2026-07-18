@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FileViewer } from '../AgentPanel/FileViewer';
 import { HeartbeatMessageModal } from '../../features/HeartbeatMessageModal';
 import { webRequest } from '../../services/webClient';
-import { useChatStore, useSessionStore } from '../../stores';
+import { useSessionStore } from '../../stores';
 
 const HEARTBEAT_FILE_NAME = 'HEARTBEAT.md';
 
@@ -60,7 +60,6 @@ function isValidTime(text: string): boolean {
 export function HeartbeatPanel() {
   const { t, i18n } = useTranslation();
   const { isConnected, heartbeatState, heartbeatMessage, heartbeatUpdatedAt, heartbeatHistory } = useSessionStore();
-  const globalTaskRunning = useChatStore((s) => s.globalTaskRunning);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -130,13 +129,13 @@ export function HeartbeatPanel() {
     if (heartbeatState === 'ok') {
       return {
         text: t('heartbeat.badges.ok'),
-        className: 'text-ok border-[var(--border-ok)] bg-ok-subtle',
+        className: 'text-ok border-[var(--color-border-success)] bg-ok-subtle',
       };
     }
     if (heartbeatState === 'alert') {
       return {
         text: t('heartbeat.badges.alert'),
-        className: 'text-danger border-[var(--border-danger)] bg-danger-subtle',
+        className: 'text-danger border-[var(--color-border-danger)] bg-danger-subtle',
       };
     }
     return {
@@ -263,10 +262,10 @@ export function HeartbeatPanel() {
 
   return (
     <div className="flex-1 min-h-0 relative">
-      <div className="card w-full h-full flex flex-col">
+      <div className="card main-panel-card w-full h-full flex flex-col">
         {success ? (
           <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-ok text-white px-4 py-2 rounded-lg shadow-lg animate-rise text-sm">
+            <div className="bg-ok text-text-inverse px-4 py-2 rounded-lg shadow-lg animate-rise text-sm">
               {success}
             </div>
           </div>
@@ -312,18 +311,13 @@ export function HeartbeatPanel() {
                     type="button"
                     className="btn primary !px-3 !py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => void saveConf()}
-                    disabled={loading || saving || !hasChanges || !isConnected || globalTaskRunning}
+                    disabled={loading || saving || !hasChanges || !isConnected}
                   >
                     {saving ? t('common.saving') : t('common.save')}
                   </button>
                 </div>
               </div>
             </div>
-            {globalTaskRunning ? (
-              <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
-                <span className="text-xs text-amber-600 dark:text-amber-400">{t('config.errors.processingDisabled')}</span>
-              </div>
-            ) : null}
             <div className="flex-1 min-h-0 p-4 flex flex-col gap-3 text-sm text-text-muted">
               {loading ? (
                 <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2">
@@ -360,8 +354,8 @@ export function HeartbeatPanel() {
                     >
                       <option value="web">{t('heartbeat.channels.web')}</option>
                       <option value="feishu">{t('heartbeat.channels.feishu')}</option>
-                      <option value="xiaoyi" disabled style={{ color: '#8c8c96ff'}}>{t('heartbeat.channels.xiaoyi')}</option>
-                      <option value="dingtalk" disabled style={{ color: '#8c8c96ff' }}>{t('heartbeat.channels.dingtalk')}</option>
+                      <option value="xiaoyi" disabled style={{ color: 'var(--color-option-disabled)'}}>{t('heartbeat.channels.xiaoyi')}</option>
+                      <option value="dingtalk" disabled style={{ color: 'var(--color-option-disabled)' }}>{t('heartbeat.channels.dingtalk')}</option>
                     </select>
                   </label>
 
@@ -422,15 +416,15 @@ export function HeartbeatPanel() {
                           <button
                             type="button"
                             key={`${item.updatedAt}-${idx}`}
-                            className="w-full text-left flex items-center gap-3 rounded-md border border-border bg-card/60 px-3 py-2.5 mb-1.5 last:mb-0 hover:bg-card/80 transition-colors"
+                            className="w-full text-left flex items-center gap-3 rounded-md border border-border bg-card/60 px-3 py-2.5 mb-1.5 last:mb-0 hover:bg-card/80 "
                             onClick={() => openMessageModal(item.message)}
                           >
                             <span
                               className={`shrink-0 inline-flex h-8 w-12 items-center justify-center rounded-md border text-sm font-bold tracking-wide ${
                                 item.status === 'ok'
-                                  ? 'text-ok border-[var(--border-ok)] bg-ok-subtle'
+                                  ? 'text-ok border-[var(--color-border-success)] bg-ok-subtle'
                                   : item.status === 'alert'
-                                    ? 'text-ok border-[var(--border-ok)] bg-ok-subtle'
+                                    ? 'text-ok border-[var(--color-border-success)] bg-ok-subtle'
                                     : 'text-text-muted border-border bg-secondary/60'
                               }`}
                             >

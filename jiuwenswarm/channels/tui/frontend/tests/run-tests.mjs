@@ -14,15 +14,14 @@ import {
 import { CommandKind } from "../dist/core/commands/types.js";
 
 const planQuestion = "**Plan Approval**\n\nThe agent has completed a plan.";
-const cnPlanQuestion = "**计划审批**\n\nAgent 已完成计划制定，等待你审批。";
-const toolQuestion = "**Tool `bash` requires your approval**";
+const planApprovalKind = "plan_approval";
 
-assert.equal(isPlanApprovalRequest("confirm_interrupt", planQuestion), true);
-assert.equal(isPlanApprovalRequest("confirm_interrupt", cnPlanQuestion), true);
-assert.equal(isPlanApprovalRequest("confirm_interrupt", toolQuestion), false);
+assert.equal(isPlanApprovalRequest("confirm_interrupt", planApprovalKind), true);
+assert.equal(isPlanApprovalRequest("confirm_interrupt", "permission"), false);
+assert.equal(isPlanApprovalRequest("permission_interrupt", planApprovalKind), false);
 
-assert.equal(getPendingQuestionTitle("confirm_interrupt", planQuestion, "", 0, 1), "Exit Plan and Execute:");
-assert.equal(getPendingQuestionTitle("confirm_interrupt", toolQuestion, "", 0, 1), "Confirm action");
+assert.equal(getPendingQuestionTitle("confirm_interrupt", "", 0, 1, planApprovalKind), "Exit Plan and Execute:");
+assert.equal(getPendingQuestionTitle("confirm_interrupt", "", 0, 1), "Confirm action");
 
 assert.equal(formatQuestionOptionLabelForDisplay("本次允许", false), "Allow once");
 assert.equal(formatQuestionOptionLabelForDisplay("拒绝", false), "Reject");
@@ -39,12 +38,12 @@ assert.equal(
   "[ use \x1b[7m \x1b[0mpytest ]",
 );
 
-assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", planQuestion, "拒绝"), true);
-assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", planQuestion, "Reject"), true);
-assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", planQuestion, "本次允许"), false);
-assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", toolQuestion, "拒绝"), false);
-assert.equal(shouldAppendPlanRejectFeedback("confirm_interrupt", planQuestion, "拒绝"), true);
-assert.equal(shouldAppendPlanRejectFeedback("confirm_interrupt", planQuestion, "本次允许"), false);
+assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", "拒绝", planApprovalKind), true);
+assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", "Reject", planApprovalKind), true);
+assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", "本次允许", planApprovalKind), false);
+assert.equal(shouldCollectPlanRejectFeedback("confirm_interrupt", "拒绝", "permission"), false);
+assert.equal(shouldAppendPlanRejectFeedback("confirm_interrupt", "拒绝", planApprovalKind), true);
+assert.equal(shouldAppendPlanRejectFeedback("confirm_interrupt", "本次允许", planApprovalKind), false);
 
 assert.deepEqual(
   buildPlanApprovalQuestionItems([
@@ -101,12 +100,15 @@ let pendingQuestionInterruptCount = 0;
 let pendingQuestionRenderCount = 0;
 Object.assign(pendingQuestionScreen, {
   activeQuestionIndex: 0,
-  ctrlCPendingForQuestion: false,
-  ctrlCPendingForQuestionTimer: null,
-  transientNotice: null,
+  transientNotice: "stale hint",
   startupPromptList: null,
   fileViewerState: null,
   diffViewerState: null,
+  // Provide a minimal question list so Ctrl+D falls through to the
+  // approval input handler (which ignores it) instead of crashing.
+  questionList: { handleInput: () => undefined, getSelectedItem: () => null },
+  questionCheckboxList: null,
+  otherInputMode: false,
   state: {
     recordActivity: () => undefined,
     getSnapshot: () => ({
@@ -130,12 +132,26 @@ Object.assign(pendingQuestionScreen, {
   },
 });
 
+// Ctrl+C on the approval box interrupts the task (single press) and does NOT exit
 pendingQuestionScreen.handleInput("\x03");
-assert.equal(pendingQuestionScreen.transientNotice, "Press Ctrl+C again to exit");
+assert.equal(pendingQuestionInterruptCount, 1);
 assert.equal(pendingQuestionExitCount, 0);
-pendingQuestionScreen.handleInput("\x03");
-assert.equal(pendingQuestionExitCount, 1);
-assert.equal(pendingQuestionInterruptCount, 0);
-assert.equal(pendingQuestionRenderCount, 1);
+assert.equal(pendingQuestionScreen.transientNotice, null);
+
+// Esc likewise interrupts the task (single press)
+pendingQuestionScreen.handleInput("\x1b");
+assert.equal(pendingQuestionInterruptCount, 2);
+assert.equal(pendingQuestionExitCount, 0);
+assert.equal(pendingQuestionScreen.transientNotice, null);
+
+// Ctrl+D is no longer supported on the approval box: does nothing
+const renderCountBeforeCtrlD = pendingQuestionRenderCount;
+pendingQuestionScreen.handleInput("\x04");
+assert.equal(pendingQuestionInterruptCount, 2);
+assert.equal(pendingQuestionExitCount, 0);
+// Ctrl+D did not trigger an interrupt/exit; it may or may not request a
+// render depending on the list handler, but it must not interrupt or exit.
+assert.ok(pendingQuestionInterruptCount === 2 && pendingQuestionExitCount === 0);
+console.log("ctrl+d render requests:", pendingQuestionRenderCount - renderCountBeforeCtrlD);
 
 console.log("frontend tests passed");

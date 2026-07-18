@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 """Standalone AgentServer entrypoint.
 
 This process only starts:
@@ -28,6 +28,7 @@ from jiuwenswarm.dotenv_early import parse_dotenv_early
 parse_dotenv_early("jiuwenswarm-agentserver")
 
 # --- Now safe to import jiuwenswarm modules ---
+from jiuwenswarm.common.debug_dump import install_async_dump_handler
 from jiuwenswarm.common.utils import (
     get_env_file,
     get_root_dir,
@@ -153,6 +154,19 @@ async def _run(host: str, port: int) -> None:
     await extension_manager.load_all_extensions()
     logger.info("[AgentServer] 扩展加载完成，共 %d 个", len(extension_manager.list_extensions()))
 
+    # 启动迁移：给老会话的 metadata.json 补全 project_dir/model/last_user_message_at/status
+    # 等新字段并写回磁盘，保证升级后磁盘 schema 统一、前端永远拿到稳定结构。
+    # last_user_message_at 从 last_message_at/created_at/目录 mtime 推算，避免老会话排序错乱。
+    # 外层兜底：迁移本身已对单个会话容错，但任何意外异常都不得阻塞 AgentServer 启动。
+    from jiuwenswarm.server.runtime.session.session_metadata import (
+        migrate_legacy_session_metadata_at_startup,
+    )
+    try:
+        migrate_legacy_session_metadata_at_startup()
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
+        # 启动迁移为可选优化，任何异常都不得阻断 AgentServer 主流程
+        logger.warning("[AgentServer] 启动会话元数据迁移失败（已跳过，不影响启动）: %s", exc)
+
     server = AgentWebSocketServer.get_instance(
         host=host,
         port=port
@@ -211,6 +225,16 @@ async def _run(host: str, port: int) -> None:
             shutdown_team_observability()
         except Exception as exc:
             logger.warning("[AgentServer] team observability shutdown failed: %s", exc)
+        # Shutdown single-agent / coding-agent observability. Independently
+        # tracked from team observability; no-op unless an agent run owned the
+        # provider (it will not tear down a provider the team still owns).
+        try:
+            from jiuwenswarm.agents.harness.agent_observability import (
+                shutdown_agent_observability,
+            )
+            shutdown_agent_observability()
+        except Exception as exc:
+            logger.warning("[AgentServer] agent observability shutdown failed: %s", exc)
         logger.info("[AgentServer] stopped")
 
 
@@ -258,6 +282,7 @@ def main() -> None:
         else:
             port = 18092
 
+    install_async_dump_handler("agentserver")
     asyncio.run(_run(host=host, port=port))
 
 
