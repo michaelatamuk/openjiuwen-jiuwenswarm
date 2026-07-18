@@ -3964,7 +3964,11 @@ class JiuWenSwarmDeepAdapter:
                 _warn_ratio = float(_ch_cfg.get("warn_ratio", 0.60))
                 _critical_ratio = float(_ch_cfg.get("critical_ratio", 0.80))
                 rails_list.append(ContextHeadroomRail(_warn_ratio, _critical_ratio))
-                logger.info("[JiuWenSwarmDeepAdapter] ContextHeadroomRail attached (warn=%.0f%%, critical=%.0f%%)", _warn_ratio * 100, _critical_ratio * 100)
+                logger.info(
+                    "[JiuWenSwarmDeepAdapter] ContextHeadroomRail attached (warn=%.0f%%, critical=%.0f%%)",
+                    _warn_ratio * 100,
+                    _critical_ratio * 100,
+                )
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ContextHeadroomRail: %s", e)
         # Step-back prompt — rethink directive after consecutive shell failures
