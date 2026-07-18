@@ -138,6 +138,7 @@ from jiuwenswarm.agents.harness.common.rails.execution_guard import (
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
+from jiuwenswarm.agents.harness.common.rails.output_format_rail import OutputFormatRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
     setup_permission_context,
@@ -3871,6 +3872,16 @@ class JiuWenSwarmDeepAdapter:
                 )
         except Exception as e:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to load UserHookRail: %s", e)
+        # Output format reminder
+        try:
+            _of_cfg = config_base.get("output_format") or {}
+            if bool(_of_cfg.get("enabled", False)):
+                _of_path = str(_of_cfg.get("path", "/app/task.md"))
+                _of_max_chars = int(_of_cfg.get("max_chars", 800))
+                rails_list.append(OutputFormatRail(_of_path, _of_max_chars))
+                logger.info("[JiuWenSwarmDeepAdapter] OutputFormatRail attached (path=%s)", _of_path)
+        except Exception as e:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach OutputFormatRail: %s", e)
         # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
         # for task-loop runs, or agent.<name>.invoke for single-round) under the root
         # run span per iteration/round. It is the only thing that creates the
