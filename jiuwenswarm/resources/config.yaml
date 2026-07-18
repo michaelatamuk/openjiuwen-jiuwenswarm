@@ -523,6 +523,15 @@ tools:
   - todo
   - skill
 
+failure_memory:
+  enabled: false      # track failed tool calls and inject a "do not repeat" notice
+  max_failures: 10    # maximum number of failure entries to retain per session
+
+context_headroom:
+  enabled: false      # inject conciseness directives as the context window fills up
+  warn_ratio: 0.60    # fraction of context window used before moderate nudge
+  critical_ratio: 0.80  # fraction used before strong conciseness directive
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}
