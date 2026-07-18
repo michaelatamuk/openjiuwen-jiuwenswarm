@@ -143,12 +143,18 @@ flowchart TD
     RS2(["📄 Result 2"]):::run
     RSN(["📄 ··· Result N"]):::run
 
-    %%──────────────── agent-core: best selection ───────────
-    RS1 & RS2 & RSN --> BN37
+    %%──────────────── agent-core: scoring then selection ───
+    RS1 & RS2 & RSN --> Score
+
+    Score["🔬 auto-harness scores each result
+    Runs the benchmark verifier on every
+    result and records pass rate / score"]:::ac
+
+    Score --> BN37
 
     BN37["🏆 auto-harness-best-of-n  #37
-    Picks the strongest result
-    across all N completed runs"]:::ac
+    Selects the result with the
+    highest verifier score"]:::ac
 
     BN37 --> Out(["🏁 Final Output"]):::io
 ```
