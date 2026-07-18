@@ -11,8 +11,8 @@ import json
 import logging
 from typing import Any
 
-from openjiuwen.harness.agent.rails.base import DeepAgentRail
-from openjiuwen.harness.agent.rails.callback_context import AgentCallbackContext
+from openjiuwen.harness.rails.base import DeepAgentRail
+from openjiuwen.core.single_agent.rail.base import AgentCallbackContext
 from openjiuwen.harness.prompts import PromptSection
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def _extract_snippet(result: str, max_chars: int = 300) -> str:
     for i, line in enumerate(lines):
         for pat in _ERROR_PATTERNS:
             if pat in line:
-                snippet = "\n".join(lines[i : i + 6])
+                snippet = "\n".join(lines[i:i + 6])
                 return snippet[:max_chars]
     return result[:max_chars]
 
@@ -168,7 +168,7 @@ class FailureMemoryRail(DeepAgentRail):
             return
         failures.append(entry)
         if len(failures) > self._max_failures:
-            failures = failures[-self._max_failures :]
+            failures = failures[-self._max_failures:]
         ctx.session.update_state({_SESSION_KEY: failures})
         logger.debug(
             "[FailureMemory] Recorded failure #%d for tool '%s'", len(failures), tool_name
