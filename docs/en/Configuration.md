@@ -423,6 +423,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `failure_memory.enabled` | When true, detects failed tool calls (exceptions and error-containing results) and injects a growing "do not repeat these" notice into the system prompt, preventing the agent from retrying approaches that have already been proven not to work | `false` |
+| `failure_memory.max_failures` | Maximum number of failure entries retained per session; oldest entries are dropped when the limit is exceeded | `10` |
 
 <a id="dotenv-configuration"></a>
 
