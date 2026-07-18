@@ -694,7 +694,10 @@ def test_deep_adapter_visible_skill_names_match_list_skill(monkeypatch, tmp_path
 
     adapter = _TestableJiuWenSwarmDeepAdapter()
     adapter.set_skill_manager(
-        SimpleNamespace(list_execution_disabled_skills=lambda: ["beta"])
+        SimpleNamespace(
+            list_execution_disabled_skills=lambda: ["beta"],
+            get_external_skill_dirs=lambda: [],
+        )
     )
     monkeypatch.setattr(
         "jiuwenswarm.server.runtime.agent_adapter.interface_deep.get_agent_skills_dir",
