@@ -12,6 +12,7 @@ flowchart TD
     classDef post   fill:#BF360C,color:#fff,stroke:#7f2407
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef io     fill:#37474F,color:#fff,stroke:#263238,shape:stadium
+    classDef run    fill:#01579B,color:#fff,stroke:#003c74
 
     T(["📋 Task"]):::io
 
@@ -29,11 +30,16 @@ flowchart TD
     Dispatches the same task
     to N independent runs"]:::ac
 
-    MR38 --> RunNode(["⬇  Each run is one\njiuwenswarm execution"]):::io
+    %%── N parallel runs fan out ─────────────────────────────
+    MR38 --> R1 & R2 & RN
+
+    R1(["🤖 Run 1"]):::run
+    R2(["🤖 Run 2"]):::run
+    RN(["🤖 ··· Run N"]):::run
 
     %%──────────────── jiuwenswarm: infra ───────────────────
-    RunNode --> EL119
-    RunNode --> ACP139
+    R1 & R2 & RN --> EL119
+    R1 & R2 & RN --> ACP139
 
     EL119["⚡ event-loop-blocking  #119
     Prevents async crash inside
@@ -130,8 +136,15 @@ flowchart TD
 
     PostTool -->|"done"| Verify
 
+    %%── N results fan in ────────────────────────────────────
+    Verify --> RS1 & RS2 & RSN
+
+    RS1(["📄 Result 1"]):::run
+    RS2(["📄 Result 2"]):::run
+    RSN(["📄 ··· Result N"]):::run
+
     %%──────────────── agent-core: best selection ───────────
-    Verify --> BN37
+    RS1 & RS2 & RSN --> BN37
 
     BN37["🏆 auto-harness-best-of-n  #37
     Picks the strongest result
