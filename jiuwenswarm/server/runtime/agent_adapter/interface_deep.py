@@ -3905,8 +3905,7 @@ class JiuWenSwarmDeepAdapter:
 
         # Autonomous execution mode: override interactive hedging when running unattended
         _autonomy_enabled = bool((config_base.get("autonomy") or {}).get("enabled", False))
-        self._autonomous_mode_rail = AutonomousModeRail(_autonomy_enabled)
-        rails_list.append(self._autonomous_mode_rail)
+        rails_list.append(AutonomousModeRail(_autonomy_enabled))
 
         # 用户配置的 hooks（UserHookRail）
         try:
