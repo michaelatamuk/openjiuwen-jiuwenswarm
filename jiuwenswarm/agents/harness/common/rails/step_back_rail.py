@@ -13,8 +13,8 @@ import json
 import logging
 from typing import Any
 
-from openjiuwen.harness.agent.rails.base import DeepAgentRail
-from openjiuwen.harness.agent.rails.callback_context import AgentCallbackContext
+from openjiuwen.harness.rails.base import DeepAgentRail
+from openjiuwen.core.single_agent.rail.base import AgentCallbackContext
 from openjiuwen.harness.prompts import PromptSection
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _parse_exit_code(result: str) -> int | None:
         for key in _EXIT_KEYS:
             if key in data:
                 return int(data[key])
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except (ValueError, TypeError):
         pass
     return None
 
