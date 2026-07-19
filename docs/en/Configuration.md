@@ -447,6 +447,11 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `output_format.max_chars` | Maximum characters of extracted output-format content to inject into the system prompt | `800` |
 | `verifier_circuit_breaker.enabled` | Enable the verifier-aware circuit breaker rail; when `true`, `VerifierCircuitBreakerRail` is registered automatically | `true` |
 | `verifier_circuit_breaker.break_after` | Number of consecutive identical verifier failures before a rethink directive is injected into the system prompt; escalates to an "abandon approach entirely" directive at `break_after × 2` | `3` |
+| `team.verification.enabled` | Enable the team verification layer; a reviewer agent scores each sub-agent output and the leader receives result + score | `false` |
+| `team.verification.block_on_fail` | Block leader consolidation when a sub-agent result scores below `rework_threshold` | `false` |
+| `team.verification.pass_threshold` | Minimum score (0–100) for a PASS verdict | `70` |
+| `team.verification.rework_threshold` | Score below which a FAIL verdict is issued | `40` |
+| `team.verification.auto_rework` | Automatically create rework tasks when a sub-agent fails verification | `false` |
 
 <a id="dotenv-configuration"></a>
 

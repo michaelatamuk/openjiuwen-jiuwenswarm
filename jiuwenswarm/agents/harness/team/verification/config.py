@@ -7,7 +7,7 @@ Expected config.yaml structure under ``team.verification``:
 ```yaml
 team:
   verification:
-    enabled: true                    # Master toggle (default: true)
+    enabled: false                   # Master toggle (default: false)
     block_on_fail: false             # Block leader consolidation on FAIL (default: false)
     auto_rework: false               # Auto-create rework tasks (default: false)
     pass_threshold: 70               # Minimum score for PASS (default: 70)
@@ -35,7 +35,7 @@ from typing import Any
 class VerificationConfig:
     """Typed configuration for the Team Verification Layer."""
 
-    enabled: bool = True
+    enabled: bool = False
     block_on_fail: bool = False
     auto_rework: bool = False
     pass_threshold: int = 70
@@ -55,7 +55,7 @@ class VerificationConfig:
             skip_patterns = {str(p).lower() for p in raw_patterns if isinstance(p, str)}
 
         return cls(
-            enabled=bool(config.get("enabled", True)),
+            enabled=bool(config.get("enabled", False)),
             block_on_fail=bool(config.get("block_on_fail", False)),
             auto_rework=bool(config.get("auto_rework", False)),
             pass_threshold=int(config.get("pass_threshold", 70)),
