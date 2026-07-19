@@ -369,6 +369,7 @@ async def _trigger_main_agent(
     channel_id: str | None,
     decision: RecommendationDecision,
     trigger_callback: Any,
+    on_delivered: Any = None,
 ) -> bool:
     """Trigger the main agent to run one round and generate the recommendation message.
 
@@ -383,8 +384,11 @@ async def _trigger_main_agent(
     避让：trigger_callback 内部检查 ``is_deep_agent_executing_for_session``，
     目标 session 正忙时返回 False（跳过本次 tick，下个 tick 再来）。
 
+    ``on_delivered``: fire-and-forget 后台 task 真正跑完（推荐确实送达）时回调。
+    用于让调用方在"推荐确实送达"时再做计数/状态持久化，避免后台失败却已计数。
+
     Returns:
-        True if the main agent was triggered, False if the session was busy
+        True if the main agent was triggered (后台异步跑), False if the session was busy
         or delivery failed.
     """
     query = DIRECTIVE_PROMPT.format(
@@ -393,7 +397,8 @@ async def _trigger_main_agent(
         reason=decision.reason,
     )
     try:
-        return bool(await trigger_callback(session_id, channel_id, query, decision))
+        return bool(await trigger_callback(session_id, channel_id, query, decision,
+                                           on_delivered=on_delivered))
     except Exception as exc:
         logger.warning("[ProactiveEngine] trigger_main_agent failed: %s", exc, exc_info=True)
         return False

@@ -401,7 +401,10 @@ def test_toolkit_plan_preserves_display_content_after_score_summary():
         lambda _params, request=None: {
             "success": True,
             "presentation": {
-                "markdown": "## Recommended Plan\n\nUse skill A, then skill B.",
+                "markdown": (
+                    "## Recommended Plan\n\nUse skill A, then skill B.\n\n"
+                    "是否按照上述编排结果执行？"
+                ),
                 "mermaid": "flowchart LR\n  A --> B",
             },
         },
@@ -412,6 +415,7 @@ def test_toolkit_plan_preserves_display_content_after_score_summary():
     assert result["direct_display"] is True
     assert result["display_format"] == "markdown"
     assert result["content"].startswith("## Recommended Plan")
+    assert result["content"].endswith("是否按照上述编排结果执行？")
     assert "## Symphony score" not in result["content"]
     assert "Detail: up to date" not in result["content"]
     assert result["mermaid"] == "flowchart LR\n  A --> B"
@@ -614,6 +618,27 @@ def test_toolkit_plan_returns_compact_plan_and_skill_retrieval():
     }
     assert "worker_id" not in skill_retrieval["candidate_records"][0]
     assert "resolved_payload" not in skill_retrieval["candidate_records"][0]
+
+
+def test_toolkit_compacts_inferred_edge_provenance():
+    edge = SymphonyToolkit._compact_can_feed_edge(
+        {
+            "source_id": "skill-a",
+            "target_id": "skill-b",
+            "confidence": None,
+            "method": "fast_llm_inferred",
+            "reason": "LLM connected retrieved candidates.",
+            "port_mappings": [],
+        }
+    )
+
+    assert edge == {
+        "source_id": "skill-a",
+        "target_id": "skill-b",
+        "confidence": None,
+        "method": "fast_llm_inferred",
+        "reason": "LLM connected retrieved candidates.",
+    }
 
 
 def test_toolkit_no_plan_continues_for_skill_discovery():

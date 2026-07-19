@@ -90,13 +90,22 @@ def _make_proactive_agent(tick_responses: list[dict]):
 
 # Capture _trigger_main_agent calls (session_id, channel_id, query, decision)
 def _capture_trigger(triggered_list):
-    async def _trigger(session_id, channel_id, query, decision):
+    async def _trigger(session_id, channel_id, query, decision, on_delivered=None):
         triggered_list.append({
             "session_id": session_id,
             "channel_id": channel_id,
             "query": query,
             "decision": decision,
         })
+        # 真实 trigger_main_agent 是 fire-and-forget：主 agent 跑完才回调 on_delivered
+        # 做 Step 7（计数 + save_recommendation_state）。测试 mock 这里同步模拟"后台送达"，
+        # 立即回调，让 history/count 断言能验证 Step 7 逻辑。
+        if on_delivered is not None:
+            try:
+                on_delivered()
+            except Exception:
+                # 测试只关心触发与 history，回调异常不掩盖触发本身
+                pass
         return True
     return _trigger
 
@@ -355,9 +364,9 @@ async def test_skip_when_main_agent_busy():
 
     triggered = []
 
-    async def _busy_trigger(session_id, channel_id, query, decision):
+    async def _busy_trigger(session_id, channel_id, query, decision, on_delivered=None):
         triggered.append((session_id, channel_id, decision))
-        return False  # session 正忙
+        return False  # session 正忙（不触发，on_delivered 不该被调）
 
     with tempfile.TemporaryDirectory() as ws:
         ws_path = Path(ws)
@@ -425,3 +434,69 @@ async def test_proactive_agent_invalid_json_returns_empty():
     state = MagicMock()
     result = await _analyze_and_decide("report", state, SAMPLE_SKILLS, _BadAgent())
     assert result.decision is None
+
+
+# ── Daily limit reached: push "limit reached" notification once per day ──
+
+
+def _capture_notifications(notified_list):
+    """Capture _send_notification_callback calls (channel_id, text)."""
+    async def _notify(channel_id, text):
+        notified_list.append({"channel_id": channel_id, "text": text})
+        return True
+    return _notify
+
+
+@pytest.mark.asyncio
+async def test_daily_limit_pushes_notification_once():
+    """达到每日上限时，每次 tick 命中上限都推送一次"已达上限"通知。
+
+    旧实现按天去重（每天最多推一次）；新行为改为前端弹窗 + 每次命中都推，
+    故同日多次命中上限会多次推送（去重交由前端 toast 的自动消失处理）。
+    """
+    notified = []
+
+    with tempfile.TemporaryDirectory() as ws:
+        ws_path = Path(ws)
+        _write_state(ws_path, {"recommendation_history": [], "last_updated": ""})
+
+        # _today_recommend_count 返回已达上限（max_per_day=1）
+        with patch(f"{_PATCH_TARGETS['utils']}.get_agent_workspace_dir", return_value=ws_path), \
+             patch(f"{_PATCH_TARGETS['actions']}._today_recommend_count", return_value=1), \
+             patch(f"{_PATCH_TARGETS['actions']}._get_all_skills", return_value=(set(), SAMPLE_SKILLS)):
+
+            from jiuwenswarm.agents.harness.common.recommendation.proactive_engine import ProactiveEngine
+
+            engine = ProactiveEngine({"enabled": True, "max_recommend_per_day": 1})
+            engine.set_send_notification_callback(_capture_notifications(notified))
+
+            # 第一次 tick：命中上限 → 推送一次通知
+            pushed1 = await engine.tick_now()
+            assert pushed1 is False
+            assert len(notified) == 1, f"应推送 1 次上限通知，实际 {len(notified)}"
+            assert "已达每日上限" in notified[0]["text"]
+            assert "1 条" in notified[0]["text"]
+
+            # 第二次 tick：同日仍命中上限 → 再次推送（每次命中都推，前端弹窗负责消失）
+            pushed2 = await engine.tick_now()
+            assert pushed2 is False
+            assert len(notified) == 2, f"同日再次命中上限应再次推送，实际累计 {len(notified)} 次"
+
+
+@pytest.mark.asyncio
+async def test_daily_limit_no_callback_no_crash():
+    """达到上限但未注册 notification 回调时，不应抛异常。"""
+    with tempfile.TemporaryDirectory() as ws:
+        ws_path = Path(ws)
+        _write_state(ws_path, {"recommendation_history": [], "last_updated": ""})
+
+        with patch(f"{_PATCH_TARGETS['utils']}.get_agent_workspace_dir", return_value=ws_path), \
+             patch(f"{_PATCH_TARGETS['actions']}._today_recommend_count", return_value=5), \
+             patch(f"{_PATCH_TARGETS['actions']}._get_all_skills", return_value=(set(), SAMPLE_SKILLS)):
+
+            from jiuwenswarm.agents.harness.common.recommendation.proactive_engine import ProactiveEngine
+
+            engine = ProactiveEngine({"enabled": True, "max_recommend_per_day": 5})
+            # 故意不调 set_send_notification_callback
+            pushed = await engine.tick_now()
+            assert pushed is False

@@ -15,6 +15,7 @@ import logging
 import os
 import secrets
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 from urllib.parse import parse_qs, urlparse
@@ -42,6 +43,8 @@ from jiuwenswarm.common.ws_diagnostics import (
 )
 
 logger = logging.getLogger(__name__)
+
+_WEB_CONNECTION_USER_ID_ATTR = "_web_connection_user_id"
 
 _HANDLER_BEFORE_CALLBACK_METHODS = frozenset({ReqMethod.CHAT_SEND.value})
 
@@ -97,6 +100,13 @@ class WebChannel(BaseWsChannel):
         self._disconnect_hooks: list[ConnectHook] = []
         # ws -> set[session_id]: 追踪每个连接上活跃的 session
         self._ws_sessions: dict[int, set[str]] = {}
+        # session_id -> is_processing: 由 chat.processing_status 事件维护,
+        # 供 /ws/git 写操作(如 discard_turn_changes)查询 agent 是否正在执行。
+        # 未跟踪的 session 默认返回 False(不忙碌)。
+        self._session_busy: dict[str, bool] = {}
+        # Git diff 监控注册表(设计文档阶段10):由 app_gateway 在启动期注入,
+        # handler 通过 ``getattr(channel, "git_watcher_registry", None)`` 防御性读取。
+        self.git_watcher_registry: Any = None
 
     # ── 公共属性 ──────────────────────────────────────────
 
@@ -214,16 +224,79 @@ class WebChannel(BaseWsChannel):
                 return
             raise
 
+    @staticmethod
+    def _extract_query_user_id(flat_query: dict[str, str]) -> str | None:
+        uid = str(flat_query.get("user_id", "") or "").strip()
+        return uid or None
+
+    @staticmethod
+    def _extract_ws_header_user_id(ws: Any) -> str | None:
+        headers = (
+            getattr(getattr(ws, "request", None), "headers", None)
+            or getattr(ws, "request_headers", None)
+        )
+        raw = get_header_value(headers, "X-User-Id")
+        if raw is None:
+            return None
+        text = str(raw).strip()
+        return text or None
+
+    @classmethod
+    def _resolve_connection_user_id(cls, flat_query: dict[str, str], ws: Any) -> str | None:
+        connection_user_id = cls._extract_query_user_id(flat_query) or cls._extract_ws_header_user_id(ws)
+        setattr(ws, _WEB_CONNECTION_USER_ID_ATTR, connection_user_id)
+        return connection_user_id
+
+    @staticmethod
+    def _connection_user_id(ws: Any) -> str | None:
+        """返回 Web 连接建立时缓存的 user_id（query 或 X-User-Id Header）。"""
+        uid = getattr(ws, _WEB_CONNECTION_USER_ID_ATTR, None)
+        if uid is None:
+            return None
+        text = str(uid).strip()
+        return text or None
+
+    @staticmethod
+    def _routing_key_user_id(connection_user_id: str | None, remote: Any) -> str:
+        if connection_user_id:
+            return connection_user_id
+        return str(remote or "unknown")
+
+    @classmethod
+    def _resolve_ws_identity(
+        cls,
+        ws: Any,
+        flat_query: dict[str, str],
+        remote: Any,
+        *,
+        route_type: str = "ws",
+    ) -> tuple[str | None, str]:
+        """解析 ws 连接身份,供 /ws 和 /ws/git 共用(设计文档 §5.3.7)。
+
+        Args:
+            route_type: ``"ws"`` 主路由或 ``"git"`` /ws/git 路由,仅用于日志区分。
+
+        Returns:
+            ``(connection_user_id, routing_key_user_id)``
+        """
+        connection_user_id = cls._resolve_connection_user_id(flat_query, ws)
+        routing_key_user_id = cls._routing_key_user_id(connection_user_id, remote)
+        return connection_user_id, routing_key_user_id
+
     async def _invoke_method_handler(
             self,
             invocation: _MethodHandlerInvocation,
     ) -> bool:
+        kwargs: dict[str, Any] = {}
+        if "user_id" in inspect.signature(invocation.handler).parameters:
+            kwargs["user_id"] = self._connection_user_id(invocation.ws)
         try:
             await invocation.handler(
                 invocation.ws,
                 invocation.req_id,
                 invocation.params,
                 invocation.session_id,
+                **kwargs,
             )
             return True
         except Exception as e:
@@ -274,14 +347,23 @@ class WebChannel(BaseWsChannel):
             *,
             seq: int | None = None,
             stream_id: str | None = None,
+            exclude_ws: Any = None,
     ) -> None:
-        """向所有已连接客户端广播 ``event`` 帧."""
+        """向所有已连接客户端广播 ``event`` 帧.
+
+        exclude_ws: 排除单个发起方 ws（如 config.changed 的保存发起方），
+        避免发起方收到自身触发的广播而误弹「丢弃草稿」确认框。发起方靠
+        保存响应的本地乐观合并自行刷新，无需这条广播。
+        """
         frame: dict[str, Any] = {"type": "event", "event": event, "payload": payload}
         if seq is not None:
             frame["seq"] = seq
         if stream_id is not None:
             frame["stream_id"] = stream_id
-        await self._broadcast(frame)
+        clients = self.clients
+        if exclude_ws is not None:
+            clients = {c for c in clients if c is not exclude_ws}
+        await self._broadcast_to(frame, clients)
 
     async def _download_file(self, url: str) -> bytes | None:
         try:
@@ -475,6 +557,26 @@ class WebChannel(BaseWsChannel):
                 "[WebChannel] cron push broadcast to %d client(s) id=%s run_id=%s",
                 len(clients), getattr(msg, "id", ""),
                 (msg.payload.get("cron") or {}).get("run_id", ""),
+            )
+            return
+
+        # ── 主动推荐系统通知推 web：与 cron 推送同理——后端主动推、无前端 session_id 绑定，
+        # 按 session_id 路由会被当"无 session"丢弃（旧路径 580 行 if not msg.session_id 兜底丢弃）。
+        # proactive notification（"今日已达上限"等系统提醒）带 payload.source ==
+        # "proactive_notification" 标记，据此广播给所有 web 客户端。前端 shouldHandleSessionEvent
+        # 对无 session_id 的 payload 放行，作为普通 assistant 消息渲染。
+        if (
+            msg.event_type == EventType.CHAT_FINAL
+            and isinstance(msg.payload, dict)
+            and msg.payload.get("source") == "proactive_notification"
+        ):
+            frame = self._serialize_frame(msg, None)  # 已是 json 字符串
+            clients = self.clients
+            for w in clients:
+                self._enqueue_send(w, frame)
+            logger.debug(
+                "[WebChannel] proactive_notification broadcast to %d client(s) id=%s",
+                len(clients), getattr(msg, "id", ""),
             )
             return
 
@@ -692,15 +794,35 @@ class WebChannel(BaseWsChannel):
         }
         await self._broadcast_to(frame_data, all_clients)
 
+        # 维护 session busy 状态(供 /ws/git 写操作查询)
+        if event_name == "chat.processing_status" and isinstance(payload, dict):
+            sid = payload.get("session_id") or msg.session_id
+            if sid:
+                self._session_busy[sid] = bool(payload.get("is_processing", False))
+
         # interrupt_result 根据 intent 决定 is_processing 状态
         if event_name == "chat.interrupt_result":
             intent = payload.get("intent", "cancel") if isinstance(payload, dict) else "cancel"
             is_processing = intent in ("pause", "supplement", "resume")
+            # 同步更新 busy 映射
+            if msg.session_id:
+                self._session_busy[msg.session_id] = is_processing
             await self._broadcast_to({
                 "type": "event",
                 "event": "chat.processing_status",
                 "payload": {"session_id": msg.session_id, "is_processing": is_processing},
             }, all_clients)
+
+    def is_session_busy(self, session_id: str) -> bool:
+        """查询 session 是否正在执行(agent 处理中)。
+
+        基于 ``chat.processing_status`` 事件维护的映射。
+        未跟踪的 session 默认返回 False(不忙碌)。
+
+        供 /ws/git 写操作(如 ``project.git.discard_turn_changes``)在执行前
+        校验会话非忙碌,避免与正在进行的 agent 文件写入冲突。
+        """
+        return self._session_busy.get(session_id, False)
 
     def get_metadata(self) -> ChannelMetadata:
         """获取 Channel 元数据."""
@@ -716,18 +838,36 @@ class WebChannel(BaseWsChannel):
         raw_path = path if path is not None else getattr(ws, "path", "")
         parsed = urlparse(raw_path)
         request_path = parsed.path or raw_path
+        query = parse_qs(parsed.query)
+        remote = getattr(ws, "remote_address", None)
+        _flat_query = {k: (v[0] if v else "") for k, v in query.items()}
+
+        # ── Path 分发(设计文档 §5.3.7) ──
+        # /ws/git → GitDiffWebSocketHandler
+        # /ws     → 现有主 RPC
+        # 其他    → 1008 close
+        if request_path == "/ws/git":
+            await self._handle_git_ws_connection(ws, _flat_query, remote)
+            return
+
         if request_path != self.config.path:
             await ws.close(code=1008, reason=f"unsupported path: {request_path}")
             return
 
-        query = parse_qs(parsed.query)
-        remote = getattr(ws, "remote_address", None)
-        logger.info(f"WebChannel 新连接: remote={remote} query={query}")
+        connection_user_id, _user_id = self._resolve_ws_identity(
+            ws, _flat_query, remote, route_type="ws",
+        )
+        uid_marker = "" if connection_user_id else " uid_empty=yes"
+        logger.info(
+            "WebChannel 新连接: remote=%s query=%s user_id=%r%s",
+            remote,
+            query,
+            connection_user_id,
+            uid_marker,
+        )
 
         # ── V2: 从 query 提取身份字段，构造默认 RoutingKey ──
         # session_id 和 agent_id 可能在首条消息中更新
-        _flat_query = {k: (v[0] if v else "") for k, v in query.items()}
-        _user_id = _flat_query.get("user_id", str(remote or "unknown"))
         _app_id = _flat_query.get("app_id", "default")
         _mode = _flat_query.get("mode", "agent")
         _agent_id = _flat_query.get("agent_id", "default")
@@ -786,15 +926,6 @@ class WebChannel(BaseWsChannel):
         finally:
             await self.unregister_ws(ws)
 
-            # 触发断开钩子
-            for hook in self._disconnect_hooks:
-                try:
-                    result = hook(ws)
-                    if inspect.isawaitable(result):
-                        await result
-                except Exception as e:
-                    logger.warning("WebChannel on_disconnect hook error: %s", e)
-
             logger.info(
                 "WebChannel 连接清理完成: %s",
                 format_ws_diagnostics(
@@ -810,7 +941,12 @@ class WebChannel(BaseWsChannel):
                 remote,
                 disconnected_sessions or "none",
             )
-            # 触发断连钩子，传入 session_ids
+            # 注意:此处不清理 _session_busy。ws 断开不等价于 agent 已停止——
+            # 用户关 tab / 刷新 / 网络断开期间,后端 run 仍可能在写文件。若按
+            # ws ownership 清掉 busy,新的 discard_turn_changes 会通过 busy 校验,
+            # 与仍在运行的 agent 文件写入并发,造成数据损坏。stale busy 的治理
+            # 应基于 TTL / 心跳 / agentserver run 状态源,而非 ws 连接状态。
+            # 触发断连钩子,传入 session_ids(签名: (ws, session_ids))
             for hook in self._disconnect_hooks:
                 try:
                     result = hook(ws, disconnected_sessions)
@@ -818,6 +954,84 @@ class WebChannel(BaseWsChannel):
                         await result
                 except Exception as e:  # pragma: no cover
                     logger.warning("WebChannel on_disconnect hook error: %s", e)
+
+    async def _handle_git_ws_connection(
+        self,
+        ws: Any,
+        flat_query: dict[str, str],
+        remote: Any,
+    ) -> None:
+        """处理 /ws/git 路由的连接(设计文档 §5.3.7)。
+
+        构建 ``AgentRef(mode="git", id="diff")`` 哨兵 RoutingKey,
+        注册后委托 ``GitDiffWebSocketHandler.handle_connection`` 处理消息循环。
+        断连 ``finally`` 先后调 ``unregister_ws(ws)`` 和
+        ``git_watcher_registry.cleanup_ws(ws)``,避免 watcher 仍继续轮询推送。
+        """
+        registry = getattr(self, "git_watcher_registry", None)
+        if registry is None:
+            await ws.close(code=1011, reason="git watcher registry not available")
+            return
+
+        from jiuwenswarm.gateway.channel_manager.web.git_ws_handler import (
+            GitDiffWebSocketHandler,
+        )
+        handler = GitDiffWebSocketHandler(self, registry)
+
+        connection_user_id, _user_id = self._resolve_ws_identity(
+            ws, flat_query, remote, route_type="git",
+        )
+        _app_id = flat_query.get("app_id", "default")
+        # session_id 为传输层占位,不是聊天会话(设计文档 §5.3.7)
+        _session_id = flat_query.get("session_id") or f"gitws_{uuid.uuid4().hex[:12]}"
+        _rk = RoutingKey(
+            user_id=_user_id,
+            channel_id=self.channel_id,
+            app_id=_app_id,
+            agent_ref=AgentRef(mode="git", id="diff"),
+            session_id=_session_id,
+        )
+        await self.register_ws(ws, _rk)
+
+        logger.info(
+            "[WebChannel] /ws/git 新连接: remote=%s user_id=%r session_id=%s",
+            remote,
+            connection_user_id,
+            _session_id,
+        )
+
+        try:
+            await handler.handle_connection(ws, flat_query)
+        except WebSocketConnectionClosed as e:
+            logger.info(
+                "[WebChannel] /ws/git 连接关闭: %s",
+                format_ws_diagnostics(
+                    {"remote": remote, "path": "/ws/git"},
+                    describe_ws_peer(ws),
+                    describe_ws_exception(e),
+                ),
+            )
+        except Exception as e:
+            logger.warning(
+                "[WebChannel] /ws/git 连接异常: %s",
+                format_ws_diagnostics(
+                    {"remote": remote, "path": "/ws/git"},
+                    describe_ws_peer(ws),
+                    describe_ws_exception(e),
+                ),
+            )
+        finally:
+            await self.unregister_ws(ws)
+            try:
+                registry.cleanup_ws(ws)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "[WebChannel] /ws/git cleanup_ws failed: %s", exc,
+                )
+            logger.info(
+                "[WebChannel] /ws/git 连接清理完成: remote=%s",
+                remote,
+            )
 
     async def _handle_raw_message(self, ws: Any, raw: str, query: dict[str, list[str]]) -> None:
         try:
@@ -874,11 +1088,10 @@ class WebChannel(BaseWsChannel):
         _mode = params.get("mode", "agent")
         _agent_id = params.get("agent_id", "default")
         _app_id = _flat_query.get("app_id", "default")
+        req_user_id = self._connection_user_id(ws)
         if has_explicit_session:
             _rk = RoutingKey(
-                user_id=_flat_query.get(
-                    "user_id", str(getattr(ws, "remote_address", "unknown"))
-                ),
+                user_id=self._routing_key_user_id(req_user_id, getattr(ws, "remote_address", None)),
                 channel_id=self.channel_id,
                 app_id=_app_id,
                 agent_ref=AgentRef(mode=_mode, id=_agent_id),
@@ -899,11 +1112,13 @@ class WebChannel(BaseWsChannel):
             mode=self._parse_mode(params.get("mode")),
             app_id=_app_id,
             agent_ref={"mode": _mode, "id": _agent_id},
+            user_id=req_user_id,
             metadata={
                 "query": query,
                 "method": method,
                 # V2: 注入 ws_id 供 MessageHandler 构造 WebDeliveryTarget(ws_id=真值)。
                 "ws_id": getattr(ws, "_jiuwen_ws_id", ""),
+                "user_id": req_user_id,
             },
         )
 
@@ -1005,7 +1220,7 @@ class WebChannel(BaseWsChannel):
 
     @staticmethod
     def _parse_mode(raw_mode: Any) -> Mode:
-        return Mode.from_raw(raw_mode, default=Mode.AGENT_PLAN)
+        return Mode.from_raw(raw_mode, default=Mode.AGENT)
 
     @staticmethod
     def _make_session_id() -> str:

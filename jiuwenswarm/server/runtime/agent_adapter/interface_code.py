@@ -667,6 +667,19 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
                 )
         except Exception as e:
             logger.warning("[JiuwenSwarmCodeAdapter] Failed to load UserHookRail: %s", e)
+        # Observability rail: opens an agent-layer span (agent.<name>.task_iteration.<n>
+        # for task-loop runs, or agent.<name>.invoke for single-round) under the root
+        # run span per iteration/round. It is the only thing that creates the
+        # task_iteration / invoke spans that llm.call + tool.* nest under. It
+        # self-disables (before_* returns early when get_team_span() is None), so
+        # attaching it unconditionally is safe and also adapts to runtime
+        # enable/disable of agent_observability without rebuilding the agent.
+        try:
+            from openjiuwen.agent_teams.observability.rail import ObservabilityRail
+            rails_list.append(ObservabilityRail())
+            logger.info("[JiuwenSwarmCodeAdapter] ObservabilityRail attached")
+        except Exception as e:
+            logger.warning("[JiuwenSwarmCodeAdapter] Failed to attach ObservabilityRail: %s", e)
         return rails_list
 
     # ─── Code 专属 Rail 构建 ────────────────
@@ -1046,7 +1059,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         # ── 自定义 agent 不加入 deep_config.subagents ──
         # Code 模式下，自定义 agent 由 CodeAgentRail 的 Agent 工具管理，
         # 不走 SubagentRail 的 task_tool 路径。
-        # （agent.plan / agent.fast 模式仍由 interface_deep.py 的 _load_custom_subagents 管理）
+        # （agent 模式仍由 interface_deep.py 的 _load_custom_subagents 管理）
 
         return subagents or None, False
 

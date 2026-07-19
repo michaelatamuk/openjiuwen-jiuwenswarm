@@ -1591,6 +1591,7 @@ export class CliPiAppState {
     attachments?: FileAttachment[],
     modeOverride?: ClientMode,
     options?: { logAsUser?: boolean },
+    skills?: string[],
   ): string | null => {
     if (this.connectionStatus !== "connected") return null;
     const mode = modeOverride ?? this.mode;
@@ -1601,6 +1602,7 @@ export class CliPiAppState {
       mode,
       ...(attachments?.length ? { attachments } : {}),
       ...(planEntrySource ? { plan_entry_source: planEntrySource } : {}),
+      ...(skills?.length ? { skills } : {}),
     };
     // Pre-check: reject messages whose serialized frame exceeds 7 MB (gateway
     // server max_size is 8 MB; leave 1 MB margin for JSON overhead).
@@ -1699,6 +1701,11 @@ export class CliPiAppState {
     if (this.localPendingQuestion) {
       this.localPendingQuestion.reject(new Error("interrupted by Ctrl+C"));
       this.localPendingQuestion = null;
+      this.pendingQuestion = null;
+      this.setStreamingStateInternal(StreamingState.Idle);
+    } else if (this.pendingQuestion) {
+      // Server-side pendingQuestion (ask_user_interrupt, permission_interrupt, etc.)
+      // chat.interrupt sent below will notify the server to cancel the agent work
       this.pendingQuestion = null;
       this.setStreamingStateInternal(StreamingState.Idle);
     }
