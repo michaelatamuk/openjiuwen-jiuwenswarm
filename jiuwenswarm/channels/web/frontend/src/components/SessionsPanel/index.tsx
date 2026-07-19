@@ -559,7 +559,6 @@ export function SessionsPanel({
                         <span className="truncate block flex-1">{session.title || parseSessionDisplayLabel(session.session_id, t)}</span>
                         <SessionErrorIndicator sessionId={session.session_id} />
                       </span>
-                      <span className="truncate block">{session.title || parseSessionDisplayLabel(session.session_id, t)}</span>
                       <span className="mt-0.5 block truncate text-[11px] text-text-muted/80">
                         {(session.round_id ?? 0)} msg, {(session.message_count ?? 0)} ev
                         {session.total_tokens != null && session.total_tokens > 0 && `, ${session.total_tokens.toLocaleString()} tok`}

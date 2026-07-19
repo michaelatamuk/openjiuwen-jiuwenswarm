@@ -16,30 +16,11 @@ import PlusIcon from '../../assets/sidebar/plus.svg?react';
 import logoIcon from '/logo.svg';
 import AdvancedConfigIcon from '../../assets/sidebar/advanced-config-new.svg?react';
 import UpdateIcon from '../../assets/sidebar/advanced-config.svg?react';
+import TracehoundIcon from '../../assets/sidebar/tracehound.svg?react';
 import WorkIcon from '../../assets/工作.svg?react';
 import SkillDesignIcon from '../../assets/技能.svg?react';
 import AgentDesignIcon from '../../assets/智能体.svg?react';
 import MoreDesignIcon from '../../assets/更多.svg?react';
-import dialogueIcon from '../../assets/sidebar/dialogue.svg';
-import agentIcon from '../../assets/sidebar/agent.svg';
-import sessionIcon from '../../assets/sidebar/session.svg';
-import heartbeatIcon from '../../assets/sidebar/heartbeat.svg';
-import cronIcon from '../../assets/sidebar/cron.svg';
-import skillIcon from '../../assets/sidebar/skill.svg';
-import channelIcon from '../../assets/sidebar/channel.svg';
-import pluginIcon from '../../assets/sidebar/plugin.svg';
-import configIcon from '../../assets/sidebar/config.svg';
-import webIcon from '../../assets/sidebar/web.svg';
-import logsIcon from '../../assets/sidebar/logs.svg';
-import plusIcon from '../../assets/sidebar/plus.svg';
-import logoIcon from '../../assets/sidebar/logo.svg';
-import advancedConfigIcon from '../../assets/sidebar/advanced-config-new.svg';
-import collapseIcon from '../../assets/sidebar/collapse.svg';
-import updateIcon from '../../assets/sidebar/advanced-config.svg';
-import tracehoundIcon from '../../assets/sidebar/tracehound.svg';
-import appearanceSystemIcon from '../../assets/sidebar/appearance-system.svg';
-import appearanceDarkIcon from '../../assets/sidebar/appearance-dark.svg';
-import appearanceLightIcon from '../../assets/sidebar/appearance-light.svg';
 import { webRequest } from '../../services/webClient';
 
 type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
@@ -67,27 +48,6 @@ const teamNavIcon = (
   </svg>
 );
 const mainNavItems: NavItem[] = [
-  { key: 'chat', labelKey: 'nav.chat', icon: <img src={dialogueIcon} alt="" /> },
-  { key: 'agents', labelKey: 'nav.agent', icon: <img src={agentIcon} alt="" /> },
-  { key: 'sessions', labelKey: 'nav.sessions', icon: <img src={sessionIcon} alt="" /> },
-  {
-    key: 'teams',
-    labelKey: 'nav.teams',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a8.96 8.96 0 01-12 0m12 0a3.75 3.75 0 00-6 0m6 0A8.96 8.96 0 0012 15.75a8.96 8.96 0 00-6 2.97m12 0A9 9 0 1012 21a8.96 8.96 0 006-2.28zM15 9.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-      </svg>
-    ),
-  },
-  { key: 'heartbeat', labelKey: 'nav.heartbeat', icon: <img src={heartbeatIcon} alt="" /> },
-  { key: 'cron', labelKey: 'nav.cron', icon: <img src={cronIcon} alt="" /> },
-  { key: 'skills', labelKey: 'nav.skills', icon: <img src={skillIcon} alt="" /> },
-  { key: 'channels', labelKey: 'nav.channels', icon: <img src={channelIcon} alt="" /> },
-  { key: 'extensions', labelKey: 'nav.extensions', icon: <img src={pluginIcon} alt="" /> },
-  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <img src={tracehoundIcon} alt="" /> },
-];
-
-const mainNavItems: NavItem[] = [
   { key: 'chat', labelKey: 'nav.work', icon: <WorkIcon aria-hidden /> },
   { key: 'skills', labelKey: 'nav.skills', icon: <SkillDesignIcon aria-hidden /> },
   { key: 'channels', labelKey: 'nav.channels', icon: <ChannelIcon aria-hidden /> },
@@ -101,6 +61,7 @@ const moreNavItems: NavItem[] = [
   { key: 'browserpanel', labelKey: 'nav.browser', icon: <WebIcon aria-hidden /> },
   { key: 'configpanel', labelKey: 'nav.config', icon: <ConfigIcon aria-hidden /> },
   { key: 'updatepanel', labelKey: 'nav.update', icon: <UpdateIcon aria-hidden /> },
+  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <TracehoundIcon aria-hidden /> },
 ];
 
 // Advanced Config Panel Component

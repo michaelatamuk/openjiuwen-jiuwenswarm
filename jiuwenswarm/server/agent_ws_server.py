@@ -2492,23 +2492,6 @@ class AgentWebSocketServer:
         offset = max(0, offset)
 
         try:
-            if sessions_dir.exists():
-                for entry in sorted(sessions_dir.iterdir(), key=lambda e: e.stat().st_mtime, reverse=True):
-                    if not entry.is_dir():
-                        continue
-                    # 强制跳过缓存，确保获取跨进程写入的最新数据（如 Gateway 的 /color 设置）
-                    meta = get_session_metadata(entry.name, cache_bust=True)
-                    if not meta:
-                        meta = {
-                            "session_id": entry.name,
-                            "channel_id": "",
-                            "title": "",
-                            "message_count": 0,
-                            "last_message_at": entry.stat().st_mtime,
-                            "round_id": 0,
-                            "total_tokens": 0,
-                        }
-                    sessions.append(meta)
             sessions, total = get_all_sessions_metadata(limit=limit, offset=offset)
         except Exception as exc:
             logger.warning("[AgentWebSocketServer] 获取会话列表失败: %s", exc)
