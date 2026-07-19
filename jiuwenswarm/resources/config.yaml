@@ -627,6 +627,13 @@ context_headroom:
   warn_ratio: 0.60    # fraction of context window used before moderate nudge
   critical_ratio: 0.80  # fraction used before strong conciseness directive
 
+# 验证器感知断路器：当相同的测试失败连续出现时中断循环，强制 Agent 重新思考策略
+verifier_circuit_breaker:
+  # 总开关。开启后自动注册 VerifierCircuitBreakerRail
+  enabled: false
+  # 相同验证器失败连续出现多少次后注入"停止修补，重新思考"指令
+  break_after: 3
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}
@@ -709,13 +716,6 @@ execution_guard:
     global_breaker_threshold: 30
     # 未知/错误工具连续调用达到该次数时停止重试并中断
     unknown_tool_threshold: 10
-
-# 验证器感知断路器：当相同的测试失败连续出现时中断循环，强制 Agent 重新思考策略
-verifier_circuit_breaker:
-  # 总开关。开启后自动注册 VerifierCircuitBreakerRail
-  enabled: false
-  # 相同验证器失败连续出现多少次后注入"停止修补，重新思考"指令
-  break_after: 3
 
 channels:
   web:
