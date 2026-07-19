@@ -622,6 +622,11 @@ output_format:
   path: /app/task.md  # task description file to extract output format from
   max_chars: 800      # maximum characters of extracted content to inject
 
+context_headroom:
+  enabled: false      # inject conciseness directives as the context window fills up
+  warn_ratio: 0.60    # fraction of context window used before moderate nudge
+  critical_ratio: 0.80  # fraction used before strong conciseness directive
+
 email_settings:
   email_address: ${EMAIL_ADDRESS}
   token: ${EMAIL_TOKEN}
