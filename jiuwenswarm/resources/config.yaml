@@ -1018,6 +1018,19 @@ team:
   storage:
     type: sqlite
 
+  # 子 Agent 输出质量审核：验证层对每个 sub-agent 完成结果打分，leader 获得 result + score
+  verification:
+    enabled: false              # 总开关（默认关闭）
+    block_on_fail: false        # FAIL 时阻塞 leader 合并步骤
+    auto_rework: false          # 自动创建 rework 任务
+    pass_threshold: 70          # ≥ 此分数视为 PASS
+    rework_threshold: 40        # < 此分数视为 FAIL
+    skip_patterns:              # 跳过包含这些关键词的任务标题
+      - "heartbeat"
+      - "ping"
+      - "sync"
+    model:                      # 可选：专用审核模型（空 = 继承默认模型）
+
 mcp:
   servers: []
   # 示例：

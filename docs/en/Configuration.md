@@ -423,6 +423,11 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `team.verification.enabled` | Enable the team verification layer; a reviewer agent scores each sub-agent output and the leader receives result + score | `false` |
+| `team.verification.block_on_fail` | Block leader consolidation when a sub-agent result scores below `rework_threshold` | `false` |
+| `team.verification.pass_threshold` | Minimum score (0–100) for a PASS verdict | `70` |
+| `team.verification.rework_threshold` | Score below which a FAIL verdict is issued | `40` |
+| `team.verification.auto_rework` | Automatically create rework tasks when a sub-agent fails verification | `false` |
 
 <a id="dotenv-configuration"></a>
 
