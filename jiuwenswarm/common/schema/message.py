@@ -15,6 +15,7 @@ class ReqMethod(Enum):
     CHAT_RESUME = "chat.resume"
     CHAT_CANCEL = "chat.interrupt"
     CHAT_ANSWER = "chat.user_answer"
+    CHAT_SWARMFLOW_REPLY = "chat.swarmflow_reply"
     HISTORY_GET = "history.get"
     COMMAND_BTW = "command.btw"
     COMMAND_ADD_DIR = "command.add_dir"
@@ -63,6 +64,7 @@ class ReqMethod(Enum):
     MEMORY_COMPUTE = "memory.compute"
 
     PROACTIVE_TICK = "proactive.tick"  # Trigger proactive recommendation tick (from Cron)
+    COMMAND_GOAL = "command.goal"
 
     FILES_LIST = "files.list"
     FILES_GET = "files.get"
@@ -76,6 +78,8 @@ class ReqMethod(Enum):
     AGENTS_ENABLE = "agents.enable"
     AGENTS_DISABLE = "agents.disable"
     AGENTS_TOOLS_LIST = "agents.tools_list"
+    AGENT_SWITCH = "3rdagent.switch"
+    AGENT_LIST = "3rdagent.list"
 
     SKILLS_MARKETPLACE_LIST = "skills.marketplace.list"
     SKILLS_LIST = "skills.list"
@@ -227,6 +231,10 @@ class EventType(Enum):
     CHAT_ASK_USER_QUESTION = "chat.ask_user_question"
     PLAN_APPROVAL_REQUIRED = "plan.approval_required"
     CHAT_SESSION_RESULT = "chat.session_result"
+    GOAL_SNAPSHOT = "goal.snapshot"
+    GOAL_UPDATED = "goal.updated"
+    RUNTIME_ACCEPTED = "runtime.accepted"
+    EXECUTION_ERROR = "execution.error"
     TEAM_MEMBER = "team.member"
     TEAM_TASK = "team.task"
     TEAM_MESSAGE = "team.message"

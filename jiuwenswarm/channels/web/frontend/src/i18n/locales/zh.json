@@ -416,6 +416,35 @@
     "pending": "待处理",
     "completed": "已完成"
   },
+  "goal": {
+    "formSubmit": "确定",
+    "formCancel": "取消",
+    "editTitle": "编辑目标",
+    "toolbarTag": "目标",
+    "closeTag": "取消目标",
+    "badge": "设为目标",
+    "status": {
+      "active": "进行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "blocked": "已阻塞"
+    },
+    "action": {
+      "editTooltip": "编辑目标",
+      "pauseTooltip": "暂停目标",
+      "resumeTooltip": "恢复目标",
+      "deleteTooltip": "删除目标"
+    },
+    "completedCardTitle": "目标已完成",
+    "completedMessageFallback": "目标已完成。",
+    "editStaleWarning": "目标在编辑期间已经完成，这次修改未保存。如需设置新目标，请重新通过「+」创建。",
+    "detail": {
+      "attempts": "已执行次数",
+      "tokens": "累计 Token",
+      "lastAssessment": "最近评估",
+      "lastStopReason": "最近停止原因"
+    }
+  },
   "sessions": {
     "title": "会话管理",
     "subtitle": "浏览并管理会话与文件",
@@ -681,6 +710,21 @@
       "saveGeneric": "保存失败，请稍后重试",
       "wechatNumericInvalid": "{{field}} 需为 {{min}}–{{max}} 之间的有效数值",
       "wechatBackoffOrder": "backoff_max_sec 不得小于 backoff_base_sec"
+    },
+    "feishuApps": {
+      "defaultAppName": "飞书默认应用",
+      "legacyDefaultAppName": "默认应用",
+      "unnamedAppName": "未命名飞书应用",
+      "appNameTemplate": "飞书应用 {{index}}",
+      "appNamePlaceholder": "应用名称",
+      "collapseConfig": "收起应用配置",
+      "expandConfig": "展开应用配置",
+      "defaultBadge": "默认",
+      "setDefault": "设为默认",
+      "setDefaultAria": "设为默认应用",
+      "appIdNotConfigured": "未配置 app_id",
+      "deleteApp": "删除应用",
+      "addApp": "添加应用"
     }
   },
   "config": {
@@ -759,6 +803,7 @@
       "teamMemberPromptHint": "提示词",
       "teamMemberAgentKey": "Agent Key",
       "symphonyEnabled": "启用技能编排",
+      "symphonyDynamicGraphEnabled": "启用动态图谱",
       "skillRetrievalEnabled": "启用技能检索",
       "skillRetrievalBuildBranchingFactor": "拆分阈值基数",
       "skillRetrievalBuildMaxDepth": "最大树深",
@@ -781,8 +826,13 @@
       "proactiveMaxPerDay": "每日推荐上限",
       "proactiveMaxRounds": "每次检查对话轮数"
     },
+    "defaults": {
+      "teamLeaderDisplayName": "团队领导",
+      "teamLeaderPersona": "天才项目管理专家，擅长任务分解和团队协调"
+    },
     "keyHelp": {
       "skillCreate": "建议先安装 `skill-creator` 和 `teamskill-creator`，再开启",
+      "symphonyDynamicGraphEnabled": "关闭后仅使用静态图谱，已有运行时数据会保留。",
       "skillRetrievalBuildRootCategories": "直接编辑包含 tree_root_categories 或 root_categories 的 YAML/JSON；页面会展示默认分层供参考。保存后会写入配置内容本身，而不是外部文件路径。"
     },
     "hideValue": "隐藏明文",
@@ -929,6 +979,7 @@
       "freeSearchDdg": "启用 DuckDuckGo（含 DDG via Jina）",
       "freeSearchBing": "启用 Bing",
       "enabled": "启用",
+      "dynamicGraph": "启用动态图谱",
       "kvCacheAffinity": "算力亲和（KV 释放）"
     },
     "permissionsTools": {
@@ -1024,7 +1075,9 @@
       "history": "执行历史"
     },
     "search": {
-      "placeholder": "请输入搜索内容"
+      "placeholder": "请输入搜索内容",
+      "noResults": "未找到相关模板，可换个关键词再试。",
+      "noResultsJobs": "未找到相关任务，可换个关键词再试。"
     },
     "table": {
       "name": "名称",
@@ -1999,7 +2052,15 @@
     "helpTitle": "使用说明",
     "help0": "扩展文件夹必须包含 rail.py 作为入口文件",
     "help1": "Rail 扩展文件必须继承 DeepAgentRail 或 AgentRail 基类",
-    "help2": "扩展文件会被保存到 ~/.jiuwenswarm/agent/workspace/extensions/ 目录"
+    "help2": "扩展文件会被保存到 ~/.jiuwenswarm/agent/workspace/extensions/ 目录",
+    "errors": {
+      "missingFolderPath": "缺少 folder_path 参数",
+      "folderNotFound": "文件夹不存在或不是目录：{{path}}",
+      "invalidFolderName": "文件夹名称 “{{name}}” 必须是有效的英文标识符",
+      "alreadyExists": "扩展 “{{name}}” 已存在",
+      "missingRailFile": "扩展文件夹必须包含 rail.py 文件",
+      "railValidationFailed": "rail.py 验证失败"
+    }
   },
   "ownerScopes": {
     "title": "分身权限配置",
@@ -2034,6 +2095,15 @@
   },
   "security": {
     "contentRetracted": "内容已因安全原因撤回"
+  },
+  "codeMode": {
+    "work": "工作",
+    "code": "Code",
+    "workDescription": "处理办公、协作和通用任务",
+    "codeDescription": "在项目目录中查看并修改代码",
+    "environment": "环境信息",
+    "changes": "变更",
+    "review": "审核"
   },
   "multiSession": {
     "title": "工作",
@@ -2074,7 +2144,7 @@
       "noProjectMatches": "暂无匹配项目",
       "noProjects": "暂无项目",
       "noConversations": "暂无会话",
-      "noSessions": "暂无触发记录",
+      "noSessions": "暂无执行记录",
       "startConversation": "从{{projectName}}开始新对话",
       "pinProject": "置顶项目",
       "unpinProject": "取消置顶项目",
@@ -2086,7 +2156,8 @@
       "rename": "重命名",
       "renamePlaceholder": "输入新名称",
       "deleteProject": "删除项目",
-      "deleteProjectDescription": "确定要移除“{{projectName}}”吗？项目下未置顶会话会临时归入默认项目。",
+      "deleteProjectDescription": "确定要移除“<name>{{projectName}}</name>”吗？项目下未置顶会话会临时归入默认项目。",
+      "defaultProjectName": "默认项目",
       "absolutePathError": "请输入绝对路径，例如 /Users/name/work/project",
       "errors": {
         "pathExists": "该项目路径已存在，请选择其他目录或直接从现有项目开始新对话",
@@ -2096,7 +2167,7 @@
       "confirm": "确定"
     },
     "runtime": { "processing": "处理中" },
-    "deleteDialog": { "title": "删除", "description": "确定删除“{{title}}”吗？此操作不可撤销。" },
+    "deleteDialog": { "title": "删除", "description": "确定删除“<name>{{title}}</name>”吗？此操作不可撤销。" },
     "notFound": { "title": "对话不存在或已删除", "newConversation": "新建对话" },
     "errors": { "delete": "删除对话失败", "create": "创建对话失败", "send": "发送消息失败" }
   },

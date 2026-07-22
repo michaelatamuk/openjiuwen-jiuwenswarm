@@ -6,8 +6,8 @@
 
 import { useTranslation } from 'react-i18next';
 import { useChatStore, useSessionStore, useTodoStore } from '../../stores';
-import { useEffect, useMemo, useRef } from 'react';
-import { FileText, Minimize2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { FileCheck2, FileText, Minimize2 } from 'lucide-react';
 import { webRequest } from '../../services/webClient';
 import { ArtifactsPanel, useSessionArtifactsCount } from '../ArtifactsPanel';
 import { TeamArea } from '../teamArea';
@@ -16,8 +16,11 @@ import { TaskPlanningPanel } from '../teamArea/TaskPlanningPanel';
 import { HarnessExtensionTree } from './HarnessExtensionTree';
 import { type TabType, type TeamDetailTab } from '../teamArea/shared';
 import type { TeamTask, TeamTaskStatus } from '../../stores/sessionStore';
-import type { TodoItem, TodoStatus } from '../../types';
+import type { ProjectInfo, TodoItem, TodoStatus } from '../../types';
 import teamProcessIcon from '../../assets/team-process.svg';
+import { CodeEnvironmentPanel } from '../../features/code-mode/CodeEnvironmentPanel';
+import { CodeReviewPanel } from '../../features/code-mode/CodeReviewPanel';
+import type { CodeReviewTarget } from '../../features/code-mode/types';
 import './ToolPanel.css';
 
 /** 规划/性能模式下把 TodoItem 降级映射为 TeamTask，复用 TaskPlanningPanel 紧凑态样式 */
@@ -40,15 +43,18 @@ function todoItemToTeamTask(todo: TodoItem): TeamTask {
 
 interface ToolPanelProps {
   sessionId?: string;
+  project?: ProjectInfo | null;
   isNewSessionPromotion?: boolean;
   teamAreaExpanded: boolean;
   teamAreaActiveTab: TabType;
   teamAreaActiveDetailTab: TeamDetailTab;
   teamAreaSelectedMemberId?: string;
+  codeReviewTarget?: CodeReviewTarget | null;
   setTeamAreaExpanded: (expanded: boolean) => void;
   setTeamAreaActiveTab: (tab: TabType) => void;
   setTeamAreaActiveDetailTab: (detailTab: TeamDetailTab) => void;
   setTeamAreaSelectedMemberId: (memberId: string) => void;
+  setCodeReviewTarget?: (target: CodeReviewTarget | null) => void;
 }
 
 function isEmptyValue(value: unknown): boolean {
@@ -88,6 +94,7 @@ function ExpandedSingleAgentArea({
   completedTasks,
   onTabChange,
   onCollapse,
+  reviewPanel,
 }: {
   activeTab: TabType;
   tasks: TeamTask[];
@@ -96,10 +103,11 @@ function ExpandedSingleAgentArea({
   completedTasks: number;
   onTabChange: (tab: TabType) => void;
   onCollapse: () => void;
+  reviewPanel?: ReactNode;
 }) {
   const { t } = useTranslation();
   const artifactsCount = useSessionArtifactsCount();
-  const resolvedTab = activeTab === 'artifacts' ? 'artifacts' : 'planning';
+  const resolvedTab = activeTab === 'artifacts' ? 'artifacts' : activeTab === 'review' && reviewPanel ? 'review' : 'planning';
   const tabs = [
     {
       key: 'planning',
@@ -113,7 +121,8 @@ function ExpandedSingleAgentArea({
       count: artifactsCount,
       icon: <FileText size={16} />,
     },
-  ] as const;
+    ...(reviewPanel ? [{ key: 'review' as const, label: t('codeMode.review'), icon: <FileCheck2 size={16} /> }] : []),
+  ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-card">
@@ -127,10 +136,10 @@ function ExpandedSingleAgentArea({
                   ? 'bg-secondary font-medium text-text'
                   : 'text-text-muted hover:bg-secondary/50 hover:text-text'
               }`}
-              onClick={() => onTabChange(tab.key)}
+              onClick={() => onTabChange(tab.key as TabType)}
             >
               {tab.icon}
-              {tab.label} ({tab.count})
+              {tab.label}{'count' in tab ? ` (${tab.count})` : ''}
             </button>
           ))}
         </div>
@@ -149,6 +158,8 @@ function ExpandedSingleAgentArea({
           <div className="flex min-w-0 flex-1 overflow-hidden">
             <ArtifactsPanel />
           </div>
+        ) : resolvedTab === 'review' && reviewPanel ? (
+          <div className="flex min-w-0 flex-1 overflow-hidden">{reviewPanel}</div>
         ) : (
           <TaskPlanningPanel
             variant="expanded"
@@ -166,15 +177,18 @@ function ExpandedSingleAgentArea({
 
 export function ToolPanel({
   sessionId,
+  project = null,
   isNewSessionPromotion = false,
   teamAreaExpanded,
   teamAreaActiveTab,
   teamAreaActiveDetailTab,
   teamAreaSelectedMemberId,
+  codeReviewTarget = null,
   setTeamAreaExpanded,
   setTeamAreaActiveTab,
   setTeamAreaActiveDetailTab,
   setTeamAreaSelectedMemberId,
+  setCodeReviewTarget,
 }: ToolPanelProps) {
   const { t } = useTranslation();
   const { isConnected, memoryUsage, setMemoryUsage } = useSessionStore();
@@ -195,6 +209,11 @@ export function ToolPanel({
   const messages = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.messages ?? []);
   // 规划/性能模式下复用 TaskPlanningPanel 紧凑态：把 TodoItem 降级为 TeamTask
   const todos = useTodoStore((s) => s.runtimes[activeSessionId ?? '']?.todos ?? []);
+  const codeProject = project?.work_mode === 'code' && !project.is_default ? project : null;
+  const canReviewCode = Boolean(codeProject && sessionId && sessionId !== 'new');
+  const codeReviewPanel = canReviewCode && codeProject && sessionId
+    ? <CodeReviewPanel project={codeProject} sessionId={sessionId} target={codeReviewTarget} />
+    : undefined;
   const todoTeamTasks = useMemo(() => todos.map(todoItemToTeamTask), [todos]);
   const todoCompletedTasks = useMemo(
     () => todos.filter((t) => t.status === 'completed').length,
@@ -394,6 +413,7 @@ export function ToolPanel({
               completedTasks={todoCompletedTasks}
               onTabChange={setTeamAreaActiveTab}
               onCollapse={() => setTeamAreaExpanded(false)}
+              reviewPanel={codeReviewPanel}
             />
           </div>
         </div>
@@ -421,6 +441,7 @@ export function ToolPanel({
               setTeamAreaExpanded(false);
               setTeamAreaSelectedMemberId('');
             }}
+            reviewPanel={codeReviewPanel}
           />
         </div>
       </div>
@@ -478,6 +499,19 @@ export function ToolPanel({
             />
           </div>
         )}
+
+        {canReviewCode && codeProject && sessionId ? (
+          <CodeEnvironmentPanel
+            project={codeProject}
+            sessionId={sessionId}
+            isProcessing={isProcessing}
+            onReview={() => {
+              setCodeReviewTarget?.(null);
+              setTeamAreaActiveTab('review');
+              setTeamAreaExpanded(true);
+            }}
+          />
+        ) : null}
 
         {/* 状态显示 - 只在收起模式下显示 */}
         {!teamAreaExpanded && (
