@@ -359,7 +359,10 @@ const HIDDEN_CONFIG_KEYS = new Set([
 const MEMORY_KEYS = new Set(["memory_forbidden_enabled", "memory_forbidden_description"]);
 const A2UI_KEYS = new Set(["a2ui_enabled"]);
 const SWARMFLOW_KEYS = new Set(["swarmflow_enabled"]);
-const SYMPHONY_BOOLEAN_KEYS = new Set(["symphony_enabled"]);
+const SYMPHONY_BOOLEAN_KEYS = new Set([
+  "symphony_enabled",
+  "symphony_dynamic_graph_enabled",
+]);
 const SKILL_RETRIEVAL_BOOLEAN_KEYS = new Set([
   "skill_retrieval_enabled",
 ]);
@@ -641,6 +644,7 @@ function getBooleanKeyLabel(key: string, t: (key: string) => string): string {
     a2ui_enabled: t('config.booleanLabels.enabled'),
     swarmflow_enabled: t('config.booleanLabels.enabled'),
     symphony_enabled: t('config.booleanLabels.enabled'),
+    symphony_dynamic_graph_enabled: t('config.booleanLabels.dynamicGraph'),
     skill_retrieval_enabled: t('config.booleanLabels.enabled'),
     proactive_recommendation_enabled: t('config.booleanLabels.enabled'),
   };
@@ -717,6 +721,7 @@ const KEY_DISPLAY_I18N: Record<string, string> = {
   model: "config.keys.agentModel",
   skills: "config.keys.agentSkills",
   symphony_enabled: "config.keys.symphonyEnabled",
+  symphony_dynamic_graph_enabled: "config.keys.symphonyDynamicGraphEnabled",
   skill_retrieval_enabled: "config.keys.skillRetrievalEnabled",
   skill_retrieval_build_branching_factor: "config.keys.skillRetrievalBuildBranchingFactor",
   skill_retrieval_build_max_depth: "config.keys.skillRetrievalBuildMaxDepth",
@@ -744,6 +749,7 @@ const KEY_PLACEHOLDER_I18N: Record<string, string> = {
 };
 const KEY_LABEL_HINT_I18N: Record<string, string> = {
   skill_create: "config.keyHelp.skillCreate",
+  symphony_dynamic_graph_enabled: "config.keyHelp.symphonyDynamicGraphEnabled",
   skill_retrieval_build_root_categories: "config.keyHelp.skillRetrievalBuildRootCategories",
 };
 
@@ -754,7 +760,8 @@ const KEY_SORT_PRIORITY: Record<string, number> = {
   free_search_ddg_enabled: 0,
   free_search_bing_enabled: 1,
   symphony_enabled: 0,
-  skill_retrieval_enabled: 1,
+  symphony_dynamic_graph_enabled: 1,
+  skill_retrieval_enabled: 2,
   proactive_recommendation_enabled: 0,
   proactive_recommendation_max_recommend_per_day: 2,
   proactive_recommendation_max_rounds_per_tick: 3,
@@ -2888,6 +2895,21 @@ function TeamItemSection({
     return labels[field] || field;
   };
 
+  // 内置默认 leader 的 display_name/persona 是种子文案，与当前 UI 语言无关；
+  // 未被用户改动时按当前语言展示对应译文，避免切换语言后仍显示另一语言的默认文案。
+  // 只影响展示，不改动 team.leader 里的实际值，因此不会把翻译结果回写进全局 config.yaml。
+  const LEADER_DEFAULT_TEXT_KEYS: Record<string, string> = {
+    display_name: "config.defaults.teamLeaderDisplayName",
+    persona: "config.defaults.teamLeaderPersona",
+  };
+
+  const getLeaderInputDisplayValue = (field: string, rawValue: string): string => {
+    const i18nKey = LEADER_DEFAULT_TEXT_KEYS[field];
+    if (!i18nKey) return rawValue;
+    const isUnmodifiedDefault = ["zh", "en"].some((lng) => rawValue === t(i18nKey, { lng }));
+    return isUnmodifiedDefault ? t(i18nKey) : rawValue;
+  };
+
   const getMemberFieldLabel = (field: string): string => {
     const labels: Record<string, string> = {
       member_name: t("config.keys.teamMemberName"),
@@ -3008,7 +3030,7 @@ function TeamItemSection({
                   <div className="flex-1">
                     <input
                       type="text"
-                      value={team.leader[field] ?? ""}
+                      value={getLeaderInputDisplayValue(field, team.leader[field] ?? "")}
                       onChange={(e) => updateLeader(field, e.target.value)}
                       maxLength={field === "persona" ? 2048 : 64}
                       className={`w-full rounded border bg-bg px-2 py-1 text-text text-xs ${field === "member_name" && memberNameError?.field === 'leader' ? "border-danger" : "border-border"}`}

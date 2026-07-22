@@ -441,6 +441,13 @@ class GatewayServer:
         return text or None
 
     @staticmethod
+    def _connection_agent_type(ws: Any) -> str:
+        """返回当前 WS 连接绑定的 agent_type（缺省 jiuwenswarm）。"""
+        raw = getattr(ws, "_gateway_agent_type", None)
+        text = str(raw or "jiuwenswarm").strip().lower()
+        return text or "jiuwenswarm"
+
+    @staticmethod
     def _invoke_local_handler(
         handler: Callable[..., Awaitable[None]],
         ctx: _LocalHandlerContext,
@@ -525,6 +532,32 @@ class GatewayServer:
         if session_key is None:
             return False
         return self._session_to_client.get(session_key) is ws
+
+    def get_active_session_ids(
+        self,
+        channel_id: str,
+        exclude_ws: Any = None,
+    ) -> set[str]:
+        """返回在指定 channel 下、仍处于活跃连接绑定的 session_id 集合。
+
+        用于 session.list 标记 active_in_window，供前端在 /resume 前拦截冲突会话。
+        排除 exclude_ws（通常是发起 session.list 请求的连接本身），并跳过已关闭的 ws，
+        与实时防线（forward 阶段 SESSION_IN_USE 检查）口径保持一致。
+        """
+        active: set[str] = set()
+        for key, client_ws in self._session_to_client.items():
+            if not isinstance(key, tuple) or len(key) < 2:
+                continue
+            if key[0] != channel_id:
+                continue
+            if client_ws is exclude_ws:
+                continue
+            if bool(getattr(client_ws, "closed", False)):
+                continue
+            session_id = key[1]
+            if isinstance(session_id, str) and session_id:
+                active.add(session_id)
+        return active
 
     @staticmethod
     def _extract_routing_session_id(msg, *, include_top_level: bool = True) -> str | None:
@@ -950,6 +983,7 @@ class GatewayServer:
 
         ws_user_id = self._extract_ws_user_id(ws)
         setattr(ws, "_gateway_user_id", ws_user_id)
+        setattr(ws, "_gateway_agent_type", "jiuwenswarm")
         uid_marker = "" if ws_user_id else " uid_empty=yes"
         logger.info(
             "[Gateway] WS handshake X-User-Id: user_id=%r%s channel=%s path=%s",
@@ -1164,6 +1198,10 @@ class GatewayServer:
             # 确保 mode 被设置到 params 中，以便后续转发到 AgentServer
             params = dict(params)
             params.setdefault("mode", mode.value)
+
+            # 连接级 agent_type 为 SSOT，注入后续转发请求
+            # （3rdagent.switch 由 TUI local_handler 写回 ws._gateway_agent_type）
+            params["agent_type"] = self._connection_agent_type(ws)
 
             # V2: agent_ref 全链路透传（阶段2）。
             # tui 客户端从不发 agent_ref（_agent_ref 恒 None）→ 按 mode/agent_id 合成 AgentRef，
@@ -1416,6 +1454,15 @@ async def _run(
         client = agent_server_ext.get_client()
     else:
         client = WebSocketAgentServerClient(ping_interval=20.0, ping_timeout=600.0)
+
+    from jiuwenswarm.gateway.routing.third_agent import get_unsupported_third_agent
+
+    third_agent_ext = extension_registry.get_third_agent_extension()
+    if third_agent_ext is not None:
+        logger.info("[App] using extension ThirdAgent: %s", third_agent_ext.metadata.name)
+        third_agent = third_agent_ext.get_third_agent()
+    else:
+        third_agent = get_unsupported_third_agent()
 
     # 如果是 WebSocket 客户端，需要连接；如果是 YuanrongFrontendAgentClient，无需连接
     if isinstance(client, WebSocketAgentServerClient):
@@ -1678,6 +1725,7 @@ async def _run(
             CliRouteBindParams(
                 agent_client=client,
                 message_handler=message_handler,
+                third_agent=third_agent,
                 on_config_saved=_on_config_saved,
                 path="/tui",
                 channel_id="tui",
@@ -1740,6 +1788,8 @@ async def _run(
                 os.getenv("A2A_SERVER_APP_VERSION", "0.1.0")
             ).strip()
                         or "0.1.0",
+            expose_reasoning=str(os.getenv("A2A_SERVER_EXPOSE_REASONING", "true")).strip().lower()
+                             not in {"0", "false", "no", "off"},
         ),
         _DummyBus(),
     )

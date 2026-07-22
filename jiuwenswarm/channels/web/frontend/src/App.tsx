@@ -25,6 +25,7 @@ import {
   exportShareImageNode,
   type ShareImageSnapshot,
 } from './features/shareImageExport';
+import type { CodeReviewTarget } from './features/code-mode/types';
 
 import { FEATURE_APP_UPDATER_UI } from './featureFlags';
 import { HeartbeatMessageModal } from './features/HeartbeatMessageModal';
@@ -40,7 +41,7 @@ import {
   normalizeToolCallPayload,
   normalizeToolResultPayload,
 } from './features/tool-events/toolEventNormalizer';
-import { useWebSocket } from './hooks';
+import { useWebSocket, mergePersistedGoalCompletionMessages } from './hooks';
 import { webRequest } from './services/webClient';
 import { useTeamPanelState } from './features/teamPanelState';
 import { AgentMode, MediaItem, UserAnswer, ModelEntry, type Session } from './types';
@@ -49,6 +50,7 @@ import {
   useSessionStore,
   useChatStore,
   useTodoStore,
+  useGoalStore,
   useHarnessStore,
   useWorkspaceStore,
   useCronStore,
@@ -415,16 +417,33 @@ function AppContent() {
     return session?.title?.trim() ?? '';
   }, [currentSession, sessions, sessionId]);
   const sessionProjectName = useMemo(() => {
-    const session = sessions.find((s) => s.session_id === sessionId);
+    const session = currentSession?.session_id === sessionId
+      ? currentSession
+      : sessions.find((s) => s.session_id === sessionId);
     if (!session?.project_dir) return '';
     const project = projects.find((item) => !item.is_default && item.project_dir === session.project_dir);
     return project?.name?.trim() ?? '';
-  }, [projects, sessions, sessionId]);
+  }, [currentSession, projects, sessions, sessionId]);
+  const sessionProject = useMemo(() => {
+    const session = currentSession?.session_id === sessionId
+      ? currentSession
+      : sessions.find((item) => item.session_id === sessionId);
+    if (!session) return null;
+    return projects.find((project) => (
+      (!project.is_default && project.project_id === session.project_id)
+      || Boolean(project.project_dir && project.project_dir === session.project_dir)
+    )) ?? null;
+  }, [currentSession, projects, sessions, sessionId]);
   const mode = useSessionStore((s) => s.runtimes[sessionId]?.mode ?? 'agent');
   const teamTaskEvents = useSessionStore((s) => s.runtimes[sessionId]?.teamTaskEvents ?? []);
   const teamTasks = useSessionStore((s) => s.runtimes[sessionId]?.teamTasks ?? []);
   const teamMembers = useSessionStore((s) => s.runtimes[sessionId]?.teamMembers ?? []);
   const [chatPanelWidthPct, setChatPanelWidthPct] = useState(33.33);
+  const [codeReviewTarget, setCodeReviewTarget] = useState<CodeReviewTarget | null>(null);
+
+  useEffect(() => {
+    setCodeReviewTarget(null);
+  }, [sessionId]);
 
   const handleToggleDetailPanel = useCallback((expanded: boolean) => {
     if (expanded && mode !== 'team' && teamAreaActiveTab === 'team') {
@@ -432,6 +451,12 @@ function AppContent() {
     }
     setTeamAreaExpanded(expanded);
   }, [mode, setTeamAreaActiveTab, setTeamAreaExpanded, teamAreaActiveTab]);
+
+  const handleOpenCodeReview = useCallback((target: CodeReviewTarget) => {
+    setCodeReviewTarget(target);
+    setTeamAreaActiveTab('review');
+    setTeamAreaExpanded(true);
+  }, [setTeamAreaActiveTab, setTeamAreaExpanded]);
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -536,15 +561,16 @@ function AppContent() {
 
   const toolPanelHasContent = useMemo(() => {
     const hasMessages = messages.length > 0;
+    const hasCodeEnvironment = sessionProject?.work_mode === 'code' && sessionId !== NEW_CONVERSATION_ID;
     switch (mode) {
       case 'auto_harness':
         return Boolean(extensionReady?.runtimePath) || hasMessages;
       case 'team':
-        return isRestoringTeamHistory || teamTaskEvents.length > 0 || teamTasks.length > 0 || teamMembers.length > 0 || hasMessages;
+        return isRestoringTeamHistory || teamTaskEvents.length > 0 || teamTasks.length > 0 || teamMembers.length > 0 || hasMessages || hasCodeEnvironment;
       default:
-        return todos.length > 0 || hasMessages;
+        return todos.length > 0 || hasMessages || hasCodeEnvironment;
     }
-  }, [mode, todos.length, teamTaskEvents.length, teamTasks.length, teamMembers.length, extensionReady?.runtimePath, messages.length, isRestoringTeamHistory]);
+  }, [mode, todos.length, teamTaskEvents.length, teamTasks.length, teamMembers.length, extensionReady?.runtimePath, messages.length, isRestoringTeamHistory, sessionId, sessionProject?.work_mode]);
   // 单 agent 模式同样复用集群模式的展开布局（百分比宽度 + 可拖拽分割线），
   // 避免右侧面板与聊天面板平分空间导致宽度与集群模式不一致；auto_harness 走收起态分支。
   const isTeamAreaExpanded = mode !== 'auto_harness' && teamAreaExpanded && toolPanelHasContent;
@@ -560,6 +586,12 @@ function AppContent() {
     cancel,
     supplement,
     sendUserAnswer,
+    setGoalObjective,
+    pauseGoal,
+    resumeGoal,
+    clearGoal,
+    refreshGoal,
+    drainTaskQueueIfIdle,
   } = useWebSocket({
     activeSessionId: sessionId,
     onConnect: () => console.log('Connected'),
@@ -1283,7 +1315,10 @@ function AppContent() {
       sessionId: sessionId,
       onReady: (messages, totalPages) => {
         historyRestoreFromPanelHintRef.current = false;
-        replaceHistoryMessages(sessionId, messages);
+        // "目标完成"回显消息纯前端合成，从未写进后端 session 历史，history.get 拉回来的
+        // messages 里不会有它——按时间戳把本地持久化的记录补回去，见
+        // hooks/useWebSocket.ts 的 applyIncomingGoal/mergePersistedGoalCompletionMessages。
+        replaceHistoryMessages(sessionId, mergePersistedGoalCompletionMessages(sessionId, messages));
         const restoredTotalPages = totalPages ?? 1;
         setHistoryPagerMeta(sessionId, {
           loadedPages: 1,
@@ -1298,7 +1333,7 @@ function AppContent() {
         });
       },
       onEmpty: (emptyTotalPages) => {
-        replaceHistoryMessages(sessionId, []);
+        replaceHistoryMessages(sessionId, mergePersistedGoalCompletionMessages(sessionId, []));
         const restoredTotalPages = emptyTotalPages ?? 1;
         setHistoryPagerMeta(sessionId, {
           loadedPages: 1,
@@ -1448,6 +1483,29 @@ function AppContent() {
     startBackgroundHistoryPrefetch,
   ]);
 
+  // 会话切换/页面加载时主动拉一次当前 Goal 状态（协议文档 v2 §11 推荐流程）——不然刷新页面
+  // 后 GoalBar 要等下一次 goal.updated 推送才会重新出现，目标 paused/静默期时甚至会一直缺失
+  // （2026-07-21 真机联调发现，见 backend-requests.md #1 末尾）。新会话（promoted from 'new'）
+  // 同样可能已经有 Goal（欢迎页 armed 流程可以直接创建），不跳过。
+  // get 完如果 status 是 active，按 §11 第4步再补发一次流式 resume——不是"目标被暂停了要恢复"，
+  // 是"重新抢一次输出听筒"：切会话/刷新导致之前监听后端输出的那条连接断了，目标可能还在后台跑，
+  // 这时候没人在听它的实时输出（chat.delta/chat.reasoning 等）。resume 对一个本来就 active 的
+  // 目标发是幂等的（状态不会变），抢到听筒就能继续收到实时输出，抢不到收 runtime.accepted，
+  // 都不算错误。
+  useEffect(() => {
+    if (!isConnected || !sessionId || sessionId === NEW_CONVERSATION_ID) return;
+    if (!isRestorableSessionId(sessionId)) return;
+    void (async () => {
+      await refreshGoal(sessionId);
+      // 等 get 落地这段时间里用户可能已经切到别的会话，避免对着旧会话发 resume。
+      if (sessionIdRef.current !== sessionId) return;
+      const goal = useGoalStore.getState().runtimes[sessionId]?.goal;
+      if (goal?.status === 'active') {
+        void resumeGoal(sessionId);
+      }
+    })();
+  }, [isConnected, sessionId, refreshGoal, resumeGoal]);
+
   const requestComposerFocus = useCallback(() => {
     setComposerFocusNonce((nonce) => nonce + 1);
   }, []);
@@ -1455,7 +1513,9 @@ function AppContent() {
   const enterNewConversation = useCallback((targetMode: AgentMode = mode, options: NewConversationOptions = {}) => {
     const currentSessionId = sessionIdRef.current;
     const currentRuntime = useSessionStore.getState().getRuntime(currentSessionId);
-    const selectedModelName = currentRuntime?.selectedModelName ?? null;
+    // 新建会话固定使用配置的默认模型，不继承当前会话手动切换过的模型；
+    // 默认模型列表尚未加载完成时兜底沿用当前会话的模型，避免新会话没有模型可用。
+    const selectedModelName = useSessionStore.getState().defaultModelName ?? currentRuntime?.selectedModelName ?? null;
     const selectedProject = options.project ?? useWorkspaceStore.getState().selectedProject;
     const projectDir = selectedProject?.project_dir ?? currentRuntime?.projectDirectory ?? null;
     disposeInFlightHistoryHandles(
@@ -1521,12 +1581,14 @@ function AppContent() {
       const workContext = {
         project_id: baseWorkContext.project_id || preservedProject?.project_id,
         project_dir: baseWorkContext.project_dir || preservedProject?.project_dir,
+        work_mode: useWorkspaceStore.getState().workMode,
       };
       try {
         const createParams: Record<string, unknown> = {
           session_id: newSid,
           mode: runtimeSettings.mode,
           title: createConversationTitle(content).slice(0, 100),
+          work_mode: workContext.work_mode,
         };
         if (runtimeSettings.selectedModelName) {
           createParams.model = runtimeSettings.selectedModelName;
@@ -1548,6 +1610,7 @@ function AppContent() {
           {
             project_id: workContext.project_id,
             project_dir: workContext.project_dir,
+            work_mode: workContext.work_mode,
           },
         );
         // 迁移 'new' 会话的已选技能到新会话
@@ -1560,11 +1623,25 @@ function AppContent() {
         sessionIdRef.current = newSid;
         setSessionId(newSid);
         navigate({ kind: 'chat-session', sessionId: newSid }, { replace: true });
-        const sent = await sendMessage(content, newSid, mediaItems);
-        newConversationProjectRef.current = null;
-        if (!sent) {
-          useChatStore.getState().setInputValue(newSid, content);
+        const goalArmedOnNew = useGoalStore.getState().runtimes[NEW_CONVERSATION_ID]?.armed ?? false;
+        useGoalStore.getState().setArmed(NEW_CONVERSATION_ID, false);
+        if (goalArmedOnNew) {
+          // 欢迎页 "+" 选了「目标」：这条内容不走普通 chat.send，
+          // 本地落一条 user 消息（供徽章匹配）后改调 command.goal（见 InputArea.tsx 的同款分流逻辑）
+          useChatStore.getState().addMessage(newSid, {
+            id: `user-${Date.now()}`,
+            role: 'user',
+            content,
+            timestamp: new Date().toISOString(),
+          });
+          setGoalObjective(newSid, content);
+        } else {
+          const sent = await sendMessage(content, newSid, mediaItems);
+          if (!sent) {
+            useChatStore.getState().setInputValue(newSid, content);
+          }
         }
+        newConversationProjectRef.current = null;
       } catch (error) {
         useChatStore.getState().setProcessing(NEW_CONVERSATION_ID, false);
         useChatStore.getState().setThinking(NEW_CONVERSATION_ID, false);
@@ -1588,7 +1665,7 @@ function AppContent() {
     } else {
       useChatStore.getState().setInputValue(currentSessionId, content);
     }
-  }, [disposeInFlightHistoryHandles, mode, navigate, request, sendMessage, t]);
+  }, [disposeInFlightHistoryHandles, mode, navigate, request, sendMessage, setGoalObjective, t]);
 
   const handlePersistMedia = useCallback((content: string, mediaItems: MediaItem[]) => {
     const currentSessionId = sessionIdRef.current;
@@ -1686,7 +1763,7 @@ function AppContent() {
   ]);
 
   const handleRestoreSession = useCallback(
-    async (targetSessionId: string, targetMode?: string, targetSession?: Session) => {
+    async (targetSessionId: string, targetMode?: string, targetSession?: Session, options?: { skipHistoryLoad?: boolean }) => {
       if (!isRestorableSessionId(targetSessionId)) return;
 
       const resolvedMode = targetMode ?? targetSession?.mode ?? mode;
@@ -1720,7 +1797,9 @@ function AppContent() {
       }
       setActiveNav('chat');
       navigate({ kind: 'chat-session', sessionId: targetSessionId });
-      setHistoryBootstrapKey((k) => k + 1);
+      if (!options?.skipHistoryLoad) {
+        setHistoryBootstrapKey((k) => k + 1);
+      }
       requestComposerFocus();
       if (!targetSession) {
         void loadSessionMetadata(targetSessionId);
@@ -1767,6 +1846,7 @@ function AppContent() {
       useChatStore.getState().removeRuntime(deleteTarget.session_id);
       useTodoStore.getState().removeRuntime(deleteTarget.session_id);
       useHarnessStore.getState().removeRuntime(deleteTarget.session_id);
+      useGoalStore.getState().removeRuntime(deleteTarget.session_id);
       const deletingCurrent = sessionIdRef.current === deleteTarget.session_id;
       setDeleteTarget(null);
       await useWorkspaceStore.getState().refreshSessionWorkspace(deletedSession);
@@ -1955,14 +2035,21 @@ function AppContent() {
                       canExportShare={Boolean(sessionId && sessionId !== NEW_CONVERSATION_ID && (!isProcessing || isPaused))}
                       sessionTitle={sessionTitle}
                       sessionProjectName={sessionProjectName}
+                      sessionProject={sessionProject}
                       teamAreaExpanded={isTeamAreaExpanded}
                       autoFocusKey={composerFocusKey}
                       onNavigateToSkills={() => handleNavigate('skills')}
                       onToggleTeamArea={handleToggleDetailPanel}
+                      onOpenCodeReview={handleOpenCodeReview}
                       permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
                       onSavePermission={savePermissionSilent}
                       historyPager={chatHistoryPager}
                       isHistoryRestoring={isRestoringHistorySession}
+                      onSetGoal={setGoalObjective}
+                      onPauseGoal={pauseGoal}
+                      onResumeGoal={resumeGoal}
+                      onClearGoal={clearGoal}
+                      onDrainTaskQueueIfIdle={drainTaskQueueIfIdle}
                     />
                   </div>
                 </div>
@@ -1979,15 +2066,18 @@ function AppContent() {
                 {(toolPanelHasContent || isRestoringTeamHistory) && !showConversationNotFound && (
                   <ToolPanel
                     sessionId={sessionId}
+                    project={sessionProject}
                     isNewSessionPromotion={isNewSessionPromotion}
                     teamAreaExpanded={teamAreaExpanded}
                     teamAreaActiveTab={teamAreaActiveTab}
                     teamAreaActiveDetailTab={teamAreaActiveDetailTab}
                     teamAreaSelectedMemberId={teamAreaSelectedMemberId}
+                    codeReviewTarget={codeReviewTarget}
                     setTeamAreaExpanded={setTeamAreaExpanded}
                     setTeamAreaActiveTab={setTeamAreaActiveTab}
                     setTeamAreaActiveDetailTab={setTeamAreaActiveDetailTab}
                     setTeamAreaSelectedMemberId={setTeamAreaSelectedMemberId}
+                    setCodeReviewTarget={setCodeReviewTarget}
                   />
                 )}
               </div>
@@ -2041,7 +2131,26 @@ function AppContent() {
                 sessionId={sessionId}
                 onCreateViaChat={(initialInputValue) => requestSessionNavigation('new', { initialInputValue })}
                 onSelectSession={(session) => {
-                  if (typeof session === 'string') { void handleRestoreSession(session); return; }
+                  if (typeof session === 'string') {
+                    // 立即执行返回的 session_id 可能还未在后端创建（agent 刚开始执行），
+                    // 构造最小 Session 占位对象，让 upsertSessionMetadata 直接加入会话列表，
+                    // 避免 loadSessionMetadata 立即失败导致"对话不存在或已删除"。
+                    // 后续 cron 广播到达时会刷新会话列表补全完整元数据。
+                    // 跳过初始历史加载：session 是全新的，空响应的 replaceHistoryMessages
+                    // 会覆盖后续到达的广播消息。
+                    void handleRestoreSession(session, undefined, {
+                      session_id: session,
+                      title: '',
+                      project_id: '',
+                      project_dir: '',
+                      mode: 'agent',
+                      status: 'active',
+                      message_count: 0,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    }, { skipHistoryLoad: true });
+                    return;
+                  }
                   requestSessionNavigation(session);
                 }}
               />
