@@ -501,11 +501,15 @@ class CodeSkillUseInput(ConstructionInput):
 
     skill_mode: str = param_field(
         default=SkillUseRail.SKILL_MODE_ALL,
-        description="Skill exposure mode (ALL or AUTO_LIST) from react.skill_mode.",
+        description="Skill exposure mode (all, auto_list, or recommendation) from react.skill_mode.",
     )
     include_tools: bool = param_field(
         default=True,
         description="Whether SkillUseRail should expose regular skill tools.",
+    )
+    oracle_dir: str | None = param_field(
+        default=None,
+        description="Directory with scoring_matrix_*.json files for recommendation mode.",
     )
 
 
@@ -533,6 +537,7 @@ def build_code_skill_use(params: dict[str, Any], ctx: SwarmBuildContext) -> Any:
         return SkillUseRail(
             skills_dir=str(get_agent_skills_dir()),
             skill_mode=skill_mode,
+            oracle_dir=inp.oracle_dir,
             include_tools=inp.include_tools,
             disabled_skills=load_execution_disabled_skills(),
         )
