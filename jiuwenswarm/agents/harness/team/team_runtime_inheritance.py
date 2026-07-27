@@ -352,7 +352,9 @@ def build_member_rails(
     # Leader-only: TeamVerificationRail for quality assurance on teammate outputs.
     if role == "leader" and team_ws_root:
         try:
-            verification_cfg = (config or {}).get("team", {}).get("verification", {}) or {}
+            team_name = (team_workspace.team_id or "jiuwen_team").strip()
+            team_cfg = (config or {}).get("modes", {}).get("team", {}).get(team_name, {}) or {}
+            verification_cfg = team_cfg.get("verification", {}) or {}
             verification_enabled = bool(verification_cfg.get("enabled", True))
             if verification_enabled:
                 skip_patterns = set()
