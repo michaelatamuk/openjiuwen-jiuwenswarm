@@ -107,7 +107,12 @@ function ExpandedSingleAgentArea({
 }) {
   const { t } = useTranslation();
   const artifactsCount = useSessionArtifactsCount();
-  const resolvedTab = activeTab === 'artifacts' ? 'artifacts' : activeTab === 'review' && reviewPanel ? 'review' : 'planning';
+  const resolvedTab =
+    activeTab === 'artifacts' && artifactsCount > 0
+      ? 'artifacts'
+      : activeTab === 'review' && reviewPanel
+        ? 'review'
+        : 'planning';
   const tabs = [
     {
       key: 'planning',
@@ -115,12 +120,14 @@ function ExpandedSingleAgentArea({
       count: `${completedTasks}/${totalTasks}`,
       icon: <img src={teamProcessIcon} width={16} height={16} aria-hidden="true" />,
     },
-    {
-      key: 'artifacts',
-      label: t('artifacts.tab'),
-      count: artifactsCount,
-      icon: <FileText size={16} />,
-    },
+    ...(artifactsCount > 0
+      ? [{
+          key: 'artifacts' as const,
+          label: t('artifacts.tab'),
+          count: artifactsCount,
+          icon: <FileText size={16} />,
+        }]
+      : []),
     ...(reviewPanel ? [{ key: 'review' as const, label: t('codeMode.review'), icon: <FileCheck2 size={16} /> }] : []),
   ];
 
@@ -202,6 +209,7 @@ export function ToolPanel({
   const setTeamMembers = useSessionStore((s) => s.setTeamMembers);
   const setTeamTaskEvents = useSessionStore((s) => s.setTeamTaskEvents);
   const setTeamTasks = useSessionStore((s) => s.setTeamTasks);
+  const mergeTeamTaskProgressBaseline = useSessionStore((s) => s.mergeTeamTaskProgressBaseline);
   const setTeamMemberExecutionEvents = useSessionStore((s) => s.setTeamMemberExecutionEvents);
   const setTeamHistoryMessages = useSessionStore((s) => s.setTeamHistoryMessages);
   const setTeamHumanShareCommands = useSessionStore((s) => s.setTeamHumanShareCommands);
@@ -310,18 +318,25 @@ export function ToolPanel({
           current?.teamTaskEvents ?? [],
           (event) => event.task_id
         );
-        if (mergedTaskEvents.length > 0) {
-          setTeamTaskEvents(sessionId, mergedTaskEvents);
-        }
+        // Always apply — an empty restored list must clear stale events too.
+        setTeamTaskEvents(sessionId, mergedTaskEvents);
 
+        // History/snapshot is the authoritative board after restore. Never import
+        // live-only task_ids (LLM `id` orphans left in the waiting column from
+        // a prior optimistic upsert). Always setTeamTasks — including [] — so
+        // an empty restore actually clears those orphans instead of leaving
+        // the previous store contents untouched.
+        const restoredTaskIds = new Set(historyState.tasks.map((task) => task.task_id));
+        const liveTasksForMerge = (current?.teamTasks ?? []).filter((task) =>
+          restoredTaskIds.has(task.task_id)
+        );
         const mergedTasks = mergeById(
           historyState.tasks,
-          current?.teamTasks ?? [],
+          liveTasksForMerge,
           (task) => task.task_id
         );
-        if (mergedTasks.length > 0) {
-          setTeamTasks(sessionId, mergedTasks);
-        }
+        setTeamTasks(sessionId, mergedTasks);
+        mergeTeamTaskProgressBaseline(sessionId, historyState.taskProgressBaseline);
 
         const mergedExecutionEvents = mergeById(
           historyState.executionEvents,
@@ -354,7 +369,7 @@ export function ToolPanel({
     return () => {
       controller.abort();
     };
-  }, [isConnected, isNewSessionPromotion, mode, sessionId, setTeamHistoryMessages, setTeamHumanShareCommands, setTeamMemberExecutionEvents, setTeamMembers, setTeamTaskEvents, setTeamTasks]);
+  }, [isConnected, isNewSessionPromotion, mergeTeamTaskProgressBaseline, mode, sessionId, setTeamHistoryMessages, setTeamHumanShareCommands, setTeamMemberExecutionEvents, setTeamMembers, setTeamTaskEvents, setTeamTasks]);
 
   const memoryDisplay =
     memoryUsage.rssMb == null

@@ -10,6 +10,20 @@ from jiuwenswarm.extensions.agentos.agentos_router.agent_manager import (
     normalize_agent_key_fields,
 )
 from jiuwenswarm.extensions.agentos.agentos_router.registry_client import RegistryConfig
+from jiuwenswarm.extensions.agentos.agentos_router.ssh_relay import (
+    YuanrongSshSettings,
+    load_yuanrong_ssh_settings,
+)
+
+DEFAULT_AGENT_WORKSPACE_ROOT = "/home/agentos/users"
+
+
+@dataclass(frozen=True)
+class SshChannelEndpoint:
+    """Northbound ``channels.ssh`` listen address for ``3rdagent.switch``."""
+
+    ip: str = ""
+    port: int = 0
 
 
 @dataclass(frozen=True)
@@ -23,6 +37,9 @@ class RouterConfig:
     agent_timeout_s: float = 300.0
     creating_timeout_seconds: float = 60.0
     agent_key_fields: tuple[str, ...] = DEFAULT_AGENT_KEY_FIELDS
+    workspace_root: str = DEFAULT_AGENT_WORKSPACE_ROOT
+    ssh: YuanrongSshSettings = YuanrongSshSettings()
+    ssh_channel: SshChannelEndpoint | None = None
 
 
 def agentos_router_selected(config: dict[str, Any]) -> bool:
@@ -36,6 +53,29 @@ def agentos_router_selected(config: dict[str, Any]) -> bool:
         str(agent_client.get("type") or "websocket").strip().lower()
         == "agentos_router"
     )
+
+
+def load_ssh_channel_endpoint(config: dict[str, Any]) -> SshChannelEndpoint | None:
+    """Load northbound SSH listen ip/port from ``channels.ssh``.
+
+    Returns ``None`` when the channel is disabled or listen address is incomplete.
+    """
+    channels = config.get("channels") if isinstance(config, dict) else None
+    if not isinstance(channels, dict):
+        return None
+    ssh = channels.get("ssh")
+    if not isinstance(ssh, dict):
+        return None
+    if not bool(ssh.get("enabled", False)):
+        return None
+    ip = str(ssh.get("listen_host") or "").strip()
+    try:
+        port = int(ssh.get("listen_port") or 0)
+    except (TypeError, ValueError):
+        return None
+    if not ip or port <= 0:
+        return None
+    return SshChannelEndpoint(ip=ip, port=port)
 
 
 def load_router_config(config: dict[str, Any]) -> RouterConfig:
@@ -80,4 +120,10 @@ def load_router_config(config: dict[str, Any]) -> RouterConfig:
         agent_key_fields=normalize_agent_key_fields(
             agentos.get("agent_key_fields")
         ),
+        workspace_root=str(
+            agentos.get("workspace_root") or DEFAULT_AGENT_WORKSPACE_ROOT
+        ).strip()
+        or DEFAULT_AGENT_WORKSPACE_ROOT,
+        ssh=load_yuanrong_ssh_settings(agentos.get("ssh")),
+        ssh_channel=load_ssh_channel_endpoint(config),
     )

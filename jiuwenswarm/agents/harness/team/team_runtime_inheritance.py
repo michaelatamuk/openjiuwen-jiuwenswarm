@@ -25,6 +25,7 @@ from openjiuwen.harness.rails import (
 )
 from openjiuwen.harness.rails.evolution import EvolutionReviewRuntime
 from openjiuwen.harness.rails.context_engineer import ContextProcessorRail
+from openjiuwen.agent_teams.verification.rail import TeamVerificationRail
 
 from jiuwenswarm.agents.harness.common.rails.ask_user_rail import StructuredAskUserRail
 from jiuwenswarm.agents.harness.common.rails.avatar_rail import AvatarPromptRail
@@ -32,7 +33,6 @@ from jiuwenswarm.agents.harness.common.rails.response_prompt_rail import Respons
 from jiuwenswarm.agents.harness.common.rails.runtime_prompt_rail import RuntimePromptRail
 from jiuwenswarm.agents.harness.common.rails.stream_event_rail import JiuSwarmStreamEventRail
 from jiuwenswarm.agents.harness.team.rails.team_workspace_report_path_rail import TeamWorkspaceReportPathRail
-from jiuwenswarm.agents.harness.team.verification.rail import TeamVerificationRail
 from jiuwenswarm.common.config import (
     get_config,
     get_evolution_auto_save_enabled,
@@ -215,9 +215,10 @@ def build_member_rails(
             logger.warning("[TeamRuntime] StructuredAskUserRail failed: %s", exc)
 
     try:
-        rail = TaskPlanningRail()
-        rails_list.append(rail)
-        logger.info("[TeamRuntime] TaskPlanningRail created")
+        if role != "leader":
+            rail = TaskPlanningRail()
+            rails_list.append(rail)
+            logger.info("[TeamRuntime] TaskPlanningRail created")
     except Exception as exc:
         logger.warning("[TeamRuntime] TaskPlanningRail failed: %s", exc)
 
@@ -351,22 +352,40 @@ def build_member_rails(
     # Leader-only: TeamVerificationRail for quality assurance on teammate outputs.
     if role == "leader" and team_ws_root:
         try:
-            verification_enabled = bool(
-                (config or {}).get("team", {}).get("verification", {}).get("enabled", True)
-            )
+            team_name = (team_workspace.team_id or "jiuwen_team").strip()
+            team_cfg = (config or {}).get("modes", {}).get("team", {}).get(team_name, {}) or {}
+            verification_cfg = team_cfg.get("verification", {}) or {}
+            verification_enabled = bool(verification_cfg.get("enabled", True))
             if verification_enabled:
+                skip_patterns = set()
+                raw_patterns = verification_cfg.get("skip_patterns", [])
+                if isinstance(raw_patterns, list):
+                    skip_patterns = {str(p).lower() for p in raw_patterns if isinstance(p, str)}
+
+                model_section = verification_cfg.get("model", None)
+
                 verification_rail = TeamVerificationRail(
                     team_workspace_root=team_ws_root,
                     language=language,
                     enabled=True,
-                    block_on_fail=False,
-                    auto_rework=False,
+                    block_on_fail=bool(verification_cfg.get("block_on_fail", False)),
+                    auto_rework=bool(verification_cfg.get("auto_rework", False)),
+                    pass_threshold=int(verification_cfg.get("pass_threshold", 70)),
+                    rework_threshold=int(verification_cfg.get("rework_threshold", 40)),
+                    skip_verification_for=skip_patterns,
                 )
                 rails_list.append(verification_rail)
                 logger.info(
-                    "[TeamRuntime] TeamVerificationRail created: workspace=%s, language=%s",
+                    "[TeamRuntime] TeamVerificationRail created: workspace=%s, language=%s, "
+                    "block_on_fail=%s, auto_rework=%s, pass_threshold=%s, rework_threshold=%s, "
+                    "skip_patterns=%s",
                     team_ws_root,
                     language,
+                    verification_cfg.get("block_on_fail", False),
+                    verification_cfg.get("auto_rework", False),
+                    verification_cfg.get("pass_threshold", 70),
+                    verification_cfg.get("rework_threshold", 40),
+                    sorted(skip_patterns),
                 )
         except Exception as exc:
             logger.warning("[TeamRuntime] TeamVerificationRail failed: %s", exc, exc_info=True)
