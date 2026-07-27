@@ -15,6 +15,12 @@ import {
   ContextCompressionSummary,
   TeamMemberContextCompressionState,
 } from '../types';
+import {
+  createTaskProgressBaseline,
+  mergeTaskProgressBaseline,
+  registerConfirmedTaskCreation,
+  type TaskProgressBaseline,
+} from '../features/teamTaskProgressBaseline';
 
 const MODE_STORAGE_KEY = 'jiuwenclaw_mode';
 const MODEL_STORAGE_KEY = 'jiuwenclaw_selected_model';
@@ -110,14 +116,6 @@ interface ConnectionStats {
   lastError: string | null;
 }
 
-type HeartbeatState = 'unknown' | 'ok' | 'alert';
-
-interface HeartbeatHistoryItem {
-  message: string;
-  updatedAt: string;
-  status: HeartbeatState;
-}
-
 interface MemoryUsage {
   rssMb: number | null;
   usedPercent: number | null;
@@ -141,6 +139,14 @@ export interface TeamTaskEvent {
   team_name?: string;
   title?: string;
   content?: string;
+  // Truncation observability flags — backend may set these on team.task.created/
+  // updated events when the title/content exceeded the wire limit. Purely
+  // passthrough: the store does not render a badge; the inline marker
+  // `…(truncated, total N chars)` already surfaces truncation to the user.
+  title_truncated?: boolean;
+  title_original_size?: number;
+  content_truncated?: boolean;
+  content_original_size?: number;
   updated_at?: number | string | null;
 }
 
@@ -163,6 +169,15 @@ export interface TeamTask {
   timestamp?: number;
   skills?: string[];
   files?: string[];
+  // Truncation observability flags — set by the backend on team.task.created/
+  // updated events when title/content exceeded the wire limit. Carried through
+  // the normalize/upsert pipeline; a status-only event MUST NOT reset these
+  // (upsertTeamTask uses `?? existing`). Not rendered as a badge — the inline
+  // marker `…(truncated, total N chars)` already shows truncation.
+  title_truncated?: boolean;
+  title_original_size?: number;
+  content_truncated?: boolean;
+  content_original_size?: number;
 }
 
 // Upsert input: a task event may omit status (e.g. a content-only update).
@@ -231,6 +246,7 @@ export interface SessionRuntime {
   contextCompressionAfter: number | null;
   teamTaskEvents: TeamTaskEvent[];
   teamTasks: TeamTask[];
+  teamTaskProgressBaseline: TaskProgressBaseline;
   teamMembers: TeamMember[];
   teamLeaderMemberIds: string[];
   teamHumanShareCommands: HumanShareCommand[];
@@ -254,6 +270,7 @@ function createEmptyRuntime(): SessionRuntime {
     contextCompressionAfter: null,
     teamTaskEvents: [],
     teamTasks: [],
+    teamTaskProgressBaseline: createTaskProgressBaseline(),
     teamMembers: [],
     teamLeaderMemberIds: [],
     teamHumanShareCommands: [],
@@ -272,13 +289,11 @@ interface SessionState {
   availableTools: string[];
   connectionStats: ConnectionStats;
   memoryUsage: MemoryUsage;
-  heartbeatState: HeartbeatState;
-  heartbeatMessage: string | null;
-  heartbeatUpdatedAt: string | null;
-  heartbeatHistory: HeartbeatHistoryItem[];
   availableModels: ModelEntry[];
   /** 过滤 is_default=true 的模型，供聊天窗口 ModelSelector 使用 */
   chatAvailableModels: ModelEntry[];
+  /** 后端配置的默认模型（alias 优先），供新建会话取用，不受任何会话手动切换模型影响 */
+  defaultModelName: string | null;
 
   // B 类 session 级字段
   runtimes: Record<string, SessionRuntime>;
@@ -286,6 +301,7 @@ interface SessionState {
   // Runtime 管理方法
   ensureRuntime: (sessionId: string) => SessionRuntime;
   getRuntime: (sessionId: string | null) => SessionRuntime | undefined;
+  getEffectiveModelName: (sessionId: string | null) => string | null;
   removeRuntime: (sessionId: string) => void;
 
   // A 类 actions（不加 sessionId）
@@ -299,11 +315,6 @@ interface SessionState {
   setConnectionStats: (stats: Partial<ConnectionStats>) => void;
   setContextCompressionStats: (sessionId: string, stats: Partial<ContextCompressionStats> | null) => void;
   setMemoryUsage: (memoryUsage: Partial<MemoryUsage> | null) => void;
-  setHeartbeatStatus: (
-    status: HeartbeatState,
-    message?: string | null,
-    updatedAt?: string | null
-  ) => void;
   setAvailableModels: (models: ModelEntry[], activeModel?: string) => void;
   setSelectedModelName: (sessionId: string, name: string) => void;
 
@@ -313,6 +324,8 @@ interface SessionState {
   setTeamTaskEvents: (sessionId: string, events: TeamTaskEvent[]) => void;
   addTeamTaskEvent: (sessionId: string, event: TeamTaskEvent) => void;
   setTeamTasks: (sessionId: string, tasks: TeamTask[]) => void;
+  registerConfirmedTeamTaskCreation: (sessionId: string, taskId: string) => void;
+  mergeTeamTaskProgressBaseline: (sessionId: string, baseline: TaskProgressBaseline) => void;
   upsertTeamTask: (sessionId: string, task: TeamTaskUpsert) => void;
   updateTeamTask: (sessionId: string, taskId: string, patch: Partial<TeamTask>) => void;
   setTeamMembers: (sessionId: string, members: TeamMember[]) => void;
@@ -361,12 +374,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     rssMb: null,
     usedPercent: null,
   },
-  heartbeatState: 'unknown',
-  heartbeatMessage: null,
-  heartbeatUpdatedAt: null,
-  heartbeatHistory: [],
   availableModels: [],
   chatAvailableModels: [],
+  defaultModelName: null,
   runtimes: {},
 
   ensureRuntime: (sessionId) => {
@@ -382,6 +392,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   getRuntime: (sessionId) => {
     if (!sessionId) return undefined;
     return get().runtimes[sessionId];
+  },
+
+  getEffectiveModelName: (sessionId) => {
+    if (!sessionId) return null;
+    const state = get();
+    const runtime = state.runtimes[sessionId];
+    if (!runtime) return null;
+    return runtime.mode === 'team'
+      ? state.defaultModelName
+      : runtime.selectedModelName;
   },
 
   removeRuntime: (sessionId) => {
@@ -559,26 +579,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  setHeartbeatStatus: (status, message = null, updatedAt) => {
-    set((state) => {
-      const resolvedUpdatedAt = updatedAt === undefined ? new Date().toISOString() : updatedAt;
-      const shouldClearHistory = message == null && updatedAt === null;
-      const nextHistory = shouldClearHistory
-        ? []
-        : (message
-          ? [{ message, updatedAt: resolvedUpdatedAt ?? new Date().toISOString(), status }, ...state.heartbeatHistory]
-              .slice(0, 20)
-          : state.heartbeatHistory);
-
-      return {
-        heartbeatState: status,
-        heartbeatMessage: message,
-        heartbeatUpdatedAt: resolvedUpdatedAt,
-        heartbeatHistory: nextHistory,
-      };
-    });
-  },
-
   setTeamTaskEvents: (sessionId, events) => {
     set((state) => {
       const runtime = state.runtimes[sessionId];
@@ -628,7 +628,51 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return {
         runtimes: {
           ...state.runtimes,
-          [sessionId]: { ...runtime, teamTasks: tasks },
+          [sessionId]: {
+            ...runtime,
+            teamTasks: tasks,
+            teamTaskProgressBaseline: tasks.length === 0
+              ? createTaskProgressBaseline()
+              : runtime.teamTaskProgressBaseline,
+          },
+        },
+      };
+    });
+  },
+
+  registerConfirmedTeamTaskCreation: (sessionId, taskId) => {
+    set((state) => {
+      const runtime = state.runtimes[sessionId];
+      if (!runtime) return state;
+      const baseline = registerConfirmedTaskCreation(
+        runtime.teamTasks,
+        runtime.teamTaskProgressBaseline,
+        taskId
+      );
+      if (baseline === runtime.teamTaskProgressBaseline) return state;
+      return {
+        runtimes: {
+          ...state.runtimes,
+          [sessionId]: { ...runtime, teamTaskProgressBaseline: baseline },
+        },
+      };
+    });
+  },
+
+  mergeTeamTaskProgressBaseline: (sessionId, restoredBaseline) => {
+    set((state) => {
+      const runtime = state.runtimes[sessionId];
+      if (!runtime) return state;
+      return {
+        runtimes: {
+          ...state.runtimes,
+          [sessionId]: {
+            ...runtime,
+            teamTaskProgressBaseline: mergeTaskProgressBaseline(
+              runtime.teamTaskProgressBaseline,
+              restoredBaseline
+            ),
+          },
         },
       };
     });
@@ -656,6 +700,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           team_id: task.team_id ?? existing.team_id,
           skills: task.skills ?? existing.skills,
           files: task.files ?? existing.files,
+          // Truncation flags: a status-only event carries none, so `?? existing`
+          // preserves whatever a prior created/updated event set. NEVER reset
+          // these to false/undefined on a status-only upsert.
+          title_truncated: task.title_truncated ?? existing.title_truncated,
+          title_original_size: task.title_original_size ?? existing.title_original_size,
+          content_truncated: task.content_truncated ?? existing.content_truncated,
+          content_original_size: task.content_original_size ?? existing.content_original_size,
         };
         return {
           runtimes: {
@@ -664,10 +715,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           },
         };
       }
+      // New card: a status-only event may arrive before the created event,
+      // leaving an empty title. Fall back to a placeholder built from the
+      // task_id tail so the card is not rendered with a bare empty title
+      // (matches the precedent in features/teamHistoryPanelRestore.ts upsertTask).
       return {
        runtimes: {
           ...state.runtimes,
-          [sessionId]: { ...runtime, teamTasks: [{ ...task, status: task.status ?? 'pending' }, ...runtime.teamTasks],
+          [sessionId]: { ...runtime, teamTasks: [{
+            ...task,
+            status: task.status ?? 'pending',
+            title: task.title ?? `任务 ${String(task.task_id || '').slice(-6)}`,
+          }, ...runtime.teamTasks],
       },
         },
       };
@@ -1086,12 +1145,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (selected) {
         try { localStorage.setItem(MODEL_STORAGE_KEY, selected); } catch { /* noop */ }
       }
-      return { availableModels: models, chatAvailableModels: chatModels };
+      return { availableModels: models, chatAvailableModels: chatModels, defaultModelName: selected };
     });
   },
 
   setSelectedModelName: (sessionId, name) => {
-    try { localStorage.setItem(MODEL_STORAGE_KEY, name); } catch { /* noop */ }
+    // 注意：这里只更新当次会话的内存态，不再写 MODEL_STORAGE_KEY——
+    // 该 key 专门保存后端配置的默认模型（见 setAvailableModels），
+    // 用户手动切模型不应污染"默认模型"这个标记，否则新建会话会继承到"最后用过的模型"。
     set((state) => {
       const runtime = state.runtimes[sessionId];
       if (!runtime) return state;

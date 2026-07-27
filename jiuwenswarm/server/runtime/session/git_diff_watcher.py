@@ -26,9 +26,6 @@ POLL_INTERVAL_SEC: float = 2.0
 DEBOUNCE_SEC: float = 0.3
 # Git 命令失败时的退避间隔
 ERROR_BACKOFF_SEC: float = 5.0
-# add_watch 后的兜底 mark_dirty 延迟:handler 在 add_watch 与 mark_dirty 之间异常退出
-# 会导致 watcher 泄漏,此定时器在延迟后兜底 mark_dirty(幂等);延迟需大于 handler 正常完成时间
-_FALLBACK_MARK_DIRTY_DELAY_SEC: float = 5.0
 
 # 结构性错误码:不可重试,watcher 应暂停
 _STRUCTURAL_ERROR_CODES: frozenset[str] = frozenset({
@@ -128,6 +125,8 @@ def _summary_fingerprint(
         else None
     )
     return _fingerprint(
+        repo.get("is_git"),
+        repo.get("repo_root"),
         repo.get("branch"),
         repo.get("head"),
         repo.get("transient"),
@@ -215,60 +214,59 @@ class GitDiffWatcherRegistry:
         scope: str = "summary",
         *,
         include_last_turn: bool = True,
+        on_initial: Any = None,
     ) -> GitDiffWatch:
         """新增 diff 监控订阅(设计文档 §4.2.1)。
 
-        创建新 watcher 并启动/复用该 project 的轮询任务。
-        首次响应由调用方(GitDiffWebSocketHandler)通过 ``get_snapshot`` 获取。
-        ``include_last_turn=False`` 时该 watcher 不监控 last_turn 变化。
+        创建新 watcher;若提供 ``on_initial`` 回调,则在 watcher 注册后调用,
+        回调内完成首次快照计算 + 响应发送;回调成功后由 Registry 内部
+        ``commit_initial_summary`` 完成 seed fingerprint + mark_dirty。
 
-        本方法不立即启动 poll task(避免与首次响应竞态),但会调度一个延迟
-        ``_FALLBACK_MARK_DIRTY_DELAY_SEC`` 秒的兜底 ``mark_dirty`` 调用:
-        若 handler 正常完成(已调 ``mark_dirty``),兜底为幂等 no-op;
-        若 handler 在 add_watch 与 mark_dirty 之间异常退出(未调 remove_watch),
-        兜底启动轮询,避免 watcher 泄漏。
+        生命周期原子性:回调抛错时自动 ``remove_watch``,避免 watcher 泄漏。
+        这取代了此前的 "add_watch + 兜底 mark_dirty 定时器" 方案——
+        watcher 创建与首次快照播种是同一个原子事务,中间无异常退出窗口。
+
+        Args:
+            on_initial: ``async (watch) -> dict`` 回调,返回首次快照 status_dict;
+                抛错则触发自动 ``remove_watch``。返回值用于 seed fingerprint。
+                若为 ``None``,保持旧行为(调用方自行 ``commit_initial_summary``)。
         """
-        watch_id = f"gitdiff_{project_id}_{session_id}_{uuid.uuid4().hex[:12]}"
+        # session_id 为空串时强制关闭 include_last_turn。
+        # 原因:``_compute_and_push`` 用 ``if session_id:`` 判定是否计算 last_turn,
+        # 空串会被判定为 False 而静默跳过 last_turn 计算。若 ``include_last_turn``
+        # 仍为 True,summary fingerprint 会包含 ``last_turn.stats=None``,
+        # 且事件 payload 的 ``last_turn`` 字段语义不一致(前端误以为有 last_turn)。
+        # 此处显式关闭,让 watcher 语义自洽:无 session 即不监控 last_turn。
+        effective_include_last_turn = bool(include_last_turn) and bool(session_id)
+        watch_id = f"gitdiff_{project_id}_{session_id or 'noss'}_{uuid.uuid4().hex[:12]}"
         watch = GitDiffWatch(
             watch_id=watch_id,
             project_id=project_id,
             session_id=session_id,
             ws=ws,
             scope=scope,
-            include_last_turn=include_last_turn,
+            include_last_turn=effective_include_last_turn,
         )
         async with self._lock:
             self._watches[watch_id] = watch
             ws_id = id(ws)
             self._ws_watches.setdefault(ws_id, set()).add(watch_id)
             self._project_watches.setdefault(project_id, set()).add(watch_id)
-        # 不在此处立即启动/唤醒 poll task:首次响应由调用方(GitDiffWebSocketHandler)通过
-        # get_snapshot 获取并发送。若立即唤醒 poll task,可能在 handler 计算首次快照
-        # 期间推送 diff_changed 事件,导致客户端先收到事件再收到首次响应(Bug 7)。
-        # handler 播种 fingerprint 并发送首次响应后,会通过 mark_dirty 启动该 watcher。
-        #
-        # 兜底定时器:若 handler 在 add_watch 与 mark_dirty 之间异常退出
-        # (未调 remove_watch),watcher 会泄漏。延迟后调 mark_dirty,若 handler 已正常
-        # 完成则为幂等 no-op,若 handler 失败则启动轮询(push_failures 兜底回收)。
-        self._schedule_fallback_mark_dirty(project_id, watch_id)
-        return watch
 
-    def _schedule_fallback_mark_dirty(self, project_id: str, watch_id: str) -> None:
-        """调度延迟兜底 mark_dirty,避免 handler 异常退出导致 watcher 泄漏。"""
+        if on_initial is None:
+            # 旧行为:调用方自行 commit。保留用于兼容已有测试与外部调用方。
+            return watch
+
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # 没有运行中的事件循环(测试环境),跳过
-            return
-
-        def _fallback() -> None:
-            # watch 可能已被 remove_watch 清理,此时 mark_dirty 内部检查
-            # _project_watches 为空直接返回,安全 no-op。
-            # 若 watch 仍在但 poll task 已启动,mark_dirty 也是幂等的。
-            if watch_id in self._watches:
-                self.mark_dirty(project_id, watch_id=watch_id)
-
-        loop.call_later(_FALLBACK_MARK_DIRTY_DELAY_SEC, _fallback)
+            status_dict = await on_initial(watch)
+        except Exception:
+            # 回调失败:原子移除 watcher,避免泄漏。
+            # 不吞异常,向上抛让 handler 发送错误响应。
+            await self.remove_watch(watch_id, scope="all", expected_ws=ws)
+            raise
+        # 成功:seed fingerprint + mark_dirty(Registry 内部完成)
+        self.commit_initial_summary(watch_id, status_dict)
+        return watch
 
     async def remove_watch(
         self,
@@ -367,7 +365,11 @@ class GitDiffWatcherRegistry:
         *,
         expected_ws: Any = None,
     ) -> None:
-        """Restore files subscription state after a failed first snapshot."""
+        """Restore files subscription state after a failed first snapshot.
+
+        保留为公开接口以兼容已有调用方与测试;新代码应优先使用
+        ``update_files_with_restore``,内部自动管理 snapshot/restore。
+        """
         async with self._lock:
             watch = self._watches.get(watch_id)
             if watch is None:
@@ -376,6 +378,56 @@ class GitDiffWatcherRegistry:
                 return
             watch.files_source = state.files_source
             watch.last_files_fingerprint = state.last_files_fingerprint
+
+    async def update_files_with_restore(
+        self,
+        watch_id: str,
+        source: str,
+        *,
+        expected_ws: Any = None,
+        expected_project_id: str | None = None,
+        on_snapshot: Any = None,
+    ) -> GitDiffWatch | None:
+        """原子地更新 files 订阅,并提供失败时自动回滚的钩子。
+
+        背景:此前 handler 在调 ``update_files`` 失败(首次快照计算抛错)时
+        需要自己调 ``snapshot_files_state`` + ``restore_files_state``,
+        Registry 内部一致性维护被泄漏到 handler。
+
+        本方法封装该流程:
+          1. 调用前 snapshot 当前状态
+          2. 调用 ``update_files`` 切换 source
+          3. 调用 ``on_snapshot`` 回调(handler 在其中计算首次快照并发送响应)
+          4. 回调抛错时自动 ``restore_files_state``
+          5. 成功时返回更新后的 watch
+
+        Args:
+            on_snapshot: ``async (watch) -> None`` 回调,handler 在其中
+                完成首次快照计算与响应发送;抛错则触发回滚。
+        """
+        previous_state = await self.snapshot_files_state(
+            watch_id,
+            expected_ws=expected_ws,
+            expected_project_id=expected_project_id,
+        )
+        watch = await self.update_files(
+            watch_id, source,
+            expected_ws=expected_ws,
+            expected_project_id=expected_project_id,
+        )
+        if watch is None:
+            return None
+        if on_snapshot is None:
+            return watch
+        try:
+            await on_snapshot(watch)
+        except Exception:
+            if previous_state is not None:
+                await self.restore_files_state(
+                    watch_id, previous_state, expected_ws=expected_ws,
+                )
+            raise
+        return watch
 
     async def update_detail(
         self,
@@ -444,7 +496,11 @@ class GitDiffWatcherRegistry:
         *,
         expected_ws: Any = None,
     ) -> None:
-        """Restore detail subscription state after a failed first snapshot."""
+        """Restore detail subscription state after a failed first snapshot.
+
+        保留为公开接口以兼容已有调用方与测试;新代码应优先使用
+        ``update_detail_with_restore``,内部自动管理 snapshot/restore。
+        """
         async with self._lock:
             watch = self._watches.get(watch_id)
             if watch is None:
@@ -454,6 +510,48 @@ class GitDiffWatcherRegistry:
             watch.detail_source = state.detail_source
             watch.detail_files = set(state.detail_files)
             watch.last_detail_fingerprint = state.last_detail_fingerprint
+
+    async def update_detail_with_restore(
+        self,
+        watch_id: str,
+        source: str,
+        files: list[str],
+        *,
+        expected_ws: Any = None,
+        expected_project_id: str | None = None,
+        on_snapshot: Any = None,
+    ) -> GitDiffWatch | None:
+        """原子地更新 detail 订阅,并提供失败时自动回滚的钩子。
+
+        与 ``update_files_with_restore`` 对称:
+          1. snapshot 当前 detail 状态
+          2. ``update_detail`` 切换 source/files
+          3. ``on_snapshot`` 回调计算首次快照并发送响应
+          4. 回调抛错时自动 ``restore_detail_state``
+        """
+        previous_state = await self.snapshot_detail_state(
+            watch_id,
+            expected_ws=expected_ws,
+            expected_project_id=expected_project_id,
+        )
+        watch = await self.update_detail(
+            watch_id, source, files,
+            expected_ws=expected_ws,
+            expected_project_id=expected_project_id,
+        )
+        if watch is None:
+            return None
+        if on_snapshot is None:
+            return watch
+        try:
+            await on_snapshot(watch)
+        except Exception:
+            if previous_state is not None:
+                await self.restore_detail_state(
+                    watch_id, previous_state, expected_ws=expected_ws,
+                )
+            raise
+        return watch
 
     def mark_dirty(self, project_id: str, *, watch_id: str | None = None) -> None:
         """标记脏数据,唤醒轮询任务立即重算(设计文档 §2.5)。
@@ -470,11 +568,11 @@ class GitDiffWatcherRegistry:
     def seed_summary_fingerprint(
         self, watch_id: str, status_dict: dict[str, Any],
     ) -> None:
-        """用首次快照种子 summary fingerprint。
+        """用首次快照种子 summary fingerprint(内部接口,见 ``commit_initial_summary``)。
 
         ``diff_watch`` 首次响应由 handler 直接计算并发送;若不回写 fingerprint,
         poll 首轮(fingerprint 从空串变为非空)必然推送一条与首次响应内容相同的
-        冗余 ``diff_changed`` 事件。handler 发送首次响应前调用本方法回写。
+        冗余 ``diff_changed`` 事件。
         """
         watch = self._watches.get(watch_id)
         if watch is None:
@@ -486,12 +584,7 @@ class GitDiffWatcherRegistry:
     def seed_files_fingerprint(
         self, watch_id: str, status_dict: dict[str, Any], source: str,
     ) -> None:
-        """用首次快照种子 files fingerprint(与 seed_summary_fingerprint 同理)。
-
-        ``diff_files_watch`` 首次响应由 handler 直接计算并发送;若不回写 fingerprint,
-        poll 首轮(``"" → 非空``)必然推送一条与首次响应内容相同的冗余
-        ``diff_files_changed`` 事件。handler 发送首次响应后调用本方法回写。
-        """
+        """用首次快照种子 files fingerprint(内部接口,见 ``commit_initial_files``)。"""
         watch = self._watches.get(watch_id)
         if watch is None:
             return
@@ -502,17 +595,78 @@ class GitDiffWatcherRegistry:
         self, watch_id: str, status_dict: dict[str, Any],
         source: str, detail_files: list[str],
     ) -> None:
-        """用首次快照种子 detail fingerprint(与 seed_summary_fingerprint 同理)。
-
-        ``diff_detail_watch`` 首次响应由 handler 直接计算并发送;若不回写 fingerprint,
-        poll 首轮(``"" → 非空``)必然推送一条与首次响应内容相同的冗余
-        ``diff_detail_changed`` 事件。handler 发送首次响应后调用本方法回写。
-        """
+        """用首次快照种子 detail fingerprint(内部接口,见 ``commit_initial_detail``)。"""
         watch = self._watches.get(watch_id)
         if watch is None:
             return
         files_dict = self._extract_files(status_dict, source)
         watch.last_detail_fingerprint = _detail_fingerprint(files_dict, set(detail_files))
+
+    # ── 原子提交接口:封装 "seed fingerprint + mark_dirty" 两步操作 ──
+    # 背景:此前 handler 必须按序调用 seed_*_fingerprint + mark_dirty 才能避免
+    # poll 首轮冗余推送,seed 接口泄漏了 Registry 内部去重机制。
+    # 新接口让 handler 只提交 "首次快照",由 Registry 内部决定如何回写 fingerprint
+    # 与唤醒轮询,fingerprint 算法变更不再影响 handler。
+
+    def commit_initial_summary(
+        self,
+        watch_id: str,
+        status_dict: dict[str, Any],
+    ) -> None:
+        """提交 summary 首次快照并唤醒轮询。
+
+        handler 在发送首次响应后调用本方法;Registry 内部完成:
+          1. seed summary fingerprint(避免 poll 首轮冗余 ``diff_changed``)
+          2. mark_dirty 唤醒轮询任务
+
+        若 watch 已不存在(被 remove_watch 清理),no-op 返回。
+        """
+        if watch_id not in self._watches:
+            return
+        self.seed_summary_fingerprint(watch_id, status_dict)
+        watch = self._watches.get(watch_id)
+        if watch is None:
+            return
+        self.mark_dirty(watch.project_id, watch_id=watch_id)
+
+    def commit_initial_files(
+        self,
+        watch_id: str,
+        status_dict: dict[str, Any],
+        source: str,
+    ) -> None:
+        """提交 files 首次快照并唤醒轮询。
+
+        handler 在 ``diff_files_watch`` 发送首次响应后调用;Registry 内部完成
+        seed files fingerprint + mark_dirty。
+        """
+        if watch_id not in self._watches:
+            return
+        self.seed_files_fingerprint(watch_id, status_dict, source)
+        watch = self._watches.get(watch_id)
+        if watch is None:
+            return
+        self.mark_dirty(watch.project_id, watch_id=watch_id)
+
+    def commit_initial_detail(
+        self,
+        watch_id: str,
+        status_dict: dict[str, Any],
+        source: str,
+        detail_files: list[str],
+    ) -> None:
+        """提交 detail 首次快照并唤醒轮询。
+
+        handler 在 ``diff_detail_watch`` 发送首次响应后调用;Registry 内部完成
+        seed detail fingerprint + mark_dirty。
+        """
+        if watch_id not in self._watches:
+            return
+        self.seed_detail_fingerprint(watch_id, status_dict, source, detail_files)
+        watch = self._watches.get(watch_id)
+        if watch is None:
+            return
+        self.mark_dirty(watch.project_id, watch_id=watch_id)
 
     def cleanup_ws(self, ws: Any) -> None:
         """清理该连接下所有 watcher(设计文档 §4.2.0 / §5.2.4)。
@@ -694,6 +848,7 @@ class GitDiffWatcherRegistry:
                 if isinstance(exc, GitOperationError):
                     err_code = getattr(exc.git_error, "code", "")
                     if err_code in _STRUCTURAL_ERROR_CODES:
+                        await self._push_error_event(project_id, exc)
                         logger.info(
                             "[GitDiffWatcher] structural error (%s), pausing poll loop "
                             "for project=%s (watches kept, will resume on mark_dirty)",
@@ -746,6 +901,7 @@ class GitDiffWatcherRegistry:
             ProjectGitDiffStatus,
             _convert_turn_diff,
             get_diff_status_service,
+            get_session_extra_history_roots,
         )
         from jiuwenswarm.server.utils.diff_service import get_diff_service
         service = get_diff_status_service()
@@ -794,18 +950,36 @@ class GitDiffWatcherRegistry:
             include_hunks = need_hunks
 
             # 计算 session 级 ``last_turn`` diff(不复用跨 session)。
-            # 直接调 ``get_turn_diffs`` + ``_convert_turn_diff``,避免再次调
+            # 直接调 ``get_turn_diff_summaries`` + ``_convert_turn_diff``,避免再次调
             # ``get_project_diff_status``(会重复计算项目级 ``current``)。
             # 异常处理与 ``get_project_diff_status`` 内部一致:捕获后 last_turn=None。
+            group_needs_last_turn = any(
+                w.include_last_turn
+                or w.files_source == "last_turn"
+                or w.detail_source == "last_turn"
+                for w in group_watches
+            )
             last_turn = None
-            if session_id:
+            if session_id and group_needs_last_turn:
                 try:
+                    # 与首次快照路径(DiffStatusService.get_project_diff_status)对齐:
+                    # 传入 extra_history_roots 以收集 team/member workspace 与
+                    # session worktree 下的 file_ops,否则多 member 在 git worktree
+                    # 工作时的改动会被漏读,导致实时轮询推送的 last_turn 数据残缺。
+                    extra_roots = get_session_extra_history_roots(session_id)
                     turns = await asyncio.to_thread(
-                        diff_service.get_turn_diffs, session_id, project_dir,
+                        diff_service.get_turn_diff_summaries,
+                        session_id, project_dir,
+                        repo_context={
+                            "repo_root": repo_root,
+                            "branch": base_status.repo.branch,
+                            "base_head": base_status.repo.head,
+                        },
+                        extra_history_roots=extra_roots,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
-                        "[GitDiffWatcher] get_turn_diffs failed (session=%s): %s",
+                        "[GitDiffWatcher] get_turn_diff_summaries failed (session=%s): %s",
                         session_id, exc,
                     )
                     turns = []
@@ -845,28 +1019,29 @@ class GitDiffWatcherRegistry:
                     files_fp = _files_fingerprint(files_dict)
                     if files_fp != watch.last_files_fingerprint:
                         watch.last_files_fingerprint = files_fp
-                        await self._push_files_changed(watch, files_dict, files_fp)
+                        await self._push_files_changed(watch, status_dict, files_dict, files_fp)
 
                 if watch.detail_source and watch.detail_files:
                     files_dict = self._extract_files(status_dict, watch.detail_source)
                     detail_fp = _detail_fingerprint(files_dict, watch.detail_files)
                     if detail_fp != watch.last_detail_fingerprint:
                         watch.last_detail_fingerprint = detail_fp
-                        await self._push_detail_changed(watch, files_dict, detail_fp)
+                        await self._push_detail_changed(watch, status_dict, files_dict, detail_fp)
 
     @staticmethod
     def _extract_files(
         status_dict: dict[str, Any],
         source: str,
     ) -> dict[str, Any] | None:
-        """从 status_dict 中提取指定 source 的 files 映射。"""
-        if source == "current":
-            current = status_dict.get("current")
-            return (current or {}).get("files") if current else None
-        if source == "last_turn":
-            last_turn = status_dict.get("last_turn")
-            return (last_turn or {}).get("files") if last_turn else None
-        return None
+        """从 status_dict 中提取指定 source 的 files 映射。
+
+        委托给 ``git_diff_status.extract_files_from_status`` 统一实现,
+        与 handler 共用同一 schema 访问逻辑。
+        """
+        from jiuwenswarm.server.runtime.session.git_diff_status import (
+            extract_files_from_status,
+        )
+        return extract_files_from_status(status_dict, source)
 
     async def _push_diff_changed(
         self,
@@ -892,6 +1067,8 @@ class GitDiffWatcherRegistry:
             "change_type": "summary",
             "revision": _build_revision("gitdiff", fingerprint),
             "repo": {
+                "is_git": repo.get("is_git", False),
+                "repo_root": repo.get("repo_root"),
                 "branch": repo.get("branch"),
                 "head": repo.get("head"),
                 "transient": repo.get("transient", False),
@@ -915,30 +1092,32 @@ class GitDiffWatcherRegistry:
     def _summary_entry(current: dict[str, Any] | None) -> dict[str, Any]:
         """从 current diff 提取 summary 事件所需字段(仅统计,files 固定 ``{}``)。
 
-        调用方已通过 ``if current else None`` 过滤 None,此处 current 必非 None。
+        委托给 ``git_diff_status.build_summary_entry`` 统一实现。
+        调用方已通过 ``if current else None`` 过滤 None,此处 current 必非 None;
+        helper 内部也做了 None 兜底以保持健壮性。
         """
-        return {
-            "kind": current.get("kind", "working_tree"),
-            "is_dirty": current.get("is_dirty", False),
-            "stats": current.get("stats", {}),
-            "files": {},
-        }
+        from jiuwenswarm.server.runtime.session.git_diff_status import (
+            build_summary_entry,
+        )
+        return build_summary_entry(current) or {}
 
     @staticmethod
-    def _turn_summary_entry(last_turn: dict[str, Any] | None) -> dict[str, Any]:
-        """从 last_turn diff 提取 summary 事件所需字段(仅统计,files 固定 ``{}``)。"""
-        if not last_turn:
-            return None
-        return {
-            "kind": last_turn.get("kind", "conversation_turn"),
-            "turn_index": last_turn.get("turn_index", 0),
-            "stats": last_turn.get("stats", {}),
-            "files": {},
-        }
+    def _turn_summary_entry(last_turn: dict[str, Any] | None) -> dict[str, Any] | None:
+        """从 last_turn diff 提取 summary 事件所需字段(仅统计,files 固定 ``{}``)。
+
+        委托给 ``git_diff_status.build_turn_summary_entry`` 统一实现。
+        调用方已通过 ``if last_turn else None`` 过滤 None,此处 last_turn 必非 None;
+        helper 内部也做了 None 兜底以保持健壮性。
+        """
+        from jiuwenswarm.server.runtime.session.git_diff_status import (
+            build_turn_summary_entry,
+        )
+        return build_turn_summary_entry(last_turn)
 
     async def _push_files_changed(
         self,
         watch: GitDiffWatch,
+        status_dict: dict[str, Any],
         files_dict: dict[str, Any] | None,
         fingerprint: str,
     ) -> None:
@@ -958,6 +1137,8 @@ class GitDiffWatcherRegistry:
             "revision": _build_revision("gitdiff", fingerprint),
             "files": files_no_hunks,
         }
+        if watch.files_source == "last_turn":
+            payload.update(self._last_turn_event_metadata(status_dict))
         try:
             await self._channel.send_event(
                 watch.ws, "project.git.diff_files_changed", payload,
@@ -973,6 +1154,7 @@ class GitDiffWatcherRegistry:
     async def _push_detail_changed(
         self,
         watch: GitDiffWatch,
+        status_dict: dict[str, Any],
         files_dict: dict[str, Any] | None,
         fingerprint: str,
     ) -> None:
@@ -996,6 +1178,8 @@ class GitDiffWatcherRegistry:
             "revision": _build_revision("gitdiff", fingerprint),
             "files": detail_files,
         }
+        if watch.detail_source == "last_turn":
+            payload.update(self._last_turn_event_metadata(status_dict))
         try:
             await self._channel.send_event(
                 watch.ws, "project.git.diff_detail_changed", payload,
@@ -1007,6 +1191,21 @@ class GitDiffWatcherRegistry:
                 watch.watch_id, exc,
             )
             await self._on_push_failure(watch)
+
+    @staticmethod
+    def _last_turn_event_metadata(status_dict: dict[str, Any]) -> dict[str, Any]:
+        """提取 last_turn 的稳定绑定元数据。"""
+        last_turn = status_dict.get("last_turn")
+        if not isinstance(last_turn, dict):
+            return {}
+        return {
+            "change_set_id": last_turn.get("change_set_id", ""),
+            "turn_index": last_turn.get("turn_index", 0),
+            "assistant_message_id": last_turn.get("assistant_message_id", ""),
+            "user_message_id": last_turn.get("user_message_id", ""),
+            "request_id": last_turn.get("request_id", ""),
+            "status": last_turn.get("status", "completed"),
+        }
 
     async def _on_push_failure(self, watch: GitDiffWatch) -> None:
         """推送失败计数;连续失败达到阈值后回收 watcher。

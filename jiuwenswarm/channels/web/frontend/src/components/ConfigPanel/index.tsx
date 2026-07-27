@@ -359,7 +359,10 @@ const HIDDEN_CONFIG_KEYS = new Set([
 const MEMORY_KEYS = new Set(["memory_forbidden_enabled", "memory_forbidden_description"]);
 const A2UI_KEYS = new Set(["a2ui_enabled"]);
 const SWARMFLOW_KEYS = new Set(["swarmflow_enabled"]);
-const SYMPHONY_BOOLEAN_KEYS = new Set(["symphony_enabled"]);
+const SYMPHONY_BOOLEAN_KEYS = new Set([
+  "symphony_enabled",
+  "symphony_dynamic_graph_enabled",
+]);
 const SKILL_RETRIEVAL_BOOLEAN_KEYS = new Set([
   "skill_retrieval_enabled",
 ]);
@@ -385,9 +388,12 @@ const PROACTIVE_KEYS = new Set([
   "proactive_recommendation_max_recommend_per_day",
   "proactive_recommendation_max_rounds_per_tick",
 ]);
-// 调度频率已交给定时任务面板，ConfigPanel 不再暴露 tick_interval。
-// 即便后端残留下发，也在比较/提交时跳过，避免误提交空值。
-const PROACTIVE_HIDDEN_FROM_UI_KEYS = new Set(["proactive_recommendation_tick_interval_minutes"]);
+// ConfigPanel 暂不展示这些配置；保留后端下发值，并在比较/提交时跳过。
+const HIDDEN_FROM_UI_CONFIG_KEYS = new Set([
+  "proactive_recommendation_tick_interval_minutes",
+  "kv_cache_release_enabled",
+  "kv_cache_affinity_enabled",
+]);
 
 function classifyKey(key: string): string {
   if (MODEL_DEFAULT_KEYS.has(key)) return "model_default";
@@ -406,7 +412,8 @@ function classifyKey(key: string): string {
   if (SWARMFLOW_KEYS.has(key)) return "swarmflow";
   if (SYMPHONY_KEYS.has(key)) return "symphony";
   if (PROACTIVE_KEYS.has(key)) return "proactive";
-  if (key === "context_engine_enabled" || key === "kv_cache_affinity_enabled") return "context_engine";
+  if (key === "context_engine_enabled") return "context_engine";
+  if (key === "kv_cache_release_enabled" || key === "kv_cache_affinity_enabled") return "kv_cache_affinity";
   if (key === "permissions_enabled") return "permissions";
   if (key.startsWith("feishu")) return "feishu";
   return "other";
@@ -494,6 +501,13 @@ function getGroupIcon(tag: string) {
       </svg>
     );
   }
+  if (tag === "kv_cache_affinity") {
+    return (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 3L4 14.25h7L9.75 21 20 9.75h-7L13 3z" />
+      </svg>
+    );
+  }
   if (tag === "permissions") {
     return (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
@@ -550,6 +564,7 @@ function getGroupToneClass(tag: string): string {
   if (tag === "team") return "text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20";
   if (tag === "memory") return "text-purple-500 bg-purple-500/10 border-purple-500/20";
   if (tag === "context_engine") return "text-sky-500 bg-sky-500/10 border-sky-500/20";
+  if (tag === "kv_cache_affinity") return "text-red-500 bg-red-500/10 border-red-500/20";
   if (tag === "permissions") return "text-rose-500 bg-rose-500/10 border-rose-500/20";
   if (tag === "a2ui") return "text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20";
   if (tag === "swarmflow") return "text-blue-500 bg-blue-500/10 border-blue-500/20";
@@ -567,6 +582,7 @@ function getNestedModelStyle(tag: string): string {
   if (tag === "model_audio") return "border-l-2 border-l-orange-500/60 bg-orange-500/[0.06]";
   if (tag === "model_vision") return "border-l-2 border-l-teal-500/60 bg-teal-500/[0.06]";
   if (tag === "context_engine") return "border-l-2 border-l-sky-500/60 bg-sky-500/[0.06]";
+  if (tag === "kv_cache_affinity") return "border-l-2 border-l-red-500/60 bg-red-500/[0.06]";
   if (tag === "permissions") return "border-l-2 border-l-rose-500/60 bg-rose-500/[0.06]";
   return "border-l-2 border-l-border bg-secondary/20";
 }
@@ -576,6 +592,7 @@ function isBooleanKey(key: string): boolean {
     EVOLUTION_KEYS.has(key) ||
     FREE_SEARCH_BOOLEAN_KEYS.has(key) ||
     key === "context_engine_enabled" ||
+    key === "kv_cache_release_enabled" ||
     key === "kv_cache_affinity_enabled" ||
     key === "permissions_enabled" ||
     key === "memory_forbidden_enabled" ||
@@ -635,12 +652,14 @@ function getBooleanKeyLabel(key: string, t: (key: string) => string): string {
     free_search_ddg_enabled: t('config.booleanLabels.freeSearchDdg'),
     free_search_bing_enabled: t('config.booleanLabels.freeSearchBing'),
     context_engine_enabled: t('config.booleanLabels.enabled'),
+    kv_cache_release_enabled: t('config.booleanLabels.kvCacheRelease'),
     kv_cache_affinity_enabled: t('config.booleanLabels.kvCacheAffinity'),
     permissions_enabled: t('config.booleanLabels.enabled'),
     memory_forbidden_enabled: t('config.booleanLabels.enabled'),
     a2ui_enabled: t('config.booleanLabels.enabled'),
     swarmflow_enabled: t('config.booleanLabels.enabled'),
     symphony_enabled: t('config.booleanLabels.enabled'),
+    symphony_dynamic_graph_enabled: t('config.booleanLabels.dynamicGraph'),
     skill_retrieval_enabled: t('config.booleanLabels.enabled'),
     proactive_recommendation_enabled: t('config.booleanLabels.enabled'),
   };
@@ -687,6 +706,7 @@ function getGroupMeta(t: (key: string) => string): Record<string, { label: strin
     agents: { label: t('config.groups.agents.label'), order: 7.5, hint: t('config.groups.agents.hint') },
     team: { label: t('config.groups.team.label'), order: 7.6, hint: t('config.groups.team.hint') },
     context_engine: { label: t('config.groups.contextEngine.label'), order: 8, hint: t('config.groups.contextEngine.hint') },
+    kv_cache_affinity: { label: t('config.groups.kvCacheAffinity.label'), order: 8.5, hint: t('config.groups.kvCacheAffinity.hint') },
     permissions: { label: t('config.groups.permissions.label'), order: 9, hint: t('config.groups.permissions.hint') },
     a2ui: { label: t('config.groups.a2ui.label'), order: 10, hint: t('config.groups.a2ui.hint') },
     swarmflow: { label: t('config.groups.swarmflow.label'), order: 10.2, hint: t('config.groups.swarmflow.hint') },
@@ -713,10 +733,13 @@ const KEY_DISPLAY_I18N: Record<string, string> = {
   memory_forbidden_enabled: "config.keys.memoryForbiddenEnabled",
   memory_forbidden_description: "config.keys.memoryForbiddenDescription",
   swarmflow_enabled: "config.keys.swarmflowEnabled",
+  kv_cache_release_enabled: "config.keys.kvCacheReleaseEnabled",
+  kv_cache_affinity_enabled: "config.keys.kvCacheAffinityEnabled",
   name: "config.keys.agentName",
   model: "config.keys.agentModel",
   skills: "config.keys.agentSkills",
   symphony_enabled: "config.keys.symphonyEnabled",
+  symphony_dynamic_graph_enabled: "config.keys.symphonyDynamicGraphEnabled",
   skill_retrieval_enabled: "config.keys.skillRetrievalEnabled",
   skill_retrieval_build_branching_factor: "config.keys.skillRetrievalBuildBranchingFactor",
   skill_retrieval_build_max_depth: "config.keys.skillRetrievalBuildMaxDepth",
@@ -744,6 +767,7 @@ const KEY_PLACEHOLDER_I18N: Record<string, string> = {
 };
 const KEY_LABEL_HINT_I18N: Record<string, string> = {
   skill_create: "config.keyHelp.skillCreate",
+  symphony_dynamic_graph_enabled: "config.keyHelp.symphonyDynamicGraphEnabled",
   skill_retrieval_build_root_categories: "config.keyHelp.skillRetrievalBuildRootCategories",
 };
 
@@ -754,7 +778,8 @@ const KEY_SORT_PRIORITY: Record<string, number> = {
   free_search_ddg_enabled: 0,
   free_search_bing_enabled: 1,
   symphony_enabled: 0,
-  skill_retrieval_enabled: 1,
+  symphony_dynamic_graph_enabled: 1,
+  skill_retrieval_enabled: 2,
   proactive_recommendation_enabled: 0,
   proactive_recommendation_max_recommend_per_day: 2,
   proactive_recommendation_max_rounds_per_tick: 3,
@@ -766,6 +791,8 @@ const KEY_SORT_PRIORITY: Record<string, number> = {
   skill_retrieval_build_classification_batch_limit: 24,
   memory_forbidden_enabled: 0,
   memory_forbidden_description: 1,
+  kv_cache_release_enabled: 0,
+  kv_cache_affinity_enabled: 1,
   model: 0,
   skills: 1,
 };
@@ -1019,6 +1046,7 @@ function GroupSection({
 }
 
 const OPENAI_ACCOUNT_PROVIDER = "OpenAIAccount";
+const ASCEND_AFFINITY_PROVIDER = "AscendAffinity";
 const OPENAI_ACCOUNT_DEFAULT_API_BASE = "https://chatgpt.com/backend-api/codex";
 const OPENAI_ACCOUNT_LOGIN_POLL_COOLDOWN_MS = 15_000;
 const OPENAI_ACCOUNT_STATUS_REFRESH_COOLDOWN_MS = 5_000;
@@ -1740,7 +1768,7 @@ function OpenAIAccountAuthPanel({
       ) : null}
 
       {authError ? (
-        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-[var(--border-danger)] bg-danger-subtle px-2 py-1.5 text-[11px] text-danger">
+        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-[var(--color-border-danger)] bg-danger-subtle px-2 py-1.5 text-[11px] text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{authError}</span>
         </div>
@@ -2888,6 +2916,21 @@ function TeamItemSection({
     return labels[field] || field;
   };
 
+  // 内置默认 leader 的 display_name/persona 是种子文案，与当前 UI 语言无关；
+  // 未被用户改动时按当前语言展示对应译文，避免切换语言后仍显示另一语言的默认文案。
+  // 只影响展示，不改动 team.leader 里的实际值，因此不会把翻译结果回写进全局 config.yaml。
+  const LEADER_DEFAULT_TEXT_KEYS: Record<string, string> = {
+    display_name: "config.defaults.teamLeaderDisplayName",
+    persona: "config.defaults.teamLeaderPersona",
+  };
+
+  const getLeaderInputDisplayValue = (field: string, rawValue: string): string => {
+    const i18nKey = LEADER_DEFAULT_TEXT_KEYS[field];
+    if (!i18nKey) return rawValue;
+    const isUnmodifiedDefault = ["zh", "en"].some((lng) => rawValue === t(i18nKey, { lng }));
+    return isUnmodifiedDefault ? t(i18nKey) : rawValue;
+  };
+
   const getMemberFieldLabel = (field: string): string => {
     const labels: Record<string, string> = {
       member_name: t("config.keys.teamMemberName"),
@@ -3008,7 +3051,7 @@ function TeamItemSection({
                   <div className="flex-1">
                     <input
                       type="text"
-                      value={team.leader[field] ?? ""}
+                      value={getLeaderInputDisplayValue(field, team.leader[field] ?? "")}
                       onChange={(e) => updateLeader(field, e.target.value)}
                       maxLength={field === "persona" ? 2048 : 64}
                       className={`w-full rounded border bg-bg px-2 py-1 text-text text-xs ${field === "member_name" && memberNameError?.field === 'leader' ? "border-danger" : "border-border"}`}
@@ -3724,7 +3767,7 @@ export function ConfigPanel({
     if (!Object.keys(normalizedConfig).length) return [];
     const buckets: Record<string, [string, string][]> = {};
     for (const [key, value] of Object.entries(normalizedConfig)) {
-      if (HIDDEN_CONFIG_KEYS.has(key)) continue;
+      if (HIDDEN_CONFIG_KEYS.has(key) || HIDDEN_FROM_UI_CONFIG_KEYS.has(key)) continue;
       const tag = classifyKey(key);
       // 临时注释：先隐藏邮件配置，后续需要时可恢复。
       if (tag === "email") continue;
@@ -3798,12 +3841,12 @@ export function ConfigPanel({
   const topLevelGroupCount = groups.length;
   const hasConfigChanges = useMemo(() => {
     const keys = Object.keys(normalizedConfig);
-    return keys.some((key) => !PROACTIVE_HIDDEN_FROM_UI_KEYS.has(key) && (draftValues[key] ?? "") !== normalizedConfig[key]);
+    return keys.some((key) => !HIDDEN_FROM_UI_CONFIG_KEYS.has(key) && (draftValues[key] ?? "") !== normalizedConfig[key]);
   }, [draftValues, normalizedConfig]);
   const configUpdates = useMemo(() => {
     const updates: Record<string, string> = {};
     for (const key of Object.keys(normalizedConfig)) {
-      if (PROACTIVE_HIDDEN_FROM_UI_KEYS.has(key)) continue;
+      if (HIDDEN_FROM_UI_CONFIG_KEYS.has(key)) continue;
       const draftValue = draftValues[key] ?? "";
       if (draftValue !== normalizedConfig[key]) {
         updates[key] = draftValue;
@@ -3927,8 +3970,39 @@ export function ConfigPanel({
 
   const agentsTeamsValidationError = agentsTeamsUserEdited ? getAgentsTeamsValidationError() : null;
 
+  const getDefaultModelIndex = (models: ModelEntry[]) => {
+    const marked = models.findIndex((model) => model.is_default === true);
+    return marked >= 0 ? marked : models.length > 0 ? 0 : -1;
+  };
+
+  const withDefaultModelProvider = (models: ModelEntry[], provider: string) => {
+    const idx = getDefaultModelIndex(models);
+    if (idx < 0 || models[idx].model_provider === provider) return models;
+    const next = models.map((model) => ({ ...model }));
+    next[idx] = { ...next[idx], model_provider: provider };
+    return next;
+  };
+
   const handleFieldChange = (key: string, value: string) => {
-    setDraftValues((prev) => ({ ...prev, [key]: value }));
+    setDraftValues((prev) => {
+      const next = { ...prev, [key]: value };
+      if (value === "true" && key === "kv_cache_release_enabled") {
+        next.kv_cache_affinity_enabled = "false";
+      } else if (value === "true" && key === "kv_cache_affinity_enabled") {
+        next.kv_cache_release_enabled = "false";
+        next.model_provider = ASCEND_AFFINITY_PROVIDER;
+      } else if (
+        key === "model_provider" &&
+        value !== ASCEND_AFFINITY_PROVIDER &&
+        prev.kv_cache_affinity_enabled === "true"
+      ) {
+        next.kv_cache_affinity_enabled = "false";
+      }
+      return next;
+    });
+    if (key === "kv_cache_affinity_enabled" && value === "true") {
+      setDraftModels((models) => withDefaultModelProvider(models, ASCEND_AFFINITY_PROVIDER));
+    }
     if (error) {
       setError(null);
     }
@@ -3939,7 +4013,16 @@ export function ConfigPanel({
 
   const handleModelsChange = (models: ModelEntry[]) => {
     const oldModels = draftModels;
-    setDraftModels(models);
+    const defaultIndex = getDefaultModelIndex(models);
+    const defaultProvider = defaultIndex >= 0 ? models[defaultIndex].model_provider : "";
+    const shouldDisableAffinity =
+      draftValues.kv_cache_affinity_enabled === "true" &&
+      defaultProvider !== ASCEND_AFFINITY_PROVIDER;
+    const effectiveModels = models;
+    setDraftModels(effectiveModels);
+    if (shouldDisableAffinity) {
+      setDraftValues((prev) => ({ ...prev, kv_cache_affinity_enabled: "false" }));
+    }
     setModelError(null);
     if (error) {
       setError(null);
@@ -4223,7 +4306,7 @@ export function ConfigPanel({
           </div>
         ) : null}
         {!error && hasMissingModelName ? (
-          <div className="mb-4 rounded-md border border-[var(--border-danger)] bg-danger-subtle px-3 py-2 text-sm text-danger">
+          <div className="mb-4 rounded-md border border-[var(--color-border-danger)] bg-danger-subtle px-3 py-2 text-sm text-danger">
             {t('config.modelList.modelNameRequired')}
           </div>
         ) : null}
@@ -4291,7 +4374,7 @@ export function ConfigPanel({
                     </div>
                   ) : null}
                   {!modelError && hasMissingModelName ? (
-                    <div className="rounded-md border border-[var(--border-danger)] bg-danger-subtle px-3 py-2 text-sm text-danger">
+                    <div className="rounded-md border border-[var(--color-border-danger)] bg-danger-subtle px-3 py-2 text-sm text-danger">
                       {t('config.modelList.modelNameRequired')}
                     </div>
                   ) : null}

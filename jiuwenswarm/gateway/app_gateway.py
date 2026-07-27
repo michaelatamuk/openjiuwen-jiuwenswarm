@@ -248,7 +248,43 @@ async def _connect_with_retry(
         max_retries: int = 20,
         interval: float = 3.0,
 ) -> None:
+    """连接 AgentServer, 失败重试.
+
+    相比固定 3s 间隔: 先做轻量 TCP 端口探测, 端口通了再 ws 握手, 避免 AgentServer
+    尚未 listen 时反复走完整 WS 握手; 重试间隔改为指数退避 (0.2s 起, 翻倍至上限
+    ``interval``), 让 AgentServer 一旦 listen 即在亚秒级连上, 而非硬等下一个 3s 节拍.
+    """
+    import socket as _socket
+    from urllib.parse import urlparse as _urlparse
+
+    parsed = _urlparse(uri)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+
+    def _tcp_ready(timeout: float = 0.5) -> bool:
+        try:
+            with _socket.create_connection(("127.0.0.1", port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    backoff = 0.2
     for attempt in range(1, max_retries + 1):
+        # 先 TCP 探测: 端口未通则不浪费一次 WS 握手, 直接进入退避等待.
+        if not _tcp_ready():
+            if attempt >= max_retries:
+                logger.error(
+                    "[App] connect AgentServer failed after %d tries: port %s not listening  uri=%s",
+                    attempt, port, uri,
+                )
+                raise ConnectionRefusedError(f"AgentServer port {port} not listening")
+            logger.info(
+                "[App] AgentServer port %s not listening yet (%d/%d), retry in %.2fs...",
+                port, attempt, max_retries, backoff,
+            )
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, interval)
+            continue
         try:
             await client.connect(uri)
             logger.info("[App] connected to AgentServer: %s", uri)
@@ -263,13 +299,14 @@ async def _connect_with_retry(
                 )
                 raise
             logger.warning(
-                "[App] connect AgentServer failed (%d/%d): %s  retry in %s s...",
+                "[App] connect AgentServer failed (%d/%d): %s  retry in %.2fs...",
                 attempt,
                 max_retries,
                 exc,
-                interval,
+                backoff,
             )
-            await asyncio.sleep(interval)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, interval)
 
 
 def _exec_gateway_restart() -> None:
@@ -441,6 +478,13 @@ class GatewayServer:
         return text or None
 
     @staticmethod
+    def _connection_agent_type(ws: Any) -> str:
+        """返回当前 WS 连接绑定的 agent_type（缺省 jiuwenswarm）。"""
+        raw = getattr(ws, "_gateway_agent_type", None)
+        text = str(raw or "jiuwenswarm").strip().lower()
+        return text or "jiuwenswarm"
+
+    @staticmethod
     def _invoke_local_handler(
         handler: Callable[..., Awaitable[None]],
         ctx: _LocalHandlerContext,
@@ -525,6 +569,32 @@ class GatewayServer:
         if session_key is None:
             return False
         return self._session_to_client.get(session_key) is ws
+
+    def get_active_session_ids(
+        self,
+        channel_id: str,
+        exclude_ws: Any = None,
+    ) -> set[str]:
+        """返回在指定 channel 下、仍处于活跃连接绑定的 session_id 集合。
+
+        用于 session.list 标记 active_in_window，供前端在 /resume 前拦截冲突会话。
+        排除 exclude_ws（通常是发起 session.list 请求的连接本身），并跳过已关闭的 ws，
+        与实时防线（forward 阶段 SESSION_IN_USE 检查）口径保持一致。
+        """
+        active: set[str] = set()
+        for key, client_ws in self._session_to_client.items():
+            if not isinstance(key, tuple) or len(key) < 2:
+                continue
+            if key[0] != channel_id:
+                continue
+            if client_ws is exclude_ws:
+                continue
+            if bool(getattr(client_ws, "closed", False)):
+                continue
+            session_id = key[1]
+            if isinstance(session_id, str) and session_id:
+                active.add(session_id)
+        return active
 
     @staticmethod
     def _extract_routing_session_id(msg, *, include_top_level: bool = True) -> str | None:
@@ -950,6 +1020,7 @@ class GatewayServer:
 
         ws_user_id = self._extract_ws_user_id(ws)
         setattr(ws, "_gateway_user_id", ws_user_id)
+        setattr(ws, "_gateway_agent_type", "jiuwenswarm")
         uid_marker = "" if ws_user_id else " uid_empty=yes"
         logger.info(
             "[Gateway] WS handshake X-User-Id: user_id=%r%s channel=%s path=%s",
@@ -1165,6 +1236,10 @@ class GatewayServer:
             params = dict(params)
             params.setdefault("mode", mode.value)
 
+            # 连接级 agent_type 为 SSOT，注入后续转发请求
+            # （3rdagent.switch 由 TUI local_handler 写回 ws._gateway_agent_type）
+            params["agent_type"] = self._connection_agent_type(ws)
+
             # V2: agent_ref 全链路透传（阶段2）。
             # tui 客户端从不发 agent_ref（_agent_ref 恒 None）→ 按 mode/agent_id 合成 AgentRef，
             # 用于：(1) 委托 _register 的 RoutingKey.agent_ref；(2) msg.agent_ref 经 E2A 透传到
@@ -1363,7 +1438,10 @@ async def _run(
         TelegramChannelConfig
     from jiuwenswarm.gateway.channel_manager.im_platforms.discord.discord_connect import DiscordChannel, \
         DiscordChannelConfig
+    from jiuwenswarm.gateway.channel_manager.im_platforms.slack.slack_connect import SlackChannel, \
+        SlackChannelConfig
     from jiuwenswarm.gateway.channel_manager.im_platforms.wecom.wecom_connect import WecomChannel, WecomConfig
+    from jiuwenswarm.gateway.channel_manager.protocol.ssh.ssh_connect import SshChannel, SshChannelConfig
     from jiuwenswarm.common.config import get_config
     from jiuwenswarm.common.cleanup import start_background_cleanup
     from jiuwenswarm.gateway.routing.agent_client import WebSocketAgentServerClient
@@ -1409,13 +1487,22 @@ async def _run(
     max_retries = int(os.getenv("AGENT_CONNECT_RETRY", "20"))
     retry_interval = float(os.getenv("AGENT_CONNECT_RETRY_INTERVAL", "3"))
 
-    # 从扩展注册表获取 AgentServerClient
+    # 从扩展注册表获取 AgentServerClient（WebSocket 或 Yuanrong 等扩展实现）
     agent_server_ext = extension_registry.get_agent_server_client_extension()
     if agent_server_ext is not None:
         logger.info("[App] using extension AgentServerClient: %s", agent_server_ext.metadata.name)
         client = agent_server_ext.get_client()
     else:
         client = WebSocketAgentServerClient(ping_interval=20.0, ping_timeout=600.0)
+
+    from jiuwenswarm.gateway.routing.third_agent import get_unsupported_third_agent
+
+    third_agent_ext = extension_registry.get_third_agent_extension()
+    if third_agent_ext is not None:
+        logger.info("[App] using extension ThirdAgent: %s", third_agent_ext.metadata.name)
+        third_agent = third_agent_ext.get_third_agent()
+    else:
+        third_agent = get_unsupported_third_agent()
 
     # 如果是 WebSocket 客户端，需要连接；如果是 YuanrongFrontendAgentClient，无需连接
     if isinstance(client, WebSocketAgentServerClient):
@@ -1678,6 +1765,7 @@ async def _run(
             CliRouteBindParams(
                 agent_client=client,
                 message_handler=message_handler,
+                third_agent=third_agent,
                 on_config_saved=_on_config_saved,
                 path="/tui",
                 channel_id="tui",
@@ -1740,6 +1828,8 @@ async def _run(
                 os.getenv("A2A_SERVER_APP_VERSION", "0.1.0")
             ).strip()
                         or "0.1.0",
+            expose_reasoning=str(os.getenv("A2A_SERVER_EXPOSE_REASONING", "true")).strip().lower()
+                             not in {"0", "false", "no", "off"},
         ),
         _DummyBus(),
     )
@@ -1774,12 +1864,16 @@ async def _run(
     telegram_task = None
     discord_channel = None
     discord_task = None
+    slack_channel = None
+    slack_task = None
     whatsapp_channel = None
     whatsapp_task = None
     wecom_channel = None
     wecom_task = None
     wechat_channel = None
     wechat_task = None
+    ssh_channel = None
+    ssh_task = None
 
     _last_channels_conf: dict = {}
 
@@ -1849,9 +1943,11 @@ async def _run(
         nonlocal feishu_channel, feishu_task, xiaoyi_channel, xiaoyi_task
         nonlocal dingtalk_channel, dingtalk_task, telegram_channel, telegram_task
         nonlocal discord_channel, discord_task
+        nonlocal slack_channel, slack_task
         nonlocal whatsapp_channel, whatsapp_task
         nonlocal wecom_channel, wecom_task
         nonlocal wechat_channel, wechat_task
+        nonlocal ssh_channel, ssh_task
         nonlocal _last_channels_conf
         nonlocal feishu_enterprise_channels, feishu_enterprise_tasks
 
@@ -1875,8 +1971,10 @@ async def _run(
             "telegram",
             "whatsapp",
             "discord",
+            "slack",
             "wecom",
             "wechat",
+            "ssh",
         ]:
             if _should_restart_channel(channel_name, _last_channels_conf, conf) or channel_name in restart_pending:
                 if channel_name in restart_pending and not _should_restart_channel(
@@ -2166,6 +2264,38 @@ async def _run(
             else:
                 logger.info("[App] channels.discord missing or invalid, DiscordChannel disabled")
 
+        if "slack" in changed_channels:
+            slack_conf = conf.get("slack") if isinstance(conf, dict) else None
+            await _stop_channel(slack_channel, slack_task, "slack")
+            slack_channel, slack_task = None, None
+
+            if isinstance(slack_conf, dict):
+                enabled, reason = _is_channel_enabled(slack_conf, ["bot_token", "app_token"])
+                if not enabled:
+                    logger.info("[App] channels.slack.%s, SlackChannel disabled", reason)
+                else:
+                    reply_in_thread_raw = slack_conf.get("reply_in_thread", True)
+                    reply_in_thread = (
+                        str(reply_in_thread_raw).strip().lower() in ("true", "1", "yes", "on")
+                        if isinstance(reply_in_thread_raw, str)
+                        else bool(reply_in_thread_raw)
+                    )
+                    slack_config = SlackChannelConfig(
+                        enabled=True,
+                        bot_token=str(slack_conf.get("bot_token") or "").strip(),
+                        app_token=str(slack_conf.get("app_token") or "").strip(),
+                        allow_from=slack_conf.get("allow_from") or [],
+                        allowed_channel_ids=slack_conf.get("allowed_channel_ids") or [],
+                        default_channel_id=str(slack_conf.get("default_channel_id") or "").strip(),
+                        reply_in_thread=reply_in_thread,
+                    )
+                    slack_channel = SlackChannel(slack_config, _DummyBus())
+                    channel_manager.register_channel(slack_channel)
+                    slack_task = asyncio.create_task(slack_channel.start(), name="slack")
+                    logger.info("[App] SlackChannel registered from config.yaml.channels.slack")
+            else:
+                logger.info("[App] channels.slack missing or invalid, SlackChannel disabled")
+
         if "whatsapp" in changed_channels:
             whatsapp_conf = conf.get("whatsapp") if isinstance(conf, dict) else None
             await _stop_channel(whatsapp_channel, whatsapp_task, "whatsapp")
@@ -2288,19 +2418,51 @@ async def _run(
             else:
                 logger.info("[App] channels.wechat missing or invalid, WechatChannel disabled")
 
+        if "ssh" in changed_channels:
+            ssh_conf = conf.get("ssh") if isinstance(conf, dict) else None
+            await _stop_channel(ssh_channel, ssh_task, "ssh")
+            ssh_channel, ssh_task = None, None
+
+            if isinstance(ssh_conf, dict):
+                # 南向经 agent client（如 agentos_router -> yuanrong）动态解析。
+                enabled, reason = _is_channel_enabled(ssh_conf, ["listen_port"])
+                if not enabled:
+                    logger.info("[App] channels.ssh.%s, SshChannel disabled", reason)
+                else:
+                    ssh_config = SshChannelConfig.from_dict({**ssh_conf, "enabled": True})
+                    ssh_channel = SshChannel(ssh_config, _DummyBus())
+                    channel_manager.register_channel(ssh_channel)
+                    ssh_task = asyncio.create_task(ssh_channel.start(), name="ssh")
+
+                    def _on_ssh_task_done(task: asyncio.Task) -> None:
+                        try:
+                            task.result()
+                        except asyncio.CancelledError:
+                            return
+                        except Exception as exc:  # noqa: BLE001
+                            logger.error(
+                                "[App] SSH channel failed to start: %s. "
+                                "If SSH is enabled, install optional dependency with "
+                                "`uv sync --extra ssh` or `pip install \"jiuwenswarm[ssh]\"`.",
+                                exc,
+                            )
+
+                    ssh_task.add_done_callback(_on_ssh_task_done)
+                    logger.info(
+                        "[App] SshChannel registered from config.yaml.channels.ssh "
+                        "(listen %s:%s -> MessageHandler; southbound via agent client)",
+                        ssh_config.listen_host,
+                        ssh_config.listen_port,
+                    )
+            else:
+                logger.info("[App] channels.ssh missing or invalid, SshChannel disabled")
+
     channel_manager.set_config_callback(_apply_channel_config)
     await channel_manager.set_config(initial_channels_conf)
 
     await channel_manager.start_dispatch()
-    # 启动迁移：给老 cron_jobs.json 中的 job 补全 work_mode 字段
-    # 必须在 cron_scheduler.start() 之前执行——scheduler.start() 会 reload() 从磁盘读入
-    # jobs 到内存，若迁移在后，老 job 会以 from_dict() 兜底的 work_mode="work" 进入
-    # 内存和事件队列，磁盘迁移成 code 后内存不一致，启动后马上到期的 job 可能按错误快照执行。
-    # 同时也必须在 sync_proactive_tick_job 之前，避免 proactive job 的 work_mode 未初始化
-    try:
-        await cron_store.migrate_legacy_jobs_at_startup()
-    except Exception as e:  # noqa: BLE001  # 兜底：cron 迁移失败不阻断 Gateway 启动
-        logger.warning("[App] cron legacy jobs migration failed (non-fatal): %s", e)
+    # cron jobs 的 work_mode 补全已改为惰性迁移:scheduler.start() → reload() →
+    # list_jobs() 读取时按需推断并写回磁盘(见 CronJobStore.list_jobs),无需启动全量扫描。
     await cron_scheduler.start()
     # 主动推荐：按 config 自动注册/删除 proactive.tick 定时 job
     try:
@@ -2424,6 +2586,13 @@ async def _run(
             except asyncio.CancelledError:
                 pass
             await discord_channel.stop()
+        if slack_channel is not None and slack_task is not None:
+            slack_task.cancel()
+            try:
+                await slack_task
+            except asyncio.CancelledError:
+                pass
+            await slack_channel.stop()
         if whatsapp_channel is not None and whatsapp_task is not None:
             whatsapp_task.cancel()
             try:
@@ -2445,6 +2614,13 @@ async def _run(
             except asyncio.CancelledError:
                 pass
             await wechat_channel.stop()
+        if ssh_channel is not None and ssh_task is not None:
+            ssh_task.cancel()
+            try:
+                await ssh_task
+            except asyncio.CancelledError:
+                pass
+            await ssh_channel.stop()
 
         await cron_scheduler.stop()
         await channel_manager.stop_dispatch()

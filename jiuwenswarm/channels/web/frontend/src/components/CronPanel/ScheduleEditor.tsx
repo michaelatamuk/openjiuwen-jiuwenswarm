@@ -1,9 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SimpleSelect from './SimpleSelect';
 import TimePicker from './TimePicker';
 import DatePicker from './DatePicker';
 import { validateCronExpr } from './cronExprValidation';
+import {
+  normalizeWakeOffsetMinutesInput,
+  wakeOffsetMinutesToSeconds,
+  wakeOffsetSecondsToMinutes,
+} from './cronWakeOffset';
 import { scheduleToCronExpr, cronExprToSchedule, nowWallClock } from './scheduleConvert';
 import type { CronSchedule, CronScheduleKind } from '../../types/cron';
 
@@ -11,6 +16,11 @@ interface ScheduleEditorProps {
   value: string; // cron_expr 原文，唯一提交给后端的数据
   onChange: (v: string) => void;
   timezone: string; // "单次"tab 用来算"今天/现在"，禁掉已经过去的日期和时间点（见 2026-07-16 bugfix）
+  /** 提前唤醒秒数（后端 wake_offset_seconds）；UI 以分钟展示 */
+  wakeOffsetSeconds?: number;
+  onWakeOffsetSecondsChange?: (seconds: number) => void;
+  /** 仅锁定提前唤醒（proactive.tick 等不允许改 wake_offset） */
+  wakeOffsetDisabled?: boolean;
 }
 
 type TopMode = 'period' | 'interval' | 'once' | 'cronExpr';
@@ -52,6 +62,14 @@ function intervalNumberTextOf(schedule: CronSchedule): string {
   return n !== undefined ? String(n) : '';
 }
 
+// 去掉纯数字字符串的前导零，只保留数值本身的字符串形式：""→""，"0"→"0"，"00"→"0"，
+// "01"→"1"，"010"→"10"。用 Number(...) 往返一次即可，不用手写正则去处理"全 0"这种边界
+// （见 2026-07-23 bugfix 追加需求，bug002：用户先敲 0 再敲其它数字时，输入框不应该停留在
+// "01"这种带前导零的形式上）。
+function normalizeIntegerDigits(digitsOnly: string): string {
+  return digitsOnly === '' ? '' : String(Number(digitsOnly));
+}
+
 function WeekdayPicker({ selected, onToggle }: { selected: number[]; onToggle: (day: number) => void }) {
   const { t } = useTranslation();
   return (
@@ -80,11 +98,25 @@ function WeekdayPicker({ selected, onToggle }: { selected: number[]; onToggle: (
 // 高保真设计的执行计划编辑器有 4 个 tab：周期/按间隔/单次/Cron表达式。前 3 个是结构化编辑，
 // 最后一个是直接编辑 cron_expr 原文的兜底/高级模式（编辑任务时若原表达式无法结构化识别，
 // 或用户手动切到这个 tab，都以它为准，见 scheduleConvert.ts 的反向解析策略）。
-export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEditorProps) {
+export default function ScheduleEditor({
+  value,
+  onChange,
+  timezone,
+  wakeOffsetSeconds = 0,
+  onWakeOffsetSecondsChange,
+  wakeOffsetDisabled = false,
+}: ScheduleEditorProps) {
   const { t } = useTranslation();
   const initialParsed = cronExprToSchedule(value);
   const initialSchedule = initialParsed ?? { kind: 'daily', time: '' };
   const [schedule, setSchedule] = useState<CronSchedule>(initialSchedule);
+  // 分钟输入单独用文本态，便于清空重输；能解析成非负整数才回写秒数
+  const wakeMinutesFromProps = wakeOffsetSecondsToMinutes(wakeOffsetSeconds);
+  const [wakeOffsetMinutesText, setWakeOffsetMinutesText] = useState(() => String(wakeMinutesFromProps));
+  // 父表单换任务 / 外部改秒数时，把展示文本同步回来（本组件自身 onChange 写回的同值不会抖动）
+  useEffect(() => {
+    setWakeOffsetMinutesText(String(wakeMinutesFromProps));
+  }, [wakeMinutesFromProps]);
   // 默认 tab：能解析出结构化 schedule 就跟它走；解析不出来时，创建任务（value 为空）默认落在
   // "周期"而不是"Cron表达式"（更符合大多数人的心智，表达式 tab 留给"手写/编辑一条解析不了的旧
   // 表达式"这种进阶场景）；编辑一条解析不出来的已有表达式（value 非空但 parse 失败）则仍然落在
@@ -176,6 +208,14 @@ export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEd
     { value: 'L', label: t('cron.schedule.lastDayOfMonth') },
   ];
   const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: t('cron.schedule.monthOption', { month: i + 1 }) }));
+  // "每年"选中具体月份后，日期字段的候选天数必须跟着这个月封顶，否则像"2月31日"这种组合会被
+  // 允许选中——croniter 里 day=31 和 month=2 永远不会同时命中，任务实际上永远不会触发，
+  // 是个"看起来配置成功、实际静默失效"的坑，不只是下拉框太长那种纯 UI 问题。
+  // 2月按平年 28 天封顶（不放到 29）：闰年才会命中的"每年"排班会让用户以为每年都执行，
+  // 三年不触发一次同样是隐性失效，跟"每月"用独立的 'L' 选项处理月末是两回事，这里干脆不引入歧义。
+  const YEARLY_MONTH_DAY_COUNTS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const yearlyMaxDay = schedule.kind === 'yearly' && schedule.month ? YEARLY_MONTH_DAY_COUNTS[schedule.month - 1] : 31;
+  const yearlyDayOptions = dayOptions.filter((o) => o.value !== 'L' && Number(o.value) <= yearlyMaxDay);
   const periodKindOptions = PERIOD_KINDS.map((k) => ({ value: k, label: t(`cron.schedule.${k}`) }));
   const weekOfMonthOptions = WEEK_OF_MONTH_OPTIONS.map((o) => ({ value: o.value, label: t(`cron.schedule.weekOfMonth.${o.key}`) }));
 
@@ -264,7 +304,14 @@ export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEd
               <>
                 <SimpleSelect
                   value={schedule.month ? String(schedule.month) : ''}
-                  onChange={(v) => updateSchedule({ ...schedule, month: Number(v) })}
+                  onChange={(v) => {
+                    const nextMonth = Number(v);
+                    const maxDay = YEARLY_MONTH_DAY_COUNTS[nextMonth - 1];
+                    // 已选的日期超出新月份的天数上限时（比如从"1月31日"切到"2月"），跟着收窄到
+                    // 该月最后一天，而不是留着一个新月份根本不存在的日期
+                    const nextDay = typeof schedule.day === 'number' && schedule.day > maxDay ? maxDay : schedule.day;
+                    updateSchedule({ ...schedule, month: nextMonth, day: nextDay });
+                  }}
                   options={monthOptions}
                   placeholder={t('cron.schedule.selectMonth') ?? undefined}
                   className="min-w-0 flex-1"
@@ -272,7 +319,7 @@ export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEd
                 <SimpleSelect
                   value={schedule.day !== undefined ? String(schedule.day) : ''}
                   onChange={(v) => updateSchedule({ ...schedule, day: Number(v) })}
-                  options={dayOptions.filter((o) => o.value !== 'L')}
+                  options={yearlyDayOptions}
                   placeholder={t('cron.schedule.selectDay') ?? undefined}
                   className="min-w-0 flex-1"
                 />
@@ -341,46 +388,84 @@ export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEd
       )}
 
       {topMode === 'interval' && schedule.kind === 'interval' && (
-        <div className="flex flex-nowrap items-center gap-2">
-          <span className="shrink-0 text-sm text-text-muted">{t('cron.schedule.every')}</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={intervalNumberText}
-            onChange={(e) => {
-              // 小时/分钟步长在 croniter 里都只支持正整数，从输入源头过滤掉非数字字符
-              // （而不是允许打小数、事后校验失败再把确定按钮悄悄置灰，见 2026-07-16 bugfix）
-              const raw = e.target.value.replace(/\D/g, '');
-              setIntervalNumberText(raw);
-              const isMinutes = schedule.intervalUnit === 'minutes';
-              if (raw === '') {
-                updateSchedule(isMinutes ? { ...schedule, everyMinutes: undefined } : { ...schedule, everyHours: undefined });
-                return;
-              }
-              const n = Number(raw);
-              updateSchedule(isMinutes ? { ...schedule, everyMinutes: n } : { ...schedule, everyHours: n });
-            }}
-            placeholder={t(schedule.intervalUnit === 'minutes' ? 'cron.schedule.everyMinutesPlaceholder' : 'cron.schedule.everyHoursPlaceholder') ?? undefined}
-            className="w-16 shrink-0 rounded-md border border-border bg-card px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
-          />
-          <div className="inline-flex w-fit shrink-0 rounded-md bg-bg-muted p-0.5">
-            {(['hours', 'minutes'] as const).map((unit) => {
-              const active = (schedule.intervalUnit ?? 'hours') === unit;
-              return (
-                <button
-                  key={unit}
-                  type="button"
-                  onClick={() => setIntervalUnit(unit)}
-                  className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
-                    active ? 'bg-card font-bold text-text-strong shadow-sm' : 'text-text-muted hover:text-text'
-                  }`}
-                >
-                  {t(`cron.schedule.intervalUnit.${unit}`)}
-                </button>
-              );
-            })}
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-nowrap items-center gap-2">
+            <span className="shrink-0 text-sm text-text-muted">{t('cron.schedule.every')}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={intervalNumberText}
+              title={t('cron.schedule.integerOnlyHint') ?? undefined}
+              onKeyDown={(e) => {
+                // 小时/分钟步长在 croniter 里都只支持正整数：在按键这一刻就挡掉非数字字符，
+                // 而不是等 onChange 里再"事后清洗"——之前的实现允许小数点先短暂插入、再被
+                // 静默过滤掉，用户敲"0.1"会在无任何提示的情况下被拼接成一个和输入无关的整数
+                // （比如"0.1"变成"01"=1，"1.5"变成"15"），完全没有反馈，见 2026-07-23 bugfix（bug002）。
+                // 放行：数字键、编辑/导航类控制键、以及 Ctrl/Cmd 组合的编辑快捷键（全选/复制/粘贴/剪切/撤销）。
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                const allowedControlKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter', 'Escape'];
+                if (allowedControlKeys.includes(e.key)) return;
+                if (!/^\d$/.test(e.key)) e.preventDefault();
+              }}
+              onPaste={(e) => {
+                // 粘贴走的是单独的剪贴板事件，不经过 onKeyDown；同样只保留数字字符，
+                // 避免粘贴"0.1"这类字符串被 onChange 静默拼接成无关的整数（见上）。
+                e.preventDefault();
+                const digitsOnly = e.clipboardData.getData('text').replace(/\D/g, '');
+                if (!digitsOnly) return;
+                const pasted = normalizeIntegerDigits(digitsOnly);
+                setIntervalNumberText(pasted);
+                const isMinutes = schedule.intervalUnit === 'minutes';
+                const n = Number(pasted);
+                updateSchedule(isMinutes ? { ...schedule, everyMinutes: n } : { ...schedule, everyHours: n });
+              }}
+              onChange={(e) => {
+                // onKeyDown/onPaste 已经在源头挡掉了非数字输入，这里的过滤是兜底
+                // （比如浏览器自动填充、IME 等不经过 onKeyDown 的输入路径）。
+                const digitsOnly = e.target.value.replace(/\D/g, '');
+                // 去掉前导零，只保留数值本身的字符串形式（"00"→"0"，"01"→"1"，"010"→"10"）：
+                // 用户先敲 "0" 再敲其它数字时（包括之前"敲 0 再敲被拦截的小数点再敲 1"这类路径），
+                // 框里不应该一直停留在"01"这种带前导零的形式（见 2026-07-23 bugfix 追加需求，bug002）。
+                const raw = normalizeIntegerDigits(digitsOnly);
+                setIntervalNumberText(raw);
+                const isMinutes = schedule.intervalUnit === 'minutes';
+                if (raw === '') {
+                  updateSchedule(isMinutes ? { ...schedule, everyMinutes: undefined } : { ...schedule, everyHours: undefined });
+                  return;
+                }
+                const n = Number(raw);
+                updateSchedule(isMinutes ? { ...schedule, everyMinutes: n } : { ...schedule, everyHours: n });
+              }}
+              placeholder={t(schedule.intervalUnit === 'minutes' ? 'cron.schedule.everyMinutesPlaceholder' : 'cron.schedule.everyHoursPlaceholder') ?? undefined}
+              className="w-16 shrink-0 rounded-md border border-border bg-card px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+            />
+            <div className="inline-flex w-fit shrink-0 rounded-md bg-bg-muted p-0.5">
+              {(['hours', 'minutes'] as const).map((unit) => {
+                const active = (schedule.intervalUnit ?? 'hours') === unit;
+                return (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => setIntervalUnit(unit)}
+                    className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                      active ? 'bg-card font-bold text-text-strong shadow-sm' : 'text-text-muted hover:text-text'
+                    }`}
+                  >
+                    {t(`cron.schedule.intervalUnit.${unit}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <WeekdayPicker selected={schedule.weekdays ?? []} onToggle={toggleWeekday} />
           </div>
-          <WeekdayPicker selected={schedule.weekdays ?? []} onToggle={toggleWeekday} />
+          {/* 间隔数字缺失或 < 1（含用户想输小数被约束成整数后落在 0 的情况）时，直接在输入框下面
+              给出常驻提示，不用等用户去悬停确定按钮才知道哪里有问题（见 2026-07-23 bugfix，bug002）。 */}
+          {(() => {
+            const n = schedule.intervalUnit === 'minutes' ? schedule.everyMinutes : schedule.everyHours;
+            return n === undefined || n < 1;
+          })() && (
+            <p className="text-xs text-danger">{t('cron.schedule.integerOnlyHint')}</p>
+          )}
         </div>
       )}
 
@@ -427,6 +512,38 @@ export default function ScheduleEditor({ value, onChange, timezone }: ScheduleEd
           {!validation.valid && (
             <p className="mt-1 text-xs text-danger">{t(validation.error || 'cron.errors.cronFormat')}</p>
           )}
+        </div>
+      )}
+
+      {/* 提前唤醒：与 cron_expr 同属执行计划；对话创建任务常带 300s（5 分钟），面板需可改/可清零 */}
+      {onWakeOffsetSecondsChange && (
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-text-strong">
+            {t('cron.schedule.wakeOffset')}
+            <span
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border text-[10px] font-normal text-text-muted cursor-help"
+              title={t('cron.schedule.wakeOffsetHelp') ?? undefined}
+            >
+              ?
+            </span>
+          </div>
+          <div className="flex flex-nowrap items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={wakeOffsetMinutesText}
+              disabled={wakeOffsetDisabled}
+              title={wakeOffsetDisabled ? (t('cron.autoManagedToggleDisabled') ?? undefined) : undefined}
+              onChange={(e) => {
+                const normalized = normalizeWakeOffsetMinutesInput(e.target.value);
+                setWakeOffsetMinutesText(normalized);
+                onWakeOffsetSecondsChange(wakeOffsetMinutesToSeconds(normalized));
+              }}
+              placeholder="0"
+              className="w-28 shrink-0 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-text outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <span className="shrink-0 text-sm text-text-muted">{t('cron.schedule.wakeOffsetUnit')}</span>
+          </div>
         </div>
       )}
     </div>
