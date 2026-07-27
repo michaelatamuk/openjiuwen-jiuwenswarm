@@ -15,7 +15,7 @@ from typing import Any
 from openjiuwen.agent_teams.monitor import TeamMonitor
 from openjiuwen.agent_teams.monitor.models import MonitorEvent, MonitorEventType
 
-from jiuwenswarm.agents.harness.team.verification.result import VerificationInput
+from openjiuwen.agent_teams.verification.result import VerificationInput
 from jiuwenswarm.agents.harness.team.event_types import (
     TeamEventCategory,
     resolve_team_event,

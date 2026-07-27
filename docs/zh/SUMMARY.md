@@ -12,7 +12,6 @@
 - [配置说明](配置信息.md)
 - [分布式 Team](分布式Team.md)
 - [Agent Team 使用指南](AgentTeam.md)
-- [团队验证层（质量保障）](TeamVerification.md)
 - [Auto Harness 特性说明](AutoHarness.md)
 - [单机多实例运行](单机多实例运行.md)
 - [使用指南](README.md)

@@ -270,7 +270,7 @@ team:
 
 验证结果自动存入 `team-workspace/TEAM_MEMORY.md` 的"验证历史"章节，所有团队成员均可只读访问。Leader 可以查询质量趋势，识别薄弱维度。
 
-> 详细文档请参阅 [团队验证层](TeamVerification.md)。
+> 详细文档请参阅 agent-core SDK 中的团队验证层文档。
 
 ### 2.6 Team Memory
 
