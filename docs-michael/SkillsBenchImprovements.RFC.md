@@ -26,8 +26,8 @@ Corrects an incorrect `asyncio` event-loop lifecycle in the agent-core task runn
 **2. Event Loop Fix — jiuwenswarm (`bugfix/event-loop-blocking` #119)**
 Identical root cause at the jiuwenswarm runtime layer. The two fixes are independent; both must be applied. Symptom: jiuwenswarm sessions hang or raise `RuntimeError: This event loop is already running` mid-task.
 
-**3. ACP Runtime Tool Unblock (`fix/acp-runtime-tool-blocking` #139)**
-The ACP permission layer incorrectly rejects tool calls that are within the agent's declared permissions when the call arrives from a sub-agent context. Fix: correct the identity-resolution path in the ACP runtime check. Symptom: tasks that require writing files or running shell commands fail immediately with a permission error even when the tool is listed in the agent's tool card.
+**3. ACP Tool Filter Override (`feat/acp-runtime-tool-blocking` #139)**
+When an agent is called via ACP, certain tools (such as `ReadFiles`) are intentionally unavailable — the ACP protocol expects the caller to supply file content directly rather than letting the agent read files itself. This is correct default behavior. However, internal deployments that use ACP purely as a transport (such as benchmark runners) require full tool availability. This item adds a jiuwenswarm config flag (`acp.override_tool_filter: true`) that disables ACP's tool filtering for the specific deployment. The default remains `false` — ACP tool restrictions apply unless the flag is explicitly set.
 
 ---
 
@@ -120,7 +120,7 @@ All 21 items are additive or corrective. No existing public API is removed or gi
 | Change | API surface affected |
 |--------|---------------------|
 | `fix/event-loop-blocking` #28, #119 | Internal `Runner` lifecycle — no public interface change |
-| `fix/acp-runtime-tool-blocking` #139 | ACP `check_permission()` — behaviour fix, no signature change |
+| `feat/acp-runtime-tool-blocking` #139 | New jiuwenswarm deployment config key: `acp.override_tool_filter` (bool, default false). When false, ACP tool filtering is unchanged. |
 | `feat/multi-rollout-task-execution` #38 | New `Runner` config key: `multi_rollout.n` (int, default 1 = disabled). Existing single-run behaviour is the default. |
 | `feat/auto-harness-best-of-n` #37 | New `Runner` config key: `auto_harness.best_of_n` (int, default 1 = disabled). |
 | `feat/team-verification-layer` #123, #121 | New `AgentConfig` key: `team_verification.enabled` (bool, default false). When false, the rail is a no-op and the sub-agent result passes through unchanged. |
