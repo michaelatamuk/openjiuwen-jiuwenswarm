@@ -176,7 +176,16 @@ flowchart TD
 <details>
 <summary><strong>#1 — Event Loop Fix — agent-core</strong> &nbsp;(<code>fix/event-loop-blocking</code> #28)</summary>
 
-Corrects an incorrect `asyncio` event-loop lifecycle in the agent-core task runner. An unhandled blocking call during startup causes the entire task process to hang silently. Fix: replace the blocking call with a proper async await. A hung process produces no output and fails silently — this must be fixed before anything else can run.
+<br>
+
+**How it works**
+
+- Root cause: blocking `asyncio` call inside `Runner` startup sequence
+- Symptom: entire task process hangs silently — zero output, no error message
+- Fix: replace the blocking call with proper `async/await`
+- This must be fixed before any hook fires; a hung process produces nothing
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -185,10 +194,21 @@ Corrects an incorrect `asyncio` event-loop lifecycle in the agent-core task runn
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#2 — Event Loop Fix — jiuwenswarm</strong> &nbsp;(<code>bugfix/event-loop-blocking</code> #119)</summary>
 
-Identical root cause at the jiuwenswarm runtime layer. The two fixes are independent; both must be applied. Symptom: jiuwenswarm sessions hang or raise `RuntimeError: This event loop is already running` mid-task.
+<br>
+
+**How it works**
+
+- Same root cause as #1 — blocking `asyncio` call, at the jiuwenswarm `AutoHarness` layer instead of agent-core
+- Symptom: sessions hang or raise `RuntimeError: This event loop is already running` mid-task
+- Fixes #1 and #2 are independent — both must be applied
+- Fix: same `async/await` replacement at the jiuwenswarm layer
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -197,10 +217,22 @@ Identical root cause at the jiuwenswarm runtime layer. The two fixes are indepen
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#3 — ACP Tool Filter Override</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> #139)</summary>
 
-When an agent is called via ACP, certain tools (such as `ReadFiles`) are intentionally unavailable — the ACP protocol expects the caller to supply file content directly rather than letting the agent read files itself. This is correct default behavior. However, internal deployments that use ACP purely as a transport (such as benchmark runners) require full tool availability. This item adds a jiuwenswarm config flag (`acp.override_tool_filter: true`) that disables ACP's tool filtering for a specific deployment. The default remains `false` — ACP tool restrictions apply unless the flag is explicitly set.
+<br>
+
+**How it works**
+
+- ACP intentionally removes tools like `ReadFiles` — the caller is expected to supply file content directly
+- This is correct default behavior, not a bug
+- Problem: internal deployments (e.g. benchmark runners) use ACP purely as transport and need full tool access
+- Solution: set `acp.override_tool_filter: true` in jiuwenswarm deployment config to disable ACP's tool filter for that deployment
+- Default remains `false` — ACP restrictions apply unless explicitly overridden
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -303,7 +335,20 @@ flowchart TD
 <details>
 <summary><strong>#4 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> #38)</summary>
 
-Clones the task workspace N times, injects a distinct strategy prompt into each clone (Correctness-focused / Minimal-diff / Edge-case-focused), runs all N clones in parallel, and exposes a configurable selector (`first_successful` / `longest_output` / `shortest_output`) to pick the winner. This converts a single-attempt system into a pass@k system; the expected pass rate for a task with per-attempt pass probability p rises from p to 1-(1-p)^N.
+<br>
+
+**How it works**
+
+- Clone the workspace N times (controlled by `multi_rollout.n`, default 1 = disabled)
+- Inject a distinct strategy prompt into each clone:
+  - Correctness-focused
+  - Minimal-diff
+  - Edge-case-focused
+- Run all N clones in parallel
+- `RolloutSelector` picks the winner: `first_successful` / `longest_output` / `shortest_output` (configurable)
+- Converts single-attempt to pass@k: expected pass rate rises from p → 1-(1-p)^N
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -313,10 +358,23 @@ Clones the task workspace N times, injects a distinct strategy prompt into each 
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#5 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> #37)</summary>
 
-Activated when the CI/verifier step inside a run fails. Clones the failing workspace N times, applies a different repair strategy to each clone, scores each repaired clone by `(tests_passed / diff_size / lint_errors)`, and promotes the highest-scoring patch back into the run. This is a self-healing step; it does not require user intervention.
+<br>
+
+**How it works**
+
+- Triggered when the CI/verifier step inside a run fails
+- Clone the failing workspace N times (controlled by `auto_harness.best_of_n`, default 1 = disabled)
+- Apply a different repair strategy to each clone
+- Score each repaired clone: `tests_passed / diff_size / lint_errors`
+- Promote the highest-scoring patch back into the run
+- Self-healing — no user intervention required
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -326,10 +384,23 @@ Activated when the CI/verifier step inside a run fails. Clones the failing works
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#6 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> #1425</a>)</summary>
 
-Runs an RL-style feedback loop — gated by `symphony.optimization.enabled` (default false) and restricted to the team leader role — that generates N candidate prompts, executes each, scores results via a composite reward (correctness, completeness, latency, token cost, drift from objective), and persists the best performer to a JSONL prompt knowledge base for reuse across sessions. A review-queue rail surfaces winning candidates to the leader for human confirmation before any prompt goes live.
+<br>
+
+**How it works**
+
+- Gated by `symphony.optimization.enabled` (default false); restricted to team leader role
+- Generate N candidate prompts via `PromptPolicy`
+- Execute each candidate via `PromptEnvironment`
+- Score with composite reward: correctness ×1.0 · completeness ×0.3 · latency ×0.1 · token cost · drift penalty
+- Persist best performer to JSONL prompt knowledge base (`PromptMemory`) for reuse across sessions
+- `PromptOptimizerReviewRail` surfaces winning candidates to the leader for human confirmation before any prompt goes live
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -420,7 +491,17 @@ flowchart TD
 <details>
 <summary><strong>#7 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> #371)</summary>
 
-Reads `/app/task.md` at session start and appends its full content as a permanent `system`-role section in the prompt. The section is exempt from the context manager's summarisation pass (implemented via a `pinned=True` flag on the message). Addresses the most common form of task drift: after 20+ turns of context compression, the agent's working summary of the goal is lossy, causing misaligned final output.
+<br>
+
+**How it works**
+
+- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Read `/app/task.md` in full
+- Append content as a permanent `system`-role section: `PromptSection(pinned=True, priority=1000)`
+- `pinned=True` makes the section exempt from `ContextEngine` summarisation — it can never be dropped
+- Addresses the most common form of task drift: after 20+ turns of context compression, the agent's goal summary becomes lossy
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -429,10 +510,22 @@ Reads `/app/task.md` at session start and appends its full content as a permanen
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#8 — Output Format Reminder Rail</strong> &nbsp;(<code>feat/output-format-reminder-rail</code> #401)</summary>
 
-At session start, parses `task.md` for output-format signals: the final two paragraphs (which typically contain the output contract) and any fenced code blocks with a `json`, `yaml`, or `csv` language tag. Extracts expected output path, required keys, and format constraints; pins them as a permanent system-prompt section. One wrong key name or wrong file extension can render output unusable even when the answer content is fully correct.
+<br>
+
+**How it works**
+
+- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Parse `task.md` for output-format signals: final two paragraphs + fenced code blocks tagged `json`, `yaml`, or `csv`
+- Extract: expected output path · required keys · format constraints
+- Pin as `PromptSection(pinned=True, priority=950)` — survives all context compression
+- One wrong key name or wrong file extension renders output unusable even when the answer content is correct
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -441,10 +534,22 @@ At session start, parses `task.md` for output-format signals: the final two para
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#9 — External Skill Discovery</strong> &nbsp;(<code>feat/external-skill-discovery</code> #214)</summary>
 
-At session start, scans `/app/environment/skills/` for `SKILL.md` files and injects a formatted index (skill name + one-line summary per skill) into the system prompt. Agents that do not know a skill exists re-implement its logic from scratch, producing incorrect output formats and missing task-specific validation.
+<br>
+
+**How it works**
+
+- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Scan `/app/environment/skills/` for `SKILL.md` files
+- Read each file's first paragraph to extract a one-line summary
+- Inject formatted index (skill name + one-line summary per skill) as `PromptSection(pinned=True, priority=900)`
+- Without this: agents re-implement skill logic from scratch → incorrect output formats, missing task-specific validation
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -543,7 +648,18 @@ flowchart TD
 <details>
 <summary><strong>#10 — Iteration Budget Awareness Rail</strong> &nbsp;(<code>feat/iteration-budget-awareness</code> #368)</summary>
 
-Tracks `(max_iterations - current_turn)`. When the remaining budget falls below a configurable threshold (default: 5 turns), injects a high-priority directive: stop exploring, write the best available output now, and run the verifier. Prevents the agent from running out of turns mid-solution.
+<br>
+
+**How it works**
+
+- Hook **[D]**: compute `remaining = max_iterations - current_turn`
+- If `remaining < threshold` (default: 5 turns), inject a high-priority directive:
+  - "Stop exploring"
+  - "Write the best available output now"
+  - "Run the verifier"
+- Prevents the agent from exhausting its turn budget mid-solution without producing any output
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -552,10 +668,23 @@ Tracks `(max_iterations - current_turn)`. When the remaining budget falls below 
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#11 — Tool Call Deduplication Cache</strong> &nbsp;(<code>feat/tool-call-dedup-cache</code> #372)</summary>
 
-Maintains a per-session `(tool_name, sha256(canonical_json(args))) → result` cache. Before dispatching any tool call, checks the cache; returns the cached result immediately if the call is identical to one already made. Prevents the agent from re-reading the same file or re-running the same search command on every turn, which was observed to consume 30–40% of iteration budgets in recorded session traces.
+<br>
+
+**How it works**
+
+- Cache key: `(tool_name, sha256(canonical_json(args)))`
+- Hook **[G]**: before dispatching any tool call, look up the cache
+  - Cache hit → return cached result immediately; no tool execution, no turn consumed
+  - Cache miss → execute normally, write result to cache
+- Cache scope: per-session only (TTL = session lifetime)
+- Impact: redundant file reads and search commands consumed 30–40% of iteration budgets in production traces
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -564,10 +693,22 @@ Maintains a per-session `(tool_name, sha256(canonical_json(args))) → result` c
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#12 — Autonomous Execution Mode</strong> &nbsp;(<code>feat/autonomous-execution-mode</code> #370)</summary>
 
-Post-processes the LLM output before tool dispatch. Detects hedging phrases ("I would recommend", "you might want to", "should I proceed") and confirmation requests ("please confirm", "let me know if"). Replaces them with direct execution language. Removes the class of failures where the agent produces a correct plan but stalls waiting for a human confirmation that will never come in a non-interactive autonomous execution environment.
+<br>
+
+**How it works**
+
+- Hook **[G]**: post-process LLM text output before tool dispatch
+- Detect hedging phrases: "I would recommend", "you might want to", "should I proceed"
+- Detect confirmation requests: "please confirm", "let me know if"
+- Replace detected phrases with direct execution language
+- Target failure: agent produces a correct plan but stalls waiting for human confirmation that will never arrive in a non-interactive environment
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -686,7 +827,16 @@ flowchart TD
 <details>
 <summary><strong>#13 — Anti-Repetition Prompt Fix</strong> &nbsp;(agent-core <code>fix/react-anti-repetition-prompt</code> #26)</summary>
 
-Modifies the ReAct system prompt to explicitly instruct the model not to repeat a Thought/Action pair it has already produced in the current session. The existing prompt contained no such constraint; repetition loops were the second most common cause of iteration budget exhaustion in production session traces.
+<br>
+
+**How it works**
+
+- Changes the ReAct system prompt template — not a runtime hook; takes effect at every **[E]** automatically
+- Adds explicit instruction: "Do not repeat a Thought/Action pair already produced in this session"
+- The previous prompt contained no such constraint
+- Impact: repetition loops were the second most common cause of budget exhaustion in production traces
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -695,10 +845,21 @@ Modifies the ReAct system prompt to explicitly instruct the model not to repeat 
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#14 — Failure Pattern Memory Rail</strong> &nbsp;(<code>feat/failure-pattern-memory-rail</code> #396)</summary>
 
-Maintains a session-state failure log: after each tool call that returns non-zero, serialises `(tool_name, args_summary, exit_code, stderr_tail)` into the log. Before each LLM call, prepends a formatted "Do not repeat these failed approaches" block to the system prompt. The list grows as more failures accumulate, preventing the agent from retrying approaches it has already proven do not work.
+<br>
+
+**How it works**
+
+- Hook **[I]**: after each tool call returning non-zero exit code, serialize `(tool_name, args_summary, exit_code, stderr_tail)` into the session failure log (key `failure_memory.log`)
+- Hook **[D]**: before each LLM call, prepend a formatted "Do not repeat these failed approaches" block to the system prompt
+- The list grows as failures accumulate across the session
+- Prevents the agent from retrying approaches it has already proven do not work
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -707,10 +868,22 @@ Maintains a session-state failure log: after each tool call that returns non-zer
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#15 — Step-Back Rail</strong> &nbsp;(<code>feat/step-back-rail</code> #399)</summary>
 
-Counts consecutive non-zero shell exit codes in session state. After N consecutive failures (default: 3), injects a "stop and reconsider your strategy entirely" directive. After 2N consecutive failures, escalates to "your current approach is fundamentally wrong; start from a different angle." Breaks the most common stuck pattern: marginal one-line patches to the same broken implementation, repeated until timeout.
+<br>
+
+**How it works**
+
+- Hook **[I]**: on non-zero exit code, increment `step_back.consecutive_count`; reset to 0 on success
+- Hook **[D]**: before each LLM call, check the counter:
+  - `count ≥ N` (default 3): inject "stop — reconsider your strategy entirely"
+  - `count ≥ 2N`: escalate to "your current approach is fundamentally wrong — start from a different angle"
+- Target failure: marginal one-line patches to the same broken implementation, repeated until timeout
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -719,10 +892,24 @@ Counts consecutive non-zero shell exit codes in session state. After N consecuti
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#16 — Verifier Circuit Breaker Rail</strong> &nbsp;(<code>feat/verifier-circuit-breaker-rail</code> #409)</summary>
 
-After each verifier run, extracts a failure fingerprint: `(failing_test_name, assertion_text, exit_code)` and tracks a consecutive-identical-failure counter in session state. After N consecutive identical verifier failures (default: 3), injects a rethink directive before the next LLM call. After 2N, injects an "abandon this approach entirely" directive. Specifically targets the most destructive failure loop: same test assertion fails → agent patches one line → verifier re-runs → same assertion fails → repeat × 15 → timeout.
+<br>
+
+**How it works**
+
+- Hook **[I]**: compute fingerprint `sha256(test_name + assertion_text + exit_code)` after each verifier run
+  - If fingerprint matches previous: increment `verifier_cb.consecutive_count`
+  - If fingerprint differs: reset counter, store new fingerprint
+- Hook **[D]**: before each LLM call, check the counter:
+  - `count ≥ N` (default 3): inject rethink directive
+  - `count ≥ 2N`: inject "abandon this approach entirely"
+- Target failure: same assertion fails → agent patches one line → verifier re-runs → same assertion fails → repeat ×15 → timeout
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -803,7 +990,18 @@ flowchart TD
 <details>
 <summary><strong>#17 — Context Headroom Guard</strong> &nbsp;(<code>feat/context-headroom-guard</code> #397)</summary>
 
-Monitors `current_tokens / context_window`. At 60% fill, injects a conciseness nudge. At 80% fill, injects a critical directive to stop issuing long explanations and to use terse tool calls only. Slows the rate at which the context window fills, delaying the onset of destructive automatic summarisation.
+<br>
+
+**How it works**
+
+- Hook **[D]**: compute `fill_ratio = current_tokens / context_window`
+  - `≥ 60%`: inject conciseness nudge — "be brief in explanations"
+  - `≥ 80%`: inject critical directive — "use terse tool calls only; stop long explanations"
+- Slows the rate at which the context window fills
+- Delays the onset of destructive automatic summarisation
+- Dual-threshold is JiuwenSwarm-specific; most systems use a single hard cutoff
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -812,10 +1010,21 @@ Monitors `current_tokens / context_window`. At 60% fill, injects a conciseness n
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(agent-core <code>feat/react-agent-prompt-serialization</code> #21)</summary>
 
-Serialises the fully-rendered ReAct system prompt (after all rail injections) to a deterministic JSON structure before each LLM call. Writes to `workspace/.prompt_log/turn_{n}.json`. Enables exact diff-based comparison between runs and regression detection when rails change.
+<br>
+
+**How it works**
+
+- Hook **[D]**: runs last — after all other rails have injected their sections
+- Serialize the fully-rendered system prompt (all sections assembled, all priorities applied) to deterministic JSON
+- Write to `workspace/.prompt_log/turn_{n}.json` — one file per turn, one directory per session
+- Enables: exact diff-based comparison between runs; regression detection when rails change
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -905,7 +1114,19 @@ flowchart TD
 <details>
 <summary><strong>#19 — Bash Output Head+Tail Truncation</strong> &nbsp;(<code>feat/bash-output-head-tail-truncation</code> #334)</summary>
 
-Replaces the default head-only truncation of long shell output with a head+tail strategy: keeps the first K lines and the last K lines, with a `... [N lines truncated] ...` separator. Verifier error messages and pytest failure details always appear at the end of stdout/stderr. The previous head-only truncation was silently discarding all diagnostic information from the verifier, leaving the agent blind to the reason its output was rejected.
+<br>
+
+**How it works**
+
+- Hook **[I]**: post-process raw tool output bytes before packaging as `ToolMessage`
+- If output length exceeds threshold, apply head+tail strategy:
+  - Keep first K lines (default K = 50)
+  - Keep last K lines
+  - Insert `... [N lines truncated] ...` separator between them
+- Verifier error messages and pytest failure details always appear at the end of stdout/stderr — they are always preserved
+- Previous head-only truncation silently discarded all verifier diagnostics, leaving the agent blind to why its output was rejected
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -914,10 +1135,23 @@ Replaces the default head-only truncation of long shell output with a head+tail 
 
 </details>
 
+<br>
+
 <details>
 <summary><strong>#20 — Self-Verification Loop</strong> &nbsp;(<code>feat/self-verification-loop</code> #328)</summary>
 
-After the agent produces any output file, before declaring the task done, runs the task's verifier script as a shell tool call. If the verifier exits non-zero, the agent re-enters the iteration loop with the verifier's stderr as the new context. Only exits cleanly when the verifier exits zero. This catches avoidable output errors before they reach the user, at the cost of one additional verifier run per output attempt.
+<br>
+
+**How it works**
+
+- Hook **[J]**: triggers after the agent writes any output file, before declaring the task done
+- Run the task verifier script as a synthetic shell tool call (`verifier/test_outputs.py`)
+- If `exit 0`: task complete ✅
+- If `exit ≠ 0`: inject verifier stderr as a new `system` message → re-enter the iteration loop
+- Only exits cleanly when the verifier exits zero
+- Cost: one additional verifier run per output attempt
+
+**Technical metadata**
 
 | | |
 |---|---|
@@ -1000,7 +1234,21 @@ flowchart TD
 <details>
 <summary><strong>#21 — Team Verification Layer</strong> &nbsp;(agent-core <code>feat/team-verification-layer</code> #123 / jiuwenswarm <code>feat/team-verification-layer</code> #121)</summary>
 
-In sessions where the leader spawns sub-agents: after each sub-agent completes its assigned task, a lightweight reviewer agent independently scores the sub-agent's output against a quality rubric (correctness, completeness, format compliance) before returning it to the leader. The leader receives `{result, score: float, reviewer_notes: str}` rather than a bare result. Implemented as a rail on the leader agent in jiuwenswarm (#121), backed by the scoring logic in agent-core (#123). Prevents the leader from consolidating sub-agent outputs that contain undetected errors.
+<br>
+
+**How it works**
+
+- Triggers after each sub-agent completes its assigned task (only when `team_verification.enabled = true`)
+- A lightweight reviewer agent independently scores the output against a quality rubric:
+  - Correctness
+  - Completeness
+  - Format compliance
+- Leader receives `{result, score: float, reviewer_notes: str}` instead of a bare result
+- Leader can reason about the score before consolidating sub-agent outputs
+- Implementation: rail on the leader agent in jiuwenswarm (#121); scoring logic in agent-core (#123)
+- When disabled (default): result passes through unchanged with zero overhead
+
+**Technical metadata**
 
 | | |
 |---|---|
