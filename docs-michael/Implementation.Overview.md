@@ -115,13 +115,13 @@ Each section below identifies: the failure mode, a feature summary, prior art, a
 **Failure mode:<br>** The process hangs or crashes before any iteration fires, producing zero output.
 
 **Feature summary:<br>**
-These are prerequisites — if any of them is missing, the agent produces zero output before a single hook fires. Items #1 and #2 fix the same asyncio lifecycle bug at two independent layers. Item #3 is a deployment config feature, not a bug fix.
+These are prerequisites — if any of them is missing, the agent produces zero output before a single hook fires. Items #1 and #2 fix the same asyncio lifecycle bug at two independent layers. Item #3 fixes a tool duplication problem on the ACP channel: before this change, ACP tools were simply added on top of the existing default tools, leaving the agent with both registered simultaneously. Now when the ACP client declares fs/terminal capabilities, the default equivalents are removed first and then replaced by the ACP-specific tools; when the ACP client declares no capabilities (e.g. benchmark sandboxes), the defaults stay so the agent can still act autonomously.
 
 | # | Feature | What it does |
 |---|---|---|
 | #1 | Event Loop Fix — agent-core | Replaces blocking asyncio call in `Runner` startup; prevents silent hang |
 | #2 | Event Loop Fix — jiuwenswarm | Same asyncio fix at jiuwenswarm `AutoHarness` layer; independent of #1, both required |
-| #3 | ACP Tool Filter Override | Adds `acp.override_tool_filter` config flag; lets specific deployments opt into full tool availability despite ACP defaults |
+| #3 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
 
 **Prior art (Comptetitors):**
 
@@ -131,10 +131,10 @@ These are prerequisites — if any of them is missing, the agent produces zero o
 | #1 #2 | OpenHands | Had identical asyncio lifecycle bug in early release |
 | #1 #2 | AutoGPT | Had identical asyncio lifecycle bug in early release |
 | #1 #2 | Note | Universal early-stage issue in Python async agent frameworks |
-| #3 | LangChain / LangGraph | Per-agent tool configuration with deployment-time override is standard |
-| #3 | OpenAI Assistants API | Per-assistant tool list is configurable per deployment |
-| #3 | OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — per-deployment tool availability enforced at dispatch time |
-| #3 | Hermes | Service-gated tools via `check_fn()` in toolset registry; `tools.disabled` config key disables specific tools per deployment |
+| #3 ACP Tool Filter | LangChain / LangGraph | Capability-scoped tool sets: tools declared in `allowed_tools` per agent/chain; no-op when capability not advertised |
+| #3 | OpenAI Assistants API | Tool availability controlled by `tools` array on the assistant; omitting a tool removes it without breaking non-capable clients |
+| #3 | OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — tool availability decided at dispatch time by capability flags in the channel context |
+| #3 | Hermes | Toolset `check_fn()` inspects request context before registering a tool; `tools.disabled` list removes tools for channels lacking the matching capability |
 
 <b>Data Flow</b>
 
@@ -155,20 +155,28 @@ flowchart TD
     auto_harness/service.py"]:::fix
 
     JW -->|"❌ same blocking-call pattern"| H2(["RuntimeError: loop already running"]):::fail
-    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| ACP["ACP permission check
-    acp/stdio_client.py"]:::fix
+    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| ADP["JiuWenSwarmDeepAdapter
+    _refresh_runtime_tools()"]:::fix
 
-    ACP --> CFG{"acp.override_tool_filter
-    in jiuwenswarm config?"}:::cfg
+    ADP --> CH{"channel_id == 'acp'?"}:::cfg
 
-    CFG -->|"false (default)
-    ACP tool filter applies
-    some tools intentionally removed"| FILTER["e.g. ReadFiles unavailable
-    caller must supply content directly"]
-    FILTER --> RUN
+    CH -->|"no (web / CLI / etc.)"| RUN1(["Default tools kept, agent runs ✅"]):::ok
 
-    CFG -->|"true  (PR #139)
-    all tools available"| RUN(["Agent runs normally ✅"]):::ok
+    CH -->|"yes"| CAP{"ACP client declares
+    fs or terminal capabilities?
+    (acp_client_capabilities in metadata)
+    (PR #139)"}:::cfg
+
+    CAP -->|"yes — ACP provides
+    replacement runtime tools"| STRIP["Strip _ACP_BLOCKED_DEFAULT_TOOL_NAMES
+    (read_file, write_file, bash, …)
+    Register ACP runtime tools instead"]:::fix
+
+    CAP -->|"no — e.g. benchmark sandbox,
+    no UI to provide replacements"| KEEP["Keep default file/shell tools
+    agent can still work autonomously"]:::ok
+
+    STRIP & KEEP --> RUN2(["Agent runs normally ✅"]):::ok
 ```
 
 <u>Technical Details</u>
@@ -220,25 +228,27 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#3 — ACP Tool Filter Override</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
+<summary><strong>#3 — ACP Tool Deduplication Guard</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
 
 <br>
 
 **How it works**
 
-- ACP intentionally removes tools like `ReadFiles` — the caller is expected to supply file content directly
-- This is correct default behavior, not a bug
-- Problem: internal deployments (e.g. benchmark runners) use ACP purely as transport and need full tool access
-- Solution: set `acp.override_tool_filter: true` in jiuwenswarm deployment config to disable ACP's tool filter for that deployment
-- Default remains `false` — ACP restrictions apply unless explicitly overridden
+- The ACP channel provides its own runtime tools for file and terminal access (`read_text_file`, `write_text_file`, `create_terminal`, etc.) when the ACP client has the corresponding capabilities
+- **Problem before this PR:** `_refresh_acp_runtime_tools()` only added ACP tools — it never removed the default equivalents (`read_file`, `write_file`, `bash`, etc.). The agent ended up with both sets registered simultaneously, creating tool duplication and ambiguity
+- **Fix (two new code blocks added):**
+  - **Block 1 — remove defaults before adding ACP tools:** `if channel_id == "acp" and can_register_acp_runtime_tools`: iterate `ability_manager`, remove any tool whose name is in `_ACP_BLOCKED_DEFAULT_TOOL_NAMES`; this runs only when the ACP client actually has capabilities, so benchmark sandboxes and other ACP callers without caps keep their defaults and can still act autonomously
+  - **Block 2 — clean up stale ACP tools:** always remove previously registered ACP tool names before re-registering; prevents accumulation across re-entrant calls on the same session
+- `_acp_runtime_tools_enabled(request_metadata)` reads `caps["fs"]` and `caps["terminal"]` from `acp_client_capabilities` in the request metadata to determine which replacement tools the client can provide
+- `_should_register_acp_runtime_tools(channel_id, request_id, session_id, has_runtime_capability)` returns `True` only when channel is `"acp"`, both `request_id` and `session_id` are set, and at least one capability is declared
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AbilityManager` — checks the config flag before applying the ACP tool filter |
-| **Config** | `acp.override_tool_filter` (bool, default false) in jiuwenswarm deployment config |
-| **Files** | `acp/stdio_client.py`, jiuwenswarm deployment config |
+| **Hook points** | Request-level adapter — `JiuWenSwarmDeepAdapter._refresh_runtime_tools()`, not a standard rail hook |
+| **Key methods** | `_acp_runtime_tools_enabled()`, `_should_register_acp_runtime_tools()` (both in `interface_deep.py`) |
+| **Files** | `jiuwenswarm/server/runtime/agent_adapter/interface_deep.py` (only changed file in this PR) |
 
 </details>
 
@@ -256,8 +266,8 @@ All three features apply the same principle — "try N variants, keep the best" 
 
 | # | Feature | What it does |
 |---|---|---|
-| #4 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `RolloutSelector` picks the best output |
-| #5 | Auto-Harness Best-of-N | When CI fails inside a run, spawns N repair clones scored by `tests_passed / diff_size / lint_errors`; promotes best patch |
+| #4 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `FirstSuccessfulSelector` / `LongestOutputSelector` / `ShortestOutputSelector` picks the best output |
+| #5 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
 | #6 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
 
 **Prior art (Comptetitors):**
@@ -293,25 +303,38 @@ flowchart TD
 
     T(["📋 Task"])
 
-    T --> MR["MultiRolloutRunner  (PR #38)
-    clone workspace N times
-    auto_harness/"]:::ac
+    T --> MR["MultiRolloutExecutor  (PR #38)
+    harness/multi_rollout/executor.py
+    clone workspace N times via subagents"]:::ac
 
     MR --> R1(["Run 1 — Correctness strategy"]):::run
     MR --> R2(["Run 2 — Minimal-diff strategy"]):::run
     MR --> RN(["Run N — Edge-case strategy"]):::run
 
-    R1 & R2 & RN --> CI{CI fails\ninside run?}
+    R1 & R2 & RN --> GATHER["asyncio.gather — results collected"]
 
-    CI -->|yes| BON["BestOfNRepair  (PR #37)
-    N repair clones
-    score = tests_passed / diff_size / lint_errors
-    promote highest-scoring patch"]:::repair
-    BON --> CI
-
-    CI -->|no| SEL["RolloutSelector  (PR #38)
-    first_successful · longest_output · shortest_output"]:::ac
+    GATHER --> SEL["selector  (PR #38)  harness/multi_rollout/selector.py
+    FirstSuccessfulSelector (default)
+    LongestOutputSelector · ShortestOutputSelector"]:::ac
     SEL --> OUT(["🏁 Final Output"]):::done
+
+    T --> IMPL["implement stage"]:::run
+    IMPL --> CI{"CI gate
+    lint + type-check + tests"}
+    CI -->|passed| OUT
+    CI -->|failed + best_of_n_enabled| BON["BestOfNController  (PR #37)
+    auto_harness/pipelines/best_of_n/controller.py
+    clone workspace N times"]:::repair
+    BON --> A1(["Attempt 1 — correctness strategy"]):::run
+    BON --> A2(["Attempt 2 — minimal changes"]):::run
+    BON --> AN(["Attempt N — edge cases"]):::run
+    A1 & A2 & AN --> SCORE["AttemptScorer
+    tests_passed · diff_lines · lint_errors"]:::repair
+    SCORE --> PICK["BestOfNSelector
+    max tests_passed → min diff → min lint"]:::repair
+    PICK --> PROMOTE["promote winner workspace
+    clean up losers"]:::repair
+    PROMOTE --> OUT
 
     T --> PP["PromptPolicy  (PR #1425)
     generate N prompt candidates
@@ -339,22 +362,24 @@ flowchart TD
 
 **How it works**
 
-- Clone the workspace N times (controlled by `multi_rollout.n`, default 1 = disabled)
-- Inject a distinct strategy prompt into each clone:
-  - Correctness-focused
-  - Minimal-diff
-  - Edge-case-focused
-- Run all N clones in parallel
-- `RolloutSelector` picks the winner: `first_successful` / `longest_output` / `shortest_output` (configurable)
+- Early-return gate in `DeepAgent.invoke()`: if `deep_config.multi_rollout.enabled`, delegate to `MultiRolloutExecutor` before the standard pipeline starts
+- `MultiRolloutExecutor._create_subagents(n)`: create N isolated subagents
+- `_build_attempt_inputs()`: inject a strategy prefix into the query for each subagent:
+  - Attempt 0: focus on correctness and thoroughness
+  - Attempt 1: focus on minimal changes — change as few lines as possible
+  - Attempt 2: focus on edge cases and defensive programming
+- `_execute_parallel()`: run all N via `asyncio.gather` with `asyncio.Semaphore(max_parallel)` for concurrency control; each attempt has an individual `timeout_per_rollout` (default 600 s)
+- Selector picks the winner from `RolloutResult` objects: `FirstSuccessfulSelector` (default) / `LongestOutputSelector` / `ShortestOutputSelector`
 - Converts single-attempt to pass@k: expected pass rate rises from p → 1-(1-p)^N
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | Wraps the entire `DeepAgent.invoke()` — sits outside `ReActAgent.before_invoke`–`ReActAgent.after_invoke` |
-| **New classes** | `MultiRolloutRunner`, `RolloutSelector` |
-| **Config** | `multi_rollout.n` (Runner, int, default 1 = disabled) |
+| **Hook points** | Early-return in `DeepAgent.invoke()` before `ReActAgent.before_invoke` — bypasses the standard pipeline entirely |
+| **New classes** | `MultiRolloutExecutor`, `MultiRolloutConfig`, `RolloutResult`, `FirstSuccessfulSelector`, `LongestOutputSelector`, `ShortestOutputSelector` |
+| **Config** | `multi_rollout.enabled` (bool, default `False`); `multi_rollout.n_rollouts` (int, default 3); `multi_rollout.selector_kind` (str, default `"first_successful"`); `multi_rollout.timeout_per_rollout` (float, default 600.0 s) |
+| **Files** | `openjiuwen/harness/multi_rollout/executor.py`, `config.py`, `selector.py`; `openjiuwen/harness/schema/config.py` (`DeepConfig.multi_rollout` field); `openjiuwen/harness/deep_agent.py` (early-return gate in `invoke()`) |
 
 </details>
 
@@ -367,20 +392,28 @@ flowchart TD
 
 **How it works**
 
-- Triggered when the CI/verifier step inside a run fails
-- Clone the failing workspace N times (controlled by `auto_harness.best_of_n`, default 1 = disabled)
-- Apply a different repair strategy to each clone
-- Score each repaired clone: `tests_passed / diff_size / lint_errors`
-- Promote the highest-scoring patch back into the run
-- Self-healing — no user intervention required
+- Replaces the iterative fix loop (phase 1: 10 tries + phase 2: 9 tries = 19 sequential attempts) when enabled
+- Trigger: `MetaVerifyStage.stream()` — fires after the implement stage when `CIGateRunner` reports CI failure AND `best_of_n_enabled = True`
+- Clone the current workspace N times via `WorkspaceCloner.clone_n_async()` (default N = 3)
+- For each clone, run the fix agent **sequentially** (sequential is required; each attempt calls `os.chdir` into its clone) with a strategy-specific prompt:
+  - Attempt 0: "CI failed — fix focusing on correctness"
+  - Attempt 1: "CI failed — minimal code changes, change as few lines as possible"
+  - Attempt 2: "CI failed — fix focusing on edge cases and boundary conditions"
+- Score each completed workspace via `AttemptScorer`:
+  - `tests_passed`: result from `CIGateRunner.run("all")` on the clone
+  - `diff_lines`: total insertions + deletions from `git diff HEAD --stat`
+  - `lint_errors`: violation count from `ruff check --output-format json`
+- `BestOfNSelector` picks winner: max `tests_passed` → min `diff_lines` → min `lint_errors`
+- Promote winning workspace back to the original path; clean up all other clones
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | Wraps `DeepAgent.invoke()` — triggered by CI failure signal, outside `ReActAgent.before_invoke`–`ReActAgent.after_invoke` |
-| **New class** | `BestOfNRepair` |
-| **Config** | `auto_harness.best_of_n` (Runner, int, default 1 = disabled) |
+| **Hook points** | `MetaVerifyStage.stream()` in the auto-harness verify stage — not a standard rail hook point |
+| **New classes** | `BestOfNController`, `AttemptScorer`, `AttemptScore`, `ScoredAttempt`, `BestOfNSelector`, `BestOfNResult` |
+| **Config** | `best_of_n_enabled` (bool, default `False`); `best_of_n_attempts` (int, default 3) — both in `AutoHarnessConfig` |
+| **Files** | `openjiuwen/auto_harness/pipelines/best_of_n/controller.py`, `attempt_scorer.py`, `attempt_selector.py`; `openjiuwen/auto_harness/stages/verify.py` (MetaVerifyStage); `openjiuwen/auto_harness/orchestrator.py` (BestOfNController init) |
 
 </details>
 
@@ -1313,7 +1346,7 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 |---|------|------|------------|--------|
 | 1 | Event Loop Fix | agent-core | (PR #28) | Branch open |
 | 2 | Event Loop Fix | jiuwenswarm | (PR #119) | Branch open |
-| 3 | ACP Tool Filter Override | jiuwenswarm | (PR #139) | Branch open |
+| 3 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) | Branch open |
 | 4 | Multi-Rollout | agent-core | (PR #38) | Branch open |
 | 5 | Auto-Harness Best-of-N | agent-core | (PR #37) | Branch open |
 | 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) | Branch open · 25 unit tests passing |
