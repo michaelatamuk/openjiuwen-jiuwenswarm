@@ -1415,7 +1415,7 @@ flowchart TD
 
     PERSIST --> EVENT_EMIT["emit team.verification.completed\n event to frontend"]:::rev
 
-    EVENT_EMIT & BYPASS --> LEADER_DONE(["Leader sees verification\n results in trends hook\nbefore_model_call"]):::leader
+    GRACEFUL & EVENT_EMIT & BYPASS --> LEADER_DONE(["Leader sees verification\n results in trends hook\nbefore_model_call"]):::leader
 
     LEADER_DONE --> CONSOLIDATE(["Final consolidated output ✅"]):::done
 ```
