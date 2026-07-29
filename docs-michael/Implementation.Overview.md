@@ -307,9 +307,14 @@ flowchart TD
     %% ── #4 Multi-Rollout: triggered by a regular user task ──────────────
     T(["📋 User Task"])
 
-    T --> MR["MultiRolloutExecutor  (PR #38)
+    T --> MR_GATE{"multi_rollout
+    enabled?"}
+
+    MR_GATE -->|"yes"| MR["MultiRolloutExecutor  (PR #38)
     harness/multi_rollout/executor.py
     DeepAgent.invoke() early-return gate"]:::ac
+
+    MR_GATE -->|"no"| END4
 
     MR --> R1(["Run 1 — Correctness strategy"]):::run
     MR --> R2(["Run 2 — Minimal-diff strategy"]):::run
@@ -320,7 +325,7 @@ flowchart TD
     GATHER --> SEL["selector  (PR #38)  harness/multi_rollout/selector.py
     FirstSuccessfulSelector (default)
     LongestOutputSelector · ShortestOutputSelector"]:::ac
-    SEL --> OUT4(["🏁 Best output returned to user"]):::done
+    SEL --> END4(["🏁 Task output"]):::done
 
     %% ── #5 Best-of-N: triggered by developer CLI / REPL ─────────────────
     DEV(["🔧 Developer:
@@ -367,10 +372,20 @@ flowchart TD
     S4 --> OUT5(["🏁 Improved harness committed"]):::done
 
     %% ── #6 RLAF-P: leader agent calls optimize_prompt tool ─────────────
-    T --> LEADER["Leader Agent workflow
-    PromptOptimizerPromptRail injects guidance
-    on when to call optimize_prompt"]:::opt
-    LEADER -->|"calls optimize_prompt tool  (PR #1425)"| PP["PromptPolicy
+    DEV_OPT(["👤 Developer:
+    optimize_prompt(task)
+    in Python"]):::cli
+
+    LEADER_OPT(["🤖 Team leader:
+    has optimize_prompt tool
+    PromptOptimizerPromptRail
+    guides when to use"]):::opt
+
+    DEV_OPT & LEADER_OPT --> CALL(["📞 optimize_prompt(objective, cases)
+    tool call (PR #1425)
+    symphony/optimization/"]):::opt
+
+    CALL --> PP["PromptPolicy
     generate N prompt candidates
     symphony/optimization/"]:::opt
     PP --> PE["PromptEnvironment
@@ -381,10 +396,15 @@ flowchart TD
     CR --> PM["PromptMemory
     JSONL / FAISS — persist winner"]:::opt
     PM --> RQ["PromptOptimizerReviewRail
-    surfaces pending results to leader
-    human reviews before going live"]:::opt
-    RQ -->|"approved — prompt published"| PP
-    RQ -->|"next session reuse"| OUT4
+    checks PromptMemory.pending()
+    surfaces unreviewed records
+    with positive gain to leader"]:::opt
+    RQ --> REVIEW(["Human reviews prompt text
+    before it goes live"]):::opt
+    REVIEW -->|"approved"| APPLIED(["mark_prompt_improvement_applied
+    record published · done"]):::done
+    REVIEW -->|"rejected"| END6(["Record remains
+    in pending queue"])
 ```
 
 <u>Technical Details</u>
