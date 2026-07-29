@@ -43,9 +43,12 @@ def _is_windows_reparse_point(path: Path) -> bool:
     return bool(file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
-def _is_skill_dir_link(path: Path) -> bool:
+def is_skill_dir_link(path: Path) -> bool:
     """Return whether the path entry is a skill directory link."""
     return path.is_symlink() or _is_windows_reparse_point(path)
+
+
+_is_skill_dir_link = is_skill_dir_link  # backward compat alias
 
 
 def ensure_skill_dir_links(source: Path, target: Path) -> None:
