@@ -887,54 +887,72 @@ flowchart TD
     classDef post fill:#BF360C,color:#fff,stroke:#7f2407
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
-    PROMPT(["Prompt build  SystemPromptBuilder"])
+    PROMPT(["Prompt build · SystemPromptBuilder"])
 
-    PROMPT --> AR["Anti-Repetition  (PR #26)  agent-core
+    PROMPT --> AR["Anti-Repetition (PR #26) · agent-core
     harness/prompts/ — ReAct system prompt
     explicit: do not repeat Thought/Action pairs"]:::ac
 
-    AR --> DMEM["failure_memory_rail.py  (PR #396)  AgentRail.before_model_call
-    read failure_memory.log
-    prepend do-not-repeat list to prompt"]:::pre
+    AR --> DMEM["failure_memory_rail.py (PR #396) · before_model_call
+    read _failure_memory · if non-empty
+    inject numbered list into system prompt (priority 95)"]:::pre
 
-    DMEM --> SB_CHK{"step_back
-    .consecutive_count"}
+    DMEM --> SB_CHK{"_step_back_consecutive_failures"}
 
     SB_CHK -->|"< N"| VCB_CHK
-    SB_CHK -->|"≥ N (default 3)"| SB1["step_back_rail.py  (PR #399)
-    inject: stop · rethink strategy"]:::pre
-    SB_CHK -->|"≥ 2N"| SB2["inject: approach is wrong
-    start from a different angle"]:::pre
+    SB_CHK -->|"≥ N (default 3)"| SB1["step_back_rail.py (PR #399)
+    inject 4-step rethink directive (priority 94)
+    single level — no 2N escalation"]:::pre
 
-    SB1 & SB2 --> VCB_CHK{"verifier_cb
-    .consecutive_count"}
+    SB1 --> VCB_CHK{"_vcb_consecutive"}
 
     VCB_CHK -->|"< N"| LLM
-    VCB_CHK -->|"≥ N"| VCB1["verifier_circuit_breaker_rail.py  (PR #409)
-    inject: rethink"]:::pre
-    VCB_CHK -->|"≥ 2N"| VCB2["inject: abandon approach entirely"]:::pre
+    VCB_CHK -->|"≥ N (default 3)"| VCB1["verifier_circuit_breaker_rail.py (PR #409)
+    inject: rethink directive (priority 96)"]:::pre
+    VCB_CHK -->|"≥ 2N"| VCB2["inject: CIRCUIT BREAKER
+    ABANDON everything · start from scratch"]:::pre
 
-    VCB1 & VCB2 --> LLM(["LLM call  LLM call"]):::io
+    VCB1 & VCB2 --> LLM(["LLM call"]):::io
 
-    LLM --> NONZERO{"tool exit code ≠ 0?
-    AgentRail.after_tool_call"}
+    %% ── after_tool_call: three sequential filter passes ──
 
-    NONZERO -->|"yes"| FM_W["write to failure_memory.log
-    tool + args_summary + exit_code + stderr_tail"]:::post
-    NONZERO -->|"yes"| SB_INC["increment
-    step_back.consecutive_count"]:::post
-    NONZERO -->|"no"| SB_RST["reset
-    step_back.consecutive_count = 0"]:::post
+    LLM --> FM_CHK{"error strings in result?
+    (15+ patterns: Traceback / Error: /
+    FAILED / SyntaxError …)
+    or tool exception?"}
 
-    FM_W & SB_INC & SB_RST --> VER_FP["verifier fingerprint =
-    sha256(test_name + assertion + exit_code)"]:::post
+    FM_CHK -->|"yes"| FM_W["append to _failure_memory
+    tool + args_120chars + error_snippet_300chars
+    skip if duplicate of last · keep max 10"]:::post
+    FM_CHK -->|"no"| SH_CHK
 
-    VER_FP --> SAME{"same fingerprint
-    as last run?"}
-    SAME -->|"yes"| VCB_INC["increment verifier_cb.consecutive_count"]:::post
-    SAME -->|"no"| VCB_RST["reset count · store new fingerprint"]:::post
+    FM_W --> SH_CHK{"shell tool?
+    bash / run_bash /
+    mcp_exec_command …"}
 
-    VCB_INC & VCB_RST --> PROMPT
+    SH_CHK -->|"not a shell tool"| VER_CHK
+    SH_CHK -->|"exit code = 0"| SB_RST["reset
+    _step_back_consecutive_failures = 0"]:::post
+    SH_CHK -->|"exit code ≠ 0"| SB_INC["increment
+    _step_back_consecutive_failures"]:::post
+
+    SB_RST & SB_INC --> VER_CHK{"≥ 2 verifier markers?
+    pytest / PASSED / FAILED /
+    AssertionError / reward.txt …"}
+
+    VER_CHK -->|"no verifier output"| PROMPT
+    VER_CHK -->|"success
+    (N passed / reward:1)"| VCB_CLR["clear _vcb_failure_sig
+    clear _vcb_consecutive"]:::post
+    VER_CHK -->|"failure"| VER_FP["normalize FAILED/AssertionError lines
+    compute MD5 fingerprint (16 hex chars)"]:::post
+
+    VER_FP --> SAME{"same as _vcb_failure_sig?"}
+    SAME -->|"yes"| VCB_INC["increment _vcb_consecutive"]:::post
+    SAME -->|"no"| VCB_RST["reset _vcb_consecutive = 1
+    store new _vcb_failure_sig"]:::post
+
+    VCB_CLR & VCB_INC & VCB_RST --> PROMPT
 ```
 
 <u>Technical Details</u>
@@ -969,17 +987,18 @@ flowchart TD
 
 **How it works**
 
-- `AgentRail.after_tool_call`: after each tool call returning non-zero exit code, serialize `(tool_name, args_summary, exit_code, stderr_tail)` into the session failure log (key `failure_memory.log`)
-- `AgentRail.before_model_call`: before each LLM call, prepend a formatted "Do not repeat these failed approaches" block to the system prompt
-- The list grows as failures accumulate across the session
-- Prevents the agent from retrying approaches it has already proven do not work
+- `DeepAgentRail.after_tool_call`: inspects the tool result string for 15+ error substrings (`Traceback`, `Error:`, `FAILED`, `exit code 1`, `SyntaxError`, `FileNotFoundError`, etc.); if matched, extracts the error line plus up to 5 following lines (max 300 chars) and appends `(tool_name, args_120chars, error_snippet)` to the session failure log
+- `DeepAgentRail.on_tool_exception`: also appends exception text (max 300 chars) when a tool raises an exception instead of returning a result
+- Deduplication: skips if the new entry is identical to the most recent one; keeps at most `max_failures` entries (default 10, rolling window)
+- `DeepAgentRail.before_model_call`: if the failure log is non-empty, injects a numbered-list system-prompt section at priority 95: `{i}. \`{tool}\` → {error_snippet}`
+- Prevents the agent from retrying approaches that have already been proven to fail
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.after_tool_call` write; `AgentRail.before_model_call` read and inject |
-| **File** | `rails/failure_memory_rail.py`; session-state key `failure_memory.log` |
+| **Hook points** | `after_tool_call` + `on_tool_exception` write; `before_model_call` read and inject |
+| **File** | `rails/failure_memory_rail.py`; session-state key `_failure_memory`; config `failure_memory.max_failures: 10` |
 
 </details>
 
@@ -992,18 +1011,19 @@ flowchart TD
 
 **How it works**
 
-- `AgentRail.after_tool_call`: on non-zero exit code, increment `step_back.consecutive_count`; reset to 0 on success
-- `AgentRail.before_model_call`: before each LLM call, check the counter:
-  - `count ≥ N` (default 3): inject "stop — reconsider your strategy entirely"
-  - `count ≥ 2N`: escalate to "your current approach is fundamentally wrong — start from a different angle"
+- Only monitors shell tools: `mcp_exec_command`, `bash`, `run_bash`, `execute_command`, `run_command`, `run_shell`
+- `DeepAgentRail.after_tool_call`: parses exit code from the JSON result (accepts `exit_code`, `exitCode`, `returncode`, `return_code` keys); exit code 0 resets the counter to 0; any non-zero value increments it; result stored in session state
+- `DeepAgentRail.on_tool_exception`: also increments the counter when a shell tool raises an exception
+- `DeepAgentRail.before_model_call`: if `consecutive ≥ step_back_after` (default 3), injects a 4-step rethink directive into the system prompt (priority 94): re-read the task → identify root cause → design a different strategy → execute; otherwise removes the section
+- Single-level only — no escalation at 2N
 - Target failure: marginal one-line patches to the same broken implementation, repeated until timeout
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.after_tool_call` count; `AgentRail.before_model_call` inject |
-| **File** | `rails/step_back_rail.py`; session-state key `step_back.consecutive_count` |
+| **Hook points** | `after_tool_call` + `on_tool_exception` count; `before_model_call` inject |
+| **File** | `rails/step_back_rail.py`; session-state key `_step_back_consecutive_failures`; config `step_back.step_back_after: 3` |
 
 </details>
 
@@ -1016,21 +1036,22 @@ flowchart TD
 
 **How it works**
 
-- `AgentRail.after_tool_call`: compute fingerprint `sha256(test_name + assertion_text + exit_code)` after each verifier run
-  - If fingerprint matches previous: increment `verifier_cb.consecutive_count`
-  - If fingerprint differs: reset counter, store new fingerprint
-- `AgentRail.before_model_call`: before each LLM call, check the counter:
-  - `count ≥ N` (default 3): inject rethink directive
-  - `count ≥ 2N`: inject "abandon this approach entirely"
+- `DeepAgentRail.after_tool_call`: first checks if the tool output is actually verifier output — requires ≥ 2 of 10 markers: `pytest`, `PASSED`, `FAILED`, `AssertionError`, `reward.txt`, etc.; non-verifier tool output is ignored entirely
+- **Success path**: if the output contains `"{N} passed"` with no `"failed"` string, or `"reward: 1"`, both session-state keys are cleared and the circuit-breaker section is removed
+- **Failure path**: extracts `FAILED`, `AssertionError`, and `E ` lines (up to 20), normalizes away `/tmp/` paths, timestamps, line numbers, and memory addresses, then computes an MD5 fingerprint (first 16 hex chars)
+  - Different signature from last run → resets counter to 1, stores new signature
+  - Same signature → increments counter
+- `DeepAgentRail.before_model_call`: removes any existing section; if `consecutive ≥ break_after` (default 3), injects a rethink directive (priority 96); if `consecutive ≥ break_after × 2`, escalates to a "CIRCUIT BREAKER — ABANDON everything and start from scratch" directive
+- Priority 96 > StepBackRail (94), so the circuit-breaker directive takes precedence when both rails are active simultaneously
 - Target failure: same assertion fails → agent patches one line → verifier re-runs → same assertion fails → repeat ×15 → timeout
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.after_tool_call` fingerprint and count; `AgentRail.before_model_call` inject |
-| **File** | `rails/verifier_circuit_breaker_rail.py`; session-state keys `verifier_cb.fingerprint`, `verifier_cb.consecutive_count` |
-| **Fingerprint** | `sha256(test_name + assertion_text + exit_code)` — identical only when all three fields match |
+| **Hook points** | `after_tool_call` fingerprint and count; `before_model_call` inject |
+| **File** | `rails/verifier_circuit_breaker_rail.py`; session-state keys `_vcb_failure_sig`, `_vcb_consecutive`; default `break_after=3` |
+| **Fingerprint** | MD5 first 16 hex chars of normalized FAILED/AssertionError lines — identical only when the same assertion fails in the same location |
 
 </details>
 
