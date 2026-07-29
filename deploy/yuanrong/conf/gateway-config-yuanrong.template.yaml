@@ -1058,3 +1058,9 @@ modes:
         # 控制记忆内容如何注入到每个成员的 system prompt 中：
         #   "proactive" — 每轮对话开始时主动注入最新记忆摘要
         member_memory_prompt_mode: "proactive"
+
+sandbox:
+  type: <<TOOL_SANDBOX_TYPE>>
+  enabled: <<TOOL_SANDBOX_ENABLE>>
+  executor: <<TOOL_SANDBOX_EXECUTOR>>
+  image: <<TOOL_SANDBOX_IMAGE>>

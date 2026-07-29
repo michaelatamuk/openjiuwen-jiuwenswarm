@@ -997,7 +997,16 @@ class MessageHandler(ABC):
             await self._pop_stream_tracking_and_broadcast(rids_cancelled)
 
         if agent_notify == "fire_and_forget":
-            task = asyncio.create_task(self._send_interrupt_to_agent(env_interrupt))
+            # Still forward cancelled_tools once AgentServer responds — otherwise
+            # the UI keeps spinning until refresh (history was written, live push not).
+            task = asyncio.create_task(
+                self._send_interrupt_to_agent(
+                    env_interrupt,
+                    channel_id=msg.channel_id,
+                    session_id=sid_for_agent,
+                    metadata=cancel_metadata or None,
+                )
+            )
             self._fire_and_forget_tasks.add(task)
             task.add_done_callback(self._fire_and_forget_tasks.discard)
             logger.info(
@@ -1086,6 +1095,7 @@ class MessageHandler(ABC):
         session_keys: list[tuple[str, str]],
         *,
         stale_request_keys: list[tuple[str, str]] | None = None,
+        user_id: str | None = None,
     ) -> bool:
         """取消仍绑定在断开连接上的会话（与显式 chat.interrupt 对齐）。
 
@@ -1124,7 +1134,7 @@ class MessageHandler(ABC):
                 continue
             seen.add(sid)
             self.cancel_scheduled_disconnect_cancel(_channel_id, sid)
-            cleaned = await self._cancel_disconnect_session(_channel_id, sid)
+            cleaned = await self._cancel_disconnect_session(_channel_id, sid, user_id=user_id)
             all_cleaned = cleaned and all_cleaned
         return all_cleaned
 
@@ -1134,6 +1144,7 @@ class MessageHandler(ABC):
         *,
         stale_request_keys: list[tuple[str, str]] | None = None,
         delay_seconds: float = _TUI_DISCONNECT_CANCEL_GRACE_SECONDS,
+        user_id: str | None = None,
     ) -> None:
         """Schedule a disconnect cancel unless the same session reconnects first."""
         merged, recovered_via_requests = self._merge_disconnect_session_keys(
@@ -1160,7 +1171,9 @@ class MessageHandler(ABC):
             seen.add(task_key)
             self.cancel_scheduled_disconnect_cancel(channel_id, sid)
             task = asyncio.create_task(
-                self._delayed_disconnect_cancel(channel_id, sid, delay_seconds)
+                self._delayed_disconnect_cancel(
+                    channel_id, sid, delay_seconds, user_id=user_id
+                )
             )
             self._disconnect_cancel_tasks[task_key] = task
 
@@ -1212,7 +1225,12 @@ class MessageHandler(ABC):
 
         return merged, recovered_via_requests
 
-    def _build_disconnect_cancel_message(self, channel_id: str, session_id: str) -> "Message":
+    def _build_disconnect_cancel_message(
+        self,
+        channel_id: str,
+        session_id: str,
+        user_id: str | None = None,
+    ) -> "Message":
         from jiuwenswarm.common.schema.message import Message, ReqMethod
 
         disconnect_params = {
@@ -1238,10 +1256,16 @@ class MessageHandler(ABC):
             ok=True,
             req_method=ReqMethod.CHAT_CANCEL,
             is_stream=False,
+            user_id=user_id,
         )
 
-    async def _cancel_disconnect_session(self, channel_id: str, session_id: str) -> bool:
-        stub = self._build_disconnect_cancel_message(channel_id, session_id)
+    async def _cancel_disconnect_session(
+        self,
+        channel_id: str,
+        session_id: str,
+        user_id: str | None = None,
+    ) -> bool:
+        stub = self._build_disconnect_cancel_message(channel_id, session_id, user_id=user_id)
         try:
             return bool(
                 await self._cancel_agent_work_for_session(
@@ -1264,11 +1288,12 @@ class MessageHandler(ABC):
         channel_id: str,
         session_id: str,
         delay_seconds: float,
+        user_id: str | None = None,
     ) -> None:
         task_key = (channel_id, session_id)
         try:
             await asyncio.sleep(max(0.0, delay_seconds))
-            await self._cancel_disconnect_session(channel_id, session_id)
+            await self._cancel_disconnect_session(channel_id, session_id, user_id=user_id)
         finally:
             if self._disconnect_cancel_tasks.get(task_key) is asyncio.current_task():
                 self._disconnect_cancel_tasks.pop(task_key, None)
@@ -3239,6 +3264,7 @@ class MessageHandler(ABC):
             ok=True,
             req_method=ReqMethod.CHAT_SEND,
             is_stream=True,
+            user_id=getattr(msg, "user_id", None),
         )
 
     async def _send_non_stream_agent_request(
@@ -3471,6 +3497,7 @@ class MessageHandler(ABC):
                             is_stream=False,
                             timestamp=time.time(),
                             metadata=msg.metadata,
+                            user_id=getattr(msg, "user_id", None),
                         )
                         try:
                             resp = await self._send_non_stream_agent_request(supplement_env)
@@ -4032,14 +4059,31 @@ class MessageHandler(ABC):
             stream_rid, msg.channel_id, len(self._stream_tasks),
         )
 
-    async def _send_interrupt_to_agent(self, env: "E2AEnvelope") -> None:
-        """Fire-and-forget: 发送中断请求到 AgentServer，不阻塞转发循环."""
+    async def _send_interrupt_to_agent(
+        self,
+        env: "E2AEnvelope",
+        *,
+        channel_id: str | None = None,
+        session_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        """Fire-and-forget: 发送中断到 AgentServer，不阻塞转发循环.
+
+        ``interrupt_result`` 已由调用方提前推送；此处仍要把响应里的
+        ``cancelled_tools`` 转成 ``chat.tool_result``，否则前端 tool 卡片会一直转圈，
+        直到刷新历史才看到 ``[Interrupted]``.
+        """
         try:
             resp = await self._send_non_stream_agent_request(env)
             logger.info(
-                "[MessageHandler] AgentServer 中断响应(已丢弃): request_id=%s ok=%s",
+                "[MessageHandler] AgentServer 中断响应: request_id=%s ok=%s",
                 resp.request_id, resp.ok,
             )
+            payload = resp.payload if isinstance(resp.payload, dict) else {}
+            ch = (channel_id or getattr(env, "channel", None) or "").strip()
+            sid = (session_id or getattr(env, "session_id", None) or "").strip()
+            if ch and sid and payload.get("cancelled_tools"):
+                await self._send_cancelled_tool_results(ch, sid, payload, metadata)
         except Exception as e:
             logger.warning("[MessageHandler] AgentServer 中断请求失败(忽略): %s", e)
 

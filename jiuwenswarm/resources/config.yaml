@@ -115,8 +115,8 @@ memory:
     enabled: false
     patterns: []
     description:
-      zh: "以下内容禁止记忆：密码、API密钥、Secret、Token、信用卡号、身份证号、手机号等敏感信息"
-      en: "The following content is forbidden to remember: passwords, API keys, secrets, tokens, credit card numbers, ID numbers, phone numbers and other sensitive information"
+      zh: "以下内容禁止记忆：（用户自行补充，如身高、体重、姓名等，建议用逗号分隔）"
+      en: "The following content is forbidden to remember: (To be supplemented by users, e.g., height, weight, name, etc. Separate items with commas recommended)"
 
   # ------------------------------------------------------------
   # 外接记忆（External Memory）
@@ -210,7 +210,12 @@ models:
         api_key: ${API_KEY}
         model_name: ${MODEL_NAME}
         client_provider: ${MODEL_PROVIDER}
-        timeout: 1800
+        # HTTP 请求超时（秒）。需严格 > stream_first_chunk_timeout，确保先触发应用层流超时（可被 LLMRetryRail 重试）
+        timeout: 360
+        # 流式：等待首个分片的最大时间（秒）。放宽以兼容 reasoning/思考模型思考期的静默
+        stream_first_chunk_timeout: 300
+        # 流式：分片之间的最大空闲等待时间（秒）
+        stream_idle_timeout: 60
         verify_ssl: false
         custom_headers: {}
       model_config_obj:
@@ -471,54 +476,30 @@ react:
     enable_reload: true
     enabled: true
     message_summary_offloader_config:
-      messages_threshold: null
-      large_message_threshold: 15000
-      offload_message_type: [ "tool" ]
-      protected_tool_names: ["read_file"]
-      messages_to_keep: null
-      keep_last_round: false
-      customized_summary_prompt: null
-      enable_adaptive_compression: true
-      summary_max_tokens: 900
-      enable_precise_step: false
-      step_summary_max_context_messages: 8
-      content_max_chars_for_compression: 200000
+      add_message_threshold_ratio: 0.1
+      ttl_seconds: 300
+      ttl_context_occupancy_ratio: 0.5
+      ttl_message_threshold_ratio: 0.05
     dialogue_compressor_config:
-      messages_threshold: null
-      tokens_threshold: 100000
-      messages_to_keep: 10
-      keep_last_round: false
-      compression_target_tokens: 1800
-      offload_writeback_enabled: false
+      trigger_context_ratio: 0.8
+      min_target_context_ratio: 0.1
     current_round_compressor_config:
-      tokens_threshold: 100000
-      messages_to_keep: 3
-      min_selected_tokens_for_compression: 20000
-      compression_target_tokens: 4000
-      summary_merge_target_tokens: 4000
-      accumulated_summary_token_limit: 20000
-      summary_merge_min_blocks: 3
-      prior_context_window_size: 10
-      offload_writeback_enabled: false
+      trigger_context_ratio: 0.8
+      min_target_context_ratio: 0.1
+      keep_recent_messages: 4
     round_level_compressor_config:
-      rounds_threshold: 2
-      trigger_context_ratio: 0.9
-      target_total_tokens: 160000
-      compression_call_max_tokens: 250000
-      keep_last_round: true
-      keep_recent_messages: 6
-      messages_to_keep: 6
-      first_pass_target_tokens: 30000
-      second_pass_target_tokens: 20000
-      third_pass_target_tokens: 10000
-      truncate_head_ratio: 0.2
-      offload_writeback_enabled: false
-    # 连续相同 reasoning + 相同工具集时，折叠较早重复轮次（始终保留最近 1 轮完整内容）
+      trigger_context_ratio: 0.8
+      min_target_context_ratio: 0.1
+      keep_recent_messages: 4
+    # 连续相同 reasoning+工具集 / 相同工具入参时，折叠重复轮次；超阈值后兜底中止
     reasoning_tool_loop_compact_config:
-      enabled: true                      # 是否启用 reasoning+工具循环压缩
-      consecutive_threshold: 3             # 尾部连续几轮相同才触发压缩
+      enabled: true                        # 是否启用循环压缩
+      consecutive_threshold: 3             # reasoning+工具名连续相同几轮触发压缩
+      tool_args_consecutive_threshold: 5   # 工具名+入参连续相同几轮触发压缩（与 reasoning 无关）
       reasoning_min_chars: 4               # reasoning 低于此长度（strip 后）的轮次不参与匹配
       reasoning_preview_max_chars: 512     # 摘要里 reasoning 预览的最大字符数
+      bailout_threshold: 3                 # reasoning 规则压缩次数达此值后中止
+      tool_args_bailout_threshold: 2       # 工具入参规则压缩次数达此值后终止
   # Skills 在线自演进配置
   evolution:
     enabled: true             # true = 启用在线 Skills 自演进
@@ -938,10 +919,10 @@ permissions:
     bash: ask
     mcp_exec_command: ask
     create_terminal: ask
-    write: ask
-    write_file: ask
-    edit_file: ask
-    search_replace: ask
+    write: allow
+    write_file: allow
+    edit_file: allow
+    search_replace: allow
     # ask_user 只向用户提问，不修改系统，自动放行避免权限中断阻塞问题选项呈现
     ask_user: allow
     write_memory: allow
@@ -1066,20 +1047,39 @@ permissions:
       tools: [bash, mcp_exec_command, create_terminal]
       pattern: 're:(?i)(^|[\s;&|()])((cat|type|less|more|head|tail|grep|find|Get-Content|Select-String)\b[^;&|]*(id_rsa|id_ed25519|\.pem\b|\.pfx\b|\.key\b|\.kube/config|\.aws/(credentials|config)|\.npmrc\b|\.env(\.[A-Za-z0-9_-]+)?\b|authorized_keys|\.ssh/))'
       severity: HIGH
-    - id: path_ask_ssh
-      tools: [read_file, write_file, edit_file, read_text_file, write_text_file, write, read, glob_file_search, glob, list_dir, list_files, grep, search_replace]
-      pattern: "**/.ssh/**"
-      severity: HIGH
-    - id: path_ask_env
-      tools: [read_file, write_file, edit_file, read_text_file, write_text_file, write, read, glob_file_search, glob, list_dir, list_files, grep, search_replace]
-      pattern: "**/.env*"
-      severity: HIGH
+    # path_ask_* 已迁到 file_guard.paths（match: glob）；Pipeline A 不再重复匹配。
+    # - id: path_ask_ssh / path_ask_env → 见下方 file_guard.paths
 
   # 数字分身 owner-scoped 权限（默认空，不生效）
   owner_scopes: {}
   deny_guidance_message: ""
 
-  # 外部目录访问 (访问 workspace 外路径时的权限)
+  # Native 路径层（agent-core FileGuard）：defaults + workspace 绑定运行时 workspace_root
+  # trusted_dirs（TUI 项目 cwd / /add-dir）由引擎运行时编译，不必写进 YAML。
+  file_guard:
+    enabled: true
+    defaults:
+      read: ask
+      write: ask
+      exec: ask
+    workspace:
+      read: allow
+      write: allow
+      exec: ask
+    paths:
+      - path: "**/.ssh/**"
+        match: glob
+        read: ask
+        write: ask
+        exec: ask
+      - path: "**/.env*"
+        match: glob
+        read: ask
+        write: ask
+        exec: ask
+
+  # Legacy external_directory：仅作兼容；启用上方 Native file_guard 后 "*" 不再驱动路径层。
+  # 新信任目录写入 file_guard.paths（/add-dir），勿再写本键具名 allow。
   external_directory:
     "*": "ask"
 

@@ -27,12 +27,11 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
-from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 from openjiuwen.core.common.logging import LogManager
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 # --- Early --dotenv parsing (before jiuwenswarm imports) ---
-from jiuwenswarm.dotenv_early import parse_dotenv_early
+from jiuwenswarm.dotenv_early import parse_dotenv_early, load_dotenv_runtime
 
 parse_dotenv_early("jiuwenswarm-gateway")
 
@@ -73,7 +72,7 @@ else:
     for _lg in LogManager.get_all_loggers().values():
         _lg.set_level(logging.CRITICAL)
 
-load_dotenv(dotenv_path=get_env_file(), override=True)
+load_dotenv_runtime(dotenv_path=get_env_file(), override=True)
 reset_free_search_runtime_flags()
 
 logger = logging.getLogger("jiuwenswarm.gateway")
@@ -2426,8 +2425,24 @@ async def _run(
             if isinstance(ssh_conf, dict):
                 # 南向经 agent client（如 agentos_router -> yuanrong）动态解析。
                 enabled, reason = _is_channel_enabled(ssh_conf, ["listen_port"])
+                full_cfg = get_config()
+                gateway_cfg = full_cfg.get("gateway") if isinstance(full_cfg, dict) else {}
+                agent_client_cfg = (
+                    gateway_cfg.get("agent_client") if isinstance(gateway_cfg, dict) else {}
+                )
+                client_type = (
+                    str(agent_client_cfg.get("type") or "websocket").strip().lower()
+                    if isinstance(agent_client_cfg, dict)
+                    else "websocket"
+                )
                 if not enabled:
                     logger.info("[App] channels.ssh.%s, SshChannel disabled", reason)
+                elif client_type != "agentos_router":
+                    logger.warning(
+                        "[App] channels.ssh.enabled=true but gateway.agent_client.type=%s "
+                        "(require agentos_router); SshChannel will not start",
+                        client_type,
+                    )
                 else:
                     ssh_config = SshChannelConfig.from_dict({**ssh_conf, "enabled": True})
                     ssh_channel = SshChannel(ssh_config, _DummyBus())
