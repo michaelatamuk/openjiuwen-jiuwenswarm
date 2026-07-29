@@ -16,12 +16,11 @@ Each section below identifies: the failure mode, a feature summary, prior art, a
 **Failure mode:<br>** The process hangs or crashes before any iteration fires, producing zero output.
 
 **Feature summary:<br>**
-These are prerequisites — if any of them is missing, the agent produces zero output before a single hook fires. Item #1 fixes the asyncio lifecycle bug at both layers (agent-core and jiuwenswarm). Item #2 fixes a tool duplication problem on the ACP channel: before this change, ACP tools were simply added on top of the existing default tools, leaving the agent with both registered simultaneously. Now when the ACP client declares fs/terminal capabilities, the default equivalents are removed first and then replaced by the ACP-specific tools; when the ACP client declares no capabilities (e.g. benchmark sandboxes), the defaults stay so the agent can still act autonomously.
+A prerequisite — if missing, the agent produces zero output before a single hook fires. Item #1 fixes the asyncio lifecycle bug at both layers (agent-core and jiuwenswarm).
 
 | # | Feature | What it does |
 |---|---|---|
 | #1 | Event Loop Fix (both layers) | Replaces blocking asyncio call in both `Runner` startup (agent-core) and `AutoHarness` service (jiuwenswarm); prevents silent hang |
-| #2 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
 
 <b>Data Flow</b>
 
@@ -30,7 +29,6 @@ flowchart TD
     classDef fix  fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
     classDef ok   fill:#01579B,color:#fff,stroke:#003c74
-    classDef cfg  fill:#27474F,color:#fff,stroke:#263238
 
     T(["📋 Task"])
 
@@ -42,28 +40,7 @@ flowchart TD
     auto_harness/service.py"]:::fix
 
     JW -->|"❌ same blocking-call pattern"| H2(["RuntimeError: loop already running"]):::fail
-    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| ADP["JiuWenSwarmDeepAdapter
-    _refresh_runtime_tools()"]:::fix
-
-    ADP --> CH{"channel_id == 'acp'?"}:::cfg
-
-    CH -->|"no (web / CLI / etc.)"| RUN1(["Default tools kept, agent runs ✅"]):::ok
-
-    CH -->|"yes"| CAP{"ACP client declares
-    fs or terminal capabilities?
-    (acp_client_capabilities in metadata)
-    (PR #139)"}:::cfg
-
-    CAP -->|"yes — ACP provides
-    replacement runtime tools"| STRIP["Strip _ACP_BLOCKED_DEFAULT_TOOL_NAMES
-    (read_file, write_file, bash, …)
-    Register ACP runtime tools instead"]:::fix
-
-    CAP -->|"no — e.g. benchmark sandbox,
-    no UI to provide replacements"| KEEP["Keep default file/shell tools
-    agent can still work autonomously"]:::ok
-
-    STRIP & KEEP --> RUN2(["Agent runs normally ✅"]):::ok
+    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| RUN(["Agent runs normally ✅"]):::ok
 ```
 
 <u>Technical Details</u>
@@ -88,32 +65,6 @@ flowchart TD
 
 </details>
 
-<br>
-
-<details>
-<summary><strong>#2 — ACP Tool Deduplication Guard</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
-
-<br>
-
-**How it works**
-
-- The ACP channel provides its own runtime tools for file and terminal access (`read_text_file`, `write_text_file`, `create_terminal`, etc.) when the ACP client has the corresponding capabilities
-- **Problem before this PR:** `_refresh_acp_runtime_tools()` only added ACP tools — it never removed the default equivalents (`read_file`, `write_file`, `bash`, etc.). The agent ended up with both sets registered simultaneously, creating tool duplication and ambiguity
-- **Fix (two new code blocks added):**
-  - **Block 1 — remove defaults before adding ACP tools:** `if channel_id == "acp" and can_register_acp_runtime_tools`: iterate `ability_manager`, remove any tool whose name is in `_ACP_BLOCKED_DEFAULT_TOOL_NAMES`; this runs only when the ACP client actually has capabilities, so benchmark sandboxes and other ACP callers without caps keep their defaults and can still act autonomously
-  - **Block 2 — clean up stale ACP tools:** always remove previously registered ACP tool names before re-registering; prevents accumulation across re-entrant calls on the same session
-- `_acp_runtime_tools_enabled(request_metadata)` reads `caps["fs"]` and `caps["terminal"]` from `acp_client_capabilities` in the request metadata to determine which replacement tools the client can provide
-- `_should_register_acp_runtime_tools(channel_id, request_id, session_id, has_runtime_capability)` returns `True` only when channel is `"acp"`, both `request_id` and `session_id` are set, and at least one capability is declared
-
-**Technical metadata**
-
-| | |
-|---|---|
-| **Hook points** | Request-level adapter — `JiuWenSwarmDeepAdapter._refresh_runtime_tools()`, not a standard rail hook |
-| **Key methods** | `_acp_runtime_tools_enabled()`, `_should_register_acp_runtime_tools()` (both in `interface_deep.py`) |
-| **Files** | `jiuwenswarm/server/runtime/agent_adapter/interface_deep.py` (only changed file in this PR) |
-
-</details>
 
 ---
 
@@ -122,13 +73,13 @@ flowchart TD
 **Failure mode:<br>** A single deterministic attempt on a hard task has a low per-attempt success probability. Running once is insufficient.
 
 **Feature summary:<br>**
-All three features apply the same principle — "try N variants, keep the best" — but at different levels and with different entry points. #3 and #5 are triggered by a regular user task (agent invocation). #4 is triggered by the developer manually running `openjiuwen auto-harness run` (CLI or REPL), which executes its own Assess → Plan → Implement → Verify pipeline independent of the agent's task loop.
+All three features apply the same principle — "try N variants, keep the best" — but at different levels and with different entry points. #2 and #4 are triggered by a regular user task (agent invocation). #3 is triggered by the developer manually running `openjiuwen auto-harness run` (CLI or REPL), which executes its own Assess → Plan → Implement → Verify pipeline independent of the agent's task loop.
 
 | # | Feature | What it does |
 |---|---|---|
-| #3 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `FirstSuccessfulSelector` / `LongestOutputSelector` / `ShortestOutputSelector` picks the best output |
-| #4 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
-| #5 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
+| #2 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `FirstSuccessfulSelector` / `LongestOutputSelector` / `ShortestOutputSelector` picks the best output |
+| #3 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
+| #4 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
 
 <b>Data Flow</b>
 
@@ -143,7 +94,7 @@ flowchart TD
     classDef old    fill:#446E7A,color:#fff,stroke:#263238
     classDef stage  fill:#27474F,color:#fff,stroke:#263238
 
-    %% ── #3 Multi-Rollout: triggered by a regular user task ──────────────
+    %% ── #2 Multi-Rollout: triggered by a regular user task ──────────────
     T(["📋 User Task"])
 
     T --> MR_GATE{"multi_rollout
@@ -166,7 +117,7 @@ flowchart TD
     LongestOutputSelector · ShortestOutputSelector"]:::ac
     SEL --> END4(["🏁 Task output"]):::done
 
-    %% ── #4 Best-of-N: triggered by developer CLI / REPL ─────────────────
+    %% ── #3 Best-of-N: triggered by developer CLI / REPL ─────────────────
     DEV(["🔧 Developer:
     openjiuwen auto-harness run
     (CLI or REPL command)"]):::cli
@@ -210,7 +161,7 @@ flowchart TD
 
     S4 --> OUT5(["🏁 Improved harness committed"]):::done
 
-    %% ── #5 RLAF-P: leader agent calls optimize_prompt tool ─────────────
+    %% ── #4 RLAF-P: leader agent calls optimize_prompt tool ─────────────
     DEV_OPT(["👤 Developer:
     optimize_prompt(task)
     in Python"]):::cli
@@ -249,7 +200,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#3 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> (PR #38))</summary>
+<summary><strong>#2 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> (PR #38))</summary>
 
 <br>
 
@@ -279,7 +230,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#4 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> (PR #37))</summary>
+<summary><strong>#3 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> (PR #37))</summary>
 
 <br>
 
@@ -314,7 +265,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#5 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> (PR #1425)</a>)</summary>
+<summary><strong>#4 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> (PR #1425)</a>)</summary>
 
 <br>
 
@@ -344,15 +295,48 @@ flowchart TD
 **Failure mode:<br>** The agent starts each task with no knowledge of the output contract or available tools. After compression, even its memory of the goal becomes lossy.
 
 **Feature summary:<br>**
-All three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #6 and #7 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #8 scans external skill dirs at the same point.
+Three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #6 and #7 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #8 scans external skill dirs at the same point. #5 is different — it runs during adapter initialization to ensure the agent starts with the correct tool set and no duplicates.
 
 | # | Feature | What it does |
 |---|---|---|
+| #5 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
 | #6 | Task Description Re-injection | Reads `task.md` in full and adds it as a `PromptSection(priority=12)` in the system prompt; the agent always has the original goal regardless of how long the conversation has grown |
 | #7 | Output Format Reminder | Extracts the last 1–2 format-signal paragraphs and fenced code blocks (json/csv/yaml/xml/…) from `task.md`; adds as `PromptSection(priority=14)`; capped at 800 chars |
 | #8 | External Skill Directories | Loads skills from configurable paths (`skills.external_dirs` in config or `EXTERNAL_SKILL_DIRS` env var); injects skill catalogue into system prompt at `priority=900`; `external_only` flag isolates the agent to task-provided skills only (CI/benchmark use) |
 
 <b>Data Flow</b>
+
+<b>#5 — ACP Tool Deduplication</b>
+
+```mermaid
+flowchart TD
+    classDef fix  fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef cfg  fill:#27474F,color:#fff,stroke:#263238
+    classDef ok   fill:#01579B,color:#fff,stroke:#003c74
+
+    REQ(["📨 Request arrives
+    channel_id + request_metadata"]):::cfg
+
+    REQ --> RUNTOOLS["_refresh_runtime_tools()
+    JiuWenSwarmDeepAdapter"]:::fix
+
+    RUNTOOLS --> CH{"channel_id == 'acp'?"}:::cfg
+
+    CH -->|"no"| KEEP(["keep defaults"]):::ok
+
+    CH -->|"yes"| CAP{"_acp_runtime_tools_enabled()
+    caps['fs'] or caps['terminal']?"}:::cfg
+
+    CAP -->|"no caps"| KEEP
+
+    CAP -->|"has caps"| STRIP["strip _ACP_BLOCKED_DEFAULT_TOOL_NAMES
+    register ACP runtime tools"]:::fix
+
+    STRIP --> DONE(["✅ correct tool set"]):::ok
+    KEEP --> DONE
+```
+
+<b>#6–#8 — Prompt Injection Rails</b>
 
 ```mermaid
 flowchart TD
@@ -403,10 +387,39 @@ flowchart TD
     these sections during summarisation"]:::pin
 
     SPB --> ALL(["Every subsequent iteration
-    all 3 sections always present in prompt"]):::eng
+    all 3 sections always present"]):::eng
 ```
 
 <u>Technical Details</u>
+
+<br>
+
+<details>
+<summary><strong>#5 — ACP Tool Deduplication Guard</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
+
+<br>
+
+**How it works**
+
+- The ACP channel provides its own runtime tools for file and terminal access (`read_text_file`, `write_text_file`, `create_terminal`, etc.) when the ACP client has the corresponding capabilities
+- **Problem before this PR:** `_refresh_acp_runtime_tools()` only added ACP tools — it never removed the default equivalents (`read_file`, `write_file`, `bash`, etc.). The agent ended up with both sets registered simultaneously, creating tool duplication and ambiguity
+- **Fix (two new code blocks added):**
+  - **Block 1 — remove defaults before adding ACP tools:** `if channel_id == "acp" and can_register_acp_runtime_tools`: iterate `ability_manager`, remove any tool whose name is in `_ACP_BLOCKED_DEFAULT_TOOL_NAMES`; this runs only when the ACP client actually has capabilities, so benchmark sandboxes and other ACP callers without caps keep their defaults and can still act autonomously
+  - **Block 2 — clean up stale ACP tools:** always remove previously registered ACP tool names before re-registering; prevents accumulation across re-entrant calls on the same session
+- `_acp_runtime_tools_enabled(request_metadata)` reads `caps["fs"]` and `caps["terminal"]` from `acp_client_capabilities` in the request metadata to determine which replacement tools the client can provide
+- `_should_register_acp_runtime_tools(channel_id, request_id, session_id, has_runtime_capability)` returns `True` only when channel is `"acp"`, both `request_id` and `session_id` are set, and at least one capability is declared
+
+**Technical metadata**
+
+| | |
+|---|---|
+| **Hook points** | Request-level adapter — `JiuWenSwarmDeepAdapter._refresh_runtime_tools()`, not a standard rail hook |
+| **Key methods** | `_acp_runtime_tools_enabled()`, `_should_register_acp_runtime_tools()` (both in `interface_deep.py`) |
+| **Files** | `jiuwenswarm/server/runtime/agent_adapter/interface_deep.py` (only changed file in this PR) |
+
+</details>
+
+<br>
 
 <details>
 <summary><strong>#6 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> (PR #371))</summary>
@@ -1221,10 +1234,10 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 | # | Item | Repo | PR / Branch |
 |---|------|------|------------|
 | 1 | Event Loop Fix (both layers) | agent-core + jiuwenswarm | (PR #28) + (PR #119) |
-| 2 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) |
-| 3 | Multi-Rollout | agent-core | (PR #38) |
-| 4 | Auto-Harness Best-of-N | agent-core | (PR #37) |
-| 5 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) |
+| 2 | Multi-Rollout | agent-core | (PR #38) |
+| 3 | Auto-Harness Best-of-N | agent-core | (PR #37) |
+| 4 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) |
+| 5 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) |
 | 6 | Task Description Re-injection | jiuwenswarm | (PR #371) |
 | 7 | Output Format Reminder | jiuwenswarm | (PR #401) |
 | 8 | External Skill Directories | jiuwenswarm | (PR #214) |
@@ -1356,18 +1369,9 @@ Rails that need a persistent counter or log (e.g., failure counts, verifier fing
 | AutoGPT | Had identical asyncio lifecycle bug in early release |
 | Note | Universal early-stage issue in Python async agent frameworks |
 
-**#2 — ACP Tool Deduplication Guard**
-
-| System | Equivalent |
-|---|---|
-| LangChain / LangGraph | Capability-scoped tool sets: tools declared in `allowed_tools` per agent/chain; no-op when capability not advertised |
-| OpenAI Assistants API | Tool availability controlled by `tools` array on the assistant; omitting a tool removes it without breaking non-capable clients |
-| OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — tool availability decided at dispatch time by capability flags in the channel context |
-| Hermes | Toolset `check_fn()` inspects request context before registering a tool; `tools.disabled` list removes tools for channels lacking the matching capability |
-
 ### Group 2 — Scale
 
-**#3 — Multi-Rollout**
+**#2 — Multi-Rollout**
 
 | System | Equivalent |
 |---|---|
@@ -1378,7 +1382,7 @@ Rails that need a persistent counter or log (e.g., failure counts, verifier fing
 | OpenHands | `--num_experiments` flag |
 | Hermes | MoA loop (`moa_loop.py`) — up to 8 concurrent reference advisors run in parallel; most direct internal precedent for multi-rollout |
 
-**#4 — Auto-Harness Best-of-N**
+**#3 — Auto-Harness Best-of-N**
 
 | System | Equivalent |
 |---|---|
@@ -1387,7 +1391,7 @@ Rails that need a persistent counter or log (e.g., failure counts, verifier fing
 | Devin | Internal retry-with-repair mechanism |
 | OpenHands | Patch ranking across repair attempts |
 
-**#5 — RLAF-P Prompt Optimizer**
+**#4 — RLAF-P Prompt Optimizer**
 
 | System | Equivalent |
 |---|---|
@@ -1399,6 +1403,15 @@ Rails that need a persistent counter or log (e.g., failure counts, verifier fing
 | Hermes | `learn_prompt.py` — skill learning from turn feedback (direct RLAF-P equivalent); `background_review.py` — post-turn daemon reviews and updates skill prompts |
 
 ### Group 3 — Session Start
+
+**#5 — ACP Tool Deduplication Guard**
+
+| System | Equivalent |
+|---|---|
+| LangChain / LangGraph | Capability-scoped tool sets: tools declared in `allowed_tools` per agent/chain; no-op when capability not advertised |
+| OpenAI Assistants API | Tool availability controlled by `tools` array on the assistant; omitting a tool removes it without breaking non-capable clients |
+| OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — tool availability decided at dispatch time by capability flags in the channel context |
+| Hermes | Toolset `check_fn()` inspects request context before registering a tool; `tools.disabled` list removes tools for channels lacking the matching capability |
 
 **#6 — Task Description Re-injection**
 
