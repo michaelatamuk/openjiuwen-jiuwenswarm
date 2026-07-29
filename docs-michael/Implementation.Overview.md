@@ -5,105 +5,7 @@
 
 ---
 
-## 1. Architecture Context
-
-### Layer Map
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  jiuwenswarm                                            │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  AutoHarness  (agents/harness/common/auto_harness │  │
-│  │               /service.py)                        │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  Symphony rails  (agents/harness/common/   │  │  │
-│  │  │                   rails/*.py)              │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ACP permission client  (acp/stdio_client.py)           │
-└────────────────────┬────────────────────────────────────┘
-                     │ uses
-┌────────────────────▼────────────────────────────────────┐
-│  agent-core / harness                                   │
-│  DeepAgent  (harness/deep_agent.py)                     │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  DeepAgentRail  (harness/rails/base.py)          │  │
-│  │  hooks: before/after_task_iteration               │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  ReActAgent  (core/single_agent/agents/           │  │
-│  │               react_agent.py)                     │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  AgentRail  (core/single_agent/rail/base.py│  │  │
-│  │  │  hooks: before/after_model_call             │  │  │
-│  │  │           before/after_tool_call            │  │  │
-│  │  │           before/after_invoke               │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────┘  │
-│  Runner + ResourceMgr  (core/runner/runner.py)          │
-│  ContextEngine  (core/context_engine/)                  │
-│  SystemPromptBuilder  (core/single_agent/prompts/       │
-│                        builder.py)                      │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Execution Pipeline — Hook Points
-
-Every rail in this project attaches to one or more of these labeled hook points. Group deep-dives reference them by letter.
-
-```
-[A]  ReActAgent.invoke() — before_invoke
-[B]  DeepAgent outer loop — before_task_iteration
-       ↓
-[C]  SystemPromptBuilder assembles system prompt
-     (ContextEngine builds full messages list)
-       ↓
-[D]  AgentRail — before_model_call
-       ↓
-[E]  LLM call
-       ↓
-[F]  AgentRail — after_model_call
-       ↓
-     Parse tool calls from LLM response
-       ↓  (per tool call)
-[G]  AgentRail — before_tool_call
-       ↓
-[H]  AbilityManager dispatches via Runner.resource_mgr
-     → ACP permission check (acp/stdio_client.py)
-     → Tool executes
-       ↓
-[I]  AgentRail — after_tool_call
-       ↓
-     Completion check — if done, exit inner loop
-       ↓  (if not done, back to [C])
-[J]  DeepAgent outer loop — after_task_iteration
-       ↓
-     Outer completion check — if done, exit
-       ↓  (if not done, back to [B])
-[K]  ReActAgent.invoke() — after_invoke
-```
-
-### How Rails Inject Into the System Prompt
-
-Rails that need to inject text into the prompt do so via `SystemPromptBuilder`. Each `PromptSection` has:
-- `content` — the text
-- `priority` — sections are sorted; higher priority renders closer to the top
-- `pinned=True` — exempt from `ContextEngine`'s automatic summarisation pass
-
-Rails write sections at `AgentRail.before_model_call` or at session start `DeepAgentRail.before_task_iteration` for pinned content. The assembled prompt is then passed to the LLM at LLM call.
-
-### Session State — Where Rails Read and Write
-
-Stateful rails persist data between turns using the `AgentCallbackContext` passed to every hook. In jiuwenswarm this is backed by:
-
-- `agents/harness/common/session_ops_service.py` — mutable per-session state store
-- `server/runtime/session/` — durable session history (used by evolution layer)
-
-Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at `AgentRail.after_tool_call` and read from it at `AgentRail.before_model_call` on the next turn.
-
----
-
-## 2. Group-by-Group Overview
+## 1. Overview of Improvements
 
 Each section below identifies: the failure mode, a feature summary, prior art, a data flow diagram, which hook points are used, and which files are touched.
 
@@ -123,7 +25,7 @@ These are prerequisites — if any of them is missing, the agent produces zero o
 | #2 | Event Loop Fix — jiuwenswarm | Same asyncio fix at jiuwenswarm `AutoHarness` layer; independent of #1, both required |
 | #3 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
 
-**Prior art (Comptetitors):**
+**Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
@@ -270,7 +172,7 @@ All three features apply the same principle — "try N variants, keep the best" 
 | #5 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
 | #6 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
 
-**Prior art (Comptetitors):**
+**Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
@@ -695,7 +597,7 @@ Each rail targets a different cause of budget exhaustion. #10 and #11 hook into 
 | #11 | Tool Call Dedup Cache | Per-turn: suppresses identical repeat calls within one LLM response (MD5-8 key); cross-turn: injects a prompt warning (priority 97) after `warn_after` real executions of the same call |
 | #12 | Autonomous Execution Mode | Injects a static directive block (priority 9, before INTRO) at agent init and each `before_invoke`; directs the LLM to never ask for clarification, never hedge, act and verify autonomously |
 
-**Prior art (Comptetitors):**
+**Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
@@ -890,7 +792,7 @@ Five mechanisms, each targeting a different loop or inefficiency pattern and ope
 | #16 | Verifier Circuit Breaker | Fingerprints verifier failure (test + assertion + exit code); injects escalating "abandon approach" directive at N and 2N identical failures |
 | #17 | Context Headroom Guard | Monitors token fill ratio via `ctx.context.statistic()`; injects conciseness directive at 60%, urgent directive at 80% |
 
-**Prior art (Comptetitors):**
+**Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
@@ -1171,7 +1073,7 @@ flowchart TD
 |---|---|---|
 | #18 | Prompt Serialisation | Serialises the assembled messages into `usage_metadata.prompt` after every LLM call, making the prompt available for downstream inspection |
 
-**Prior art (Comptetitors):**
+**Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
@@ -1401,7 +1303,8 @@ flowchart TD
 
     SKIP -->|"yes"| BYPASS
 
-    SKIP -->|"no"| VERIFY["asyncio.create_task(_run_verification())\n fire-and-forget"]:::rev
+    SKIP -->|"no"|     VERIFY["asyncio.create_task(_run_verification())
+    fire-and-forget"]:::rev
 
     VERIFY --> RAIL["TeamVerificationRail.on_task_completed()\n rail.py"]:::rev
 
@@ -1451,24 +1354,34 @@ flowchart TD
 | **Files (agent-core)** | `agent_teams/verification/rail.py` — `TeamVerificationRail`<br>`agent_teams/verification/reviewer.py` — `VerificationReviewer`<br>`agent_teams/verification/result.py` — data models<br>`agent_teams/verification/memory.py` — `TEAM_MEMORY.md` persistence<br>`agent_teams/verification/config.py` — typed config |
 | **Files (jiuwenswarm)** | `agents/harness/team/team_runtime_inheritance.py` — mounts the rail on leader<br>`agents/harness/team/handlers/team_monitor_handler.py` — triggers on `TASK_UNBLOCKED`<br>`agents/harness/team/event_types.py` — verification event types<br>`agents/harness/team/team_manager.py` — stores `_team_verification_rails` |
 
+</details>
+
+<br>
+
+</details>
+
 ---
 
-## 3. Cross-Cutting Concerns
+## 2. Cross-Cutting Concerns
 
 ### Prompt Section Priority Ordering
 
 All rails that inject text compete for space in the assembled prompt. The priority scheme (higher = appears earlier / survives compression longer) used across this set:
 
-| Content | Suggested priority | Pinned |
-|---------|-------------------|--------|
-| Task description (#7) | 12 | Yes |
-| Output format contract (#8) | 14 | Yes |
+| Content | Priority | Pinned |
+|---------|----------|--------|
 | External skill catalogue (#9) | 900 | Yes |
-| Anti-repetition instruction (#13) | 800 | No |
-| "Do not repeat failures" list (#14) | 700 | No |
-| Iteration budget warning (#10) | 600 | No |
-| Step-back / rethink directive (#15, #16) | 600 | No |
-| Context headroom nudge (#17) | 500 | No |
+| Tool call dedup warning (#11) | 97 | No |
+| Iteration budget warning (#10) | 96 | No |
+| Verifier circuit breaker (#16) | 96 | No |
+| Failure pattern memory (#14) | 95 | No |
+| Step-back rethink directive (#15) | 94 | No |
+| Context headroom guard (#17) | 93 | No |
+| Self-verification prompt (#20) | 28 | Yes |
+| Output format contract (#8) | 14 | Yes |
+| Task description (#7) | 12 | Yes |
+| Anti-repetition instruction (#13) | 10 | — |
+| Autonomous execution mode (#12) | 9 | No |
 
 Pinned sections are never summarised. Non-pinned sections at lower priority are the first to be condensed when `ContextEngine` needs to shrink the context.
 
@@ -1498,47 +1411,128 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 
 ---
 
-## 4. Implementation Status by PR
+## 3. Implementation Status by PR
 
-| # | Item | Repo | PR / Branch | Status |
-|---|------|------|------------|--------|
-| 1 | Event Loop Fix | agent-core | (PR #28) | Branch open |
-| 2 | Event Loop Fix | jiuwenswarm | (PR #119) | Branch open |
-| 3 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) | Branch open |
-| 4 | Multi-Rollout | agent-core | (PR #38) | Branch open |
-| 5 | Auto-Harness Best-of-N | agent-core | (PR #37) | Branch open |
-| 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) | Branch open · 25 unit tests passing |
-| 7 | Task Description Re-injection | jiuwenswarm | (PR #371) | Branch open |
-| 8 | Output Format Reminder | jiuwenswarm | (PR #401) | Branch open |
-| 9 | External Skill Directories | jiuwenswarm | (PR #214) | Branch open |
-| 10 | Iteration Budget Awareness | jiuwenswarm | (PR #368) | Branch open |
-| 11 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) | Branch open |
-| 12 | Autonomous Execution Mode | jiuwenswarm | (PR #370) | Branch open |
-| 13 | Anti-Repetition Prompt Fix | agent-core | (PR #26) | Branch open |
-| 14 | Failure Pattern Memory | jiuwenswarm | (PR #396) | Branch open |
-| 15 | Step-Back Rail | jiuwenswarm | (PR #399) | Branch open |
-| 16 | Verifier Circuit Breaker | jiuwenswarm | (PR #409) | Branch open |
-| 17 | Context Headroom Guard | jiuwenswarm | (PR #397) | Branch open |
-| 18 | Prompt Serialisation | agent-core | (PR #21) | Branch open |
-| 19 | Bash Output Head+Tail | jiuwenswarm | (PR #334) | Branch open |
-| 20 | Self-Verification Prompt | jiuwenswarm | (PR #328) | Branch open |
-| 21 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) | Branch open |
+| # | Item | Repo | PR / Branch |
+|---|------|------|------------|
+| 1 | Event Loop Fix | agent-core | (PR #28) |
+| 2 | Event Loop Fix | jiuwenswarm | (PR #119) |
+| 3 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) |
+| 4 | Multi-Rollout | agent-core | (PR #38) |
+| 5 | Auto-Harness Best-of-N | agent-core | (PR #37) |
+| 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) |
+| 7 | Task Description Re-injection | jiuwenswarm | (PR #371) |
+| 8 | Output Format Reminder | jiuwenswarm | (PR #401) |
+| 9 | External Skill Directories | jiuwenswarm | (PR #214) |
+| 10 | Iteration Budget Awareness | jiuwenswarm | (PR #368) |
+| 11 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) |
+| 12 | Autonomous Execution Mode | jiuwenswarm | (PR #370) |
+| 13 | Anti-Repetition Prompt Fix | agent-core | (PR #26) |
+| 14 | Failure Pattern Memory | jiuwenswarm | (PR #396) |
+| 15 | Step-Back Rail | jiuwenswarm | (PR #399) |
+| 16 | Verifier Circuit Breaker | jiuwenswarm | (PR #409) |
+| 17 | Context Headroom Guard | jiuwenswarm | (PR #397) |
+| 18 | Prompt Serialisation | agent-core | (PR #21) |
+| 19 | Bash Output Head+Tail | jiuwenswarm | (PR #334) |
+| 20 | Self-Verification Prompt | jiuwenswarm | (PR #328) |
+| 21 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) |
 
 Integration branch combining all: `New-Features-Integration` (both repos)
 
 ---
 
-## 5. Per-Group Deep-Dive Documents
+## Appendix: Architecture Context
 
-Each group will be covered in its own document with: full implementation walkthrough, class/method signatures, data flow diagrams, edge cases, and test plan.
+### Layer Map
 
-| Group | Document |
-|-------|---------|
-| Group 1 — Stability | `Group1.Stability.md` _(to be created)_ |
-| Group 2 — Scale | `Group2.Scale.md` _(to be created)_ |
-| Group 3 — Session Start | `Group3.SessionStart.md` _(to be created)_ |
-| Group 4 — Budget Awareness | `Group4.BudgetAwareness.md` _(to be created)_ |
-| Group 5 — Loop Breaking | `Group5.LoopBreaking.md` _(to be created)_ |
-| Group 6 — Context Management | `Group6.ContextManagement.md` _(to be created)_ |
-| Group 7 — Output Quality | `Group7.OutputQuality.md` _(to be created)_ |
-| Group 8 — Multi-Agent Verification | `Group8.TeamVerification.md` _(to be created)_ |
+```
+┌─────────────────────────────────────────────────────────┐
+│  jiuwenswarm                                            │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  AutoHarness  (agents/harness/common/auto_harness │  │
+│  │               /service.py)                        │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │  Symphony rails  (agents/harness/common/   │  │  │
+│  │  │                   rails/*.py)              │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ACP permission client  (acp/stdio_client.py)           │
+└────────────────────┬────────────────────────────────────┘
+                     │ uses
+┌────────────────────▼────────────────────────────────────┐
+│  agent-core / harness                                   │
+│  DeepAgent  (harness/deep_agent.py)                     │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  DeepAgentRail  (harness/rails/base.py)          │  │
+│  │  hooks: before/after_task_iteration               │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  ReActAgent  (core/single_agent/agents/           │  │
+│  │               react_agent.py)                     │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │  AgentRail  (core/single_agent/rail/base.py│  │  │
+│  │  │  hooks: before/after_model_call             │  │  │
+│  │  │           before/after_tool_call            │  │  │
+│  │  │           before/after_invoke               │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│  Runner + ResourceMgr  (core/runner/runner.py)          │
+│  ContextEngine  (core/context_engine/)                  │
+│  SystemPromptBuilder  (core/single_agent/prompts/       │
+│                        builder.py)                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Execution Pipeline — Hook Points
+
+Every rail in this project attaches to one or more of these labeled hook points. Group deep-dives reference them by letter.
+
+```
+[A]  ReActAgent.invoke() — before_invoke
+[B]  DeepAgent outer loop — before_task_iteration
+       ↓
+[C]  SystemPromptBuilder assembles system prompt
+     (ContextEngine builds full messages list)
+       ↓
+[D]  AgentRail — before_model_call
+       ↓
+[E]  LLM call
+       ↓
+[F]  AgentRail — after_model_call
+       ↓
+     Parse tool calls from LLM response
+       ↓  (per tool call)
+[G]  AgentRail — before_tool_call
+       ↓
+[H]  AbilityManager dispatches via Runner.resource_mgr
+     → ACP permission check (acp/stdio_client.py)
+     → Tool executes
+       ↓
+[I]  AgentRail — after_tool_call
+       ↓
+     Completion check — if done, exit inner loop
+       ↓  (if not done, back to [C])
+[J]  DeepAgent outer loop — after_task_iteration
+       ↓
+     Outer completion check — if done, exit
+       ↓  (if not done, back to [B])
+[K]  ReActAgent.invoke() — after_invoke
+```
+
+### How Rails Inject Into the System Prompt
+
+Rails that need to inject text into the prompt do so via `SystemPromptBuilder`. Each `PromptSection` has:
+- `content` — the text
+- `priority` — sections are sorted; higher priority renders closer to the top
+- `pinned=True` — exempt from `ContextEngine`'s automatic summarisation pass
+
+Rails write sections at `AgentRail.before_model_call` or at session start `DeepAgentRail.before_task_iteration` for pinned content. The assembled prompt is then passed to the LLM at LLM call.
+
+### Session State — Where Rails Read and Write
+
+Stateful rails persist data between turns using the `AgentCallbackContext` passed to every hook. In jiuwenswarm this is backed by:
+
+- `agents/harness/common/session_ops_service.py` — mutable per-session state store
+- `server/runtime/session/` — durable session history (used by evolution layer)
+
+Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at `AgentRail.after_tool_call` and read from it at `AgentRail.before_model_call` on the next turn.
