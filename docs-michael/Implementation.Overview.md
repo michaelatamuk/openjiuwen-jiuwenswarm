@@ -262,7 +262,7 @@ flowchart TD
 **Failure mode:<br>** A single deterministic attempt on a hard task has a low per-attempt success probability. Running once is insufficient.
 
 **Feature summary:<br>**
-All three features apply the same principle — "try N variants, keep the best" — at different levels of the system. They are independent and can be enabled in any combination.
+All three features apply the same principle — "try N variants, keep the best" — but at different levels and with different entry points. #4 and #6 are triggered by a regular user task (agent invocation). #5 is triggered by the developer manually running `openjiuwen auto-harness run` (CLI or REPL), which executes its own Assess → Plan → Implement → Verify pipeline independent of the agent's task loop.
 
 | # | Feature | What it does |
 |---|---|---|
@@ -296,46 +296,67 @@ All three features apply the same principle — "try N variants, keep the best" 
 ```mermaid
 flowchart TD
     classDef ac     fill:#2E86AB,color:#fff,stroke:#1a5f7a
+    classDef cli    fill:#6A1B9A,color:#fff,stroke:#4A148C
     classDef opt    fill:#5E35B1,color:#fff,stroke:#311B92
     classDef run    fill:#01579B,color:#fff,stroke:#003c74
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef repair fill:#E65100,color:#fff,stroke:#BF360C
+    classDef stage  fill:#37474F,color:#fff,stroke:#263238
 
-    T(["📋 Task"])
+    %% ── #4 Multi-Rollout: triggered by a regular user task ──────────────
+    T(["📋 User Task"])
 
     T --> MR["MultiRolloutExecutor  (PR #38)
     harness/multi_rollout/executor.py
-    clone workspace N times via subagents"]:::ac
+    DeepAgent.invoke() early-return gate"]:::ac
 
     MR --> R1(["Run 1 — Correctness strategy"]):::run
     MR --> R2(["Run 2 — Minimal-diff strategy"]):::run
     MR --> RN(["Run N — Edge-case strategy"]):::run
 
-    R1 & R2 & RN --> GATHER["asyncio.gather — results collected"]
+    R1 & R2 & RN --> GATHER["asyncio.gather — all N run in parallel"]
 
     GATHER --> SEL["selector  (PR #38)  harness/multi_rollout/selector.py
     FirstSuccessfulSelector (default)
     LongestOutputSelector · ShortestOutputSelector"]:::ac
-    SEL --> OUT(["🏁 Final Output"]):::done
+    SEL --> OUT4(["🏁 Best output returned to user"]):::done
 
-    T --> IMPL["implement stage"]:::run
-    IMPL --> CI{"CI gate
+    %% ── #5 Best-of-N: triggered by developer CLI / REPL ─────────────────
+    DEV(["🔧 Developer:
+    openjiuwen auto-harness run
+    (CLI or REPL command)"]):::cli
+
+    DEV --> ORCH["AutoHarnessOrchestrator
+    auto_harness/orchestrator.py"]:::cli
+
+    ORCH --> S1["Assess stage"]:::stage
+    S1 --> S2["Plan stage"]:::stage
+    S2 --> S3["Implement stage"]:::stage
+    S3 --> VER["MetaVerifyStage
+    auto_harness/stages/verify.py"]:::stage
+
+    VER --> CI{"CI gate
     lint + type-check + tests"}
-    CI -->|passed| OUT
-    CI -->|failed + best_of_n_enabled| BON["BestOfNController  (PR #37)
+    CI -->|passed| S4["Commit / Publish stages"]:::stage
+    CI -->|"failed + best_of_n_enabled"| BON["BestOfNController  (PR #37)
     auto_harness/pipelines/best_of_n/controller.py
     clone workspace N times"]:::repair
-    BON --> A1(["Attempt 1 — correctness strategy"]):::run
-    BON --> A2(["Attempt 2 — minimal changes"]):::run
-    BON --> AN(["Attempt N — edge cases"]):::run
-    A1 & A2 & AN --> SCORE["AttemptScorer
+
+    BON -->|"sequential"| A1(["Attempt 1"]):::run
+    A1 -->|"sequential"| A2(["Attempt 2"]):::run
+    A2 -->|"sequential"| AN(["Attempt N"]):::run
+
+    AN --> SCORE["AttemptScorer
     tests_passed · diff_lines · lint_errors"]:::repair
     SCORE --> PICK["BestOfNSelector
     max tests_passed → min diff → min lint"]:::repair
     PICK --> PROMOTE["promote winner workspace
     clean up losers"]:::repair
-    PROMOTE --> OUT
+    PROMOTE --> S4
 
+    S4 --> OUT5(["🏁 Improved harness committed"]):::done
+
+    %% ── #6 RLAF-P: triggered by a regular user task ────────────────────
     T --> PP["PromptPolicy  (PR #1425)
     generate N prompt candidates
     symphony/optimization/"]:::opt
@@ -350,7 +371,7 @@ flowchart TD
     review-queue → leader confirms
     before any prompt goes live"]:::opt
     RQ -->|"approved — prompt published"| PP
-    RQ -->|"next session reuse"| OUT
+    RQ -->|"next session reuse"| OUT4
 ```
 
 <u>Technical Details</u>
@@ -392,6 +413,7 @@ flowchart TD
 
 **How it works**
 
+- **Entry point:** this is not triggered by a user task. It runs inside the `openjiuwen auto-harness run` CLI / REPL pipeline — a developer tool that runs its own Assess → Plan → Implement → Verify → Commit pipeline to improve the harness itself
 - Replaces the iterative fix loop (phase 1: 10 tries + phase 2: 9 tries = 19 sequential attempts) when enabled
 - Trigger: `MetaVerifyStage.stream()` — fires after the implement stage when `CIGateRunner` reports CI failure AND `best_of_n_enabled = True`
 - Clone the current workspace N times via `WorkspaceCloner.clone_n_async()` (default N = 3)
