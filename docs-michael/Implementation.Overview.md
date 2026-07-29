@@ -945,7 +945,7 @@ flowchart TD
     total_tokens / context_window"]
     CH_GATE -->|"no"| FM_GATE
 
-    CH_RATIO -->|"< warn_ratio (60%)"| CH_PASS
+    CH_RATIO -->|"< warn_ratio (60%)"| CH_PASS(["no injection"])
     CH_RATIO -->|"≥ warn_ratio (60%)"| CH_NUDGE["inject: be concise —
     do not restate, prefer short confirmations
     (PromptSection priority 93)"]:::pre
@@ -1017,7 +1017,7 @@ flowchart TD
     pytest / PASSED / FAILED /
     AssertionError / reward.txt …"}
 
-    VER_CHK -->|"no verifier output"| PROMPT
+    VER_CHK -->|"no verifier output"| END5
     VER_CHK -->|"success
     (N passed / reward:1)"| VCB_CLR["clear _vcb_failure_sig
     clear _vcb_consecutive"]:::post
@@ -1029,7 +1029,7 @@ flowchart TD
     SAME -->|"no"| VCB_RST["reset _vcb_consecutive = 1
     store new _vcb_failure_sig"]:::post
 
-    VCB_CLR & VCB_INC & VCB_RST --> PROMPT
+    VCB_CLR & VCB_INC & VCB_RST --> END5(["🏁 Turn complete"]):::done
 ```
 
 <u>Technical Details</u>
@@ -1226,12 +1226,12 @@ flowchart TD
 ***Failure mode:<br>** The agent produces a correct answer but (a) cannot read the verifier's error because it was truncated from the head, or (b) submits output without first checking whether the verifier passes.
 
 **Feature summary:<br>**
-The two rails act on adjacent failure points in a single end-to-end flow: #19 fixes what the agent *reads* from each shell call; #20 fixes what happens *after* the agent writes its final output.
+Two features acting at adjacent points: #19 preserves verifier error output that was previously truncated; #20 adds a "Verification Step" to the code system prompt so the agent knows to run verifier before declaring done.
 
 | # | Feature | What it does |
 |---|---|---|
-| #19 | Bash Output Head+Tail | Replaces head-only truncation; keeps first K + last K lines so verifier error messages at the end of stdout/stderr are never dropped |
-| #20 | Self-Verification Loop | After writing output, runs verifier before declaring done; re-enters iteration loop with verifier stderr on non-zero exit |
+| #19 | Bash Output Head+Tail | Monkey-patches `BashTool.invoke`/`.stream` to replace `<persisted-output>` head-only preview with inline head+tail view; preserves verifier error messages at the end of long output |
+| #20 | Self-Verification Prompt | Injects a "Verification Step" section into the code system prompt instructing the agent to run the verifier after writing output files and loop until it passes |
 
 **Prior art (Competitors):**
 
@@ -1257,88 +1257,94 @@ The two rails act on adjacent failure points in a single end-to-end flow: #19 fi
 flowchart TD
     classDef post fill:#BF360C,color:#fff,stroke:#7f2407
     classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
-    SHELL(["Shell tool executes  AbilityManager"])
+    subgraph tool ["BashTool output pipeline"]
+        SHELL(["Shell executes command"])
+        SHELL --> TRUNC{"output >
+        BashTool.max_output_chars?"}
+        TRUNC -->|"no"| RET_FULL["return full output\n— no change"]
+        TRUNC -->|"yes"| PERSIST["persisted-output block\n(head-only 2 KB preview)"]
+    end
 
-    SHELL --> RAW["raw stdout/stderr"]
+    PERSIST -->|"install_shell_tool_safety_hooks\nmonkey-patches .invoke / .stream"| PP["_post_process_bash_output()\nread persisted file\ntruncate_output(content,\n  max_chars=20000,\n  head_ratio=0.6)\n→ inline head+tail view"]:::post
 
-    RAW --> LEN{"output length
-    > 2K lines?"}
+    PP & RET_FULL --> LLM(["LLM reads output"]):::io
 
-    LEN -->|"yes"| HT["bash_output_truncation  (PR #334)  AgentRail.after_tool_call
-    keep first K lines + last K lines
-    insert: ... N lines truncated ...
-    verifier errors at end are always preserved"]:::post
+    LLM --> BUILD(["build_code_system_prompt()\ncode_prompt_builder.py"])
 
-    LEN -->|"no"| FULL["full output — no change"]
+    BUILD --> VCFG{"verification.verifier_cmd\nnon-empty?"}
 
-    HT & FULL --> LLM_READ(["LLM reads output
-    error diagnostics never cut off"]):::io
+    VCFG -->|"no"| NO_VER["no verification section\n— standard code prompt"]:::io
 
-    LLM_READ --> AGENT["Agent writes output file"]:::io
+    VCFG -->|"yes"| VSEC["_code_verification_prompt()\ninjects 'Verification Step' section\nat priority 28"]:::pre
 
-    AGENT --> SV["self_verification_loop  (PR #328)  DeepAgentRail.after_task_iteration
-    run task verifier script as synthetic tool call
-    verifier/test_outputs.py"]:::post
+    NO_VER & VSEC --> PROMPT(["Final system prompt"]):::io
 
-    SV -->|"exit 0"| DONE(["Task complete ✅"]):::done
+    PROMPT --> AGENT(["Agent writes output"]):::io
 
-    SV -->|"exit ≠ 0"| REINJ["inject verifier stderr
-    as new system message"]:::post
+    AGENT --> VCMD{"LLM runs\nverifier_cmd?"}
 
-    REINJ --> LOOP(["Re-enter iteration loop"])
-    LOOP --> AGENT
+    VCMD -->|"passes"| DONE(["Task complete ✅"]):::done
+    VCMD -->|"fails"| DIAG(["Agent diagnoses\nand fixes output"]):::io
+
+    DIAG --> AGENT
 ```
 
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#19 — Bash Output Head+Tail Truncation</strong> &nbsp;(<code>feat/bash-output-head-tail-truncation</code> (PR #334))</summary>
+<summary><strong>#19 — Bash Output Head+Tail Truncation</strong></summary>
 
 <br>
 
 **How it works**
 
-- `AgentRail.after_tool_call`: post-process raw tool output bytes before packaging as `ToolMessage`
-- If output length exceeds threshold, apply head+tail strategy:
-  - Keep first K lines (default K = 50)
-  - Keep last K lines
-  - Insert `... [N lines truncated] ...` separator between them
-- Verifier error messages and pytest failure details always appear at the end of stdout/stderr — they are always preserved
-- Previous head-only truncation silently discarded all verifier diagnostics, leaving the agent blind to why its output was rejected
+- `install_shell_tool_safety_hooks()` in `bash_tool_safety.py` monkey-patches `BashTool.invoke` and `BashTool.stream` (and `PowerShellTool`)
+- After each shell call, `_post_process_bash_output()` checks whether the output contains a `<persisted-output>` block — this is the marker BashTool inserts when output exceeds `max_output_chars` and only a head-only 2 KB preview is shown
+- If found, the function reads the persisted temp file, calls `truncate_output(full_content, max_chars, head_ratio)` from openjiuwen's `bash._output` module, and replaces the marker with an inline head+tail view that fits within `max_chars`
+- Config: `shell_output.max_chars` (default 20000) — total characters budget; `shell_output.head_ratio` (default 0.6) — fraction kept from the head, the remainder from the tail
+- The same config is also consumed by `command_tools.py`'s `_clip_head_tail()` for `mcp_exec_command` output clipping
+- Not a rail — no `AgentRail` hook; it operates on `ToolOutput` data returned by the tool
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.after_tool_call` — post-processes raw tool output bytes before packaging as `ToolMessage` |
-| **Default** | K = 50 lines (configurable); separator includes dropped-line count for transparency |
+| **Mechanism** | Monkey-patch on `BashTool.invoke` / `BashTool.stream` — not a rail hook |
+| **Config** | `shell_output.max_chars: 20000` · `shell_output.head_ratio: 0.6` |
+| **Trigger** | `<persisted-output>` marker in tool output (BashTool's own truncation) |
+| **Files** | `bash_tool_safety.py` — post-processing hook installation<br>`command_tools.py` — `_clip_head_tail()` for `mcp_exec_command` |
 
 </details>
 
 <br>
 
 <details>
-<summary><strong>#20 — Self-Verification Loop</strong> &nbsp;(<code>feat/self-verification-loop</code> (PR #328))</summary>
+<summary><strong>#20 — Self-Verification Prompt</strong></summary>
 
 <br>
 
 **How it works**
 
-- `DeepAgentRail.after_task_iteration`: triggers after the agent writes any output file, before declaring the task done
-- Run the task verifier script as a synthetic shell tool call (`verifier/test_outputs.py`)
-- If `exit 0`: task complete ✅
-- If `exit ≠ 0`: inject verifier stderr as a new `system` message → re-enter the iteration loop
-- Only exits cleanly when the verifier exits zero
-- Cost: one additional verifier run per output attempt
+- `_code_verification_prompt()` in `code_prompt_builder.py` reads `verification.verifier_cmd` from config at prompt-build time
+- If `verifier_cmd` is non-empty, a `PromptSection` (priority 28, name `code_verification`) is added to the code system prompt instructing the agent to:
+  - Run the verifier command after writing all required output files
+  - If all tests pass → task is complete
+  - If any test fails → diagnose, fix output/code, and re-run the verifier
+  - Repeat until all tests pass or iterations are exhausted
+  - If the verifier command cannot be executed for any reason, skip and submit best answer
+- Not a rail — no runtime hooks; the behavior emerges from the LLM reading the instruction in the system prompt
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `DeepAgentRail.after_task_iteration` — conditional on output file detection; verifier is called as a synthetic tool call; failure re-injects stderr as `system` message |
-| **File** | `agents/harness/common/rails/` self-verification logic |
+| **Hook point** | Prompt construction — built once at agent creation time |
+| **Config** | `verification.verifier_cmd` (default empty = disabled); can be set via `VERIFICATION_CMD` env var |
+| **Priority** | `CodePromptPriority.VERIFICATION = 28` |
+| **File** | `jiuwenswarm/agents/harness/code/prompt/code_prompt_builder.py` — function `_code_verification_prompt` |
 
 </details>
 
