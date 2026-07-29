@@ -488,13 +488,13 @@ flowchart TD
 ***Failure mode:<br>** The agent starts each task with no knowledge of the output contract or available tools. After compression, even its memory of the goal becomes lossy.
 
 **Feature summary:<br>**
-All three rails fire once at session start (`DeepAgentRail.before_task_iteration`, first iteration only) and inject a pinned section that `ContextEngine` can never drop. They are no-ops on all subsequent turns.
+All three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #7 and #8 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #9 scans external skill dirs at the same point.
 
 | # | Feature | What it does |
 |---|---|---|
-| #7 | Task Description Re-injection | Pins full `task.md` content in system prompt at `priority=1000`; the agent always knows the full goal |
-| #8 | Output Format Reminder | Extracts expected output path, required keys, and format from `task.md`; pins at `priority=950` |
-| #9 | External Skill Discovery | Scans `/app/environment/skills/` for `SKILL.md` files; injects skill name + one-line summary at `priority=900` |
+| #7 | Task Description Re-injection | Reads `task.md` in full and adds it as a `PromptSection(priority=12)` in the system prompt; the agent always has the original goal regardless of how long the conversation has grown |
+| #8 | Output Format Reminder | Extracts the last 1–2 format-signal paragraphs and fenced code blocks (json/csv/yaml/xml/…) from `task.md`; adds as `PromptSection(priority=14)`; capped at 800 chars |
+| #9 | External Skill Directories | Loads skills from configurable paths (`skills.external_dirs` in config or `EXTERNAL_SKILL_DIRS` env var); injects skill catalogue into system prompt at `priority=900`; `external_only` flag isolates the agent to task-provided skills only (CI/benchmark use) |
 
 **Prior art (Competitors):**
 
@@ -532,15 +532,17 @@ flowchart TD
 
     READ --> TDR["task_description_rail.py  (PR #371)
     full task.md content
-    PromptSection pinned=True priority=1000"]:::init
+    PromptSection priority=12"]:::init
 
     READ --> OFR["output_format_rail.py  (PR #401)
-    final 2 paragraphs + fenced json/yaml/csv blocks
-    → expected output path · required keys · format
-    PromptSection pinned=True priority=950"]:::init
+    last 1-2 format-signal paragraphs
+    + fenced code blocks (json/csv/yaml/xml/…)
+    PromptSection priority=14  max 800 chars"]:::init
 
-    INIT --> SCAN["scan /app/environment/skills/
-    read each SKILL.md first paragraph"]
+    INIT --> SCAN["scan skills.external_dirs paths
+    config.yaml or EXTERNAL_SKILL_DIRS env var
+    read each SKILL.md · extract one-line summary
+    external_only=true → suppress personal skills"]
 
     SCAN --> ESD["runtime_prompt_rail.py  (PR #214)
     skill name + one-line summary per skill
@@ -563,18 +565,21 @@ flowchart TD
 
 **How it works**
 
-- Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
-- Read `/app/task.md` in full
-- Append content as a permanent `system`-role section: `PromptSection(pinned=True, priority=1000)`
-- `pinned=True` makes the section exempt from `ContextEngine` summarisation — it can never be dropped
-- Addresses the most common form of task drift: after 20+ turns of context compression, the agent's goal summary becomes lossy
+- `before_invoke` fires at the start of each task iteration: clears any previous section, then calls `_try_inject()` to read the file and add a fresh section
+- `before_model_call` also calls `_try_inject()` on every model call until `self._injected` is `True` — handles the case where the file is mounted asynchronously and not yet present at invoke time
+- Once injected, the section lives in `SystemPromptBuilder` for the remainder of the invocation — it is part of the system prompt, not the conversation history, so context compression never touches it
+- Content injected: `# Task Description\n\n<full file content>` as `PromptSection(name="task_description", priority=12)` — sits just after the INTRO section (10) and before SYSTEM (15), so the agent reads the full goal at the very top of every system prompt
+- If the file is absent or unreadable: logs a warning and skips — no crash, no side effect
+- Addresses the most common form of task drift: after 20+ turns of context compression, the agent's working memory of the goal becomes lossy; the system-prompt section never moves
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=1000)` |
-| **File** | `rails/task_description_rail.py` |
+| **Hook points** | `ReActAgent.before_invoke` (each task iteration) + `AgentRail.before_model_call` (retry until file available) |
+| **Config** | `task_description.enabled` (bool, default `false`); `task_description.path` (str, default `/app/task.md`) |
+| **Prompt position** | `PromptSection(priority=12)` — after INTRO (10), before SYSTEM (15) |
+| **File** | `agents/harness/common/rails/task_description_rail.py` |
 
 </details>
 
@@ -587,42 +592,54 @@ flowchart TD
 
 **How it works**
 
-- Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
-- Parse `task.md` for output-format signals: final two paragraphs + fenced code blocks tagged `json`, `yaml`, or `csv`
-- Extract: expected output path · required keys · format constraints
-- Pin as `PromptSection(pinned=True, priority=950)` — survives all context compression
-- One wrong key name or wrong file extension renders output unusable even when the answer content is correct
+- Same lifecycle as #7: `before_invoke` clears and re-injects at each invocation; `before_model_call` retries until `self._injected` is `True`
+- **Extraction pipeline** (all steps operate on the YAML-frontmatter-stripped body):
+  - `_last_paragraphs(body, n=2)` — takes the last 2 non-empty paragraphs
+  - `_has_format_signal(para)` — filters: only keeps paragraphs containing words like `output`, `save`, `write`, `store`, `produce`, `generate`, `file`, `path`, `csv`, `json`, `yaml`, etc.
+  - `_output_code_blocks(body, max_blocks=2)` — finds fenced code blocks tagged with any of: `json`, `csv`, `tsv`, `yaml`, `yml`, `xml`, `toml`, `txt`, `text`, `plaintext`
+  - If neither relevant paragraphs nor code blocks are found: section is silently skipped
+- Builds snippet: filtered paragraphs first, then code blocks; hard-truncated at `max_chars` (default 800) on a newline boundary
+- Injects: `# Required Output Format\n\n{snippet}` as `PromptSection(name="output_format_reminder", priority=14)` — sits just after the full task description (12) and before SYSTEM (15)
+- One wrong key name or wrong file extension renders output unusable even when the answer content is correct; this section keeps the format contract visible regardless of context length
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=950)` |
-| **File** | `rails/output_format_rail.py` |
+| **Hook points** | `ReActAgent.before_invoke` (each task iteration) + `AgentRail.before_model_call` (retry until file available) |
+| **Config** | `output_format.enabled` (bool, default `false`); `output_format.path` (str, default `/app/task.md`); `output_format.max_chars` (int, default `800`) |
+| **Prompt position** | `PromptSection(priority=14)` — after task description (12), before SYSTEM (15) |
+| **File** | `agents/harness/common/rails/output_format_rail.py` |
 
 </details>
 
 <br>
 
 <details>
-<summary><strong>#9 — External Skill Discovery</strong> &nbsp;(<code>feat/external-skill-discovery</code> (PR #214))</summary>
+<summary><strong>#9 — External Skill Directories</strong> &nbsp;(<code>feat/external-skill-discovery</code> (PR #214))</summary>
 
 <br>
 
 **How it works**
 
 - Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
-- Scan `/app/environment/skills/` for `SKILL.md` files
-- Read each file's first paragraph to extract a one-line summary
-- Inject formatted index (skill name + one-line summary per skill) as `PromptSection(pinned=True, priority=900)`
-- Without this: agents re-implement skill logic from scratch → incorrect output formats, missing task-specific validation
+- Skills are loaded from **configurable external directories** — two equivalent config methods, merged together:
+  - **YAML**: `skills.external_dirs` in `config.yaml` — a list of paths on disk
+  - **Env var**: `EXTERNAL_SKILL_DIRS` — semicolon-separated paths (useful in CI where config files are not mounted)
+- Each configured directory is scanned for `SKILL.md` files; the first paragraph of each file is extracted as a one-line summary
+- Result injected into the system prompt as `PromptSection(pinned=True, priority=900)` — one entry per skill: name + summary; `ContextEngine` cannot drop this section during summarisation
+- **`external_only: true`** (config flag): when external dirs are non-empty, suppresses the agent's personal installed-skills dir entirely — only the task-provided skills are visible; falls back to personal dir if external dirs are empty; designed for CI and benchmark pipelines where personal skills would be distractors
+- **Precedence**: if a skill with the same name exists in both the personal dir and an external dir, the personal dir wins; external duplicates are silently skipped
+- **Primary use cases**: CI / benchmark pipelines that mount task-specific skills at a known path; development workflows where skills live in a project repo and should be testable without installing via the UI
+- Without this: agents in benchmark / CI environments have no knowledge of task-specific `SKILL.md` files → re-implement skill logic from scratch → wrong output formats, missing validation rules
 
 **Technical metadata**
 
 | | |
 |---|---|
 | **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=900)` |
-| **File** | Extension of `rails/runtime_prompt_rail.py` or dedicated skill-discovery rail |
+| **Config** | `skills.external_dirs` (YAML list of paths); `EXTERNAL_SKILL_DIRS` (env var, semicolon-separated); `skills.external_only` (bool, default `false`) |
+| **File** | `rails/runtime_prompt_rail.py` (or dedicated skill-discovery rail) |
 
 </details>
 
@@ -1338,9 +1355,9 @@ All rails that inject text compete for space in the assembled prompt. The priori
 
 | Content | Suggested priority | Pinned |
 |---------|-------------------|--------|
-| Task description (#7) | 1000 | Yes |
-| Output format contract (#8) | 950 | Yes |
-| Skill index (#9) | 900 | Yes |
+| Task description (#7) | 12 | Yes |
+| Output format contract (#8) | 14 | Yes |
+| External skill catalogue (#9) | 900 | Yes |
 | Anti-repetition instruction (#13) | 800 | No |
 | "Do not repeat failures" list (#14) | 700 | No |
 | Iteration budget warning (#10) | 600 | No |
@@ -1387,7 +1404,7 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 | 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) | Branch open · 25 unit tests passing |
 | 7 | Task Description Re-injection | jiuwenswarm | (PR #371) | Branch open |
 | 8 | Output Format Reminder | jiuwenswarm | (PR #401) | Branch open |
-| 9 | External Skill Discovery | jiuwenswarm | (PR #214) | Branch open |
+| 9 | External Skill Directories | jiuwenswarm | (PR #214) | Branch open |
 | 10 | Iteration Budget Awareness | jiuwenswarm | (PR #368) | Branch open |
 | 11 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) | Branch open |
 | 12 | Autonomous Execution Mode | jiuwenswarm | (PR #370) | Branch open |
