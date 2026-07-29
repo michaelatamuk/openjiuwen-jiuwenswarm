@@ -1001,30 +1001,45 @@ flowchart TD
         SHELL(["Shell executes command"])
         SHELL --> TRUNC{"output >
         BashTool.max_output_chars?"}
-        TRUNC -->|"no"| RET_FULL["return full output\n— no change"]
-        TRUNC -->|"yes"| PERSIST["persisted-output block\n(head-only 2 KB preview)"]
+        TRUNC -->|"no"| RET_FULL["return full output
+        — no change"]
+        TRUNC -->|"yes"| PERSIST["persisted-output block
+        (head-only 2 KB preview)"]
     end
 
-    PERSIST -->|"install_shell_tool_safety_hooks\nmonkey-patches .invoke / .stream"| PP["_post_process_bash_output()\nread persisted file\ntruncate_output(content,\n  max_chars=20000,\n  head_ratio=0.6)\n→ inline head+tail view"]:::post
+    PERSIST -->|"install_shell_tool_safety_hooks
+    monkey-patches .invoke / .stream"| PP["_post_process_bash_output()
+    read persisted file
+    truncate_output(content,
+      max_chars=20000,
+      head_ratio=0.6)
+    → inline head+tail view"]:::post
 
     PP & RET_FULL --> LLM(["LLM reads output"]):::io
 
-    LLM --> BUILD(["build_code_system_prompt()\ncode_prompt_builder.py"])
+    LLM --> BUILD(["build_code_system_prompt()
+    code_prompt_builder.py"])
 
-    BUILD --> VCFG{"verification.verifier_cmd\nnon-empty?"}
+    BUILD --> VCFG{"verification.verifier_cmd
+    non-empty?"}
 
-    VCFG -->|"no"| NO_VER["no verification section\n— standard code prompt"]:::io
+    VCFG -->|"no"| NO_VER["no verification section
+    — standard code prompt"]:::io
 
-    VCFG -->|"yes"| VSEC["_code_verification_prompt()\ninjects 'Verification Step' section\nat priority 28"]:::pre
+    VCFG -->|"yes"| VSEC["_code_verification_prompt()
+    injects 'Verification Step' section
+    at priority 28"]:::pre
 
     NO_VER & VSEC --> PROMPT(["Final system prompt"]):::io
 
     PROMPT --> AGENT(["Agent writes output"]):::io
 
-    AGENT --> VCMD{"LLM runs\nverifier_cmd?"}
+    AGENT --> VCMD{"LLM runs
+    verifier_cmd?"}
 
     VCMD -->|"passes"| DONE(["Task complete ✅"]):::done
-    VCMD -->|"fails"| DIAG(["Agent diagnoses\nand fixes output"]):::io
+    VCMD -->|"fails"| DIAG(["Agent diagnoses
+    and fixes output"]):::io
 
     DIAG --> AGENT
 ```
@@ -1110,35 +1125,56 @@ flowchart TD
 
     TM(["Teammate completes task"]):::teammate
 
-    TM --> TEAM_EVENT["Monitor emits TASK_UNBLOCKED\n(event_types.py)"]
+    TM --> TEAM_EVENT["Monitor emits TASK_UNBLOCKED
+    (event_types.py)"]
 
-    TEAM_EVENT --> MON_HANDLER["TeamMonitorHandler._handle_task_unblocked()\n team_monitor_handler.py"]:::leader
+    TEAM_EVENT --> MON_HANDLER["TeamMonitorHandler._handle_task_unblocked()
+    team_monitor_handler.py"]:::leader
 
-    MON_HANDLER --> CFG{"verification.enabled\n(default true)?"}:::cfg
+    MON_HANDLER --> CFG{"verification.enabled
+    (default true)?"}:::cfg
 
-    CFG -->|"false"| BYPASS["no verification\n— result bypasses"]
+    CFG -->|"false"| BYPASS["no verification
+    — result bypasses"]
     BYPASS --> LEADER_DONE
 
-    CFG -->|"yes"| SKIP{"task title matches\nskip_patterns?"}:::cfg
+    CFG -->|"yes"| SKIP{"task title matches
+    skip_patterns?"}:::cfg
 
     SKIP -->|"yes"| BYPASS
 
-    SKIP -->|"no"|     VERIFY["asyncio.create_task(_run_verification())
-    fire-and-forget"]:::rev
+    SKIP -->|"no"| VERIFY["asyncio.create_task(_run_verification()) fire-and-forget"]:::rev
 
-    VERIFY --> RAIL["TeamVerificationRail.on_task_completed()\n rail.py"]:::rev
+    VERIFY --> RAIL["TeamVerificationRail.on_task_completed()
+    rail.py"]:::rev
 
-    RAIL --> REVIEWER["VerificationReviewer.review()\n reviewer.py\n model call with structured JSON output\n6 dimensions:\n· correctness (25%)\n· completeness (20%)\n· consistency (20%)\n· clarity (15%)\n· security (10%)\n· performance (10%)"]:::rev
+    RAIL --> REVIEWER["VerificationReviewer.review()
+    reviewer.py
+    model call with structured JSON output
+    6 dimensions:
+    · correctness (25%)
+    · completeness (20%)
+    · consistency (20%)
+    · clarity (15%)
+    · security (10%)
+    · performance (10%)"]:::rev
 
-    REVIEWER --> RESULT{"model call\nsucceeds?"}
+    REVIEWER --> RESULT{"model call
+    succeeds?"}
 
-    RESULT -->|"no"| GRACEFUL["return SKIPPED status\n graceful degradation\nnever blocks the team"]:::rev
+    RESULT -->|"no"| GRACEFUL["return SKIPPED status
+    graceful degradation
+    never blocks the team"]:::rev
 
-    RESULT -->|"yes"| PERSIST["VerificationMemory.store()\n persists to TEAM_MEMORY.md"]:::rev
+    RESULT -->|"yes"| PERSIST["VerificationMemory.store()
+    persists to TEAM_MEMORY.md"]:::rev
 
-    PERSIST --> EVENT_EMIT["emit team.verification.completed\n event to frontend"]:::rev
+    PERSIST --> EVENT_EMIT["emit team.verification.completed
+    event to frontend"]:::rev
 
-    GRACEFUL & EVENT_EMIT & BYPASS --> LEADER_DONE(["Leader sees verification\n results in trends hook\nbefore_model_call"]):::leader
+    GRACEFUL & EVENT_EMIT & BYPASS --> LEADER_DONE(["Leader sees verification
+    results in trends hook
+    before_model_call"]):::leader
 
     LEADER_DONE --> CONSOLIDATE(["Final consolidated output ✅"]):::done
 ```
@@ -1255,104 +1291,6 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 | 20 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) |
 
 Integration branch combining all: `New-Features-Integration` (both repos)
-
----
-
-## Appendix: Architecture Context
-
-### Layer Map
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  jiuwenswarm                                            │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  AutoHarness  (agents/harness/common/auto_harness │  │
-│  │               /service.py)                        │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  Symphony rails  (agents/harness/common/   │  │  │
-│  │  │                   rails/*.py)              │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ACP permission client  (acp/stdio_client.py)           │
-└────────────────────┬────────────────────────────────────┘
-                     │ uses
-┌────────────────────▼────────────────────────────────────┐
-│  agent-core / harness                                   │
-│  DeepAgent  (harness/deep_agent.py)                     │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  DeepAgentRail  (harness/rails/base.py)          │  │
-│  │  hooks: before/after_task_iteration               │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  ReActAgent  (core/single_agent/agents/           │  │
-│  │               react_agent.py)                     │  │
-│  │  ┌────────────────────────────────────────────┐  │  │
-│  │  │  AgentRail  (core/single_agent/rail/base.py│  │  │
-│  │  │  hooks: before/after_model_call             │  │  │
-│  │  │           before/after_tool_call            │  │  │
-│  │  │           before/after_invoke               │  │  │
-│  │  └────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────┘  │
-│  Runner + ResourceMgr  (core/runner/runner.py)          │
-│  ContextEngine  (core/context_engine/)                  │
-│  SystemPromptBuilder  (core/single_agent/prompts/       │
-│                        builder.py)                      │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Execution Pipeline — Hook Points
-
-Every rail in this project attaches to one or more of these labeled hook points. Group deep-dives reference them by letter.
-
-```
-[A]  ReActAgent.invoke() — before_invoke
-[B]  DeepAgent outer loop — before_task_iteration
-       ↓
-[C]  SystemPromptBuilder assembles system prompt
-     (ContextEngine builds full messages list)
-       ↓
-[D]  AgentRail — before_model_call
-       ↓
-[E]  LLM call
-       ↓
-[F]  AgentRail — after_model_call
-       ↓
-     Parse tool calls from LLM response
-       ↓  (per tool call)
-[G]  AgentRail — before_tool_call
-       ↓
-[H]  AbilityManager dispatches via Runner.resource_mgr
-     → ACP permission check (acp/stdio_client.py)
-     → Tool executes
-       ↓
-[I]  AgentRail — after_tool_call
-       ↓
-     Completion check — if done, exit inner loop
-       ↓  (if not done, back to [C])
-[J]  DeepAgent outer loop — after_task_iteration
-       ↓
-     Outer completion check — if done, exit
-       ↓  (if not done, back to [B])
-[K]  ReActAgent.invoke() — after_invoke
-```
-
-### How Rails Inject Into the System Prompt
-
-Rails that need to inject text into the prompt do so via `SystemPromptBuilder`. Each `PromptSection` has:
-- `content` — the text
-- `priority` — sections are sorted; higher priority renders closer to the top
-- `pinned=True` — exempt from `ContextEngine`'s automatic summarisation pass
-
-Rails write sections at `AgentRail.before_model_call` or at session start `DeepAgentRail.before_task_iteration` for pinned content. The assembled prompt is then passed to the LLM at LLM call.
-
-### Session State — Where Rails Read and Write
-
-Stateful rails persist data between turns using the `AgentCallbackContext` passed to every hook. In jiuwenswarm this is backed by:
-
-- `agents/harness/common/session_ops_service.py` — mutable per-session state store
-- `server/runtime/session/` — durable session history (used by evolution layer)
-
-Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at `AgentRail.after_tool_call` and read from it at `AgentRail.before_model_call` on the next turn.
 
 ---
 
@@ -1577,3 +1515,101 @@ Rails that need a persistent counter or log (e.g., failure counts, verifier fing
 | LangGraph | Reviewer nodes definable in the agent execution graph |
 | OpenClaw | Sub-agent tool with built-in loop guard — prevents reviewer from entering the same loop patterns as the primary agent |
 | Hermes | `background_review.py` — daemon thread that reviews skill/memory quality after each sub-agent turn; `SubagentLifecycleService` manages sub-agent lifecycle and review handoff |
+
+## Appendix: Architecture Context
+
+### Layer Map
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  jiuwenswarm                                            │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  AutoHarness  (agents/harness/common/auto_harness │  │
+│  │               /service.py)                        │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │  Symphony rails  (agents/harness/common/   │  │  │
+│  │  │                   rails/*.py)              │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ACP permission client  (acp/stdio_client.py)           │
+└────────────────────┬────────────────────────────────────┘
+                     │ uses
+┌────────────────────▼────────────────────────────────────┐
+│  agent-core / harness                                   │
+│  DeepAgent  (harness/deep_agent.py)                     │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  DeepAgentRail  (harness/rails/base.py)          │  │
+│  │  hooks: before/after_task_iteration               │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  ReActAgent  (core/single_agent/agents/           │  │
+│  │               react_agent.py)                     │  │
+│  │  ┌────────────────────────────────────────────┐  │  │
+│  │  │  AgentRail  (core/single_agent/rail/base.py│  │  │
+│  │  │  hooks: before/after_model_call             │  │  │
+│  │  │           before/after_tool_call            │  │  │
+│  │  │           before/after_invoke               │  │  │
+│  │  └────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+│  Runner + ResourceMgr  (core/runner/runner.py)          │
+│  ContextEngine  (core/context_engine/)                  │
+│  SystemPromptBuilder  (core/single_agent/prompts/       │
+│                        builder.py)                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Execution Pipeline — Hook Points
+
+Every rail in this project attaches to one or more of these labeled hook points. Group deep-dives reference them by letter.
+
+```
+[A]  ReActAgent.invoke() — before_invoke
+[B]  DeepAgent outer loop — before_task_iteration
+       ↓
+[C]  SystemPromptBuilder assembles system prompt
+     (ContextEngine builds full messages list)
+       ↓
+[D]  AgentRail — before_model_call
+       ↓
+[E]  LLM call
+       ↓
+[F]  AgentRail — after_model_call
+       ↓
+     Parse tool calls from LLM response
+       ↓  (per tool call)
+[G]  AgentRail — before_tool_call
+       ↓
+[H]  AbilityManager dispatches via Runner.resource_mgr
+     → ACP permission check (acp/stdio_client.py)
+     → Tool executes
+       ↓
+[I]  AgentRail — after_tool_call
+       ↓
+     Completion check — if done, exit inner loop
+       ↓  (if not done, back to [C])
+[J]  DeepAgent outer loop — after_task_iteration
+       ↓
+     Outer completion check — if done, exit
+       ↓  (if not done, back to [B])
+[K]  ReActAgent.invoke() — after_invoke
+```
+
+### How Rails Inject Into the System Prompt
+
+Rails that need to inject text into the prompt do so via `SystemPromptBuilder`. Each `PromptSection` has:
+- `content` — the text
+- `priority` — sections are sorted; higher priority renders closer to the top
+- `pinned=True` — exempt from `ContextEngine`'s automatic summarisation pass
+
+Rails write sections at `AgentRail.before_model_call` or at session start `DeepAgentRail.before_task_iteration` for pinned content. The assembled prompt is then passed to the LLM at LLM call.
+
+### Session State — Where Rails Read and Write
+
+Stateful rails persist data between turns using the `AgentCallbackContext` passed to every hook. In jiuwenswarm this is backed by:
+
+- `agents/harness/common/session_ops_service.py` — mutable per-session state store
+- `server/runtime/session/` — durable session history (used by evolution layer)
+
+Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at `AgentRail.after_tool_call` and read from it at `AgentRail.before_model_call` on the next turn.
+
+---
