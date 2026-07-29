@@ -90,7 +90,7 @@ Rails that need to inject text into the prompt do so via `SystemPromptBuilder`. 
 - `priority` — sections are sorted; higher priority renders closer to the top
 - `pinned=True` — exempt from `ContextEngine`'s automatic summarisation pass
 
-Rails write sections at hook point **[D]** (`before_model_call`) or at session start **[B]** for pinned content. The assembled prompt is then passed to the LLM at **[E]**.
+Rails write sections at `AgentRail.before_model_call` or at session start `DeepAgentRail.before_task_iteration` for pinned content. The assembled prompt is then passed to the LLM at LLM call.
 
 ### Session State — Where Rails Read and Write
 
@@ -99,7 +99,7 @@ Stateful rails persist data between turns using the `AgentCallbackContext` passe
 - `agents/harness/common/session_ops_service.py` — mutable per-session state store
 - `server/runtime/session/` — durable session history (used by evolution layer)
 
-Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at hook **[I]** and read from it at hook **[D]** on the next turn.
+Rails that need a persistent counter or log (e.g., failure counts, verifier fingerprints) write to a key in the session state dict at `AgentRail.after_tool_call` and read from it at `AgentRail.before_model_call` on the next turn.
 
 ---
 
@@ -110,7 +110,7 @@ Each section below identifies: the failure mode, a feature summary, prior art, a
 ---
 
 #### <strong>Group 1 — Stability: Stop the agent from crashing before it even starts</strong>
-<details><summary>Items #1–#3 &nbsp;|&nbsp; PRs: agent-core #28 · jiuwenswarm #119, #139</summary>
+<details><summary>Items #1–#3 &nbsp;|&nbsp; PRs: agent-core (PR #28) · jiuwenswarm (PR #119), (PR #139)</summary>
 
 **Failure mode:<br>** The process hangs or crashes before any iteration fires, producing zero output.
 
@@ -151,11 +151,11 @@ flowchart TD
     core/runner/runner.py"]
 
     AC -->|"❌ blocking asyncio call"| H1(["hangs silently"]):::fail
-    AC -->|"✅ #28 — async await replaces blocking call"| JW["jiuwenswarm AutoHarness startup
+    AC -->|"✅ (PR #28) — async await replaces blocking call"| JW["jiuwenswarm AutoHarness startup
     auto_harness/service.py"]:::fix
 
     JW -->|"❌ same blocking-call pattern"| H2(["RuntimeError: loop already running"]):::fail
-    JW -->|"✅ #119 — same fix at jiuwenswarm layer"| ACP["ACP permission check
+    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| ACP["ACP permission check
     acp/stdio_client.py"]:::fix
 
     ACP --> CFG{"acp.override_tool_filter
@@ -167,14 +167,14 @@ flowchart TD
     caller must supply content directly"]
     FILTER --> RUN
 
-    CFG -->|"true  #139
+    CFG -->|"true  (PR #139)
     all tools available"| RUN(["Agent runs normally ✅"]):::ok
 ```
 
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#1 — Event Loop Fix — agent-core</strong> &nbsp;(<code>fix/event-loop-blocking</code> #28)</summary>
+<summary><strong>#1 — Event Loop Fix — agent-core</strong> &nbsp;(<code>fix/event-loop-blocking</code> (PR #28))</summary>
 
 <br>
 
@@ -197,7 +197,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#2 — Event Loop Fix — jiuwenswarm</strong> &nbsp;(<code>bugfix/event-loop-blocking</code> #119)</summary>
+<summary><strong>#2 — Event Loop Fix — jiuwenswarm</strong> &nbsp;(<code>bugfix/event-loop-blocking</code> (PR #119))</summary>
 
 <br>
 
@@ -220,7 +220,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#3 — ACP Tool Filter Override</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> #139)</summary>
+<summary><strong>#3 — ACP Tool Filter Override</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
 
 <br>
 
@@ -236,7 +236,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[H]** — `AbilityManager` checks the config flag before applying the ACP tool filter |
+| **Hook points** | `AbilityManager` — checks the config flag before applying the ACP tool filter |
 | **Config** | `acp.override_tool_filter` (bool, default false) in jiuwenswarm deployment config |
 | **Files** | `acp/stdio_client.py`, jiuwenswarm deployment config |
 
@@ -247,7 +247,7 @@ flowchart TD
 ---
 
 #### <strong>Group 2 — Scale: Try more than one approach, submit the best</strong>
-<details><summary>Items #4–#6 &nbsp;|&nbsp; PRs: agent-core #38, #37 · jiuwenswarm #1425</summary>
+<details><summary>Items #4–#6 &nbsp;|&nbsp; PRs: agent-core (PR #38), (PR #37) · jiuwenswarm (PR #1425)</summary>
 
 **Failure mode:<br>** A single deterministic attempt on a hard task has a low per-attempt success probability. Running once is insufficient.
 
@@ -293,7 +293,7 @@ flowchart TD
 
     T(["📋 Task"])
 
-    T --> MR["MultiRolloutRunner  #38
+    T --> MR["MultiRolloutRunner  (PR #38)
     clone workspace N times
     auto_harness/"]:::ac
 
@@ -303,17 +303,17 @@ flowchart TD
 
     R1 & R2 & RN --> CI{CI fails\ninside run?}
 
-    CI -->|yes| BON["BestOfNRepair  #37
+    CI -->|yes| BON["BestOfNRepair  (PR #37)
     N repair clones
     score = tests_passed / diff_size / lint_errors
     promote highest-scoring patch"]:::repair
     BON --> CI
 
-    CI -->|no| SEL["RolloutSelector  #38
+    CI -->|no| SEL["RolloutSelector  (PR #38)
     first_successful · longest_output · shortest_output"]:::ac
     SEL --> OUT(["🏁 Final Output"]):::done
 
-    T --> PP["PromptPolicy  #1425
+    T --> PP["PromptPolicy  (PR #1425)
     generate N prompt candidates
     symphony/optimization/"]:::opt
     PP --> PE["PromptEnvironment
@@ -333,7 +333,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#4 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> #38)</summary>
+<summary><strong>#4 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> (PR #38))</summary>
 
 <br>
 
@@ -352,7 +352,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | Wraps the entire `DeepAgent.invoke()` — sits outside **[A]**–**[K]** |
+| **Hook points** | Wraps the entire `DeepAgent.invoke()` — sits outside `ReActAgent.before_invoke`–`ReActAgent.after_invoke` |
 | **New classes** | `MultiRolloutRunner`, `RolloutSelector` |
 | **Config** | `multi_rollout.n` (Runner, int, default 1 = disabled) |
 
@@ -361,7 +361,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#5 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> #37)</summary>
+<summary><strong>#5 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> (PR #37))</summary>
 
 <br>
 
@@ -378,7 +378,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | Wraps `DeepAgent.invoke()` — triggered by CI failure signal, outside **[A]**–**[K]** |
+| **Hook points** | Wraps `DeepAgent.invoke()` — triggered by CI failure signal, outside `ReActAgent.before_invoke`–`ReActAgent.after_invoke` |
 | **New class** | `BestOfNRepair` |
 | **Config** | `auto_harness.best_of_n` (Runner, int, default 1 = disabled) |
 
@@ -387,7 +387,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#6 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> #1425</a>)</summary>
+<summary><strong>#6 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> (PR #1425)</a>)</summary>
 
 <br>
 
@@ -404,7 +404,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | `optimize_prompt` tool call + `PromptOptimizerReviewRail` at **[D]** for leader only |
+| **Hook points** | `optimize_prompt` tool call + `PromptOptimizerReviewRail` at `AgentRail.before_model_call` for leader only |
 | **New classes** | `PromptPolicy`, `PromptEnvironment`, `CompositeReward`, `LLMDriftJudge`, `ConvergenceDetector`, `PromptMemory`, `PromptOptimizerReviewRail` |
 | **Config** | `symphony.optimization.enabled` (bool, default false) |
 
@@ -415,12 +415,12 @@ flowchart TD
 ---
 
 #### <strong>Group 3 — Session Start: Make sure the agent begins with everything it needs</strong>
-<details><summary>Items #7–#9 &nbsp;|&nbsp; PRs: jiuwenswarm #371, #401, #214</summary>
+<details><summary>Items #7–#9 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #371), (PR #401), (PR #214)</summary>
 
 ***Failure mode:<br>** The agent starts each task with no knowledge of the output contract or available tools. After compression, even its memory of the goal becomes lossy.
 
 **Feature summary:<br>**
-All three rails fire once at session start (hook **[B]**, first iteration only) and inject a pinned section that `ContextEngine` can never drop. They are no-ops on all subsequent turns.
+All three rails fire once at session start (`DeepAgentRail.before_task_iteration`, first iteration only) and inject a pinned section that `ContextEngine` can never drop. They are no-ops on all subsequent turns.
 
 | # | Feature | What it does |
 |---|---|---|
@@ -457,16 +457,16 @@ flowchart TD
     classDef eng  fill:#37474F,color:#fff,stroke:#263238
 
     INIT(["🚀 Session Start
-    hook B — before_task_iteration
+    DeepAgentRail.before_task_iteration
     first iteration only"])
 
     INIT --> READ["/app/task.md"]
 
-    READ --> TDR["task_description_rail.py  #371
+    READ --> TDR["task_description_rail.py  (PR #371)
     full task.md content
     PromptSection pinned=True priority=1000"]:::init
 
-    READ --> OFR["output_format_rail.py  #401
+    READ --> OFR["output_format_rail.py  (PR #401)
     final 2 paragraphs + fenced json/yaml/csv blocks
     → expected output path · required keys · format
     PromptSection pinned=True priority=950"]:::init
@@ -474,7 +474,7 @@ flowchart TD
     INIT --> SCAN["scan /app/environment/skills/
     read each SKILL.md first paragraph"]
 
-    SCAN --> ESD["runtime_prompt_rail.py  #214
+    SCAN --> ESD["runtime_prompt_rail.py  (PR #214)
     skill name + one-line summary per skill
     PromptSection pinned=True priority=900"]:::init
 
@@ -489,13 +489,13 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#7 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> #371)</summary>
+<summary><strong>#7 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> (PR #371))</summary>
 
 <br>
 
 **How it works**
 
-- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
 - Read `/app/task.md` in full
 - Append content as a permanent `system`-role section: `PromptSection(pinned=True, priority=1000)`
 - `pinned=True` makes the section exempt from `ContextEngine` summarisation — it can never be dropped
@@ -505,7 +505,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[B]** first iteration only; `PromptSection(pinned=True, priority=1000)` |
+| **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=1000)` |
 | **File** | `rails/task_description_rail.py` |
 
 </details>
@@ -513,13 +513,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#8 — Output Format Reminder Rail</strong> &nbsp;(<code>feat/output-format-reminder-rail</code> #401)</summary>
+<summary><strong>#8 — Output Format Reminder Rail</strong> &nbsp;(<code>feat/output-format-reminder-rail</code> (PR #401))</summary>
 
 <br>
 
 **How it works**
 
-- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
 - Parse `task.md` for output-format signals: final two paragraphs + fenced code blocks tagged `json`, `yaml`, or `csv`
 - Extract: expected output path · required keys · format constraints
 - Pin as `PromptSection(pinned=True, priority=950)` — survives all context compression
@@ -529,7 +529,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[B]** first iteration only; `PromptSection(pinned=True, priority=950)` |
+| **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=950)` |
 | **File** | `rails/output_format_rail.py` |
 
 </details>
@@ -537,13 +537,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#9 — External Skill Discovery</strong> &nbsp;(<code>feat/external-skill-discovery</code> #214)</summary>
+<summary><strong>#9 — External Skill Discovery</strong> &nbsp;(<code>feat/external-skill-discovery</code> (PR #214))</summary>
 
 <br>
 
 **How it works**
 
-- Fires once at session start — hook **[B]**, first iteration only; no-op on all subsequent turns
+- Fires once at session start — `DeepAgentRail.before_task_iteration`, first iteration only; no-op on all subsequent turns
 - Scan `/app/environment/skills/` for `SKILL.md` files
 - Read each file's first paragraph to extract a one-line summary
 - Inject formatted index (skill name + one-line summary per skill) as `PromptSection(pinned=True, priority=900)`
@@ -553,7 +553,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[B]** first iteration only; `PromptSection(pinned=True, priority=900)` |
+| **Hook points** | `DeepAgentRail.before_task_iteration` first iteration only; `PromptSection(pinned=True, priority=900)` |
 | **File** | Extension of `rails/runtime_prompt_rail.py` or dedicated skill-discovery rail |
 
 </details>
@@ -563,12 +563,12 @@ flowchart TD
 ---
 
 #### <strong>Group 4 — Budget Awareness: Don't waste the limited number of steps</strong>
-<details><summary>Items #10–#12 &nbsp;|&nbsp; PRs: jiuwenswarm #368, #372, #370</summary>
+<details><summary>Items #10–#12 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #368), (PR #372), (PR #370)</summary>
 
 ***Failure mode:<br>** The agent exhausts its iteration budget on redundant reads, confirmation pauses, and exploration without ever writing output.
 
 **Feature summary:<br>**
-Each rail targets a different cause of budget exhaustion. They all hook into **[D]** or **[G]** and are lightweight enough to run on every turn.
+Each rail targets a different cause of budget exhaustion. They all hook into `AgentRail.before_model_call` or `AgentRail.before_tool_call` and are lightweight enough to run on every turn.
 
 | # | Feature | What it does |
 |---|---|---|
@@ -608,9 +608,9 @@ flowchart TD
 
     ITER --> IBA_CHK{"remaining turns
     < threshold?
-    hook D"}
+    AgentRail.before_model_call"}
 
-    IBA_CHK -->|"yes"| IBA["iteration_budget_rail.py  #368
+    IBA_CHK -->|"yes"| IBA["iteration_budget_rail.py  (PR #368)
     inject: stop exploring
     write best available output now"]:::pre
 
@@ -618,18 +618,18 @@ flowchart TD
     IBA --> LLM
 
     LLM --> TOOL_REQ["Tool call requested
-    hook G — before_tool_call"]
+    AgentRail.before_tool_call"]
 
     TOOL_REQ --> DEDUP{"cache hit?
     (tool_name, sha256(args))
-    tool_dedup_rail.py  #372"}
+    tool_dedup_rail.py  (PR #372)"}
 
     DEDUP -->|"hit"| CACHED(["Return cached result instantly
     no execution · no iteration consumed"]):::done
 
     DEDUP -->|"miss"| AUTO{"hedging phrases
     in LLM output?
-    autonomous_mode_rail.py  #370"}
+    autonomous_mode_rail.py  (PR #370)"}
 
     AUTO -->|"yes"| STRIP["strip: 'I would recommend'
     'should I proceed' 'please confirm'
@@ -646,13 +646,13 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#10 — Iteration Budget Awareness Rail</strong> &nbsp;(<code>feat/iteration-budget-awareness</code> #368)</summary>
+<summary><strong>#10 — Iteration Budget Awareness Rail</strong> &nbsp;(<code>feat/iteration-budget-awareness</code> (PR #368))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[D]**: compute `remaining = max_iterations - current_turn`
+- `AgentRail.before_model_call`: compute `remaining = max_iterations - current_turn`
 - If `remaining < threshold` (default: 5 turns), inject a high-priority directive:
   - "Stop exploring"
   - "Write the best available output now"
@@ -663,7 +663,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[D]** `before_model_call`; reads `AgentCallbackContext.current_turn` and `.max_iterations` |
+| **Hook points** | `AgentRail.before_model_call`; reads `AgentCallbackContext.current_turn` and `.max_iterations` |
 | **File** | `rails/iteration_budget_rail.py` |
 
 </details>
@@ -671,14 +671,14 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#11 — Tool Call Deduplication Cache</strong> &nbsp;(<code>feat/tool-call-dedup-cache</code> #372)</summary>
+<summary><strong>#11 — Tool Call Deduplication Cache</strong> &nbsp;(<code>feat/tool-call-dedup-cache</code> (PR #372))</summary>
 
 <br>
 
 **How it works**
 
 - Cache key: `(tool_name, sha256(canonical_json(args)))`
-- Hook **[G]**: before dispatching any tool call, look up the cache
+- `AgentRail.before_tool_call`: before dispatching any tool call, look up the cache
   - Cache hit → return cached result immediately; no tool execution, no turn consumed
   - Cache miss → execute normally, write result to cache
 - Cache scope: per-session only (TTL = session lifetime)
@@ -688,7 +688,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[G]** `before_tool_call`; cache TTL = session lifetime only |
+| **Hook points** | `AgentRail.before_tool_call`; cache TTL = session lifetime only |
 | **File** | `rails/tool_dedup_rail.py`; session-state key prefix `tool_dedup.*` |
 
 </details>
@@ -696,13 +696,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#12 — Autonomous Execution Mode</strong> &nbsp;(<code>feat/autonomous-execution-mode</code> #370)</summary>
+<summary><strong>#12 — Autonomous Execution Mode</strong> &nbsp;(<code>feat/autonomous-execution-mode</code> (PR #370))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[G]**: post-process LLM text output before tool dispatch
+- `AgentRail.before_tool_call`: post-process LLM text output before tool dispatch
 - Detect hedging phrases: "I would recommend", "you might want to", "should I proceed"
 - Detect confirmation requests: "please confirm", "let me know if"
 - Replace detected phrases with direct execution language
@@ -712,7 +712,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[G]** `before_tool_call` — post-processes LLM text output before dispatch |
+| **Hook points** | `AgentRail.before_tool_call` — post-processes LLM text output before dispatch |
 | **File** | `rails/autonomous_mode_rail.py`; patterns defined as `list[tuple[re.Pattern, str]]` |
 
 </details>
@@ -722,7 +722,7 @@ flowchart TD
 ---
 
 #### <strong>Group 5 — Loop Breaking: Escape patterns that consume steps without progress</strong>
-<details><summary>Items #13–#16 &nbsp;|&nbsp; PRs: agent-core #26 · jiuwenswarm #396, #399, #409</summary>
+<details><summary>Items #13–#16 &nbsp;|&nbsp; PRs: agent-core (PR #26) · jiuwenswarm (PR #396), (PR #399), (PR #409)</summary>
 
 ***Failure mode:<br>** The agent enters a repetition or patch loop, consuming the entire iteration budget without changing strategy.
 
@@ -772,13 +772,13 @@ flowchart TD
     classDef post fill:#BF360C,color:#fff,stroke:#7f2407
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
-    PROMPT(["Prompt build  hook C"])
+    PROMPT(["Prompt build  SystemPromptBuilder"])
 
-    PROMPT --> AR["Anti-Repetition  #26  agent-core
+    PROMPT --> AR["Anti-Repetition  (PR #26)  agent-core
     harness/prompts/ — ReAct system prompt
     explicit: do not repeat Thought/Action pairs"]:::ac
 
-    AR --> DMEM["failure_memory_rail.py  #396  hook D
+    AR --> DMEM["failure_memory_rail.py  (PR #396)  AgentRail.before_model_call
     read failure_memory.log
     prepend do-not-repeat list to prompt"]:::pre
 
@@ -786,7 +786,7 @@ flowchart TD
     .consecutive_count"}
 
     SB_CHK -->|"< N"| VCB_CHK
-    SB_CHK -->|"≥ N (default 3)"| SB1["step_back_rail.py  #399
+    SB_CHK -->|"≥ N (default 3)"| SB1["step_back_rail.py  (PR #399)
     inject: stop · rethink strategy"]:::pre
     SB_CHK -->|"≥ 2N"| SB2["inject: approach is wrong
     start from a different angle"]:::pre
@@ -795,14 +795,14 @@ flowchart TD
     .consecutive_count"}
 
     VCB_CHK -->|"< N"| LLM
-    VCB_CHK -->|"≥ N"| VCB1["verifier_circuit_breaker_rail.py  #409
+    VCB_CHK -->|"≥ N"| VCB1["verifier_circuit_breaker_rail.py  (PR #409)
     inject: rethink"]:::pre
     VCB_CHK -->|"≥ 2N"| VCB2["inject: abandon approach entirely"]:::pre
 
-    VCB1 & VCB2 --> LLM(["LLM call  hook E"]):::io
+    VCB1 & VCB2 --> LLM(["LLM call  LLM call"]):::io
 
     LLM --> NONZERO{"tool exit code ≠ 0?
-    hook I — after_tool_call"}
+    AgentRail.after_tool_call"}
 
     NONZERO -->|"yes"| FM_W["write to failure_memory.log
     tool + args_summary + exit_code + stderr_tail"]:::post
@@ -825,13 +825,13 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#13 — Anti-Repetition Prompt Fix</strong> &nbsp;(agent-core <code>fix/react-anti-repetition-prompt</code> #26)</summary>
+<summary><strong>#13 — Anti-Repetition Prompt Fix</strong> &nbsp;(agent-core <code>fix/react-anti-repetition-prompt</code> (PR #26))</summary>
 
 <br>
 
 **How it works**
 
-- Changes the ReAct system prompt template — not a runtime hook; takes effect at every **[E]** automatically
+- Changes the ReAct system prompt template — not a runtime hook; takes effect at every LLM call automatically
 - Adds explicit instruction: "Do not repeat a Thought/Action pair already produced in this session"
 - The previous prompt contained no such constraint
 - Impact: repetition loops were the second most common cause of budget exhaustion in production traces
@@ -840,7 +840,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | Prompt template change — no runtime hook; fires at every **[E]** because it is baked into the system prompt |
+| **Hook points** | Prompt template change — no runtime hook; fires at every LLM call because it is baked into the system prompt |
 | **File** | `harness/prompts/` in agent-core |
 
 </details>
@@ -848,14 +848,14 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#14 — Failure Pattern Memory Rail</strong> &nbsp;(<code>feat/failure-pattern-memory-rail</code> #396)</summary>
+<summary><strong>#14 — Failure Pattern Memory Rail</strong> &nbsp;(<code>feat/failure-pattern-memory-rail</code> (PR #396))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[I]**: after each tool call returning non-zero exit code, serialize `(tool_name, args_summary, exit_code, stderr_tail)` into the session failure log (key `failure_memory.log`)
-- Hook **[D]**: before each LLM call, prepend a formatted "Do not repeat these failed approaches" block to the system prompt
+- `AgentRail.after_tool_call`: after each tool call returning non-zero exit code, serialize `(tool_name, args_summary, exit_code, stderr_tail)` into the session failure log (key `failure_memory.log`)
+- `AgentRail.before_model_call`: before each LLM call, prepend a formatted "Do not repeat these failed approaches" block to the system prompt
 - The list grows as failures accumulate across the session
 - Prevents the agent from retrying approaches it has already proven do not work
 
@@ -863,7 +863,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[I]** write (`after_tool_call`); **[D]** read and inject (`before_model_call`) |
+| **Hook points** | `AgentRail.after_tool_call` write; `AgentRail.before_model_call` read and inject |
 | **File** | `rails/failure_memory_rail.py`; session-state key `failure_memory.log` |
 
 </details>
@@ -871,14 +871,14 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#15 — Step-Back Rail</strong> &nbsp;(<code>feat/step-back-rail</code> #399)</summary>
+<summary><strong>#15 — Step-Back Rail</strong> &nbsp;(<code>feat/step-back-rail</code> (PR #399))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[I]**: on non-zero exit code, increment `step_back.consecutive_count`; reset to 0 on success
-- Hook **[D]**: before each LLM call, check the counter:
+- `AgentRail.after_tool_call`: on non-zero exit code, increment `step_back.consecutive_count`; reset to 0 on success
+- `AgentRail.before_model_call`: before each LLM call, check the counter:
   - `count ≥ N` (default 3): inject "stop — reconsider your strategy entirely"
   - `count ≥ 2N`: escalate to "your current approach is fundamentally wrong — start from a different angle"
 - Target failure: marginal one-line patches to the same broken implementation, repeated until timeout
@@ -887,7 +887,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[I]** count (`after_tool_call`); **[D]** inject (`before_model_call`) |
+| **Hook points** | `AgentRail.after_tool_call` count; `AgentRail.before_model_call` inject |
 | **File** | `rails/step_back_rail.py`; session-state key `step_back.consecutive_count` |
 
 </details>
@@ -895,16 +895,16 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#16 — Verifier Circuit Breaker Rail</strong> &nbsp;(<code>feat/verifier-circuit-breaker-rail</code> #409)</summary>
+<summary><strong>#16 — Verifier Circuit Breaker Rail</strong> &nbsp;(<code>feat/verifier-circuit-breaker-rail</code> (PR #409))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[I]**: compute fingerprint `sha256(test_name + assertion_text + exit_code)` after each verifier run
+- `AgentRail.after_tool_call`: compute fingerprint `sha256(test_name + assertion_text + exit_code)` after each verifier run
   - If fingerprint matches previous: increment `verifier_cb.consecutive_count`
   - If fingerprint differs: reset counter, store new fingerprint
-- Hook **[D]**: before each LLM call, check the counter:
+- `AgentRail.before_model_call`: before each LLM call, check the counter:
   - `count ≥ N` (default 3): inject rethink directive
   - `count ≥ 2N`: inject "abandon this approach entirely"
 - Target failure: same assertion fails → agent patches one line → verifier re-runs → same assertion fails → repeat ×15 → timeout
@@ -913,7 +913,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[I]** fingerprint and count (`after_tool_call`); **[D]** inject (`before_model_call`) |
+| **Hook points** | `AgentRail.after_tool_call` fingerprint and count; `AgentRail.before_model_call` inject |
 | **File** | `rails/verifier_circuit_breaker_rail.py`; session-state keys `verifier_cb.fingerprint`, `verifier_cb.consecutive_count` |
 | **Fingerprint** | `sha256(test_name + assertion_text + exit_code)` — identical only when all three fields match |
 
@@ -924,7 +924,7 @@ flowchart TD
 ---
 
 #### <strong>Group 6 — Context Management: Keep important information from getting lost</strong>
-<details><summary>Items #17–#18 &nbsp;|&nbsp; PRs: jiuwenswarm #397 · agent-core #21</summary>
+<details><summary>Items #17–#18 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #397) · agent-core (PR #21)</summary>
 
 ***Failure mode:<br>** The context window fills, triggering destructive automatic summarisation that discards working state; or prompt regressions go undetected across runs.
 
@@ -961,24 +961,24 @@ flowchart TD
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
     MSG(["ContextEngine builds messages list
-    hook C"])
+    SystemPromptBuilder"])
 
     MSG --> RATIO["compute
     current_tokens / context_window"]
 
     RATIO -->|"< 60%"| PASS["no injection"]
-    RATIO -->|"≥ 60%"| NUDGE["context_headroom_rail.py  #397
+    RATIO -->|"≥ 60%"| NUDGE["context_headroom_rail.py  (PR #397)
     inject: be concise"]:::pre
     RATIO -->|"≥ 80%"| CRIT["inject: use terse tool calls only
     stop long explanations"]:::pre
 
-    PASS & NUDGE & CRIT --> ALL["all hook-D rails have run"]
+    PASS & NUDGE & CRIT --> ALL["all AgentRail.before_model_call rails have run"]
 
-    ALL --> SER["Prompt Serialisation  #21  agent-core
+    ALL --> SER["Prompt Serialisation  (PR #21)  agent-core
     harness/prompts/builder.py
     serialise full rendered prompt to JSON"]:::ac
 
-    SER --> LLM(["LLM call  hook E"]):::io
+    SER --> LLM(["LLM call  LLM call"]):::io
 
     SER --> LOG(["workspace/.prompt_log/turn_N.json
     compare across sessions to detect
@@ -988,13 +988,13 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#17 — Context Headroom Guard</strong> &nbsp;(<code>feat/context-headroom-guard</code> #397)</summary>
+<summary><strong>#17 — Context Headroom Guard</strong> &nbsp;(<code>feat/context-headroom-guard</code> (PR #397))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[D]**: compute `fill_ratio = current_tokens / context_window`
+- `AgentRail.before_model_call`: compute `fill_ratio = current_tokens / context_window`
   - `≥ 60%`: inject conciseness nudge — "be brief in explanations"
   - `≥ 80%`: inject critical directive — "use terse tool calls only; stop long explanations"
 - Slows the rate at which the context window fills
@@ -1005,7 +1005,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[D]** `before_model_call`; reads `ContextEngine.token_count()` and `.context_window_size()` |
+| **Hook points** | `AgentRail.before_model_call`; reads `ContextEngine.token_count()` and `.context_window_size()` |
 | **File** | `rails/context_headroom_rail.py`; thresholds and directives are configurable; session-state key prefix `context_headroom.*` |
 
 </details>
@@ -1013,13 +1013,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(agent-core <code>feat/react-agent-prompt-serialization</code> #21)</summary>
+<summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(agent-core <code>feat/react-agent-prompt-serialization</code> (PR #21))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[D]**: runs last — after all other rails have injected their sections
+- `AgentRail.before_model_call`: runs last — after all other rails have injected their sections
 - Serialize the fully-rendered system prompt (all sections assembled, all priorities applied) to deterministic JSON
 - Write to `workspace/.prompt_log/turn_{n}.json` — one file per turn, one directory per session
 - Enables: exact diff-based comparison between runs; regression detection when rails change
@@ -1028,9 +1028,9 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[D]** `before_model_call`, runs last (after all other rails have injected) |
+| **Hook points** | `AgentRail.before_model_call`, runs last (after all other rails have injected) |
 | **Output** | `workspace/.prompt_log/turn_{n}.json` — one file per turn, one directory per session |
-| **File** | `harness/prompts/builder.py` serialisation path in agent-core #21 |
+| **File** | `harness/prompts/builder.py` serialisation path in agent-core (PR #21) |
 
 </details>
 
@@ -1039,7 +1039,7 @@ flowchart TD
 ---
 
 #### <strong>Group 7 — Output Quality: Make sure the final answer is correct and in the right place</strong>
-<details><summary>Items #19–#20 &nbsp;|&nbsp; PRs: jiuwenswarm #334, #328</summary>
+<details><summary>Items #19–#20 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #334), (PR #328)</summary>
 
 ***Failure mode:<br>** The agent produces a correct answer but (a) cannot read the verifier's error because it was truncated from the head, or (b) submits output without first checking whether the verifier passes.
 
@@ -1077,14 +1077,14 @@ flowchart TD
     classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
-    SHELL(["Shell tool executes  hook H"])
+    SHELL(["Shell tool executes  AbilityManager"])
 
     SHELL --> RAW["raw stdout/stderr"]
 
     RAW --> LEN{"output length
     > 2K lines?"}
 
-    LEN -->|"yes"| HT["bash_output_truncation  #334  hook I
+    LEN -->|"yes"| HT["bash_output_truncation  (PR #334)  AgentRail.after_tool_call
     keep first K lines + last K lines
     insert: ... N lines truncated ...
     verifier errors at end are always preserved"]:::post
@@ -1096,7 +1096,7 @@ flowchart TD
 
     LLM_READ --> AGENT["Agent writes output file"]:::io
 
-    AGENT --> SV["self_verification_loop  #328  hook J
+    AGENT --> SV["self_verification_loop  (PR #328)  DeepAgentRail.after_task_iteration
     run task verifier script as synthetic tool call
     verifier/test_outputs.py"]:::post
 
@@ -1112,13 +1112,13 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#19 — Bash Output Head+Tail Truncation</strong> &nbsp;(<code>feat/bash-output-head-tail-truncation</code> #334)</summary>
+<summary><strong>#19 — Bash Output Head+Tail Truncation</strong> &nbsp;(<code>feat/bash-output-head-tail-truncation</code> (PR #334))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[I]**: post-process raw tool output bytes before packaging as `ToolMessage`
+- `AgentRail.after_tool_call`: post-process raw tool output bytes before packaging as `ToolMessage`
 - If output length exceeds threshold, apply head+tail strategy:
   - Keep first K lines (default K = 50)
   - Keep last K lines
@@ -1130,7 +1130,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[I]** `after_tool_call` — post-processes raw tool output bytes before packaging as `ToolMessage` |
+| **Hook points** | `AgentRail.after_tool_call` — post-processes raw tool output bytes before packaging as `ToolMessage` |
 | **Default** | K = 50 lines (configurable); separator includes dropped-line count for transparency |
 
 </details>
@@ -1138,13 +1138,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#20 — Self-Verification Loop</strong> &nbsp;(<code>feat/self-verification-loop</code> #328)</summary>
+<summary><strong>#20 — Self-Verification Loop</strong> &nbsp;(<code>feat/self-verification-loop</code> (PR #328))</summary>
 
 <br>
 
 **How it works**
 
-- Hook **[J]**: triggers after the agent writes any output file, before declaring the task done
+- `DeepAgentRail.after_task_iteration`: triggers after the agent writes any output file, before declaring the task done
 - Run the task verifier script as a synthetic shell tool call (`verifier/test_outputs.py`)
 - If `exit 0`: task complete ✅
 - If `exit ≠ 0`: inject verifier stderr as a new `system` message → re-enter the iteration loop
@@ -1155,7 +1155,7 @@ flowchart TD
 
 | | |
 |---|---|
-| **Hook points** | **[J]** `after_task_iteration` — conditional on output file detection; verifier is called as a synthetic tool call; failure re-injects stderr as `system` message |
+| **Hook points** | `DeepAgentRail.after_task_iteration` — conditional on output file detection; verifier is called as a synthetic tool call; failure re-injects stderr as `system` message |
 | **File** | `agents/harness/common/rails/` self-verification logic |
 
 </details>
@@ -1165,7 +1165,7 @@ flowchart TD
 ---
 
 #### <strong>Group 8 — Multi-Agent Verification: Add a second reviewer in team mode</strong>
-<details><summary>Item #21 &nbsp;|&nbsp; PRs: agent-core #123 · jiuwenswarm #121</summary>
+<details><summary>Item #21 &nbsp;|&nbsp; PRs: agent-core (PR #123) · jiuwenswarm (PR #121)</summary>
 
 ***Failure mode:<br>** In leader/sub-agent sessions, the leader receives bare sub-agent results and consolidates them without knowing whether any are incorrect.
 
@@ -1213,7 +1213,7 @@ flowchart TD
     zero overhead"]
     PASS --> RECV
 
-    CFG -->|"true"| REV["TeamVerificationRail  #123 / #121
+    CFG -->|"true"| REV["TeamVerificationRail  (PR #123) / (PR #121)
     lightweight reviewer agent
     scores against quality rubric:
     · correctness
@@ -1232,7 +1232,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#21 — Team Verification Layer</strong> &nbsp;(agent-core <code>feat/team-verification-layer</code> #123 / jiuwenswarm <code>feat/team-verification-layer</code> #121)</summary>
+<summary><strong>#21 — Team Verification Layer</strong> &nbsp;(agent-core <code>feat/team-verification-layer</code> (PR #123) / jiuwenswarm <code>feat/team-verification-layer</code> (PR #121))</summary>
 
 <br>
 
@@ -1245,7 +1245,7 @@ flowchart TD
   - Format compliance
 - Leader receives `{result, score: float, reviewer_notes: str}` instead of a bare result
 - Leader can reason about the score before consolidating sub-agent outputs
-- Implementation: rail on the leader agent in jiuwenswarm (#121); scoring logic in agent-core (#123)
+- Implementation: rail on the leader agent in jiuwenswarm (PR #121); scoring logic in agent-core (PR #123)
 - When disabled (default): result passes through unchanged with zero overhead
 
 **Technical metadata**
@@ -1254,7 +1254,7 @@ flowchart TD
 |---|---|
 | **Hook points** | Post-processor between sub-agent completion and result delivery to leader — sits inside `agents/harness/team/`, not a standard rail hook point |
 | **Config** | `team_verification.enabled` (AgentConfig bool, default false); when false, result passes through unchanged with zero overhead |
-| **Key files** | agent-core #123: `agent_teams/` or `harness/subagents/` — scoring rubric; jiuwenswarm #121: `agents/harness/team/` — mounts the rail |
+| **Key files** | agent-core (PR #123): `agent_teams/` or `harness/subagents/` — scoring rubric; jiuwenswarm (PR #121): `agents/harness/team/` — mounts the rail |
 
 </details>
 
@@ -1311,27 +1311,27 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 
 | # | Item | Repo | PR / Branch | Status |
 |---|------|------|------------|--------|
-| 1 | Event Loop Fix | agent-core | #28 | Branch open |
-| 2 | Event Loop Fix | jiuwenswarm | #119 | Branch open |
-| 3 | ACP Tool Filter Override | jiuwenswarm | #139 | Branch open |
-| 4 | Multi-Rollout | agent-core | #38 | Branch open |
-| 5 | Auto-Harness Best-of-N | agent-core | #37 | Branch open |
-| 6 | RLAF-P Prompt Optimizer | jiuwenswarm | #1425 | Branch open · 25 unit tests passing |
-| 7 | Task Description Re-injection | jiuwenswarm | #371 | Branch open |
-| 8 | Output Format Reminder | jiuwenswarm | #401 | Branch open |
-| 9 | External Skill Discovery | jiuwenswarm | #214 | Branch open |
-| 10 | Iteration Budget Awareness | jiuwenswarm | #368 | Branch open |
-| 11 | Tool Call Dedup Cache | jiuwenswarm | #372 | Branch open |
-| 12 | Autonomous Execution Mode | jiuwenswarm | #370 | Branch open |
-| 13 | Anti-Repetition Prompt Fix | agent-core | #26 | Branch open |
-| 14 | Failure Pattern Memory | jiuwenswarm | #396 | Branch open |
-| 15 | Step-Back Rail | jiuwenswarm | #399 | Branch open |
-| 16 | Verifier Circuit Breaker | jiuwenswarm | #409 | Branch open |
-| 17 | Context Headroom Guard | jiuwenswarm | #397 | Branch open |
-| 18 | Prompt Serialisation | agent-core | #21 | Branch open |
-| 19 | Bash Output Head+Tail | jiuwenswarm | #334 | Branch open |
-| 20 | Self-Verification Loop | jiuwenswarm | #328 | Branch open |
-| 21 | Team Verification Layer | agent-core + jiuwenswarm | #123 + #121 | Branch open |
+| 1 | Event Loop Fix | agent-core | (PR #28) | Branch open |
+| 2 | Event Loop Fix | jiuwenswarm | (PR #119) | Branch open |
+| 3 | ACP Tool Filter Override | jiuwenswarm | (PR #139) | Branch open |
+| 4 | Multi-Rollout | agent-core | (PR #38) | Branch open |
+| 5 | Auto-Harness Best-of-N | agent-core | (PR #37) | Branch open |
+| 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) | Branch open · 25 unit tests passing |
+| 7 | Task Description Re-injection | jiuwenswarm | (PR #371) | Branch open |
+| 8 | Output Format Reminder | jiuwenswarm | (PR #401) | Branch open |
+| 9 | External Skill Discovery | jiuwenswarm | (PR #214) | Branch open |
+| 10 | Iteration Budget Awareness | jiuwenswarm | (PR #368) | Branch open |
+| 11 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) | Branch open |
+| 12 | Autonomous Execution Mode | jiuwenswarm | (PR #370) | Branch open |
+| 13 | Anti-Repetition Prompt Fix | agent-core | (PR #26) | Branch open |
+| 14 | Failure Pattern Memory | jiuwenswarm | (PR #396) | Branch open |
+| 15 | Step-Back Rail | jiuwenswarm | (PR #399) | Branch open |
+| 16 | Verifier Circuit Breaker | jiuwenswarm | (PR #409) | Branch open |
+| 17 | Context Headroom Guard | jiuwenswarm | (PR #397) | Branch open |
+| 18 | Prompt Serialisation | agent-core | (PR #21) | Branch open |
+| 19 | Bash Output Head+Tail | jiuwenswarm | (PR #334) | Branch open |
+| 20 | Self-Verification Loop | jiuwenswarm | (PR #328) | Branch open |
+| 21 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) | Branch open |
 
 Integration branch combining all: `New-Features-Integration` (both repos)
 
