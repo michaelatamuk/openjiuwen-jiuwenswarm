@@ -301,6 +301,7 @@ flowchart TD
     classDef run    fill:#01579B,color:#fff,stroke:#003c74
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef repair fill:#E65100,color:#fff,stroke:#BF360C
+    classDef old    fill:#546E7A,color:#fff,stroke:#263238
     classDef stage  fill:#37474F,color:#fff,stroke:#263238
 
     %% ── #4 Multi-Rollout: triggered by a regular user task ──────────────
@@ -338,7 +339,16 @@ flowchart TD
     VER --> CI{"CI gate
     lint + type-check + tests"}
     CI -->|passed| S4["Commit / Publish stages"]:::stage
-    CI -->|"failed + best_of_n_enabled"| BON["BestOfNController  (PR #37)
+
+    CI -->|"failed + best_of_n_enabled=False
+    existing path"| FL["FixLoopController
+    phase 1: up to 10 attempts
+    phase 2: up to 9 attempts
+    19 sequential fix tries total"]:::old
+    FL --> S4
+
+    CI -->|"failed + best_of_n_enabled=True
+    new path  (PR #37)"| BON["BestOfNController
     auto_harness/pipelines/best_of_n/controller.py
     clone workspace N times"]:::repair
 
@@ -356,20 +366,23 @@ flowchart TD
 
     S4 --> OUT5(["🏁 Improved harness committed"]):::done
 
-    %% ── #6 RLAF-P: triggered by a regular user task ────────────────────
-    T --> PP["PromptPolicy  (PR #1425)
+    %% ── #6 RLAF-P: leader agent calls optimize_prompt tool ─────────────
+    T --> LEADER["Leader Agent workflow
+    PromptOptimizerPromptRail injects guidance
+    on when to call optimize_prompt"]:::opt
+    LEADER -->|"calls optimize_prompt tool  (PR #1425)"| PP["PromptPolicy
     generate N prompt candidates
     symphony/optimization/"]:::opt
     PP --> PE["PromptEnvironment
-    execute each candidate"]:::opt
+    execute each candidate in parallel"]:::opt
     PE --> CR["CompositeReward
     correctness ×1.0  completeness ×0.3
     latency ×0.1  drift penalty"]:::opt
     CR --> PM["PromptMemory
     JSONL / FAISS — persist winner"]:::opt
     PM --> RQ["PromptOptimizerReviewRail
-    review-queue → leader confirms
-    before any prompt goes live"]:::opt
+    surfaces pending results to leader
+    human reviews before going live"]:::opt
     RQ -->|"approved — prompt published"| PP
     RQ -->|"next session reuse"| OUT4
 ```
