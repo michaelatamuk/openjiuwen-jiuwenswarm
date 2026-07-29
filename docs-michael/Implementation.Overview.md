@@ -927,44 +927,61 @@ flowchart TD
 
     PROMPT(["Prompt build · SystemPromptBuilder"])
 
-    PROMPT --> AR["Anti-Repetition (PR #26) · agent-core
-    harness/prompts/ — ReAct system prompt
-    explicit: do not repeat Thought/Action pairs"]:::ac
+    PROMPT --> AR["Anti-Repetition · identity.py
+    openjiuwen/harness/prompts/sections/identity.py
+    explicit: never repeat identical tool calls"]:::ac
 
-    AR --> DMEM["failure_memory_rail.py (PR #396) · before_model_call
+    AR --> FM_GATE{"failure_memory
+    enabled?"}
+
+    FM_GATE -->|"yes"| DMEM["failure_memory_rail.py (PR #396) · before_model_call
     read _failure_memory · if non-empty
     inject numbered list into system prompt (priority 95)"]:::pre
 
-    DMEM --> SB_CHK{"_step_back_consecutive_failures"}
+    FM_GATE -->|"no"| SB_GATE
+    DMEM --> SB_GATE{"step_back
+    enabled?"}
 
-    SB_CHK -->|"< N"| VCB_CHK
-    SB_CHK -->|"≥ N (default 3)"| SB1["step_back_rail.py (PR #399)
+    SB_GATE -->|"yes"| SB_CHK{"_step_back_consecutive_failures"}
+    SB_GATE -->|"no"| VCB_GATE
+
+    SB_CHK -->|"< N (default 3)"| VCB_GATE
+    SB_CHK -->|"≥ N"| SB1["step_back_rail.py (PR #399)
     inject 4-step rethink directive (priority 94)
     single level — no 2N escalation"]:::pre
 
-    SB1 --> VCB_CHK{"_vcb_consecutive"}
+    SB1 --> VCB_GATE{"verifier_circuit_breaker
+    enabled?"}
 
-    VCB_CHK -->|"< N"| LLM
-    VCB_CHK -->|"≥ N (default 3)"| VCB1["verifier_circuit_breaker_rail.py (PR #409)
+    VCB_GATE -->|"yes"| VCB_CHK{"_vcb_consecutive"}
+    VCB_GATE -->|"no"| LLM
+
+    VCB_CHK -->|"< N (default 3)"| LLM
+    VCB_CHK -->|"≥ N"| VCB1["verifier_circuit_breaker_rail.py (PR #409)
     inject: rethink directive (priority 96)"]:::pre
     VCB_CHK -->|"≥ 2N"| VCB2["inject: CIRCUIT BREAKER
     ABANDON everything · start from scratch"]:::pre
 
     VCB1 & VCB2 --> LLM(["LLM call"]):::io
 
-    %% ── after_tool_call: three sequential filter passes ──
+    %% ── after_tool_call: two independent filter passes ──
 
-    LLM --> FM_CHK{"error strings in result?
+    LLM -->|"normal result"| FM_CHK{"error strings in result?
     (15+ patterns: Traceback / Error: /
-    FAILED / SyntaxError …)
-    or tool exception?"}
+    FAILED / SyntaxError …)"}
+
+    LLM -->|"tool exception"| EXCEP(["on_tool_exception"]):::post
 
     FM_CHK -->|"yes"| FM_W["append to _failure_memory
     tool + args_120chars + error_snippet_300chars
     skip if duplicate of last · keep max 10"]:::post
     FM_CHK -->|"no"| SH_CHK
 
-    FM_W --> SH_CHK{"shell tool?
+    FM_W --> SH_CHK
+    EXCEP --> FM_W
+    EXCEP --> SB_INC
+
+    SH_CHK{"shell tool?
     bash / run_bash /
     mcp_exec_command …"}
 
@@ -996,23 +1013,21 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#13 — Anti-Repetition Prompt Fix</strong> &nbsp;(agent-core <code>fix/react-anti-repetition-prompt</code> (PR #26))</summary>
+<summary><strong>#13 — Anti-Repetition Identity Prompt</strong></summary>
 
 <br>
 
 **How it works**
 
-- Changes the ReAct system prompt template — not a runtime hook; takes effect at every LLM call automatically
-- Adds explicit instruction: "Do not repeat a Thought/Action pair already produced in this session"
-- The previous prompt contained no such constraint
-- Impact: repetition loops were the second most common cause of budget exhaustion in production traces
+- Adds an explicit instruction to the agent identity prompt: if a tool returns no results, empty output, or an error, do **not** call the same tool with identical arguments again; refer to the tool-call history already visible in the conversation context and try a different tool or approach
+- Not a separate runtime rail — the identity section is baked into every system prompt at priority 10
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | Prompt template change — no runtime hook; fires at every LLM call because it is baked into the system prompt |
-| **File** | `harness/prompts/` in agent-core |
+| **Hook points** | `PromptSection` priority 10 — always present in the system prompt |
+| **File** | `openjiuwen/harness/prompts/sections/identity.py` |
 
 </details>
 
