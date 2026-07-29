@@ -653,13 +653,13 @@ flowchart TD
 ***Failure mode:<br>** The agent exhausts its iteration budget on redundant reads, confirmation pauses, and exploration without ever writing output.
 
 **Feature summary:<br>**
-Each rail targets a different cause of budget exhaustion. They all hook into `AgentRail.before_model_call` or `AgentRail.before_tool_call` and are lightweight enough to run on every turn.
+Each rail targets a different cause of budget exhaustion. #10 and #11 hook into `AgentRail.before_model_call` / `before_tool_call`. #12 is different — it injects directives into the system prompt at agent initialisation so the LLM never produces hedging or confirmation requests in the first place.
 
 | # | Feature | What it does |
 |---|---|---|
-| #10 | Iteration Budget Rail | Tracks remaining turns; injects "write output now" directive when below threshold |
-| #11 | Tool Call Dedup Cache | Caches `(tool_name, sha256(args)) → result`; returns hit immediately without executing the tool again |
-| #12 | Autonomous Execution Mode | Regex-strips hedging phrases and confirmation requests from LLM output before tool dispatch |
+| #10 | Iteration Budget Rail | On each `before_model_call` computes `remaining = max_iterations − iteration`; injects a budget-warning section (priority 96) when `remaining ≤ threshold` (default 10); section removed when back above threshold |
+| #11 | Tool Call Dedup Cache | Per-turn: suppresses identical repeat calls within one LLM response (MD5-8 key); cross-turn: injects a prompt warning (priority 97) after `warn_after` real executions of the same call |
+| #12 | Autonomous Execution Mode | Injects a static directive block (priority 9, before INTRO) at agent init and each `before_invoke`; directs the LLM to never ask for clarification, never hedge, act and verify autonomously |
 
 **Prior art (Comptetitors):**
 
@@ -688,44 +688,54 @@ flowchart TD
     classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
     classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef io   fill:#37474F,color:#fff,stroke:#263238
+    classDef sys  fill:#4A148C,color:#fff,stroke:#311B92
 
-    ITER(["🔁 Each iteration"])
+    INIT(["⚙️ Agent initialised"])
 
-    ITER --> IBA_CHK{"remaining turns
-    < threshold?
+    INIT --> AM["autonomous_mode_rail.py  (PR #370)
+    AutonomousModeRail.init() + before_invoke
+    inject PromptSection priority=9
+    (before INTRO at 10)
+    'Never ask · Never hedge · Act & verify'"]:::sys
+
+    AM --> ITER(["🔁 Each iteration"])
+
+    ITER --> IBA_CHK{"remaining ≤ threshold?
+    remaining = max_iterations − iteration
     AgentRail.before_model_call"}
 
     IBA_CHK -->|"yes"| IBA["iteration_budget_rail.py  (PR #368)
-    inject: stop exploring
-    write best available output now"]:::pre
+    inject PromptSection priority=96
+    'You have N iterations left.
+    Finish and write output now.'"]:::pre
 
-    IBA_CHK -->|"no"| LLM(["LLM call"]):::io
-    IBA --> LLM
+    IBA_CHK -->|"no — section removed if present"| LLM
+    IBA --> LLM(["LLM call
+    (reads system prompt with
+    autonomous directives + any budget warning)"]):::io
 
     LLM --> TOOL_REQ["Tool call requested
     AgentRail.before_tool_call"]
 
-    TOOL_REQ --> DEDUP{"cache hit?
-    (tool_name, sha256(args))
-    tool_dedup_rail.py  (PR #372)"}
+    TOOL_REQ --> DEDUP{"per-turn cache hit?
+    key = tool_name:md5(args)[:8]
+    tool_dedup_rail.py  (PR #372)
+    only cacheable read-only tools"}
 
-    DEDUP -->|"hit"| CACHED(["Return cached result instantly
-    no execution · no iteration consumed"]):::done
+    DEDUP -->|"hit — same call already in
+    this model response"| CACHED(["Return cached result
+    real tool never invoked"]):::done
 
-    DEDUP -->|"miss"| AUTO{"hedging phrases
-    in LLM output?
-    autonomous_mode_rail.py  (PR #370)"}
+    DEDUP -->|"miss"| EXEC["Tool executes
+    AgentRail.after_tool_call"]:::io
 
-    AUTO -->|"yes"| STRIP["strip: 'I would recommend'
-    'should I proceed' 'please confirm'
-    → replace with direct action language"]:::pre
-
-    AUTO -->|"no"| EXEC["Tool executes"]:::io
-    STRIP --> EXEC
-
-    EXEC --> CACHE_WRITE["write to tool_dedup cache
-    tool_dedup.* in session state"]
-    CACHE_WRITE --> NEXT(["Next iteration"])
+    EXEC --> CNT{"cross-turn count
+    ≥ warn_after?"}
+    CNT -->|"yes — first time only"| WARN["inject PromptSection priority=97
+    'tool X called N× already —
+    result unlikely to change'"]:::pre
+    CNT -->|"no"| NEXT
+    WARN --> NEXT(["Next iteration"])
 ```
 
 <u>Technical Details</u>
@@ -737,19 +747,22 @@ flowchart TD
 
 **How it works**
 
-- `AgentRail.before_model_call`: compute `remaining = max_iterations - current_turn`
-- If `remaining < threshold` (default: 5 turns), inject a high-priority directive:
-  - "Stop exploring"
-  - "Write the best available output now"
-  - "Run the verifier"
-- Prevents the agent from exhausting its turn budget mid-solution without producing any output
+- Rail is **always attached** — no `enabled` flag; reads `max_iterations` and `budget_warning_threshold` directly from the `react` config block
+- `before_invoke`: clears any stale warning section at the start of each invocation
+- `before_model_call`: reads `ctx.session.get_state("iteration")` to get the current iteration count; computes `remaining = max_iterations − iteration`; removes the previous section, then re-evaluates:
+  - If `remaining ≤ warning_threshold` → inject `PromptSection(name="iteration_budget_warning", priority=96)` with the text: *"You have used N of M iterations and have approximately R remaining. Prioritise completing or cleanly summarising your current task. Do not start new long subtasks. If you cannot finish, produce the best partial result you can and clearly state what remains."*
+  - If above threshold → section is not added (or was already removed)
+- Section priority 96 places it just after `runtime.model_answer_policy` (95), so the urgency message sits near the top of what the LLM reads
+- Prevents the agent from starting new long subtasks in the final turns, which would exhaust the budget without producing output
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.before_model_call`; reads `AgentCallbackContext.current_turn` and `.max_iterations` |
-| **File** | `rails/iteration_budget_rail.py` |
+| **Hook points** | `ReActAgent.before_invoke` (clear); `AgentRail.before_model_call` (evaluate and inject/remove each turn) |
+| **Config** | `react.max_iterations` (int, default `100`); `react.budget_warning_threshold` (int, default `10`) |
+| **Prompt position** | `PromptSection(priority=96)` — just after runtime.model_answer_policy (95) |
+| **File** | `agents/harness/common/rails/iteration_budget_rail.py` |
 
 </details>
 
@@ -762,19 +775,28 @@ flowchart TD
 
 **How it works**
 
-- Cache key: `(tool_name, sha256(canonical_json(args)))`
-- `AgentRail.before_tool_call`: before dispatching any tool call, look up the cache
-  - Cache hit → return cached result immediately; no tool execution, no turn consumed
-  - Cache miss → execute normally, write result to cache
-- Cache scope: per-session only (TTL = session lifetime)
-- Impact: redundant file reads and search commands consumed 30–40% of iteration budgets in production traces
+Two independent mechanisms are active simultaneously:
+
+**Mechanism 1 — Per-turn deduplication** (within one LLM response):
+- `before_model_call`: clears `_turn_cache` at the start of every model call (fresh cache per LLM response)
+- `before_tool_call`: computes `key = f"{tool_name}:{md5(json.dumps(args, sort_keys=True))[:8]}"` for cacheable tools only; if key is in `_turn_cache` → sets `ctx.extra["_skip_tool"] = True`, writes cached result back to `ctx.inputs.tool_result` and `ctx.inputs.tool_msg` — the real tool is never invoked
+- `after_tool_call`: stores the result of a fresh (non-cached) execution into `_turn_cache`
+
+**Mechanism 2 — Cross-turn repetition warning** (across the whole session):
+- `after_tool_call`: increments `_exec_counts[key]`; when count first reaches `warn_after` → calls `_inject_warning()`
+- `_inject_warning()`: builds an aggregated notice listing all over-threshold tool+fingerprint pairs with their counts; injects as `PromptSection(name="tool_dedup_warning", priority=97)`
+
+**Cacheable tool whitelist** (side-effecting tools are never intercepted):
+`read_file`, `read_text_file`, `read`, `glob`, `glob_file_search`, `list_dir`, `list_files`, `grep`, `search`
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.before_tool_call`; cache TTL = session lifetime only |
-| **File** | `rails/tool_dedup_rail.py`; session-state key prefix `tool_dedup.*` |
+| **Hook points** | `AgentRail.before_model_call` (clear per-turn cache); `AgentRail.before_tool_call` (hit check); `AgentRail.after_tool_call` (cache write + cross-turn counter) |
+| **Config** | `tool_dedup.enabled` (bool, default `false`); `tool_dedup.warn_after` (int, default `3`) |
+| **Prompt position** | Warning: `PromptSection(priority=97)` |
+| **File** | `agents/harness/common/rails/tool_dedup_rail.py` |
 
 </details>
 
@@ -787,18 +809,26 @@ flowchart TD
 
 **How it works**
 
-- `AgentRail.before_tool_call`: post-process LLM text output before tool dispatch
-- Detect hedging phrases: "I would recommend", "you might want to", "should I proceed"
-- Detect confirmation requests: "please confirm", "let me know if"
-- Replace detected phrases with direct execution language
-- Target failure: agent produces a correct plan but stalls waiting for human confirmation that will never arrive in a non-interactive environment
+- This rail does **not** post-process LLM output — it prevents hedging and confirmation requests from appearing in the first place by injecting directives into the system prompt
+- `init()`: immediately on agent construction, if `autonomy.enabled` is `true`, adds a `PromptSection(name="autonomous_mode", priority=9)` — priority 9 places it directly before INTRO (10), making it one of the very first lines the LLM reads in every system prompt
+- `before_invoke`: re-asserts the section at the start of each task iteration (clears + re-adds) to ensure it is never accidentally removed
+- **`_AUTONOMOUS_DIRECTIVE` content** (injected verbatim):
+  - Never ask for clarification or confirmation — the task description is complete; proceed directly
+  - Never ask permission before acting — all tool use is pre-authorised; execute read/write/edit/shell without prompting
+  - Never hedge or express uncertainty — make a decision and act on it; choose the most reasonable interpretation
+  - Verify your own work — use available tools (tests, linters, build commands) to confirm correctness; iterate on failures autonomously
+  - Complete the task end-to-end — do not stop mid-task to report progress; finish, verify, then report the final outcome
+- Rail is **always attached** (no `enabled` check at attachment time) but only injects content when `autonomy.enabled` is `true`; when `false`, the `init()` and `before_invoke` hooks are no-ops
+- Target failure: in a CI/benchmark environment the agent produces correct plans but stalls waiting for human confirmation that will never arrive
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.before_tool_call` — post-processes LLM text output before dispatch |
-| **File** | `rails/autonomous_mode_rail.py`; patterns defined as `list[tuple[re.Pattern, str]]` |
+| **Hook points** | `DeepAgentRail.init()` (inject immediately on construction); `ReActAgent.before_invoke` (re-assert each iteration) |
+| **Config** | `autonomy.enabled` (bool, default `false`) |
+| **Prompt position** | `PromptSection(priority=9)` — before INTRO (10); first directive the LLM reads |
+| **File** | `agents/harness/common/rails/autonomous_mode_rail.py` |
 
 </details>
 
