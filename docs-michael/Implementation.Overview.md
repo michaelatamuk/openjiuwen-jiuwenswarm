@@ -875,19 +875,20 @@ Two independent mechanisms are active simultaneously:
 ---
 
 #### <strong>Group 5 — Loop Breaking: Escape patterns that consume steps without progress</strong>
-<details><summary>Items #13–#16 &nbsp;|&nbsp; PRs: agent-core (PR #26) · jiuwenswarm (PR #396), (PR #399), (PR #409)</summary>
+<details><summary>Items #13–#17 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #396), (PR #397), (PR #399), (PR #409)</summary>
 
 ***Failure mode:<br>** The agent enters a repetition or patch loop, consuming the entire iteration budget without changing strategy.
 
 **Feature summary:<br>**
-Four mechanisms, each targeting a different loop pattern and operating at a different granularity. They are independent and complementary — a session can trigger all four simultaneously.
+Five mechanisms, each targeting a different loop or inefficiency pattern and operating at a different granularity. They are independent and complementary — a session can trigger multiple simultaneously.
 
 | # | Feature | What it does |
 |---|---|---|
-| #13 | Anti-Repetition Prompt | System prompt instruction not to repeat Thought/Action pairs already produced in the session |
+| #13 | Anti-Repetition Prompt | System prompt instruction not to repeat identical tool calls already made in the session |
 | #14 | Failure Pattern Memory | Logs each failed tool call; prepends "do not repeat these approaches" block before every LLM call |
 | #15 | Step-Back Rail | Counts consecutive non-zero exit codes; injects escalating "rethink strategy" directive at N and 2N |
 | #16 | Verifier Circuit Breaker | Fingerprints verifier failure (test + assertion + exit code); injects escalating "abandon approach" directive at N and 2N identical failures |
+| #17 | Context Headroom Guard | Monitors token fill ratio via `ctx.context.statistic()`; injects conciseness directive at 60%, urgent directive at 80% |
 
 **Prior art (Comptetitors):**
 
@@ -915,6 +916,12 @@ Four mechanisms, each targeting a different loop pattern and operating at a diff
 | #16 | SWE-agent | Early-stopping heuristics on repeated identical patches |
 | #16 | OpenClaw | `global_circuit_breaker` (hard threshold 30); `unknown_tool_repeat` detector; `ping_pong` detector for A→B→A tool flip loops — all in `tool-loop-detection.ts` |
 | #16 | Note | Fingerprinting verifier output specifically is a JiuwenSwarm-original implementation |
+| #17 | Aider | `--max-chat-history-tokens` caps consumption and forces summarisation of old messages |
+| #17 | LangChain `ConversationSummaryMemory` | Proactively compresses old turns |
+| #17 | Claude Code | Built-in context management with auto-summarisation |
+| #17 | SWE-agent | Structured ACI formatting keeps outputs compact |
+| #17 | Hermes | `context_compressor.py` + `context_engine.py` — automatic compression with multiple retry strategies; cache control markers on pinned sections; closest internal equivalent |
+| #17 | Note | 60%/80% dual-threshold is JiuwenSwarm-specific; other systems typically use a single hard cutoff |
 
 <b>Data Flow</b>
 
@@ -931,7 +938,22 @@ flowchart TD
     openjiuwen/harness/prompts/sections/identity.py
     explicit: never repeat identical tool calls"]:::ac
 
-    AR --> FM_GATE{"failure_memory
+    AR --> CH_GATE{"context_headroom
+    enabled?"}
+
+    CH_GATE -->|"yes"| CH_RATIO["ctx.context.statistic()
+    total_tokens / context_window"]
+    CH_GATE -->|"no"| FM_GATE
+
+    CH_RATIO -->|"< warn_ratio (60%)"| CH_PASS
+    CH_RATIO -->|"≥ warn_ratio (60%)"| CH_NUDGE["inject: be concise —
+    do not restate, prefer short confirmations
+    (PromptSection priority 93)"]:::pre
+    CH_RATIO -->|"≥ critical_ratio (80%)"| CH_CRIT["inject: be extremely brief —
+    compression imminent, do not repeat
+    or summarise past steps"]:::pre
+
+    CH_PASS & CH_NUDGE & CH_CRIT --> FM_GATE{"failure_memory
     enabled?"}
 
     FM_GATE -->|"yes"| DMEM["failure_memory_rail.py (PR #396) · before_model_call
@@ -1108,33 +1130,51 @@ flowchart TD
 
 </details>
 
+<details>
+<summary><strong>#17 — Context Headroom Guard</strong></summary>
+
+<br>
+
+**How it works**
+
+- `DeepAgentRail.before_model_call` (priority 9): reads `ctx.context.statistic().total_tokens` and compares to `ctx.context._context_window_tokens`
+- Computes `ratio = total_tokens / max_tokens`
+  - `≥ critical_ratio (80%)`: injects a strong "compression imminent — be extremely brief, do not repeat or summarise" directive (PromptSection priority 93)
+  - `≥ warn_ratio (60%)`: injects a moderate "be concise — do not restate, prefer short confirmations" nudge (PromptSection priority 93)
+  - Below `warn_ratio`: removes section if previously injected
+- Slows the rate at which the context window fills, delaying destructive automatic summarisation
+- No session state — reads fresh from the context object every time
+
+**Technical metadata**
+
+| | |
+|---|---|
+| **Hook points** | `DeepAgentRail.before_model_call`; reads `ctx.context.statistic().total_tokens` and `ctx.context._context_window_tokens` |
+| **File** | `jiuwenswarm/agents/harness/common/rails/context_headroom_rail.py` |
+| **Config** | `context_headroom.enabled` (default false), `warn_ratio` (default 0.60), `critical_ratio` (default 0.80) |
+| **Registration** | `interface_deep.py` — gated by `enabled` |
+
+</details>
+
 </details>
 
 ---
 
-#### <strong>Group 6 — Context Management: Keep important information from getting lost</strong>
-<details><summary>Items #17–#18 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #397) · agent-core (PR #21)</summary>
+#### <strong>Group 6 — Observability: Inspect what the LLM actually received</strong>
+<details><summary>Item #18 &nbsp;|&nbsp; jiuwenswarm</summary>
 
-***Failure mode:<br>** The context window fills, triggering destructive automatic summarisation that discards working state; or prompt regressions go undetected across runs.
+***Failure mode:<br>** Prompt regressions go undetected across runs; there is no record of what was actually sent to the LLM.
 
 **Feature summary:<br>**
-Two complementary features: #17 slows context consumption to delay summarisation; #18 logs the fully-assembled prompt before each LLM call, making changes between sessions diff-able.
 
 | # | Feature | What it does |
 |---|---|---|
-| #17 | Context Headroom Guard | Monitors token fill ratio; injects conciseness directive at 60%, urgent terse-mode directive at 80% |
-| #18 | Prompt Serialisation | Writes fully-rendered prompt to `workspace/.prompt_log/turn_N.json` after all rail injections, before each LLM call |
+| #18 | Prompt Serialisation | Serialises the assembled messages into `usage_metadata.prompt` after every LLM call, making the prompt available for downstream inspection |
 
 **Prior art (Comptetitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #17 | Aider | `--max-chat-history-tokens` caps consumption and forces summarisation of old messages |
-| #17 | LangChain `ConversationSummaryMemory` | Proactively compresses old turns |
-| #17 | Claude Code | Built-in context management with auto-summarisation |
-| #17 | SWE-agent | Structured ACI formatting keeps outputs compact |
-| #17 | Hermes | `context_compressor.py` + `context_engine.py` — automatic compression with multiple retry strategies; cache control markers on pinned sections; closest internal equivalent |
-| #17 | Note | 60%/80% dual-threshold is JiuwenSwarm-specific; other systems typically use a single hard cutoff |
 | #18 | DSPy | Compiles and serialises prompt programs for reproducibility |
 | #18 | LangSmith | Logs the fully rendered prompt for every LLM call |
 | #18 | Weights & Biases Prompts | Tracks prompt versions across runs |
@@ -1144,82 +1184,35 @@ Two complementary features: #17 slows context consumption to delay summarisation
 
 ```mermaid
 flowchart TD
-    classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
     classDef ac   fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef log  fill:#00838F,color:#fff,stroke:#006064
     classDef io   fill:#37474F,color:#fff,stroke:#263238
 
-    MSG(["ContextEngine builds messages list
-    SystemPromptBuilder"])
+    LLM(["LLM call"]):::io
 
-    MSG --> RATIO["compute
-    current_tokens / context_window"]
-
-    RATIO -->|"< 60%"| PASS["no injection"]
-    RATIO -->|"≥ 60%"| NUDGE["context_headroom_rail.py  (PR #397)
-    inject: be concise"]:::pre
-    RATIO -->|"≥ 80%"| CRIT["inject: use terse tool calls only
-    stop long explanations"]:::pre
-
-    PASS & NUDGE & CRIT --> ALL["all AgentRail.before_model_call rails have run"]
-
-    ALL --> SER["Prompt Serialisation  (PR #21)  agent-core
-    harness/prompts/builder.py
-    serialise full rendered prompt to JSON"]:::ac
-
-    SER --> LLM(["LLM call  LLM call"]):::io
-
-    SER --> LOG(["workspace/.prompt_log/turn_N.json
-    compare across sessions to detect
-    prompt regressions between runs"]):::log
+    LLM --> SER["_format_messages_as_prompt()
+    core/single_agent/agents/react_agent.py
+    serialise messages → usage_metadata.prompt"]:::ac
 ```
 
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#17 — Context Headroom Guard</strong> &nbsp;(<code>feat/context-headroom-guard</code> (PR #397))</summary>
+<summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(<code>react_agent.py</code>)</summary>
 
 <br>
 
 **How it works**
 
-- `AgentRail.before_model_call`: compute `fill_ratio = current_tokens / context_window`
-  - `≥ 60%`: inject conciseness nudge — "be brief in explanations"
-  - `≥ 80%`: inject critical directive — "use terse tool calls only; stop long explanations"
-- Slows the rate at which the context window fills
-- Delays the onset of destructive automatic summarisation
-- Dual-threshold is JiuwenSwarm-specific; most systems use a single hard cutoff
+- After every LLM call (both streaming and non-streaming paths), `_format_messages_as_prompt()` serialises the assembled messages into `ai_message.usage_metadata.prompt`
+- The serialised prompt rolls up each message as `[role]: content | tool_calls=[...]` with a configurable max length
+- Enables downstream tools (logging, telemetry, debugging) to inspect exactly what was sent to the LLM
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | `AgentRail.before_model_call`; reads `ContextEngine.token_count()` and `.context_window_size()` |
-| **File** | `rails/context_headroom_rail.py`; thresholds and directives are configurable; session-state key prefix `context_headroom.*` |
-
-</details>
-
-<br>
-
-<details>
-<summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(agent-core <code>feat/react-agent-prompt-serialization</code> (PR #21))</summary>
-
-<br>
-
-**How it works**
-
-- `AgentRail.before_model_call`: runs last — after all other rails have injected their sections
-- Serialize the fully-rendered system prompt (all sections assembled, all priorities applied) to deterministic JSON
-- Write to `workspace/.prompt_log/turn_{n}.json` — one file per turn, one directory per session
-- Enables: exact diff-based comparison between runs; regression detection when rails change
-
-**Technical metadata**
-
-| | |
-|---|---|
-| **Hook points** | `AgentRail.before_model_call`, runs last (after all other rails have injected) |
-| **Output** | `workspace/.prompt_log/turn_{n}.json` — one file per turn, one directory per session |
-| **File** | `harness/prompts/builder.py` serialisation path in agent-core (PR #21) |
+| **Hook point** | `_railed_model_call()` — after LLM returns, before returning the `AssistantMessage` |
+| **Location** | `core/single_agent/agents/react_agent.py` — standalone function `_format_messages_as_prompt` |
 
 </details>
 
