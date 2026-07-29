@@ -528,27 +528,41 @@ flowchart TD
     DeepAgentRail.before_task_iteration
     first iteration only"])
 
-    INIT --> READ["/app/task.md"]
-
-    READ --> TDR["task_description_rail.py  (PR #371)
-    full task.md content
+    INIT --> TD_GATE{"task_description.enabled?"}
+    INIT --> OF_GATE{"output_format.enabled?"}
+    TD_GATE -->|"yes"| TDR["task_description_rail.py  (PR #371)
+    reads /app/task.md → full content
     PromptSection priority=12"]:::init
+    TD_GATE -->|"no"| SPB
 
-    READ --> OFR["output_format_rail.py  (PR #401)
-    last 1-2 format-signal paragraphs
-    + fenced code blocks (json/csv/yaml/xml/…)
+    OF_GATE -->|"yes"| OFR["output_format_rail.py  (PR #401)
+    reads /app/task.md → last 1-2 paras
+    + fenced code blocks (json/csv/yaml/…)
     PromptSection priority=14  max 800 chars"]:::init
+    OF_GATE -->|"no"| SPB
 
-    INIT --> SCAN["scan skills.external_dirs paths
-    config.yaml or EXTERNAL_SKILL_DIRS env var
-    read each SKILL.md · extract one-line summary
-    external_only=true → suppress personal skills"]
+    INIT --> SKILL_GATE{"external_dirs
+    provided in config?"}
 
-    SCAN --> ESD["runtime_prompt_rail.py  (PR #214)
-    skill name + one-line summary per skill
-    PromptSection pinned=True priority=900"]:::init
+    SKILL_GATE -->|"no"| PERS_ONLY["SkillUseRail:
+    personal skills dir only
+    (existing path)"]:::init
 
-    TDR & OFR & ESD --> SPB["SystemPromptBuilder
+    SKILL_GATE -->|"yes"| EXT_ONLY{"external_only?"}
+
+    EXT_ONLY -->|"yes"| ESD_ONLY["SkillUseRail:
+    only external skill dirs
+    personal skills suppressed"]:::init
+
+    EXT_ONLY -->|"no"| ESD_BOTH["SkillUseRail:
+    personal + external dirs
+    merged"]:::init
+
+    PERS_ONLY & ESD_ONLY & ESD_BOTH --> SKILLS_SECT["skills catalogue
+    PromptSection priority=40
+    one-line summary per skill"]:::init
+
+    TDR & OFR & SKILLS_SECT --> SPB["SystemPromptBuilder
     pinned=True → ContextEngine cannot drop
     these sections during summarisation"]:::pin
 
@@ -692,12 +706,15 @@ flowchart TD
 
     INIT(["⚙️ Agent initialised"])
 
-    INIT --> AM["autonomous_mode_rail.py  (PR #370)
+    INIT --> AM_ENABLED{"autonomy.enabled?"}
+
+    AM_ENABLED -->|"yes"| AM["autonomous_mode_rail.py  (PR #370)
     AutonomousModeRail.init() + before_invoke
     inject PromptSection priority=9
     (before INTRO at 10)
     'Never ask · Never hedge · Act & verify'"]:::sys
 
+    AM_ENABLED -->|"no"| ITER
     AM --> ITER(["🔁 Each iteration"])
 
     ITER --> IBA_CHK{"remaining ≤ threshold?
@@ -731,9 +748,10 @@ flowchart TD
 
     EXEC --> CNT{"cross-turn count
     ≥ warn_after?"}
-    CNT -->|"yes — first time only"| WARN["inject PromptSection priority=97
+    CNT -->|"yes — first time only"| WARN["queues PromptSection priority=97
     'tool X called N× already —
-    result unlikely to change'"]:::pre
+    result unlikely to change'
+    → visible in next before_model_call"]:::pre
     CNT -->|"no"| NEXT
     WARN --> NEXT(["Next iteration"])
 ```
