@@ -33,10 +33,10 @@ from jiuwenswarm.agents.harness.team.rails.team_member_skill_toolkit_rail import
     MemberSkillToolkitRail,
 )
 from jiuwenswarm.agents.harness.team.team_skill_links import (
+    is_skill_dir_link,
     is_valid_skill_dir,
     link_skill_dir,
     path_exists_or_link,
-    prune_skill_dir_links,
     remove_skill_dir_link,
 )
 from jiuwenswarm.common.utils import get_agent_workspace_dir, get_agent_skills_dir
@@ -68,20 +68,28 @@ def _link_member_configured_skills(
         extra_skill_dirs: Additional external skill directories (from
             ``skills.external_dirs`` config) to also link from.
     """
-    if not global_skills_dir.exists():
-        logger.warning(
-            "[swarm.member_skill_toolkit] global_skills_dir does not exist: %s",
-            global_skills_dir,
-        )
-        return
-
     selected_skill_set = set(selected_skills)
     member_skills_dir.mkdir(parents=True, exist_ok=True)
-    prune_skill_dir_links(global_skills_dir, member_skills_dir, selected_skill_set)
-    linked_count = 0
-
-    # Scan the global skills dir plus all configured external dirs.
     all_source_dirs = [global_skills_dir] + (extra_skill_dirs or [])
+
+    # Prune stale skill links: remove links for unselected skills or skills
+    # that no longer exist in ANY source directory (global or external).
+    if member_skills_dir.exists():
+        for entry in list(member_skills_dir.iterdir()):
+            if not is_skill_dir_link(entry):
+                continue
+            if entry.name not in selected_skill_set:
+                remove_skill_dir_link(entry)
+                continue
+            found = False
+            for sd in all_source_dirs:
+                if sd.exists() and is_valid_skill_dir(sd / entry.name):
+                    found = True
+                    break
+            if not found:
+                remove_skill_dir_link(entry)
+
+    linked_count = 0
     for source_dir in all_source_dirs:
         if not source_dir.exists():
             continue

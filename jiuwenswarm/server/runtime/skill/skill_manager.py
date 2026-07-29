@@ -3062,7 +3062,11 @@ class SkillManager:
 
                 skill_name = meta.get("name", child.name)
                 if skill_name in seen_names:
-                    continue  # 本地/之前的外部目录已有同名技能，跳过
+                    logger.warning(
+                        "[SkillManager] 外部技能目录 '%s' 中的 '%s' 已被跳过（本地或之前的外部目录中已有同名技能）",
+                        ext_dir, skill_name,
+                    )
+                    continue
                 seen_names.add(skill_name)
 
                 meta["source"] = "external"
