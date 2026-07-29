@@ -493,6 +493,50 @@ def test_build_inputs_preserves_original_request_on_ask_user_answers(monkeypatch
     }
 
 
+def test_build_inputs_merges_multi_select_custom_input(monkeypatch):
+    from openjiuwen.core.session.interaction.interactive_input import InteractiveInput
+    from jiuwenswarm.server.runtime.agent_adapter import interface as interface_module
+
+    monkeypatch.setattr(interface_module, "get_config", lambda: {"preferred_language": "zh"})
+    monkeypatch.setattr(interface_module, "get_memory_mode", lambda _config: "disabled")
+
+    request = AgentRequest(
+        request_id="req-answer",
+        channel_id="tui",
+        session_id="team-session",
+        params={
+            "query": "",
+            "mode": "team.plan",
+            "request_id": "tool-ask-1",
+            "source": "ask_user_interrupt",
+            "answers": [
+                {
+                    "question": "启用哪些模块？",
+                    "selected_options": ["auth", "Other"],
+                    "custom_input": "metrics",
+                },
+                {
+                    "question": "还有其他需求吗？",
+                    "selected_options": ["Other"],
+                    "custom_input": "tracing",
+                },
+            ],
+        },
+    )
+
+    inputs, _, _ = interface_module.JiuWenSwarm().build_inputs(request)
+
+    assert isinstance(inputs["query"], InteractiveInput)
+    assert inputs["query"].user_inputs == {
+        "tool-ask-1": {
+            "answers": {
+                "启用哪些模块？": ["auth", "metrics"],
+                "还有其他需求吗？": "tracing",
+            }
+        }
+    }
+
+
 def test_chat_answer_routes_team_plan_confirm_interrupt_to_adapter(monkeypatch):
     from jiuwenswarm.server.runtime.agent_adapter import interface as interface_module
 
@@ -1020,7 +1064,10 @@ def test_process_message_stream_treats_plain_team_query_as_first_request_after_r
 
     chunks = asyncio.run(collect_chunks())
 
-    assert FakeSessionManager.submit_task_calls == ["team-session"]
+    # Ordinary chat (including team first request) is scheduled by the facade
+    # task itself; DeepAgent interaction owns session concurrency, so
+    # SessionManager.submit_task is no longer used on this path.
+    assert FakeSessionManager.submit_task_calls == []
     assert fake_adapter.seen_inputs["query"] == "你好"
     assert chunks[0].payload == {"event_type": "chat.done"}
     assert chunks[-1].is_complete is True
@@ -1181,7 +1228,7 @@ def test_deep_adapter_build_agent_rails_adds_ask_user_for_agent_modes(monkeypatc
     monkeypatch.setattr(adapter, "_build_subagent_rail", lambda: None)
     monkeypatch.setattr(adapter, "_build_skill_rail", lambda **_kwargs: None)
     monkeypatch.setattr(adapter, "_build_skill_retrieval_prompt_rail", lambda: None)
-    monkeypatch.setattr(adapter, "_build_symphony_orchestration_prompt_rail", lambda: orchestration_rail)
+    monkeypatch.setattr(adapter, "_build_symphony_orchestration_rail", lambda: orchestration_rail)
     monkeypatch.setattr(adapter, "_build_structured_ask_user_rail", lambda: ask_user_rail)
     monkeypatch.setattr(interface_deep_module, "build_permission_rail", lambda **_kwargs: None)
     monkeypatch.setattr(interface_deep_module, "_build_context_processor_rail", lambda **_kwargs: None)
@@ -1330,6 +1377,8 @@ def test_deep_adapter_reconfigures_plan_evolution_rails_idempotently(monkeypatch
     from jiuwenswarm.server.runtime.agent_adapter.interface_deep import JiuWenSwarmDeepAdapter
 
     monkeypatch.delenv("EVOLUTION_AUTO_SCAN", raising=False)
+    monkeypatch.delenv("EVOLUTION_SIGNAL_TRIGGER", raising=False)
+    monkeypatch.delenv("EVOLUTION_REVIEW_TRIGGER", raising=False)
 
     class FakeAbilityManager:
         @staticmethod
@@ -1415,8 +1464,8 @@ def test_deep_adapter_reconfigures_plan_evolution_rails_idempotently(monkeypatch
         for rail in registered
         if _is_regular_skill_evolution_rail(rail)
     )
-    assert skill_evolution_rail.auto_scan is False
-    assert skill_evolution_rail.fuzzy_review is False
+    assert skill_evolution_rail.signal_trigger is False
+    assert skill_evolution_rail.review_trigger is False
 
 
 def test_deep_adapter_rebuilds_plan_evolution_rails_when_language_changes(monkeypatch, tmp_path):
