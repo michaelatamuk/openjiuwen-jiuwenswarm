@@ -1352,17 +1352,17 @@ flowchart TD
 
 ---
 
-#### <strong>Group 8 — Multi-Agent Verification: Add a second reviewer in team mode</strong>
+#### <strong>Group 8 — Multi-Agent Verification: QA reviewer in team mode</strong>
 <details><summary>Item #21 &nbsp;|&nbsp; PRs: agent-core (PR #123) · jiuwenswarm (PR #121)</summary>
 
-***Failure mode:<br>** In leader/sub-agent sessions, the leader receives bare sub-agent results and consolidates them without knowing whether any are incorrect.
+***Failure mode:<br>** In team mode, the leader receives teammate outputs and consolidates results without objective quality data on each submission.
 
 **Feature summary:<br>**
-A single additional review stage inserted between sub-agent completion and result delivery to the leader. Zero overhead when disabled (default).
+A `TeamVerificationRail` (DeepAgentRail) on the leader asynchronously reviews each completed task output across 6 quality dimensions, persists results to `TEAM_MEMORY.md`, and emits frontend-visible events. Enabled by default when the team config has a `verification` section.
 
 | # | Feature | What it does |
 |---|---|---|
-| #21 | Team Verification Layer | Lightweight reviewer agent scores sub-agent output (correctness / completeness / format compliance) and attaches `score` + `reviewer_notes` before the leader receives the result |
+| #21 | Team Verification Layer | Mounts `TeamVerificationRail` on the leader; on `TASK_UNBLOCKED`, calls `VerificationReviewer` (model-based LLM call) scoring 6 dimensions (Correctness 25% / Completeness 20% / Consistency 20% / Clarity 15% / Security 10% / Performance 10%); stores results in `TEAM_MEMORY.md`; emits `team.verification.completed` events |
 
 **Prior art (Competitors):**
 
@@ -1381,40 +1381,43 @@ A single additional review stage inserted between sub-agent completion and resul
 ```mermaid
 flowchart TD
     classDef leader fill:#01579B,color:#fff,stroke:#003c74
-    classDef sub    fill:#2E86AB,color:#fff,stroke:#1a5f7a
+    classDef teammate fill:#2E86AB,color:#fff,stroke:#1a5f7a
     classDef rev    fill:#5E35B1,color:#fff,stroke:#311B92
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef cfg    fill:#37474F,color:#fff,stroke:#263238
 
-    LEADER(["👑 Leader agent"]):::leader
+    TM(["Teammate completes task"]):::teammate
 
-    LEADER --> ASSIGN["assigns subtask"]
+    TM --> TEAM_EVENT["Monitor emits TASK_UNBLOCKED\n(event_types.py)"]
 
-    ASSIGN --> SUB(["🤖 Sub-agent executes"]):::sub
+    TEAM_EVENT --> MON_HANDLER["TeamMonitorHandler._handle_task_unblocked()\n team_monitor_handler.py"]:::leader
 
-    SUB --> RESULT["bare result"]
+    MON_HANDLER --> CFG{"verification.enabled\n(default true)?"}:::cfg
 
-    RESULT --> CFG{"team_verification
-    .enabled?"}:::cfg
+    CFG -->|"false"| BYPASS["no verification\n— result bypasses"]
+    BYPASS --> LEADER_DONE
 
-    CFG -->|"false (default)"| PASS["result passes through
-    zero overhead"]
-    PASS --> RECV
+    CFG -->|"yes"| SKIP{"task title matches\nskip_patterns?"}:::cfg
 
-    CFG -->|"true"| REV["TeamVerificationRail  (PR #123) / (PR #121)
-    lightweight reviewer agent
-    scores against quality rubric:
-    · correctness
-    · completeness
-    · format compliance"]:::rev
+    SKIP -->|"yes"| BYPASS
 
-    REV --> SCORED["{result, score: float, reviewer_notes: str}"]:::rev
+    SKIP -->|"no"| VERIFY["asyncio.create_task(_run_verification())\n fire-and-forget"]:::rev
 
-    SCORED --> RECV(["👑 Leader receives scored result
-    can reason about score
-    before consolidating"]):::leader
+    VERIFY --> RAIL["TeamVerificationRail.on_task_completed()\n rail.py"]:::rev
 
-    RECV --> CONSOLIDATE(["Final consolidated output ✅"]):::done
+    RAIL --> REVIEWER["VerificationReviewer.review()\n reviewer.py\n model call with structured JSON output\n6 dimensions:\n· correctness (25%)\n· completeness (20%)\n· consistency (20%)\n· clarity (15%)\n· security (10%)\n· performance (10%)"]:::rev
+
+    REVIEWER --> RESULT{"model call\nsucceeds?"}
+
+    RESULT -->|"no"| GRACEFUL["return SKIPPED status\n graceful degradation\nnever blocks the team"]:::rev
+
+    RESULT -->|"yes"| PERSIST["VerificationMemory.store()\n persists to TEAM_MEMORY.md"]:::rev
+
+    PERSIST --> EVENT_EMIT["emit team.verification.completed\n event to frontend"]:::rev
+
+    EVENT_EMIT & BYPASS --> LEADER_DONE(["Leader sees verification\n results in trends hook\nbefore_model_call"]):::leader
+
+    LEADER_DONE --> CONSOLIDATE(["Final consolidated output ✅"]):::done
 ```
 
 <u>Technical Details</u>
@@ -1426,27 +1429,27 @@ flowchart TD
 
 **How it works**
 
-- Triggers after each sub-agent completes its assigned task (only when `team_verification.enabled = true`)
-- A lightweight reviewer agent independently scores the output against a quality rubric:
-  - Correctness
-  - Completeness
-  - Format compliance
-- Leader receives `{result, score: float, reviewer_notes: str}` instead of a bare result
-- Leader can reason about the score before consolidating sub-agent outputs
-- Implementation: rail on the leader agent in jiuwenswarm (PR #121); scoring logic in agent-core (PR #123)
-- When disabled (default): result passes through unchanged with zero overhead
+- `TeamVerificationRail` is a `DeepAgentRail` mounted exclusively on the **Leader** via `build_member_rails()` (`team_runtime_inheritance.py:352`) when `role == "leader"` and `verification.enabled == true`
+- Not a sub-agent post-processor — it's a rail with standard lifecycle hooks (`before_model_call` injects verification trends; `after_model_call` placeholder for `block_on_fail`)
+- The public entry point is `on_task_completed(VerificationInput)`, called by `TeamMonitorHandler._run_verification()` on `TASK_UNBLOCKED` events — **asynchronously** (fire-and-forget via `asyncio.create_task`)
+- `VerificationReviewer` makes a single model call with a structured JSON prompt; no sub-agent spawned
+- **6 quality dimensions** with weights: Correctness (25%), Completeness (20%), Consistency (20%), Clarity (15%), Security (10%), Performance (10%)
+- Scoring thresholds: ≥70 PASS, 40–69 NEEDS_REWORK, <40 FAIL
+- Results stored in `TEAM_MEMORY.md` under "Verification History" section
+- Emits `team.verification.completed` / `team.verification.error` events (category `TASK`)
+- Falls back to **mock mode** (PASS, score 75) when no model client configured
+- Errors are handled gracefully — always returns a result (SKIPPED on failure), never blocks the team
+- `block_on_fail` and `auto_rework` config fields exist but are not yet wired to frontend actions
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | Post-processor between sub-agent completion and result delivery to leader — sits inside `agents/harness/team/`, not a standard rail hook point |
-| **Config** | `team_verification.enabled` (AgentConfig bool, default false); when false, result passes through unchanged with zero overhead |
-| **Key files** | agent-core (PR #123): `agent_teams/` or `harness/subagents/` — scoring rubric; jiuwenswarm (PR #121): `agents/harness/team/` — mounts the rail |
-
-</details>
-
-</details>
+| **Hook points** | `DeepAgentRail.before_model_call` (trend injection) · `after_model_call` (placeholder); verification triggered by `TASK_UNBLOCKED` monitor events, not rail hooks |
+| **Config** | `team.verification.enabled` (default true) · `block_on_fail` (false) · `auto_rework` (false) · `pass_threshold` (70) · `rework_threshold` (40) · `skip_patterns` (heartbeat/ping/status) |
+| **Mock mode** | No model client configured → default PASS (score 75) — system works out-of-the-box |
+| **Files (agent-core)** | `agent_teams/verification/rail.py` — `TeamVerificationRail`<br>`agent_teams/verification/reviewer.py` — `VerificationReviewer`<br>`agent_teams/verification/result.py` — data models<br>`agent_teams/verification/memory.py` — `TEAM_MEMORY.md` persistence<br>`agent_teams/verification/config.py` — typed config |
+| **Files (jiuwenswarm)** | `agents/harness/team/team_runtime_inheritance.py` — mounts the rail on leader<br>`agents/harness/team/handlers/team_monitor_handler.py` — triggers on `TASK_UNBLOCKED`<br>`agents/harness/team/event_types.py` — verification event types<br>`agents/harness/team/team_manager.py` — stores `_team_verification_rails` |
 
 ---
 
@@ -1518,7 +1521,7 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 | 17 | Context Headroom Guard | jiuwenswarm | (PR #397) | Branch open |
 | 18 | Prompt Serialisation | agent-core | (PR #21) | Branch open |
 | 19 | Bash Output Head+Tail | jiuwenswarm | (PR #334) | Branch open |
-| 20 | Self-Verification Loop | jiuwenswarm | (PR #328) | Branch open |
+| 20 | Self-Verification Prompt | jiuwenswarm | (PR #328) | Branch open |
 | 21 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) | Branch open |
 
 Integration branch combining all: `New-Features-Integration` (both repos)
