@@ -297,6 +297,8 @@ flowchart TD
 **Feature summary:<br>**
 Three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #6 and #7 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #8 scans external skill dirs at the same point. #5 is different — it runs during adapter initialization to ensure the agent starts with the correct tool set and no duplicates.
 
+**Note:** All four features in this group are especially important for running benchmarks. #5 uses ACP to match benchmark sandbox capabilities; #6, #7, and #8 inject the task description, expected output format, and external skills — all of which are typically provided by the benchmark harness. Other systems and users can use these features too, but they are primarily designed to make benchmarks run fully and reliably.
+
 | # | Feature | What it does |
 |---|---|---|
 | #5 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
