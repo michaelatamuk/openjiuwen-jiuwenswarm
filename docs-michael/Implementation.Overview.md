@@ -12,40 +12,39 @@ Each section below identifies: the failure mode, a feature summary, prior art, a
 ---
 
 #### <strong>Group 1 — Stability: Stop the agent from crashing before it even starts</strong>
-<details><summary>Items #1–#3 &nbsp;|&nbsp; PRs: agent-core (PR #28) · jiuwenswarm (PR #119), (PR #139)</summary>
+<details><summary>Items #1–#2 &nbsp;|&nbsp; PRs: agent-core (PR #28) · jiuwenswarm (PR #119), (PR #139)</summary>
 
 **Failure mode:<br>** The process hangs or crashes before any iteration fires, producing zero output.
 
 **Feature summary:<br>**
-These are prerequisites — if any of them is missing, the agent produces zero output before a single hook fires. Items #1 and #2 fix the same asyncio lifecycle bug at two independent layers. Item #3 fixes a tool duplication problem on the ACP channel: before this change, ACP tools were simply added on top of the existing default tools, leaving the agent with both registered simultaneously. Now when the ACP client declares fs/terminal capabilities, the default equivalents are removed first and then replaced by the ACP-specific tools; when the ACP client declares no capabilities (e.g. benchmark sandboxes), the defaults stay so the agent can still act autonomously.
+These are prerequisites — if any of them is missing, the agent produces zero output before a single hook fires. Item #1 fixes the asyncio lifecycle bug at both layers (agent-core and jiuwenswarm). Item #2 fixes a tool duplication problem on the ACP channel: before this change, ACP tools were simply added on top of the existing default tools, leaving the agent with both registered simultaneously. Now when the ACP client declares fs/terminal capabilities, the default equivalents are removed first and then replaced by the ACP-specific tools; when the ACP client declares no capabilities (e.g. benchmark sandboxes), the defaults stay so the agent can still act autonomously.
 
 | # | Feature | What it does |
 |---|---|---|
-| #1 | Event Loop Fix — agent-core | Replaces blocking asyncio call in `Runner` startup; prevents silent hang |
-| #2 | Event Loop Fix — jiuwenswarm | Same asyncio fix at jiuwenswarm `AutoHarness` layer; independent of #1, both required |
-| #3 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
+| #1 | Event Loop Fix (both layers) | Replaces blocking asyncio call in both `Runner` startup (agent-core) and `AutoHarness` service (jiuwenswarm); prevents silent hang |
+| #2 | ACP Tool Deduplication Guard | Before this PR, ACP tools were added alongside default tools, causing duplication; now the default equivalents are removed first when the ACP client declares fs/terminal capabilities, and kept when it does not (e.g. benchmark sandboxes) |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #1 #2 | SWE-agent | Had identical asyncio lifecycle bug in early release |
-| #1 #2 | OpenHands | Had identical asyncio lifecycle bug in early release |
-| #1 #2 | AutoGPT | Had identical asyncio lifecycle bug in early release |
-| #1 #2 | Note | Universal early-stage issue in Python async agent frameworks |
-| #3 ACP Tool Filter | LangChain / LangGraph | Capability-scoped tool sets: tools declared in `allowed_tools` per agent/chain; no-op when capability not advertised |
-| #3 | OpenAI Assistants API | Tool availability controlled by `tools` array on the assistant; omitting a tool removes it without breaking non-capable clients |
-| #3 | OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — tool availability decided at dispatch time by capability flags in the channel context |
-| #3 | Hermes | Toolset `check_fn()` inspects request context before registering a tool; `tools.disabled` list removes tools for channels lacking the matching capability |
+| #1 | SWE-agent | Had identical asyncio lifecycle bug in early release |
+| #1 | OpenHands | Had identical asyncio lifecycle bug in early release |
+| #1 | AutoGPT | Had identical asyncio lifecycle bug in early release |
+| #1 | Note | Universal early-stage issue in Python async agent frameworks |
+| #2 | LangChain / LangGraph | Capability-scoped tool sets: tools declared in `allowed_tools` per agent/chain; no-op when capability not advertised |
+| #2 | OpenAI Assistants API | Tool availability controlled by `tools` array on the assistant; omitting a tool removes it without breaking non-capable clients |
+| #2 | OpenClaw | `before-tool-call` policy hooks (`agent-tools.before-tool-call.policy.ts`) — tool availability decided at dispatch time by capability flags in the channel context |
+| #2 | Hermes | Toolset `check_fn()` inspects request context before registering a tool; `tools.disabled` list removes tools for channels lacking the matching capability |
 
 <b>Data Flow</b>
 
 ```mermaid
 flowchart TD
     classDef fix  fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef fail fill:#B71C1C,color:#fff,stroke:#7f0000
+    classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
     classDef ok   fill:#01579B,color:#fff,stroke:#003c74
-    classDef cfg  fill:#37474F,color:#fff,stroke:#263238
+    classDef cfg  fill:#27474F,color:#fff,stroke:#263238
 
     T(["📋 Task"])
 
@@ -84,53 +83,29 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#1 — Event Loop Fix — agent-core</strong> &nbsp;(<code>fix/event-loop-blocking</code> (PR #28))</summary>
+<summary><strong>#1 — Event Loop Fix (both layers)</strong> &nbsp;(agent-core <code>fix/event-loop-blocking</code> (PR #28) + jiuwenswarm <code>bugfix/event-loop-blocking</code> (PR #119))</summary>
 
 <br>
 
 **How it works**
 
-- Root cause: blocking `asyncio` call inside `Runner` startup sequence
-- Symptom: entire task process hangs silently — zero output, no error message
-- Fix: replace the blocking call with proper `async/await`
-- This must be fixed before any hook fires; a hung process produces nothing
+- Root cause: blocking `asyncio` call at two independent layers — `Runner` startup in agent-core and the `AutoHarness` service in jiuwenswarm
+- Symptoms: process hangs silently (agent-core) or raises `RuntimeError: This event loop is already running` (jiuwenswarm)
+- Fix: replace the blocking call with proper `async/await` in both locations. Both fixes are required.
 
 **Technical metadata**
 
 | | |
 |---|---|
 | **Hook points** | None — process-level fix, before any hook fires |
-| **Files** | `core/runner/runner.py` — `Runner.__init__` / startup sequence |
+| **Files** | `core/runner/runner.py` — `Runner.__init__` / startup sequence<br>`agents/harness/common/auto_harness/service.py` — `AutoHarness` startup |
 
 </details>
 
 <br>
 
 <details>
-<summary><strong>#2 — Event Loop Fix — jiuwenswarm</strong> &nbsp;(<code>bugfix/event-loop-blocking</code> (PR #119))</summary>
-
-<br>
-
-**How it works**
-
-- Same root cause as #1 — blocking `asyncio` call, at the jiuwenswarm `AutoHarness` layer instead of agent-core
-- Symptom: sessions hang or raise `RuntimeError: This event loop is already running` mid-task
-- Fixes #1 and #2 are independent — both must be applied
-- Fix: same `async/await` replacement at the jiuwenswarm layer
-
-**Technical metadata**
-
-| | |
-|---|---|
-| **Hook points** | None — service-level startup fix |
-| **Files** | `agents/harness/common/auto_harness/service.py` |
-
-</details>
-
-<br>
-
-<details>
-<summary><strong>#3 — ACP Tool Deduplication Guard</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
+<summary><strong>#2 — ACP Tool Deduplication Guard</strong> &nbsp;(<code>feat/acp-runtime-tool-blocking</code> (PR #139))</summary>
 
 <br>
 
@@ -159,54 +134,54 @@ flowchart TD
 ---
 
 #### <strong>Group 2 — Scale: Try more than one approach, submit the best</strong>
-<details><summary>Items #4–#6 &nbsp;|&nbsp; PRs: agent-core (PR #38), (PR #37) · jiuwenswarm (PR #1425)</summary>
+<details><summary>Items #3–#5 &nbsp;|&nbsp; PRs: agent-core (PR #38), (PR #37) · jiuwenswarm (PR #1425)</summary>
 
 **Failure mode:<br>** A single deterministic attempt on a hard task has a low per-attempt success probability. Running once is insufficient.
 
 **Feature summary:<br>**
-All three features apply the same principle — "try N variants, keep the best" — but at different levels and with different entry points. #4 and #6 are triggered by a regular user task (agent invocation). #5 is triggered by the developer manually running `openjiuwen auto-harness run` (CLI or REPL), which executes its own Assess → Plan → Implement → Verify pipeline independent of the agent's task loop.
+All three features apply the same principle — "try N variants, keep the best" — but at different levels and with different entry points. #3 and #5 are triggered by a regular user task (agent invocation). #4 is triggered by the developer manually running `openjiuwen auto-harness run` (CLI or REPL), which executes its own Assess → Plan → Implement → Verify pipeline independent of the agent's task loop.
 
 | # | Feature | What it does |
 |---|---|---|
-| #4 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `FirstSuccessfulSelector` / `LongestOutputSelector` / `ShortestOutputSelector` picks the best output |
-| #5 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
-| #6 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
+| #3 | Multi-Rollout | Runs N workspace clones in parallel with different strategies; `FirstSuccessfulSelector` / `LongestOutputSelector` / `ShortestOutputSelector` picks the best output |
+| #4 | Auto-Harness Best-of-N | When CI fails in the verify stage, runs N fix agents on workspace clones (one per strategy); `BestOfNSelector` promotes the winner by `tests_passed` → `diff_lines` → `lint_errors` |
+| #5 | RLAF-P Prompt Optimizer | RL loop generating N prompt candidates; scored by composite reward; winner persisted to `PromptMemory` for reuse |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #4 | SWE-agent | `--num_attempts N` flag |
-| #4 | LATS (Language Agent Tree Search) | Tree of attempts with backtracking |
-| #4 | AlphaCode | Samples thousands of candidates; filters by test pass rate |
-| #4 | Claude Code | Internal pass@k evaluation harness |
-| #4 | OpenHands | `--num_experiments` flag |
-| #4 | Hermes | MoA loop (`moa_loop.py`) — up to 8 concurrent reference advisors run in parallel; most direct internal precedent for multi-rollout |
-| #5 | AlphaCode | Candidate filtering by test pass rate |
-| #5 | SWE-bench | Evaluation scripts pick best patch per model |
-| #5 | Devin | Internal retry-with-repair mechanism |
-| #5 | OpenHands | Patch ranking across repair attempts |
-| #6 | DSPy (Stanford) | `MIPROv2` / `BootstrapFewShot` — closest direct equivalent |
-| #6 | OPRO (Google DeepMind) | Uses an LLM as optimizer to iteratively improve prompts |
-| #6 | TextGrad | Gradient-based text/prompt optimization |
-| #6 | APE (Zhou et al. 2022) | Automatic Prompt Engineer — generates and scores candidates |
-| #6 | PE2 / ProTeGi | Evolutionary and error-analysis-based prompt improvement |
-| #6 | Hermes | `learn_prompt.py` — skill learning from turn feedback (direct RLAF-P equivalent); `background_review.py` — post-turn daemon reviews and updates skill prompts |
+| #3 | SWE-agent | `--num_attempts N` flag |
+| #3 | LATS (Language Agent Tree Search) | Tree of attempts with backtracking |
+| #3 | AlphaCode | Samples thousands of candidates; filters by test pass rate |
+| #3 | Claude Code | Internal pass@k evaluation harness |
+| #3 | OpenHands | `--num_experiments` flag |
+| #3 | Hermes | MoA loop (`moa_loop.py`) — up to 8 concurrent reference advisors run in parallel; most direct internal precedent for multi-rollout |
+| #4 | AlphaCode | Candidate filtering by test pass rate |
+| #4 | SWE-bench | Evaluation scripts pick best patch per model |
+| #4 | Devin | Internal retry-with-repair mechanism |
+| #4 | OpenHands | Patch ranking across repair attempts |
+| #5 | DSPy (Stanford) | `MIPROv2` / `BootstrapFewShot` — closest direct equivalent |
+| #5 | OPRO (Google DeepMind) | Uses an LLM as optimizer to iteratively improve prompts |
+| #5 | TextGrad | Gradient-based text/prompt optimization |
+| #5 | APE (Zhou et al. 2022) | Automatic Prompt Engineer — generates and scores candidates |
+| #5 | PE2 / ProTeGi | Evolutionary and error-analysis-based prompt improvement |
+| #5 | Hermes | `learn_prompt.py` — skill learning from turn feedback (direct RLAF-P equivalent); `background_review.py` — post-turn daemon reviews and updates skill prompts |
 
 <b>Data Flow</b>
 
 ```mermaid
 flowchart TD
     classDef ac     fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef cli    fill:#6A1B9A,color:#fff,stroke:#4A148C
-    classDef opt    fill:#5E35B1,color:#fff,stroke:#311B92
+    classDef cli    fill:#5A1B9A,color:#fff,stroke:#3A148C
+    classDef opt    fill:#4E35B1,color:#fff,stroke:#211B92
     classDef run    fill:#01579B,color:#fff,stroke:#003c74
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef repair fill:#E65100,color:#fff,stroke:#BF360C
-    classDef old    fill:#546E7A,color:#fff,stroke:#263238
-    classDef stage  fill:#37474F,color:#fff,stroke:#263238
+    classDef old    fill:#446E7A,color:#fff,stroke:#263238
+    classDef stage  fill:#27474F,color:#fff,stroke:#263238
 
-    %% ── #4 Multi-Rollout: triggered by a regular user task ──────────────
+    %% ── #3 Multi-Rollout: triggered by a regular user task ──────────────
     T(["📋 User Task"])
 
     T --> MR_GATE{"multi_rollout
@@ -229,7 +204,7 @@ flowchart TD
     LongestOutputSelector · ShortestOutputSelector"]:::ac
     SEL --> END4(["🏁 Task output"]):::done
 
-    %% ── #5 Best-of-N: triggered by developer CLI / REPL ─────────────────
+    %% ── #4 Best-of-N: triggered by developer CLI / REPL ─────────────────
     DEV(["🔧 Developer:
     openjiuwen auto-harness run
     (CLI or REPL command)"]):::cli
@@ -273,7 +248,7 @@ flowchart TD
 
     S4 --> OUT5(["🏁 Improved harness committed"]):::done
 
-    %% ── #6 RLAF-P: leader agent calls optimize_prompt tool ─────────────
+    %% ── #5 RLAF-P: leader agent calls optimize_prompt tool ─────────────
     DEV_OPT(["👤 Developer:
     optimize_prompt(task)
     in Python"]):::cli
@@ -312,7 +287,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#4 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> (PR #38))</summary>
+<summary><strong>#3 — Multi-Rollout Task Execution</strong> &nbsp;(agent-core <code>feat/multi-rollout-task-execution</code> (PR #38))</summary>
 
 <br>
 
@@ -342,7 +317,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#5 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> (PR #37))</summary>
+<summary><strong>#4 — Auto-Harness Best-of-N</strong> &nbsp;(agent-core <code>feat/auto-harness-best-of-n</code> (PR #37))</summary>
 
 <br>
 
@@ -377,7 +352,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#6 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> (PR #1425)</a>)</summary>
+<summary><strong>#5 — RLAF-P Runtime Prompt Optimizer</strong> &nbsp;(jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/1425"><code>feat/optimization</code> (PR #1425)</a>)</summary>
 
 <br>
 
@@ -405,38 +380,38 @@ flowchart TD
 ---
 
 #### <strong>Group 3 — Session Start: Make sure the agent begins with everything it needs</strong>
-<details><summary>Items #7–#9 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #371), (PR #401), (PR #214)</summary>
+<details><summary>Items #6–#8 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #371), (PR #401), (PR #214)</summary>
 
 ***Failure mode:<br>** The agent starts each task with no knowledge of the output contract or available tools. After compression, even its memory of the goal becomes lossy.
 
 **Feature summary:<br>**
-All three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #7 and #8 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #9 scans external skill dirs at the same point.
+All three rails add a permanent section to `SystemPromptBuilder` so the content lives in the system prompt rather than the conversation history and is therefore never removed by context compression. #6 and #7 hook into `ReActAgent.before_invoke` (fires at the start of each task iteration) with a `before_model_call` retry in case the file is not yet available at invoke time. #8 scans external skill dirs at the same point.
 
 | # | Feature | What it does |
 |---|---|---|
-| #7 | Task Description Re-injection | Reads `task.md` in full and adds it as a `PromptSection(priority=12)` in the system prompt; the agent always has the original goal regardless of how long the conversation has grown |
-| #8 | Output Format Reminder | Extracts the last 1–2 format-signal paragraphs and fenced code blocks (json/csv/yaml/xml/…) from `task.md`; adds as `PromptSection(priority=14)`; capped at 800 chars |
-| #9 | External Skill Directories | Loads skills from configurable paths (`skills.external_dirs` in config or `EXTERNAL_SKILL_DIRS` env var); injects skill catalogue into system prompt at `priority=900`; `external_only` flag isolates the agent to task-provided skills only (CI/benchmark use) |
+| #6 | Task Description Re-injection | Reads `task.md` in full and adds it as a `PromptSection(priority=12)` in the system prompt; the agent always has the original goal regardless of how long the conversation has grown |
+| #7 | Output Format Reminder | Extracts the last 1–2 format-signal paragraphs and fenced code blocks (json/csv/yaml/xml/…) from `task.md`; adds as `PromptSection(priority=14)`; capped at 800 chars |
+| #8 | External Skill Directories | Loads skills from configurable paths (`skills.external_dirs` in config or `EXTERNAL_SKILL_DIRS` env var); injects skill catalogue into system prompt at `priority=900`; `external_only` flag isolates the agent to task-provided skills only (CI/benchmark use) |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #7 | SWE-agent | `{issue}` template variable injects task description verbatim into every model call |
-| #7 | Claude Code | Reinjects active task/todo content into each call |
-| #7 | OpenHands | Pins task description in system prompt |
-| #7 | Devin | Maintains persistent task context throughout the session |
-| #7 | Hermes | Persistent task goal injection in system prompt via `turn_context.py:compose_user_api_content()` |
-| #7 | OpenClaw | Task passed as `params.prompt` — injected into agent context before first turn |
-| #8 | SWE-agent | Patch format requirements in every prompt: "must be in unified diff format" |
-| #8 | Aider | Diff format instructions pinned permanently in system prompt |
-| #8 | Claude Code | Output format instructions included in system prompt |
-| #8 | Hermes | Output contract pinned for each skill invocation |
-| #9 | SWE-agent | **RepoMap** — compressed repo structure injected at session start |
-| #9 | Aider | Uses RepoMap identically |
-| #9 | Claude Code | File and tool discovery at startup |
-| #9 | GitHub Copilot Workspace | Scans repo structure before generating a plan |
-| #9 | Hermes | Core feature: `prompt_builder.py` scans `skills/` for `SKILL.md` files and injects catalogue into system prompt at session start — direct equivalent |
+| #6 | SWE-agent | `{issue}` template variable injects task description verbatim into every model call |
+| #6 | Claude Code | Reinjects active task/todo content into each call |
+| #6 | OpenHands | Pins task description in system prompt |
+| #6 | Devin | Maintains persistent task context throughout the session |
+| #6 | Hermes | Persistent task goal injection in system prompt via `turn_context.py:compose_user_api_content()` |
+| #6 | OpenClaw | Task passed as `params.prompt` — injected into agent context before first turn |
+| #7 | SWE-agent | Patch format requirements in every prompt: "must be in unified diff format" |
+| #7 | Aider | Diff format instructions pinned permanently in system prompt |
+| #7 | Claude Code | Output format instructions included in system prompt |
+| #7 | Hermes | Output contract pinned for each skill invocation |
+| #8 | SWE-agent | **RepoMap** — compressed repo structure injected at session start |
+| #8 | Aider | Uses RepoMap identically |
+| #8 | Claude Code | File and tool discovery at startup |
+| #8 | GitHub Copilot Workspace | Scans repo structure before generating a plan |
+| #8 | Hermes | Core feature: `prompt_builder.py` scans `skills/` for `SKILL.md` files and injects catalogue into system prompt at session start — direct equivalent |
 
 <b>Data Flow</b>
 
@@ -444,7 +419,7 @@ All three rails add a permanent section to `SystemPromptBuilder` so the content 
 flowchart TD
     classDef init fill:#00695C,color:#fff,stroke:#004D40
     classDef pin  fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef eng  fill:#37474F,color:#fff,stroke:#263238
+    classDef eng  fill:#27474F,color:#fff,stroke:#263238
 
     INIT(["🚀 Session Start
     DeepAgentRail.before_task_iteration
@@ -495,7 +470,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#7 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> (PR #371))</summary>
+<summary><strong>#6 — Task Description Re-injection</strong> &nbsp;(<code>feat/task-description-reinjection</code> (PR #371))</summary>
 
 <br>
 
@@ -522,13 +497,13 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#8 — Output Format Reminder Rail</strong> &nbsp;(<code>feat/output-format-reminder-rail</code> (PR #401))</summary>
+<summary><strong>#7 — Output Format Reminder Rail</strong> &nbsp;(<code>feat/output-format-reminder-rail</code> (PR #401))</summary>
 
 <br>
 
 **How it works**
 
-- Same lifecycle as #7: `before_invoke` clears and re-injects at each invocation; `before_model_call` retries until `self._injected` is `True`
+- Same lifecycle as #6: `before_invoke` clears and re-injects at each invocation; `before_model_call` retries until `self._injected` is `True`
 - **Extraction pipeline** (all steps operate on the YAML-frontmatter-stripped body):
   - `_last_paragraphs(body, n=2)` — takes the last 2 non-empty paragraphs
   - `_has_format_signal(para)` — filters: only keeps paragraphs containing words like `output`, `save`, `write`, `store`, `produce`, `generate`, `file`, `path`, `csv`, `json`, `yaml`, etc.
@@ -552,7 +527,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#9 — External Skill Directories</strong> &nbsp;(<code>feat/external-skill-discovery</code> (PR #214))</summary>
+<summary><strong>#8 — External Skill Directories</strong> &nbsp;(<code>feat/external-skill-discovery</code> (PR #214))</summary>
 
 <br>
 
@@ -584,38 +559,38 @@ flowchart TD
 ---
 
 #### <strong>Group 4 — Budget Awareness: Don't waste the limited number of steps</strong>
-<details><summary>Items #10–#12 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #368), (PR #372), (PR #370)</summary>
+<details><summary>Items #9–#11 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #368), (PR #372), (PR #370)</summary>
 
 ***Failure mode:<br>** The agent exhausts its iteration budget on redundant reads, confirmation pauses, and exploration without ever writing output.
 
 **Feature summary:<br>**
-Each rail targets a different cause of budget exhaustion. #10 and #11 hook into `AgentRail.before_model_call` / `before_tool_call`. #12 is different — it injects directives into the system prompt at agent initialisation so the LLM never produces hedging or confirmation requests in the first place.
+Each rail targets a different cause of budget exhaustion. #9 and #10 hook into `AgentRail.before_model_call` / `before_tool_call`. #11 is different — it injects directives into the system prompt at agent initialisation so the LLM never produces hedging or confirmation requests in the first place.
 
 | # | Feature | What it does |
 |---|---|---|
-| #10 | Iteration Budget Rail | On each `before_model_call` computes `remaining = max_iterations − iteration`; injects a budget-warning section (priority 96) when `remaining ≤ threshold` (default 10); section removed when back above threshold |
-| #11 | Tool Call Dedup Cache | Per-turn: suppresses identical repeat calls within one LLM response (MD5-8 key); cross-turn: injects a prompt warning (priority 97) after `warn_after` real executions of the same call |
-| #12 | Autonomous Execution Mode | Injects a static directive block (priority 9, before INTRO) at agent init and each `before_invoke`; directs the LLM to never ask for clarification, never hedge, act and verify autonomously |
+| #9 | Iteration Budget Rail | On each `before_model_call` computes `remaining = max_iterations − iteration`; injects a budget-warning section (priority 96) when `remaining ≤ threshold` (default 10); section removed when back above threshold |
+| #10 | Tool Call Dedup Cache | Per-turn: suppresses identical repeat calls within one LLM response (MD5-8 key); cross-turn: injects a prompt warning (priority 97) after `warn_after` real executions of the same call |
+| #11 | Autonomous Execution Mode | Injects a static directive block (priority 9, before INTRO) at agent init and each `before_invoke`; directs the LLM to never ask for clarification, never hedge, act and verify autonomously |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #10 | SWE-agent | `Current step: N / max_steps` counter in every prompt |
-| #10 | OpenHands | `max_iterations` parameter with visible counter |
-| #10 | Claude Code | Communicates remaining turns to the agent |
-| #10 | AutoGPT | Configurable step limits |
-| #10 | Hermes | `IterationBudget` class (`iteration_budget.py`) — `max_iterations` (default 500 parent / 50 subagents); `consume()` / `refund()` / `remaining`; graceful fallback via `_handle_max_iterations()` |
-| #10 | OpenClaw | Lane-based queueing instead of iteration cap — no hard max-iterations limit; contrast: opposite design choice |
-| #11 | LangChain `InMemoryCache` | Caches LLM calls by prompt hash — same concept, one layer up |
-| #11 | LangSmith / Helicone | Tool result caching across calls |
-| #11 | SWE-agent | Implicit dedup via structured ACI history — no explicit cache |
-| #11 | OpenClaw | `hashToolCall` / `digestStable` (SHA-256) in `tool-loop-detection.ts` — hashes tool call arguments for repeat detection; closest equivalent |
-| #12 | Claude Code | `--dangerously-skip-permissions`; system prompt written to never ask for confirmation |
-| #12 | SWE-agent | ACI prompt explicitly: "Do not ask for confirmation — just do it" |
-| #12 | Devin | Fully autonomous execution by design; no confirmation prompts |
-| #12 | OpenHands | Headless mode — no human-in-the-loop confirmation |
-| #12 | Hermes | System prompt instructs direct action without confirmation |
+| #9 | SWE-agent | `Current step: N / max_steps` counter in every prompt |
+| #9 | OpenHands | `max_iterations` parameter with visible counter |
+| #9 | Claude Code | Communicates remaining turns to the agent |
+| #9 | AutoGPT | Configurable step limits |
+| #9 | Hermes | `IterationBudget` class (`iteration_budget.py`) — `max_iterations` (default 500 parent / 50 subagents); `consume()` / `refund()` / `remaining`; graceful fallback via `_handle_max_iterations()` |
+| #9 | OpenClaw | Lane-based queueing instead of iteration cap — no hard max-iterations limit; contrast: opposite design choice |
+| #10 | LangChain `InMemoryCache` | Caches LLM calls by prompt hash — same concept, one layer up |
+| #10 | LangSmith / Helicone | Tool result caching across calls |
+| #10 | SWE-agent | Implicit dedup via structured ACI history — no explicit cache |
+| #10 | OpenClaw | `hashToolCall` / `digestStable` (SHA-256) in `tool-loop-detection.ts` — hashes tool call arguments for repeat detection; closest equivalent |
+| #11 | Claude Code | `--dangerously-skip-permissions`; system prompt written to never ask for confirmation |
+| #11 | SWE-agent | ACI prompt explicitly: "Do not ask for confirmation — just do it" |
+| #11 | Devin | Fully autonomous execution by design; no confirmation prompts |
+| #11 | OpenHands | Headless mode — no human-in-the-loop confirmation |
+| #11 | Hermes | System prompt instructs direct action without confirmation |
 
 <b>Data Flow</b>
 
@@ -623,8 +598,8 @@ Each rail targets a different cause of budget exhaustion. #10 and #11 hook into 
 flowchart TD
     classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
     classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef io   fill:#37474F,color:#fff,stroke:#263238
-    classDef sys  fill:#4A148C,color:#fff,stroke:#311B92
+    classDef io   fill:#27474F,color:#fff,stroke:#263238
+    classDef sys  fill:#3A148C,color:#fff,stroke:#211B92
 
     INIT(["⚙️ Agent initialised"])
 
@@ -681,7 +656,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#10 — Iteration Budget Awareness Rail</strong> &nbsp;(<code>feat/iteration-budget-awareness</code> (PR #368))</summary>
+<summary><strong>#9 — Iteration Budget Awareness Rail</strong> &nbsp;(<code>feat/iteration-budget-awareness</code> (PR #368))</summary>
 
 <br>
 
@@ -709,7 +684,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#11 — Tool Call Deduplication Cache</strong> &nbsp;(<code>feat/tool-call-dedup-cache</code> (PR #372))</summary>
+<summary><strong>#10 — Tool Call Deduplication Cache</strong> &nbsp;(<code>feat/tool-call-dedup-cache</code> (PR #372))</summary>
 
 <br>
 
@@ -743,7 +718,7 @@ Two independent mechanisms are active simultaneously:
 <br>
 
 <details>
-<summary><strong>#12 — Autonomous Execution Mode</strong> &nbsp;(<code>feat/autonomous-execution-mode</code> (PR #370))</summary>
+<summary><strong>#11 — Autonomous Execution Mode</strong> &nbsp;(<code>feat/autonomous-execution-mode</code> (PR #370))</summary>
 
 <br>
 
@@ -777,7 +752,7 @@ Two independent mechanisms are active simultaneously:
 ---
 
 #### <strong>Group 5 — Loop Breaking: Escape patterns that consume steps without progress</strong>
-<details><summary>Items #13–#17 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #396), (PR #397), (PR #399), (PR #409)</summary>
+<details><summary>Items #12–#16 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #396), (PR #397), (PR #399), (PR #409)</summary>
 
 ***Failure mode:<br>** The agent enters a repetition or patch loop, consuming the entire iteration budget without changing strategy.
 
@@ -786,44 +761,44 @@ Five mechanisms, each targeting a different loop or inefficiency pattern and ope
 
 | # | Feature | What it does |
 |---|---|---|
-| #13 | Anti-Repetition Prompt | System prompt instruction not to repeat identical tool calls already made in the session |
-| #14 | Failure Pattern Memory | Logs each failed tool call; prepends "do not repeat these approaches" block before every LLM call |
-| #15 | Step-Back Rail | Counts consecutive non-zero exit codes; injects escalating "rethink strategy" directive at N and 2N |
-| #16 | Verifier Circuit Breaker | Fingerprints verifier failure (test + assertion + exit code); injects escalating "abandon approach" directive at N and 2N identical failures |
-| #17 | Context Headroom Guard | Monitors token fill ratio via `ctx.context.statistic()`; injects conciseness directive at 60%, urgent directive at 80% |
+| #12 | Anti-Repetition Prompt | System prompt instruction not to repeat identical tool calls already made in the session |
+| #13 | Failure Pattern Memory | Logs each failed tool call; prepends "do not repeat these approaches" block before every LLM call |
+| #14 | Step-Back Rail | Counts consecutive non-zero exit codes; injects escalating "rethink strategy" directive at N and 2N |
+| #15 | Verifier Circuit Breaker | Fingerprints verifier failure (test + assertion + exit code); injects escalating "abandon approach" directive at N and 2N identical failures |
+| #16 | Context Headroom Guard | Monitors token fill ratio via `ctx.context.statistic()`; injects conciseness directive at 60%, urgent directive at 80% |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #13 | SWE-agent | ACI prompt: "Do not repeat a command you have already run"; command history in observation |
-| #13 | Claude Code | Implicit dedup through tool call history |
-| #13 | Reflexion (Shinn et al. 2023) | Verbal reinforcement to break repetition loops |
-| #13 | OpenClaw | `generic_repeat` detector (`tool-loop-detection.ts`) — detects repeated identical tool calls by hashing arguments |
-| #13 | Hermes | Explicit no-repeat constraint in ReAct-style prompt |
-| #14 | Reflexion (Shinn et al. 2023) | Defining paper: verbal reinforcement from failure stored in memory, injected into next attempt |
-| #14 | SWE-agent | Tracks failed patch applications in structured history |
-| #14 | Devin | Maintains running log of failed approaches |
-| #14 | OpenHands | Tracks failed actions across turns |
-| #14 | OpenClaw | `argument_churn` detector — tracks incremental argument drift; flags when args keep changing without progress |
-| #14 | Hermes | Failure history maintained across iterations |
-| #15 | Step-Back Prompting (Zheng et al. 2023, Google DeepMind) | Instruct model to abstract and reflect before diving back into tactics |
-| #15 | SWE-agent | Dedicated `think` action that forces a reflection step |
-| #15 | OpenHands | Reflection mechanism on consecutive failures |
-| #15 | Reflexion (Shinn et al. 2023) | Core loop: failure → reflect → retry with new strategy |
-| #15 | OpenClaw | `known_poll_no_progress` detector — warning/critical thresholds before escalating loop verdict |
-| #15 | Hermes | `_handle_max_iterations()` — graceful strategy-change fallback when iteration limit is reached |
-| #16 | Netflix Hystrix | Origin of the "circuit breaker" pattern in distributed systems |
-| #16 | Aider | Detects repeated test failure signatures; modifies retry strategy |
-| #16 | SWE-agent | Early-stopping heuristics on repeated identical patches |
-| #16 | OpenClaw | `global_circuit_breaker` (hard threshold 30); `unknown_tool_repeat` detector; `ping_pong` detector for A→B→A tool flip loops — all in `tool-loop-detection.ts` |
-| #16 | Note | Fingerprinting verifier output specifically is a JiuwenSwarm-original implementation |
-| #17 | Aider | `--max-chat-history-tokens` caps consumption and forces summarisation of old messages |
-| #17 | LangChain `ConversationSummaryMemory` | Proactively compresses old turns |
-| #17 | Claude Code | Built-in context management with auto-summarisation |
-| #17 | SWE-agent | Structured ACI formatting keeps outputs compact |
-| #17 | Hermes | `context_compressor.py` + `context_engine.py` — automatic compression with multiple retry strategies; cache control markers on pinned sections; closest internal equivalent |
-| #17 | Note | 60%/80% dual-threshold is JiuwenSwarm-specific; other systems typically use a single hard cutoff |
+| #12 | SWE-agent | ACI prompt: "Do not repeat a command you have already run"; command history in observation |
+| #12 | Claude Code | Implicit dedup through tool call history |
+| #12 | Reflexion (Shinn et al. 2023) | Verbal reinforcement to break repetition loops |
+| #12 | OpenClaw | `generic_repeat` detector (`tool-loop-detection.ts`) — detects repeated identical tool calls by hashing arguments |
+| #12 | Hermes | Explicit no-repeat constraint in ReAct-style prompt |
+| #13 | Reflexion (Shinn et al. 2023) | Defining paper: verbal reinforcement from failure stored in memory, injected into next attempt |
+| #13 | SWE-agent | Tracks failed patch applications in structured history |
+| #13 | Devin | Maintains running log of failed approaches |
+| #13 | OpenHands | Tracks failed actions across turns |
+| #13 | OpenClaw | `argument_churn` detector — tracks incremental argument drift; flags when args keep changing without progress |
+| #13 | Hermes | Failure history maintained across iterations |
+| #14 | Step-Back Prompting (Zheng et al. 2023, Google DeepMind) | Instruct model to abstract and reflect before diving back into tactics |
+| #14 | SWE-agent | Dedicated `think` action that forces a reflection step |
+| #14 | OpenHands | Reflection mechanism on consecutive failures |
+| #14 | Reflexion (Shinn et al. 2023) | Core loop: failure → reflect → retry with new strategy |
+| #14 | OpenClaw | `known_poll_no_progress` detector — warning/critical thresholds before escalating loop verdict |
+| #14 | Hermes | `_handle_max_iterations()` — graceful strategy-change fallback when iteration limit is reached |
+| #15 | Netflix Hystrix | Origin of the "circuit breaker" pattern in distributed systems |
+| #15 | Aider | Detects repeated test failure signatures; modifies retry strategy |
+| #15 | SWE-agent | Early-stopping heuristics on repeated identical patches |
+| #15 | OpenClaw | `global_circuit_breaker` (hard threshold 30); `unknown_tool_repeat` detector; `ping_pong` detector for A→B→A tool flip loops — all in `tool-loop-detection.ts` |
+| #15 | Note | Fingerprinting verifier output specifically is a JiuwenSwarm-original implementation |
+| #16 | Aider | `--max-chat-history-tokens` caps consumption and forces summarisation of old messages |
+| #16 | LangChain `ConversationSummaryMemory` | Proactively compresses old turns |
+| #16 | Claude Code | Built-in context management with auto-summarisation |
+| #16 | SWE-agent | Structured ACI formatting keeps outputs compact |
+| #16 | Hermes | `context_compressor.py` + `context_engine.py` — automatic compression with multiple retry strategies; cache control markers on pinned sections; closest internal equivalent |
+| #16 | Note | 60%/80% dual-threshold is JiuwenSwarm-specific; other systems typically use a single hard cutoff |
 
 <b>Data Flow</b>
 
@@ -831,8 +806,8 @@ Five mechanisms, each targeting a different loop or inefficiency pattern and ope
 flowchart TD
     classDef ac   fill:#2E86AB,color:#fff,stroke:#1a5f7a
     classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
-    classDef post fill:#BF360C,color:#fff,stroke:#7f2407
-    classDef io   fill:#37474F,color:#fff,stroke:#263238
+    classDef post fill:#BF360C,color:#fff,stroke:#6f2407
+    classDef io   fill:#27474F,color:#fff,stroke:#263238
 
     PROMPT(["Prompt build · SystemPromptBuilder"])
 
@@ -937,7 +912,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#13 — Anti-Repetition Identity Prompt</strong></summary>
+<summary><strong>#12 — Anti-Repetition Identity Prompt</strong></summary>
 
 <br>
 
@@ -958,7 +933,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#14 — Failure Pattern Memory Rail</strong> &nbsp;(<code>feat/failure-pattern-memory-rail</code> (PR #396))</summary>
+<summary><strong>#13 — Failure Pattern Memory Rail</strong> &nbsp;(<code>feat/failure-pattern-memory-rail</code> (PR #396))</summary>
 
 <br>
 
@@ -982,7 +957,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#15 — Step-Back Rail</strong> &nbsp;(<code>feat/step-back-rail</code> (PR #399))</summary>
+<summary><strong>#14 — Step-Back Rail</strong> &nbsp;(<code>feat/step-back-rail</code> (PR #399))</summary>
 
 <br>
 
@@ -1007,7 +982,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#16 — Verifier Circuit Breaker Rail</strong> &nbsp;(<code>feat/verifier-circuit-breaker-rail</code> (PR #409))</summary>
+<summary><strong>#15 — Verifier Circuit Breaker Rail</strong> &nbsp;(<code>feat/verifier-circuit-breaker-rail</code> (PR #409))</summary>
 
 <br>
 
@@ -1033,7 +1008,7 @@ flowchart TD
 </details>
 
 <details>
-<summary><strong>#17 — Context Headroom Guard</strong></summary>
+<summary><strong>#16 — Context Headroom Guard</strong></summary>
 
 <br>
 
@@ -1063,7 +1038,7 @@ flowchart TD
 ---
 
 #### <strong>Group 6 — Observability: Inspect what the LLM actually received</strong>
-<details><summary>Item #18 &nbsp;|&nbsp; jiuwenswarm</summary>
+<details><summary>Item #17 &nbsp;|&nbsp; jiuwenswarm</summary>
 
 ***Failure mode:<br>** Prompt regressions go undetected across runs; there is no record of what was actually sent to the LLM.
 
@@ -1071,23 +1046,23 @@ flowchart TD
 
 | # | Feature | What it does |
 |---|---|---|
-| #18 | Prompt Serialisation | Serialises the assembled messages into `usage_metadata.prompt` after every LLM call, making the prompt available for downstream inspection |
+| #17 | Prompt Serialisation | Serialises the assembled messages into `usage_metadata.prompt` after every LLM call, making the prompt available for downstream inspection |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #18 | DSPy | Compiles and serialises prompt programs for reproducibility |
-| #18 | LangSmith | Logs the fully rendered prompt for every LLM call |
-| #18 | Weights & Biases Prompts | Tracks prompt versions across runs |
-| #18 | Helicone / PromptLayer | Dedicated prompt logging and diffing services |
+| #17 | DSPy | Compiles and serialises prompt programs for reproducibility |
+| #17 | LangSmith | Logs the fully rendered prompt for every LLM call |
+| #17 | Weights & Biases Prompts | Tracks prompt versions across runs |
+| #17 | Helicone / PromptLayer | Dedicated prompt logging and diffing services |
 
 <b>Data Flow</b>
 
 ```mermaid
 flowchart TD
     classDef ac   fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef io   fill:#37474F,color:#fff,stroke:#263238
+    classDef io   fill:#27474F,color:#fff,stroke:#263238
 
     LLM(["LLM call"]):::io
 
@@ -1099,7 +1074,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#18 — Prompt Serialisation</strong> &nbsp;(<code>react_agent.py</code>)</summary>
+<summary><strong>#17 — Prompt Serialisation</strong> &nbsp;(<code>react_agent.py</code>)</summary>
 
 <br>
 
@@ -1123,44 +1098,44 @@ flowchart TD
 ---
 
 #### <strong>Group 7 — Output Quality: Make sure the final answer is correct and in the right place</strong>
-<details><summary>Items #19–#20 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #334), (PR #328)</summary>
+<details><summary>Items #18–#19 &nbsp;|&nbsp; PRs: jiuwenswarm (PR #334), (PR #328)</summary>
 
 ***Failure mode:<br>** The agent produces a correct answer but (a) cannot read the verifier's error because it was truncated from the head, or (b) submits output without first checking whether the verifier passes.
 
 **Feature summary:<br>**
-Two features acting at adjacent points: #19 preserves verifier error output that was previously truncated; #20 adds a "Verification Step" to the code system prompt so the agent knows to run verifier before declaring done.
+Two features acting at adjacent points: #18 preserves verifier error output that was previously truncated; #19 adds a "Verification Step" to the code system prompt so the agent knows to run verifier before declaring done.
 
 | # | Feature | What it does |
 |---|---|---|
-| #19 | Bash Output Head+Tail | Monkey-patches `BashTool.invoke`/`.stream` to replace `<persisted-output>` head-only preview with inline head+tail view; preserves verifier error messages at the end of long output |
-| #20 | Self-Verification Prompt | Injects a "Verification Step" section into the code system prompt instructing the agent to run the verifier after writing output files and loop until it passes |
+| #18 | Bash Output Head+Tail | Monkey-patches `BashTool.invoke`/`.stream` to replace `<persisted-output>` head-only preview with inline head+tail view; preserves verifier error messages at the end of long output |
+| #19 | Self-Verification Prompt | Injects a "Verification Step" section into the code system prompt instructing the agent to run the verifier after writing output files and loop until it passes |
 
 **Prior art (Competitors):**
 
 | Feature | System | Equivalent |
 |---|---|---|
-| #19 | SWE-agent | Smart output truncation preserving end of command output where errors appear |
-| #19 | OpenHands | Processes tool output to keep diagnostics visible |
-| #19 | Claude Code | Truncates long outputs but preserves error context |
-| #19 | Hermes | `_REFERENCE_TOOL_RESULT_BUDGET = 4000` chars in `moa_loop.py` — head+tail budget applied to each reference advisor's tool results |
-| #19 | Note | Head+tail (vs. head-only) is a simple but high-impact fix that most frameworks adopt after observing the same failure mode |
-| #20 | SWE-agent | Runs `pytest` after each patch; uses result to decide whether to continue |
-| #20 | Devin | Runs tests after every code change; iterates until they pass |
-| #20 | Aider | `--auto-test` mode runs tests after each edit and loops on failure |
-| #20 | Claude Code | Runs shell commands to verify changes work before completing a task; iterates on failures |
-| #20 | OpenHands | Runs test suite and feeds results back to the agent before completion |
-| #20 | OpenClaw | `before-agent-reply` plugin hooks — intercept before final reply; enables pre-reply verification step |
-| #20 | Hermes | `verify_on_stop` (`verification_stop.py`) — runs verification after code edits before completing; config `agent.verify_on_stop`; surface-aware (ON for CLI, OFF for messaging) |
-| #20 | Reflexion (Shinn et al. 2023) | Direct academic precedent: evaluate output → reflect on failure → retry |
+| #18 | SWE-agent | Smart output truncation preserving end of command output where errors appear |
+| #18 | OpenHands | Processes tool output to keep diagnostics visible |
+| #18 | Claude Code | Truncates long outputs but preserves error context |
+| #18 | Hermes | `_REFERENCE_TOOL_RESULT_BUDGET = 4000` chars in `moa_loop.py` — head+tail budget applied to each reference advisor's tool results |
+| #18 | Note | Head+tail (vs. head-only) is a simple but high-impact fix that most frameworks adopt after observing the same failure mode |
+| #19 | SWE-agent | Runs `pytest` after each patch; uses result to decide whether to continue |
+| #19 | Devin | Runs tests after every code change; iterates until they pass |
+| #19 | Aider | `--auto-test` mode runs tests after each edit and loops on failure |
+| #19 | Claude Code | Runs shell commands to verify changes work before completing a task; iterates on failures |
+| #19 | OpenHands | Runs test suite and feeds results back to the agent before completion |
+| #19 | OpenClaw | `before-agent-reply` plugin hooks — intercept before final reply; enables pre-reply verification step |
+| #19 | Hermes | `verify_on_stop` (`verification_stop.py`) — runs verification after code edits before completing; config `agent.verify_on_stop`; surface-aware (ON for CLI, OFF for messaging) |
+| #19 | Reflexion (Shinn et al. 2023) | Direct academic precedent: evaluate output → reflect on failure → retry |
 
 <b>Data Flow</b>
 
 ```mermaid
 flowchart TD
-    classDef post fill:#BF360C,color:#fff,stroke:#7f2407
+    classDef post fill:#BF360C,color:#fff,stroke:#6f2407
     classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
     classDef pre  fill:#E65100,color:#fff,stroke:#BF360C
-    classDef io   fill:#37474F,color:#fff,stroke:#263238
+    classDef io   fill:#27474F,color:#fff,stroke:#263238
 
     subgraph tool ["BashTool output pipeline"]
         SHELL(["Shell executes command"])
@@ -1197,7 +1172,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#19 — Bash Output Head+Tail Truncation</strong></summary>
+<summary><strong>#18 — Bash Output Head+Tail Truncation</strong></summary>
 
 <br>
 
@@ -1224,7 +1199,7 @@ flowchart TD
 <br>
 
 <details>
-<summary><strong>#20 — Self-Verification Prompt</strong></summary>
+<summary><strong>#19 — Self-Verification Prompt</strong></summary>
 
 <br>
 
@@ -1255,7 +1230,7 @@ flowchart TD
 ---
 
 #### <strong>Group 8 — Multi-Agent Verification: QA reviewer in team mode</strong>
-<details><summary>Item #21 &nbsp;|&nbsp; PRs: agent-core (PR #123) · jiuwenswarm (PR #121)</summary>
+<details><summary>Item #20 &nbsp;|&nbsp; PRs: agent-core (PR #123) · jiuwenswarm (PR #121)</summary>
 
 ***Failure mode:<br>** In team mode, the leader receives teammate outputs and consolidates results without objective quality data on each submission.
 
@@ -1264,7 +1239,7 @@ A `TeamVerificationRail` (DeepAgentRail) on the leader asynchronously reviews ea
 
 | # | Feature | What it does |
 |---|---|---|
-| #21 | Team Verification Layer | Mounts `TeamVerificationRail` on the leader; on `TASK_UNBLOCKED`, calls `VerificationReviewer` (model-based LLM call) scoring 6 dimensions (Correctness 25% / Completeness 20% / Consistency 20% / Clarity 15% / Security 10% / Performance 10%); stores results in `TEAM_MEMORY.md`; emits `team.verification.completed` events |
+| #20 | Team Verification Layer | Mounts `TeamVerificationRail` on the leader; on `TASK_UNBLOCKED`, calls `VerificationReviewer` (model-based LLM call) scoring 6 dimensions (Correctness 25% / Completeness 20% / Consistency 20% / Clarity 15% / Security 10% / Performance 10%); stores results in `TEAM_MEMORY.md`; emits `team.verification.completed` events |
 
 **Prior art (Competitors):**
 
@@ -1284,9 +1259,9 @@ A `TeamVerificationRail` (DeepAgentRail) on the leader asynchronously reviews ea
 flowchart TD
     classDef leader fill:#01579B,color:#fff,stroke:#003c74
     classDef teammate fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef rev    fill:#5E35B1,color:#fff,stroke:#311B92
+    classDef rev    fill:#4E35B1,color:#fff,stroke:#211B92
     classDef done   fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef cfg    fill:#37474F,color:#fff,stroke:#263238
+    classDef cfg    fill:#27474F,color:#fff,stroke:#263238
 
     TM(["Teammate completes task"]):::teammate
 
@@ -1326,7 +1301,7 @@ flowchart TD
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#21 — Team Verification Layer</strong> &nbsp;(agent-core <code>feat/team-verification-layer</code> (PR #123) / jiuwenswarm <code>feat/team-verification-layer</code> (PR #121))</summary>
+<summary><strong>#20 — Team Verification Layer</strong> &nbsp;(agent-core <code>feat/team-verification-layer</code> (PR #123) / jiuwenswarm <code>feat/team-verification-layer</code> (PR #121))</summary>
 
 <br>
 
@@ -1370,18 +1345,18 @@ All rails that inject text compete for space in the assembled prompt. The priori
 
 | Content | Priority | Pinned |
 |---------|----------|--------|
-| External skill catalogue (#9) | 900 | Yes |
-| Tool call dedup warning (#11) | 97 | No |
-| Iteration budget warning (#10) | 96 | No |
-| Verifier circuit breaker (#16) | 96 | No |
-| Failure pattern memory (#14) | 95 | No |
-| Step-back rethink directive (#15) | 94 | No |
-| Context headroom guard (#17) | 93 | No |
-| Self-verification prompt (#20) | 28 | Yes |
-| Output format contract (#8) | 14 | Yes |
-| Task description (#7) | 12 | Yes |
-| Anti-repetition instruction (#13) | 10 | — |
-| Autonomous execution mode (#12) | 9 | No |
+| External skill catalogue (#8) | 900 | Yes |
+| Tool call dedup warning (#10) | 97 | No |
+| Iteration budget warning (#9) | 96 | No |
+| Verifier circuit breaker (#15) | 96 | No |
+| Failure pattern memory (#13) | 95 | No |
+| Step-back rethink directive (#14) | 94 | No |
+| Context headroom guard (#16) | 93 | No |
+| Self-verification prompt (#19) | 28 | Yes |
+| Output format contract (#7) | 14 | Yes |
+| Task description (#6) | 12 | Yes |
+| Anti-repetition instruction (#12) | 10 | — |
+| Autonomous execution mode (#11) | 9 | No |
 
 Pinned sections are never summarised. Non-pinned sections at lower priority are the first to be condensed when `ContextEngine` needs to shrink the context.
 
@@ -1391,12 +1366,12 @@ To avoid collisions between rails, each rail owns a prefixed key namespace:
 
 | Rail | Session-state key prefix |
 |------|--------------------------|
-| Failure Pattern Memory (#14) | `failure_memory.*` |
-| Step-Back (#15) | `step_back.*` |
-| Verifier Circuit Breaker (#16) | `verifier_cb.*` |
-| Tool Dedup Cache (#11) | `tool_dedup.*` |
-| Context Headroom (#17) | `context_headroom.*` |
-| Iteration Budget (#10) | `iter_budget.*` |
+| Failure Pattern Memory (#13) | `failure_memory.*` |
+| Step-Back (#14) | `step_back.*` |
+| Verifier Circuit Breaker (#15) | `verifier_cb.*` |
+| Tool Dedup Cache (#10) | `tool_dedup.*` |
+| Context Headroom (#16) | `context_headroom.*` |
+| Iteration Budget (#9) | `iter_budget.*` |
 
 ### Testing Conventions
 
@@ -1404,8 +1379,8 @@ Each rail must have unit tests covering:
 
 1. **No-op path** — trigger condition not met; session state and prompt unchanged
 2. **Single trigger** — trigger fires once; correct text injected; session state updated
-3. **Escalation path** (where applicable, #15 and #16) — counter increments correctly; directive escalates from rethink to abandon at the right threshold
-4. **Pinned sections** (#7, #8, #9) — `ContextEngine` summarisation pass does not drop the section
+3. **Escalation path** (where applicable, #14 and #15) — counter increments correctly; directive escalates from rethink to abandon at the right threshold
+4. **Pinned sections** (#6, #7, #8) — `ContextEngine` summarisation pass does not drop the section
 
 Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 
@@ -1415,27 +1390,26 @@ Run with: `make test TESTFLAGS="tests/unit_tests/rails/"`
 
 | # | Item | Repo | PR / Branch |
 |---|------|------|------------|
-| 1 | Event Loop Fix | agent-core | (PR #28) |
-| 2 | Event Loop Fix | jiuwenswarm | (PR #119) |
-| 3 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) |
-| 4 | Multi-Rollout | agent-core | (PR #38) |
-| 5 | Auto-Harness Best-of-N | agent-core | (PR #37) |
-| 6 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) |
-| 7 | Task Description Re-injection | jiuwenswarm | (PR #371) |
-| 8 | Output Format Reminder | jiuwenswarm | (PR #401) |
-| 9 | External Skill Directories | jiuwenswarm | (PR #214) |
-| 10 | Iteration Budget Awareness | jiuwenswarm | (PR #368) |
-| 11 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) |
-| 12 | Autonomous Execution Mode | jiuwenswarm | (PR #370) |
-| 13 | Anti-Repetition Prompt Fix | agent-core | (PR #26) |
-| 14 | Failure Pattern Memory | jiuwenswarm | (PR #396) |
-| 15 | Step-Back Rail | jiuwenswarm | (PR #399) |
-| 16 | Verifier Circuit Breaker | jiuwenswarm | (PR #409) |
-| 17 | Context Headroom Guard | jiuwenswarm | (PR #397) |
-| 18 | Prompt Serialisation | agent-core | (PR #21) |
-| 19 | Bash Output Head+Tail | jiuwenswarm | (PR #334) |
-| 20 | Self-Verification Prompt | jiuwenswarm | (PR #328) |
-| 21 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) |
+| 1 | Event Loop Fix (both layers) | agent-core + jiuwenswarm | (PR #28) + (PR #119) |
+| 2 | ACP Tool Deduplication Guard | jiuwenswarm | (PR #139) |
+| 3 | Multi-Rollout | agent-core | (PR #38) |
+| 4 | Auto-Harness Best-of-N | agent-core | (PR #37) |
+| 5 | RLAF-P Prompt Optimizer | jiuwenswarm | (PR #1425) |
+| 6 | Task Description Re-injection | jiuwenswarm | (PR #371) |
+| 7 | Output Format Reminder | jiuwenswarm | (PR #401) |
+| 8 | External Skill Directories | jiuwenswarm | (PR #214) |
+| 9 | Iteration Budget Awareness | jiuwenswarm | (PR #368) |
+| 10 | Tool Call Dedup Cache | jiuwenswarm | (PR #372) |
+| 11 | Autonomous Execution Mode | jiuwenswarm | (PR #370) |
+| 12 | Anti-Repetition Prompt Fix | agent-core | (PR #26) |
+| 13 | Failure Pattern Memory | jiuwenswarm | (PR #396) |
+| 14 | Step-Back Rail | jiuwenswarm | (PR #399) |
+| 15 | Verifier Circuit Breaker | jiuwenswarm | (PR #409) |
+| 16 | Context Headroom Guard | jiuwenswarm | (PR #397) |
+| 17 | Prompt Serialisation | agent-core | (PR #21) |
+| 18 | Bash Output Head+Tail | jiuwenswarm | (PR #334) |
+| 19 | Self-Verification Prompt | jiuwenswarm | (PR #328) |
+| 20 | Team Verification Layer | agent-core + jiuwenswarm | (PR #123) + (PR #121) |
 
 Integration branch combining all: `New-Features-Integration` (both repos)
 
