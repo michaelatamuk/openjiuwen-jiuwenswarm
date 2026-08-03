@@ -90,13 +90,22 @@ def _make_proactive_agent(tick_responses: list[dict]):
 
 # Capture _trigger_main_agent calls (session_id, channel_id, query, decision)
 def _capture_trigger(triggered_list):
-    async def _trigger(session_id, channel_id, query, decision):
+    async def _trigger(session_id, channel_id, query, decision, on_delivered=None):
         triggered_list.append({
             "session_id": session_id,
             "channel_id": channel_id,
             "query": query,
             "decision": decision,
         })
+        # 真实 trigger_main_agent 是 fire-and-forget：主 agent 跑完才回调 on_delivered
+        # 做 Step 7（计数 + save_recommendation_state）。测试 mock 这里同步模拟"后台送达"，
+        # 立即回调，让 history/count 断言能验证 Step 7 逻辑。
+        if on_delivered is not None:
+            try:
+                on_delivered()
+            except Exception:
+                # 测试只关心触发与 history，回调异常不掩盖触发本身
+                pass
         return True
     return _trigger
 
@@ -355,9 +364,9 @@ async def test_skip_when_main_agent_busy():
 
     triggered = []
 
-    async def _busy_trigger(session_id, channel_id, query, decision):
+    async def _busy_trigger(session_id, channel_id, query, decision, on_delivered=None):
         triggered.append((session_id, channel_id, decision))
-        return False  # session 正忙
+        return False  # session 正忙（不触发，on_delivered 不该被调）
 
     with tempfile.TemporaryDirectory() as ws:
         ws_path = Path(ws)
@@ -440,7 +449,11 @@ def _capture_notifications(notified_list):
 
 @pytest.mark.asyncio
 async def test_daily_limit_pushes_notification_once():
-    """达到每日上限时，应推送一次"已达上限"通知；同日再次 tick 不再刷屏。"""
+    """达到每日上限时，每次 tick 命中上限都推送一次"已达上限"通知。
+
+    旧实现按天去重（每天最多推一次）；新行为改为前端弹窗 + 每次命中都推，
+    故同日多次命中上限会多次推送（去重交由前端 toast 的自动消失处理）。
+    """
     notified = []
 
     with tempfile.TemporaryDirectory() as ws:
@@ -464,10 +477,10 @@ async def test_daily_limit_pushes_notification_once():
             assert "已达每日上限" in notified[0]["text"]
             assert "1 条" in notified[0]["text"]
 
-            # 第二次 tick：同日已达上限 → 不再刷屏
+            # 第二次 tick：同日仍命中上限 → 再次推送（每次命中都推，前端弹窗负责消失）
             pushed2 = await engine.tick_now()
             assert pushed2 is False
-            assert len(notified) == 1, f"同日不应重复推送，实际累计 {len(notified)} 次"
+            assert len(notified) == 2, f"同日再次命中上限应再次推送，实际累计 {len(notified)} 次"
 
 
 @pytest.mark.asyncio
@@ -487,3 +500,76 @@ async def test_daily_limit_no_callback_no_crash():
             # 故意不调 set_send_notification_callback
             pushed = await engine.tick_now()
             assert pushed is False
+
+
+
+
+# ── 两种触发统一为"最活跃会话"：选法修复回归 ──────────────────────
+
+@pytest.mark.asyncio
+async def test_find_session_for_channel_no_history_required():
+    """推送目标选择不再要求 compressed_history 非空——刚发消息、assistant
+    还没回完的会话（历史空）仍可作为"最活跃会话"推送候选。
+
+    回归保护：推送本身只需 session_id，历史是 LLM 决策素材（render_for_llm/is_empty），
+    不该用历史空过滤推送候选。
+    """
+    from jiuwenswarm.agents.harness.common.recommendation.situation_report import (
+        SessionSummary, SituationReport,
+    )
+    # 两个会话：一个历史完整、一个历史空但 last_message_at 更新（刚发消息）
+    full = SessionSummary(
+        session_id="sess_old", channel_id="web", last_message_at=1000.0,
+        compressed_history="[User]: hi\n[Assistant]: hello",
+    )
+    fresh = SessionSummary(
+        session_id="sess_current", channel_id="web", last_message_at=2000.0,
+        compressed_history="",  # 刚发消息，assistant 没回完 → 历史空
+    )
+    report = SituationReport(sessions=[full, fresh])
+
+    # find_session_for_channel 应选 last_message_at 最新的 fresh（即便历史空）
+    chosen = report.find_session_for_channel("web")
+    assert chosen is not None
+    assert chosen.session_id == "sess_current"
+
+    # most_recent_active_session 同理
+    chosen2 = report.most_recent_active_session()
+    assert chosen2 is not None
+    assert chosen2.session_id == "sess_current"
+
+
+@pytest.mark.asyncio
+async def test_render_for_llm_still_skips_empty_history():
+    """LLM 决策素材职责不变：render_for_llm 仍只渲染 compressed_history 非空的
+    会话（历史空的不给 LLM 看决策素材），与推送目标选择解耦。"""
+    from jiuwenswarm.agents.harness.common.recommendation.situation_report import (
+        SessionSummary, SituationReport,
+    )
+    full = SessionSummary(
+        session_id="sess_old", channel_id="web", last_message_at=1000.0,
+        compressed_history="[User]: hi\n[Assistant]: hello",
+    )
+    fresh = SessionSummary(
+        session_id="sess_current", channel_id="web", last_message_at=2000.0,
+        compressed_history="",
+    )
+    report = SituationReport(sessions=[full, fresh])
+
+    rendered = report.render_for_llm()
+    # 只含历史完整的 sess_old，不含历史空的 sess_current
+    assert "sess_old" in rendered or "hi" in rendered
+    assert "sess_current" not in rendered
+
+
+def test_is_empty_still_true_when_all_history_empty():
+    """is_empty 守卫不变：所有会话 history 都空 → report 为空 → tick 跳过
+    （LLM 无决策素材，本就该跳过）。"""
+    from jiuwenswarm.agents.harness.common.recommendation.situation_report import (
+        SessionSummary, SituationReport,
+    )
+    report = SituationReport(sessions=[
+        SessionSummary(session_id="a", last_message_at=1000.0, compressed_history=""),
+        SessionSummary(session_id="b", last_message_at=2000.0, compressed_history=""),
+    ])
+    assert report.is_empty() is True
