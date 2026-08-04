@@ -2344,6 +2344,7 @@ def _workflow_updated_to_team_events(
     seen_phase: dict[str, str],
     seen_agent: dict[str, str],
     spawned_members: set[str],
+    seen_activity: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert one ``workflow.updated`` event into web ``team.member`` / ``team.task`` events.
 
@@ -2351,7 +2352,12 @@ def _workflow_updated_to_team_events(
     ``team.member``. Only status *changes* produce events — the ``workflow.updated``
     delta repeatedly re-includes a running phase (once per agent that starts inside
     it), so ``seen_phase`` / ``seen_agent`` dedup by last-observed status.
+    Live worker activity (appended to ``agent.activity`` between start/completion)
+    produces ``team.member.activity_changed`` events, deduped by ``seen_activity``
+    (last-seen activity length per member).
     """
+    if seen_activity is None:
+        seen_activity = {}
     if event.get("event_type") != "workflow.updated":
         return []
 
@@ -2400,6 +2406,7 @@ def _workflow_updated_to_team_events(
             if member_id not in spawned_members:
                 spawned_members.add(member_id)
                 seen_agent[member_id] = "running"
+                seen_activity[member_id] = len(agent.get("activity") or [])
                 out.append(
                     _team_event_envelope(
                         "team.member",
@@ -2410,6 +2417,9 @@ def _workflow_updated_to_team_events(
                             "member_id": member_id,
                             "name": agent.get("name") or agent_id,
                             "status": "busy",
+                            # Agent task prompt (set at agent_started) — surfaced on
+                            # the swarm-map lane so a running worker shows its task.
+                            "prompt": (agent.get("prompt") or "")[:80],
                         },
                     )
                 )
@@ -2428,9 +2438,37 @@ def _workflow_updated_to_team_events(
                                 "member_id": member_id,
                                 "old_status": old_status,
                                 "new_status": agent_status,
+                                # Agent result (set at agent_completed) — shown on the
+                                # swarm-map lane once the worker finishes.
+                                "outcome": (agent.get("outcome") or "")[:80],
                             },
                         )
                     )
+
+            # Live worker activity — emit one event per newly-appended entry so a
+            # spectator UI sees the worker's current action mid-run.
+            activity = agent.get("activity") or []
+            activity_count = len(activity)
+            last_seen = seen_activity.get(member_id, 0)
+            if activity_count > last_seen:
+                for act in activity[last_seen:activity_count]:
+                    content = str(act.get("content") or "").strip()
+                    if not content:
+                        continue
+                    out.append(
+                        _team_event_envelope(
+                            "team.member",
+                            session_id,
+                            {
+                                "type": "team.member.activity_changed",
+                                "team_id": team_id,
+                                "member_id": member_id,
+                                "name": agent.get("name") or agent_id,
+                                "activity": content[:120],
+                            },
+                        )
+                    )
+            seen_activity[member_id] = activity_count
 
     return out
 
@@ -2450,6 +2488,7 @@ async def _consume_workflow_events(
     seen_phase: dict[str, str] = {}
     seen_agent: dict[str, str] = {}
     spawned_members: set[str] = set()
+    seen_activity: dict[str, int] = {}
     try:
         logger.info(
             "[TeamHelpers] workflow event loop started: channel_id=%s session_id=%s is_tui=%s",
@@ -2487,7 +2526,7 @@ async def _consume_workflow_events(
                     get_team_manager(channel_id).mark_workflow_completed(session_id)
                 continue
             for team_ev in _workflow_updated_to_team_events(
-                event, session_id, seen_phase, seen_agent, spawned_members
+                event, session_id, seen_phase, seen_agent, spawned_members, seen_activity
             ):
                 _persist_team_history_event(channel_id, session_id, team_ev)
                 _broadcast_event(channel_id, session_id, team_ev)
