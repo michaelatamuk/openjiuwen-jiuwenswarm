@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,6 +15,29 @@ from openjiuwen.agent_teams.schema.team import TeamRole
 
 from jiuwenswarm.server.runtime.agent_adapter import evolution_helpers
 from jiuwenswarm.server.runtime.agent_adapter import team_helpers
+
+
+def _broadcast_recorder(events: list[dict], manager=None):
+    async def _record(_channel_id, session_id: str, event: dict) -> None:
+        events.append(event)
+        if (
+            manager is not None
+            and event.get("event_type") in team_helpers._TEAM_BUILDING_EVENT_TYPES
+        ):
+            manager.mark_seen_team_events(session_id)
+
+    return _record
+
+
+async def _noop_broadcast(*_args, **_kwargs) -> None:
+    return None
+
+
+def test_team_event_queue_is_bounded() -> None:
+    queue = team_helpers._new_team_event_queue()
+
+    assert queue.maxsize == team_helpers.TEAM_EVENT_QUEUE_MAXSIZE
+    assert queue.maxsize > 0
 
 
 def test_persist_team_history_event_keeps_human_spawn_details(
@@ -202,6 +226,8 @@ class _FakeRail:
         self._pending_first = pending_first
         self._drain_calls = 0
         self.drain_waits: list[bool] = []
+        self.signal_trigger = True
+        self.review_trigger = False
 
     async def drain_pending_approval_events(self, wait: bool = False, timeout: float | None = None):
         self._drain_calls += 1
@@ -914,6 +940,8 @@ async def test_team_evolution_monitor_uses_approval_request_id_without_provision
     class _PendingThenApprovalRail:
         def __init__(self):
             self._drain_calls = 0
+            self.signal_trigger = True
+            self.review_trigger = False
 
         async def drain_pending_approval_events(self, wait: bool = False, timeout: float | None = None):
             assert wait is False
@@ -1056,7 +1084,7 @@ async def test_ensure_team_evolution_watcher_starts_without_reasoning_gate(monke
 
         @staticmethod
         def get_team_skill_rail(session_id: str):
-            return object()
+            return SimpleNamespace(signal_trigger=True, review_trigger=False)
 
         @staticmethod
         def register_team_evolution_watcher(
@@ -1110,12 +1138,12 @@ async def test_ensure_team_evolution_watcher_defers_when_rail_missing(monkeypatc
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    ("completion_followup_enabled", "should_start"),
+    ("review_trigger", "should_start"),
     [(False, False), (True, True)],
 )
-async def test_ensure_team_evolution_watcher_respects_completion_followup(
+async def test_ensure_team_evolution_watcher_respects_review_trigger(
         monkeypatch,
-        completion_followup_enabled: bool,
+        review_trigger: bool,
         should_start: bool,
 ):
     registered: dict[str, asyncio.Task] = {}
@@ -1123,8 +1151,8 @@ async def test_ensure_team_evolution_watcher_respects_completion_followup(
     class _Rail:
         pass
 
-    _Rail.auto_scan = False
-    _Rail.completion_followup_enabled = completion_followup_enabled
+    _Rail.signal_trigger = False
+    _Rail.review_trigger = review_trigger
 
     class _FakeManager(_InactiveTeamRuntimeManagerMixin):
         @staticmethod
@@ -1325,7 +1353,7 @@ async def test_consume_monitor_events_only_broadcasts_monitor_events(monkeypatch
             for item in self._events:
                 yield item
 
-    monkeypatch.setattr(team_helpers, "_broadcast_event", lambda *args: broadcasted.append(args[2]))
+    monkeypatch.setattr(team_helpers, "_broadcast_event", _broadcast_recorder(broadcasted))
 
     monitor_handler = _FakeMonitorEventHandler([event])
     await _TeamHelpersTestApi.consume_monitor_events("web", "sess-monitor", monitor_handler)
@@ -1510,13 +1538,27 @@ async def test_process_team_message_stream_retries_followup_while_native_starts(
                 "reason: NativeHarness not started.",
             )
 
-    async def _fake_retry(team_manager: object, session_id: str, query: str):
+    async def _fake_retry(
+        team_manager: object,
+        session_id: str,
+        query: str,
+        *,
+        initial_reason: str | None = None,
+    ):
         assert team_manager is not None
+        assert initial_reason == (
+            "deliver_to_leader_failed:[123023] deepagent runtime error, "
+            "reason: NativeHarness not started."
+        )
         _FakeManager.interact_calls.append((session_id, f"retry:{query}"))
-        return True, None
+        return team_helpers._FollowupInteractBoundaryResult(
+            success=True,
+            reason=None,
+            first_request_ready=False,
+        )
 
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_retry_followup_interact_until_ready", _fake_retry)
+    monkeypatch.setattr(team_helpers, "_deliver_followup_interact_across_boundary", _fake_retry)
 
     request = SimpleNamespace(
         session_id="sess-team-followup-starting",
@@ -1584,20 +1626,25 @@ async def test_process_team_message_stream_restarts_round_after_shutdown_race(mo
         def register_stream_task(session_id: str, task: object) -> None:
             captured["registered"] = session_id
 
-    async def _fake_wait_first_request(team_manager: object, session_id: str, **kwargs) -> bool:
-        assert team_manager is not None
-        assert session_id == "sess-team-followup-stopped"
-        _FakeManager.stream_active = False
-        return True
-
-    async def _fake_retry(team_manager: object, session_id: str, query: str):
+    async def _fake_retry(
+        team_manager: object,
+        session_id: str,
+        query: str,
+        *,
+        initial_reason: str | None = None,
+    ):
         assert team_manager is not None
         assert session_id == "sess-team-followup-stopped"
         assert query
-        return (
-            False,
+        assert initial_reason == (
             "deliver_to_leader_failed:[123023] deepagent runtime error, "
-            "reason: NativeHarness already stopped.",
+            "reason: NativeHarness already stopped."
+        )
+        _FakeManager.stream_active = False
+        return team_helpers._FollowupInteractBoundaryResult(
+            success=False,
+            reason=initial_reason,
+            first_request_ready=True,
         )
 
     async def _fake_consume_stream_with_query(
@@ -1613,12 +1660,7 @@ async def test_process_team_message_stream_restarts_round_after_shutdown_race(mo
         captured["consumed"] = (session_id, query, round_id)
 
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_retry_followup_interact_until_ready", _fake_retry)
-    monkeypatch.setattr(
-        team_helpers,
-        "_wait_for_team_first_request_condition",
-        _fake_wait_first_request,
-    )
+    monkeypatch.setattr(team_helpers, "_deliver_followup_interact_across_boundary", _fake_retry)
     monkeypatch.setattr(team_helpers, "increment_session_round_count", lambda session_id: 7)
     monkeypatch.setattr(team_helpers, "_consume_stream_with_query", _fake_consume_stream_with_query)
 
@@ -1686,17 +1728,23 @@ async def test_process_team_message_stream_fallback_reuses_first_request_directi
         def register_stream_task(session_id: str, task: object) -> None:
             captured["registered"] = session_id
 
-    async def _fake_retry(team_manager: object, session_id: str, query: str):
+    async def _fake_retry(
+        team_manager: object,
+        session_id: str,
+        query: str,
+        *,
+        initial_reason: str | None = None,
+    ):
         assert team_manager is not None
         assert session_id == "sess-team-followup-directives"
         assert query == "/hide_dm /debug weather"
-        return False, "gate_closed"
-
-    async def _fake_wait_first_request(team_manager: object, session_id: str, **kwargs) -> bool:
-        assert team_manager is not None
-        assert session_id == "sess-team-followup-directives"
+        assert initial_reason == "gate_closed"
         _FakeManager.stream_active = False
-        return True
+        return team_helpers._FollowupInteractBoundaryResult(
+            success=False,
+            reason=initial_reason,
+            first_request_ready=True,
+        )
 
     async def _fake_consume_stream_with_query(
         channel_id: str | None,
@@ -1711,12 +1759,7 @@ async def test_process_team_message_stream_fallback_reuses_first_request_directi
         captured["consumed"] = (session_id, query, round_id, envs)
 
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_retry_followup_interact_until_ready", _fake_retry)
-    monkeypatch.setattr(
-        team_helpers,
-        "_wait_for_team_first_request_condition",
-        _fake_wait_first_request,
-    )
+    monkeypatch.setattr(team_helpers, "_deliver_followup_interact_across_boundary", _fake_retry)
     monkeypatch.setattr(team_helpers, "increment_session_round_count", lambda session_id: 9)
     monkeypatch.setattr(team_helpers, "_consume_stream_with_query", _fake_consume_stream_with_query)
 
@@ -1771,24 +1814,25 @@ async def test_process_team_message_stream_silences_gate_closed_when_shutdown_ra
         async def prepare_runtime_activation(session_id: str, team_name: str):
             raise AssertionError("timed-out shutdown race should not start a new stream")
 
-    async def _fake_wait_first_request(team_manager: object, session_id: str, **kwargs) -> bool:
-        assert team_manager is not None
-        assert session_id == "sess-team-followup-timeout"
-        return False
-
-    async def _fake_retry(team_manager: object, session_id: str, query: str):
+    async def _fake_retry(
+        team_manager: object,
+        session_id: str,
+        query: str,
+        *,
+        initial_reason: str | None = None,
+    ):
         assert team_manager is not None
         assert session_id == "sess-team-followup-timeout"
         assert query
-        return False, "gate_closed"
+        assert initial_reason == "gate_closed"
+        return team_helpers._FollowupInteractBoundaryResult(
+            success=False,
+            reason=initial_reason,
+            first_request_ready=False,
+        )
 
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_retry_followup_interact_until_ready", _fake_retry)
-    monkeypatch.setattr(
-        team_helpers,
-        "_wait_for_team_first_request_condition",
-        _fake_wait_first_request,
-    )
+    monkeypatch.setattr(team_helpers, "_deliver_followup_interact_across_boundary", _fake_retry)
 
     request = SimpleNamespace(
         session_id="sess-team-followup-timeout",
@@ -2778,12 +2822,7 @@ async def test_consume_stream_with_query_broadcasts_leader_and_teammate_outputs(
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda channel_id, session_id, event: (
-            broadcasted.append(event),
-            fake_mgr.mark_seen_team_events(session_id)
-            if event.get("event_type") in team_helpers._TEAM_BUILDING_EVENT_TYPES
-            else None,
-        ),
+        _broadcast_recorder(broadcasted, fake_mgr),
     )
     monkeypatch.setattr(team_helpers, "ensure_team_evolution_watcher", lambda *args, **kwargs: None)
     monkeypatch.setattr(team_helpers, "get_session_metadata", lambda session_id: {})
@@ -2803,21 +2842,98 @@ async def test_consume_stream_with_query_broadcasts_leader_and_teammate_outputs(
     assert [event["event_type"] for event in broadcasted] == [
         "chat.processing_status",
         "team.runtime_ready",
+        'chat.final',
+        'chat.processing_status',
+        'chat.final',
+        'chat.processing_status',
+        'chat.final',
+        'chat.processing_status',
         "chat.processing_status",
-        'chat.final',
-        'chat.processing_status',
-        'chat.final',
-        'chat.processing_status',
-        'chat.final',
-        'chat.processing_status',
         'team.completed',
     ]
     # Round-start processing_status
     assert broadcasted[0]["is_processing"] is True
     assert broadcasted[0]["is_complete"] is False
     # Round-end processing_status (from team.completed)
-    assert broadcasted[2]["is_processing"] is False
-    assert broadcasted[2]["is_complete"] is True
+    assert broadcasted[-2]["is_processing"] is False
+    assert broadcasted[-2]["is_complete"] is True
+    for index, event in enumerate(broadcasted):
+        if event.get("event_type") == "chat.final":
+            next_event = broadcasted[index + 1]
+            assert next_event["event_type"] == "chat.processing_status"
+            assert next_event["is_processing"] is False
+
+
+@pytest.mark.anyio
+async def test_cancelled_stream_does_not_block_on_full_waiter_queue(monkeypatch):
+    from jiuwenswarm.agents.harness.team.team_manager import TeamManager
+
+    session_id = "sess-cancel-full-waiter"
+    manager = TeamManager()
+    waiter: asyncio.Queue = asyncio.Queue(maxsize=1)
+    waiter.put_nowait({"event_type": "already.queued"})
+    manager.add_waiter(session_id, "req-cancel", waiter)
+    monkeypatch.setattr(team_helpers, "get_team_manager", lambda _channel_id: manager)
+
+    stream_task = asyncio.create_task(
+        _TeamHelpersTestApi.consume_stream_with_query(
+            "tui",
+            session_id,
+            SimpleNamespace(team_name="demo-team"),
+            "hello",
+        )
+    )
+    manager.register_stream_task(session_id, stream_task)
+    await asyncio.sleep(0)
+    assert stream_task.done() is False
+
+    stream_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(stream_task, timeout=0.5)
+    assert manager.has_stream_task(session_id) is False
+
+
+@pytest.mark.anyio
+async def test_failed_stream_cancel_does_not_reenter_full_waiter_queue(monkeypatch):
+    from jiuwenswarm.agents.harness.team.team_manager import TeamManager
+
+    runner_failed = asyncio.Event()
+
+    async def failing_stream(**_kwargs):
+        runner_failed.set()
+        if False:
+            yield None
+        raise RuntimeError("runner failed")
+
+    class _FailingRunner:
+        run_agent_team_streaming = staticmethod(failing_stream)
+
+    session_id = "sess-failed-cancel-full-waiter"
+    manager = TeamManager()
+    waiter: asyncio.Queue = asyncio.Queue(maxsize=1)
+    manager.add_waiter(session_id, "req-failed-cancel", waiter)
+    monkeypatch.setattr(team_helpers, "Runner", _FailingRunner)
+    monkeypatch.setattr(team_helpers, "get_team_manager", lambda _channel_id: manager)
+
+    stream_task = asyncio.create_task(
+        _TeamHelpersTestApi.consume_stream_with_query(
+            "tui",
+            session_id,
+            SimpleNamespace(team_name="demo-team"),
+            "hello",
+        )
+    )
+    manager.register_stream_task(session_id, stream_task)
+    await asyncio.wait_for(runner_failed.wait(), timeout=0.5)
+    await asyncio.sleep(0)
+    assert stream_task.done() is False
+
+    stream_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(stream_task, timeout=0.5)
+    assert manager.has_stream_task(session_id) is False
 
 
 @pytest.mark.anyio
@@ -2856,12 +2972,7 @@ async def test_consume_stream_with_query_broadcasts_leader_task_failed_detail_an
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda channel_id, session_id, event: (
-            broadcasted.append(event),
-            fake_mgr.mark_seen_team_events(session_id)
-            if event.get("event_type") in team_helpers._TEAM_BUILDING_EVENT_TYPES
-            else None,
-        ),
+        _broadcast_recorder(broadcasted, fake_mgr),
     )
 
     await _TeamHelpersTestApi.consume_stream_with_query(
@@ -2929,12 +3040,7 @@ async def test_consume_stream_with_query_does_not_final_teammate_task_failed(mon
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda channel_id, session_id, event: (
-            broadcasted.append(event),
-            fake_mgr.mark_seen_team_events(session_id)
-            if event.get("event_type") in team_helpers._TEAM_BUILDING_EVENT_TYPES
-            else None,
-        ),
+        _broadcast_recorder(broadcasted, fake_mgr),
     )
 
     await _TeamHelpersTestApi.consume_stream_with_query(
@@ -3003,12 +3109,7 @@ async def test_consume_stream_with_query_deduplicates_ask_user_questions(monkeyp
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda channel_id, session_id, event: (
-            broadcasted.append(event),
-            fake_mgr.mark_seen_team_events(session_id)
-            if event.get("event_type") in team_helpers._TEAM_BUILDING_EVENT_TYPES
-            else None,
-        ),
+        _broadcast_recorder(broadcasted, fake_mgr),
     )
 
     await _TeamHelpersTestApi.consume_stream_with_query(
@@ -3099,7 +3200,7 @@ async def test_consume_stream_with_query_propagates_hide_dm_to_monitor(monkeypat
 
     monkeypatch.setattr(team_helpers, "Runner", _FakeRunner)
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_broadcast_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(team_helpers, "_broadcast_event", _noop_broadcast)
     monkeypatch.setattr(team_helpers, "get_session_metadata", lambda session_id: {})
     monkeypatch.setattr(team_helpers, "update_session_metadata", lambda **kwargs: None)
 
@@ -3412,7 +3513,7 @@ async def test_consume_workflow_events_broadcasts_raw_for_tui(monkeypatch):
         async def events(self):
             yield event
 
-    monkeypatch.setattr(team_helpers, "_broadcast_event", lambda *args: broadcasted.append(args[2]))
+    monkeypatch.setattr(team_helpers, "_broadcast_event", _broadcast_recorder(broadcasted))
 
     handler = _FakeWorkflowHandler()
     await _TeamHelpersTestApi.consume_workflow_events(
@@ -3452,7 +3553,7 @@ async def test_consume_workflow_events_converts_to_team_events_for_web(monkeypat
         async def events(self):
             yield event
 
-    monkeypatch.setattr(team_helpers, "_broadcast_event", lambda *args: broadcasted.append(args[2]))
+    monkeypatch.setattr(team_helpers, "_broadcast_event", _broadcast_recorder(broadcasted))
 
     handler = _FakeWorkflowHandler()
     await _TeamHelpersTestApi.consume_workflow_events(
@@ -3534,7 +3635,7 @@ async def test_consume_stream_with_query_calls_ensure_workflow_handler_after_run
 
     monkeypatch.setattr(team_helpers, "Runner", _FakeRunner)
     monkeypatch.setattr(team_helpers, "get_team_manager", lambda cid: _FakeManager())
-    monkeypatch.setattr(team_helpers, "_broadcast_event", lambda *a, **kw: None)
+    monkeypatch.setattr(team_helpers, "_broadcast_event", _noop_broadcast)
     monkeypatch.setattr(team_helpers, "sync_team_identity_metadata", lambda **kw: calls.append("sync"))
     monkeypatch.setattr(team_helpers, "ensure_monitor_handlers_for_active_runtime", _fake_monitor)
     monkeypatch.setattr(team_helpers, "ensure_team_evolution_watcher", lambda *a, **kw: calls.append("watcher"))
@@ -3599,7 +3700,7 @@ async def test_try_finish_cron_team_stream_cancels_background_task(monkeypatch):
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda cid, sid, event: processing_done.append(event),
+        _broadcast_recorder(processing_done),
     )
 
     _TeamHelpersTestApi.seed_cron_team_waiter(waiter_key, "cron-job-1:123")
@@ -3659,7 +3760,7 @@ async def test_try_finish_cron_team_stream_on_leader_final_without_team_complete
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda cid, sid, event: processing_done.append(event),
+        _broadcast_recorder(processing_done),
     )
     monkeypatch.setattr(team_helpers, "_CRON_DELEGATION_GRACE_SECONDS", 0.0)
 
@@ -3710,7 +3811,7 @@ async def test_broadcast_team_state_snapshot_broadcasts_member_and_task_status(m
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda cid, sid, event: broadcast_events.append(event),
+        _broadcast_recorder(broadcast_events),
     )
 
     await team_helpers._broadcast_team_state_snapshot("web", "sess-snapshot-test")
@@ -3745,11 +3846,104 @@ async def test_broadcast_team_state_snapshot_noop_when_no_monitor(monkeypatch):
     monkeypatch.setattr(
         team_helpers,
         "_broadcast_event",
-        lambda cid, sid, event: broadcast_events.append(event),
+        _broadcast_recorder(broadcast_events),
     )
 
     await team_helpers._broadcast_team_state_snapshot("web", "sess-no-monitor")
     assert broadcast_events == []
+
+
+@pytest.mark.anyio
+async def test_broadcast_team_state_snapshot_task_event_carries_title_content_and_flags(monkeypatch):
+    """The ``team.task.status_snapshot`` event must carry title/content and, when
+    the snapshot task dict carries truncation flags (added by
+    ``get_team_snapshot`` in T2.1), pass them through via ``t.get(...)`` so they
+    are present ONLY when the field was actually truncated (absent otherwise)."""
+    broadcast_events: list[dict] = []
+
+    long_title = "T" * 542  # > 512 → truncated
+    short_content = "do the research"  # ≤ 512 → not truncated
+
+    class _FakeMonitorHandler:
+        @staticmethod
+        async def get_team_snapshot():
+            # Mirror the shape produced by TeamMonitorHandler.get_team_snapshot
+            # after T2.1: title truncated + flags, content plain (no flags).
+            return {
+                "team_id": "team-snap-trunc",
+                "members": [],
+                "tasks": [
+                    {
+                        "task_id": "task-trunc",
+                        "team_name": "team-snap-trunc",
+                        "title": "T" * 512 + "…(truncated, total 542 chars)",
+                        "title_truncated": True,
+                        "title_original_size": 542,
+                        "content": short_content,
+                        "status": "in_progress",
+                        "assignee": "agent1",
+                        "updated_at": None,
+                    },
+                    {
+                        "task_id": "task-plain",
+                        "team_name": "team-snap-trunc",
+                        "title": "plain title",
+                        "content": "plain content",
+                        "status": "completed",
+                        "assignee": None,
+                        "updated_at": None,
+                    },
+                ],
+            }
+
+    class _FakeManager:
+        @staticmethod
+        def get_monitor_handler(session_id: str):
+            return _FakeMonitorHandler()
+
+    monkeypatch.setattr(team_helpers, "get_team_manager", lambda channel_id: _FakeManager())
+    monkeypatch.setattr(
+        team_helpers,
+        "_broadcast_event",
+        _broadcast_recorder(broadcast_events),
+    )
+    # _persist_team_history_event hits a real DB path; stub it to a no-op so
+    # the test stays isolated (production call unchanged).
+    monkeypatch.setattr(team_helpers, "_persist_team_history_event", lambda *args, **kwargs: None)
+
+    await team_helpers._broadcast_team_state_snapshot("web", "sess-snap-trunc")
+
+    task_events = [e for e in broadcast_events if e.get("event_type") == "team.task"]
+    assert len(task_events) == 2
+
+    # Truncated task: title/content ride along, flags ride along (present).
+    trunc_evt = task_events[0]["event"]
+    assert trunc_evt["type"] == "team.task.status_snapshot"
+    assert trunc_evt["task_id"] == "task-trunc"
+    assert trunc_evt["title"] == "T" * 512 + "…(truncated, total 542 chars)"
+    assert trunc_evt["content"] == short_content
+    assert trunc_evt["title_truncated"] is True
+    assert trunc_evt["title_original_size"] == 542
+    # content was NOT truncated in the source dict, so the source has no
+    # content_* flag keys. The broadcast uses ``t.get(...)`` (per spec) so
+    # the event carries them as ``None`` (falsy) — the frontend treats them
+    # as optional/truthy, so None is equivalent to "not truncated".
+    assert trunc_evt["content_truncated"] is None
+    assert trunc_evt["content_original_size"] is None
+    # Non-body fields still present.
+    assert trunc_evt["status"] == "in_progress"
+    assert trunc_evt["assignee"] == "agent1"
+
+    # Plain task: title/content ride along; flag keys present as None (t.get
+    # on a source dict that omits them). Frontend reads truthiness → falsy.
+    plain_evt = task_events[1]["event"]
+    assert plain_evt["task_id"] == "task-plain"
+    assert plain_evt["title"] == "plain title"
+    assert plain_evt["content"] == "plain content"
+    assert plain_evt["title_truncated"] is None
+    assert plain_evt["title_original_size"] is None
+    assert plain_evt["content_truncated"] is None
+    assert plain_evt["content_original_size"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -3910,3 +4104,124 @@ def test_workflow_updated_to_team_events_first_sight_terminal_spawns_then_status
     assert member_types == ["team.member.spawned", "team.member.status_changed"]
     task = next(e for e in out if e["event_type"] == "team.task")
     assert task["event"]["type"] == "team.task.cancelled"
+
+
+def test_persist_team_file_monitor_roots_replaces_stale_roots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_persist_team_file_monitor_roots 应替换旧 root,而非累积合并。"""
+    written: list[dict[str, Any]] = []
+    write_kwargs: list[dict[str, Any]] = []
+
+    def _fake_read_metadata(session_id: str, cache_bust: bool = False) -> dict[str, Any]:
+        return {
+            "session_id": session_id,
+            "team_file_monitor_roots": ["/old/stale/workspace"],
+        }
+
+    def _fake_enqueue_write(
+        session_id: str, metadata: dict[str, Any], **kwargs: Any
+    ) -> None:
+        written.append(metadata)
+        write_kwargs.append(kwargs)
+
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.session.session_metadata._read_metadata",
+        _fake_read_metadata,
+    )
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.session.session_metadata._enqueue_write",
+        _fake_enqueue_write,
+    )
+    fake_home = Path("/team/home/unit-team")
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.agent_adapter.team_helpers.team_home",
+        lambda name: fake_home,
+    )
+    # independent_member_workspace 内部调用 openjiuwen 的 get_openjiuwen_home(),
+    # 无法被 team_home patch 覆盖,这里显式 patch 以保持测试路径稳定。
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.agent_adapter.team_helpers.independent_member_workspace",
+        lambda name: fake_home / f"{name}_workspace",
+    )
+
+    team_spec = SimpleNamespace(
+        team_name="unit-team",
+        workspace=SimpleNamespace(root_path="/team/home/unit-team/team-workspace"),
+        agents={
+            "worker": SimpleNamespace(
+                workspace=SimpleNamespace(root_path="/team/home/unit-team/workspaces/worker_workspace"),
+            ),
+        },
+    )
+    team_helpers._persist_team_file_monitor_roots("sess-1", team_spec)
+
+    assert len(written) == 1
+    persisted_roots = written[0]["team_file_monitor_roots"]
+    # 旧 root 应被清除
+    assert "/old/stale/workspace" not in persisted_roots
+    # 新 root 应包含 team-workspace 和 member workspace(路径经 resolve 归一化)
+    home = fake_home.resolve()
+    assert str(home / "team-workspace") in persisted_roots
+    assert str(home / "workspaces") in persisted_roots
+    # session_id 经 _safe_segment sanitize(此处 "sess-1" 无特殊字符,保持原样)
+    assert str(home / "sessions" / "sess-1" / "worktrees") in persisted_roots
+    assert str(home / "workspaces" / "worker_workspace") in persisted_roots
+    # 漏洞4修复: independent_member_workspace 路径也应被收集
+    assert str(home / "worker_workspace") in persisted_roots
+    assert write_kwargs[0]["sync_write"] is True
+    assert write_kwargs[0]["preserve_pin_fields"] is True
+
+
+def test_persist_team_file_monitor_roots_noop_when_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """当 roots 未变化时不应触发写盘。"""
+    written: list[dict[str, Any]] = []
+    fake_home = Path("/team/home/unit-team")
+
+    expected_roots = [
+        str(fake_home.resolve() / "team-workspace"),
+        str(fake_home.resolve() / "workspaces"),
+        str(fake_home.resolve() / "sessions" / "sess-1" / "worktrees"),
+        str(fake_home.resolve() / "workspaces" / "worker_workspace"),
+        # 漏洞4修复: independent_member_workspace 路径
+        str(fake_home.resolve() / "worker_workspace"),
+    ]
+
+    def _fake_read_metadata(session_id: str, cache_bust: bool = False) -> dict[str, Any]:
+        return {
+            "session_id": session_id,
+            "team_file_monitor_roots": list(expected_roots),
+        }
+
+    def _fake_enqueue_write(
+        session_id: str, metadata: dict[str, Any], **kwargs: Any
+    ) -> None:
+        written.append(metadata)
+
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.session.session_metadata._read_metadata",
+        _fake_read_metadata,
+    )
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.session.session_metadata._enqueue_write",
+        _fake_enqueue_write,
+    )
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.agent_adapter.team_helpers.team_home",
+        lambda name: fake_home,
+    )
+    monkeypatch.setattr(
+        "jiuwenswarm.server.runtime.agent_adapter.team_helpers.independent_member_workspace",
+        lambda name: fake_home / f"{name}_workspace",
+    )
+
+    team_spec = SimpleNamespace(
+        team_name="unit-team",
+        workspace=SimpleNamespace(root_path="/team/home/unit-team/team-workspace"),
+        agents={
+            "worker": SimpleNamespace(
+                workspace=SimpleNamespace(root_path="/team/home/unit-team/workspaces/worker_workspace"),
+            ),
+        },
+    )
+    team_helpers._persist_team_file_monitor_roots("sess-1", team_spec)
+
+    assert len(written) == 0

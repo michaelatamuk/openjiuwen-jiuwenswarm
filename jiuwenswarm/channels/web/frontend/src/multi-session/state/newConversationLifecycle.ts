@@ -1,7 +1,9 @@
 import {
   ensureSessionRuntimes,
   useChatStore,
+  useGoalStore,
   useHarnessStore,
+  usePlanStore,
   useSessionStore,
   useTodoStore,
 } from '../../stores';
@@ -41,6 +43,8 @@ export function resetNewConversationRuntime(settings: ConversationRuntimeSetting
   useSessionStore.getState().removeRuntime(NEW_CONVERSATION_ID);
   useTodoStore.getState().removeRuntime(NEW_CONVERSATION_ID);
   useHarnessStore.getState().removeRuntime(NEW_CONVERSATION_ID);
+  useGoalStore.getState().removeRuntime(NEW_CONVERSATION_ID);
+  usePlanStore.getState().removeRuntime(NEW_CONVERSATION_ID);
   applyRuntimeSettings(NEW_CONVERSATION_ID, settings);
   if (preservedDraft) {
     useChatStore.getState().setInputValue(NEW_CONVERSATION_ID, preservedDraft);
@@ -53,7 +57,7 @@ export function registerCreatedConversation(
   settings: ConversationRuntimeSettings,
   createdAt = Date.now(),
   initialContent = '',
-  workContext: Partial<Pick<Session, 'project_id' | 'project_dir'>> = {},
+  workContext: Partial<Pick<Session, 'project_id' | 'project_dir' | 'work_mode'>> = {},
 ): Session {
   applyRuntimeSettings(sessionId, settings);
   useChatStore.getState().setProcessing(sessionId, true);
@@ -64,6 +68,7 @@ export function registerCreatedConversation(
     title: createConversationTitle(initialContent),
     project_id: workContext.project_id || '',
     project_dir: workContext.project_dir || settings.projectDir || '',
+    work_mode: workContext.work_mode,
     mode: settings.mode,
     status: 'active',
     message_count: 0,
