@@ -15,13 +15,14 @@ import PlusIcon from '../../assets/sidebar/plus.svg?react';
 import logoIcon from '/logo.svg';
 import AdvancedConfigIcon from '../../assets/sidebar/advanced-config-new.svg?react';
 import UpdateIcon from '../../assets/sidebar/advanced-config.svg?react';
+import TracehoundIcon from '../../assets/sidebar/tracehound.svg?react';
 import WorkIcon from '../../assets/工作.svg?react';
 import SkillDesignIcon from '../../assets/技能.svg?react';
 import AgentDesignIcon from '../../assets/智能体.svg?react';
 import MoreDesignIcon from '../../assets/更多.svg?react';
 import { webRequest } from '../../services/webClient';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
 
 interface SessionSidebarProps {
   activeNav: MainNavKey;
@@ -46,7 +47,6 @@ const teamNavIcon = (
     <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a8.96 8.96 0 01-12 0m12 0a3.75 3.75 0 00-6 0m6 0A8.96 8.96 0 0012 15.75a8.96 8.96 0 00-6 2.97m12 0A9 9 0 1012 21a8.96 8.96 0 006-2.28zM15 9.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
   </svg>
 );
-
 const mainNavItems: NavItem[] = [
   { key: 'chat', labelKey: 'nav.work', icon: <WorkIcon aria-hidden /> },
   { key: 'skills', labelKey: 'nav.skills', icon: <SkillDesignIcon aria-hidden /> },
@@ -60,6 +60,7 @@ const moreNavItems: NavItem[] = [
   { key: 'extensions', labelKey: 'nav.extensions', icon: <PluginIcon aria-hidden /> },
   { key: 'browserpanel', labelKey: 'nav.browser', icon: <WebIcon aria-hidden /> },
   { key: 'updatepanel', labelKey: 'nav.update', icon: <UpdateIcon aria-hidden /> },
+  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <TracehoundIcon aria-hidden /> },
 ];
 
 // Advanced Config Panel Component

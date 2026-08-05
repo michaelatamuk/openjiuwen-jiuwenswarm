@@ -660,6 +660,10 @@ _FORWARD_REQ_METHODS = frozenset({
     "issue.state.list",
     "issue.matrix",
     "issue.delete",
+    # TraceHound
+    "tracehound.turns.list",
+    "tracehound.turn.get",
+    "tracehound.analyze",
 })
 
 _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
@@ -737,6 +741,10 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "agents.enable",
     "agents.disable",
     "agents.tools_list",
+    # TraceHound
+    "tracehound.turns.list",
+    "tracehound.turn.get",
+    "tracehound.analyze",
 })
 
 # 配置信息：config.get 返回、config.set 可修改的键（前端 param 名 -> 环境变量名）

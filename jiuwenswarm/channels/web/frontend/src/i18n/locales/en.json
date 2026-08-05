@@ -28,6 +28,8 @@
     "agent": "Agent",
     "teams": "Teams",
     "sessions": "Sessions",
+    "tracehound": "TraceHound",
+    "heartbeat": "Heartbeat",
     "cron": "Scheduled Tasks",
     "skills": "Skills",
     "channels": "Channels",

@@ -18,6 +18,7 @@ import { ChannelsPanel } from './components/ChannelsPanel';
 import { BrowserPanel } from './components/BrowserPanel';
 import { UpdatePanel } from './components/UpdatePanel';
 import { ExtensionsHubPanel } from './components/ExtensionsHubPanel';
+import { TraceHoundPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
   exportShareImageNode,
@@ -88,6 +89,7 @@ import {
 import { isSetupGuideEnabled } from './features/modelSetupGuide/modelSetupGuideState';
 import './App.css';
 
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
 const TEAM_SESSION_MODES = new Set(['team', 'team.plan', 'code.team']);
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
@@ -2410,6 +2412,16 @@ function AppContent() {
               isProcessing={isProcessing}
               onRestoreSession={handleRestoreSession}
             />
+          </div>
+        )}
+        {activeNav === 'tracehound' && (
+          <div className="app-section">
+            <TraceHoundPanel isConnected={isConnected} />
+          </div>
+        )}
+        {activeNav === 'heartbeat' && (
+          <div className="app-section">
+            <HeartbeatPanel />
           </div>
         )}
         {activeNav === 'cron' && (
