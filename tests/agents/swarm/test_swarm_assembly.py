@@ -55,6 +55,9 @@ from openjiuwen.harness.prompts.builder import SystemPromptBuilder
 from openjiuwen.harness.prompts.prompt_attachment_manager import PromptAttachmentManager
 from openjiuwen.harness.rails import SkillUseRail
 
+from jiuwenswarm.agents.harness.common.browser_defaults import (
+    DEFAULT_BROWSER_AGENT_MAX_ITERATIONS,
+)
 from jiuwenswarm.agents.swarm import (
     SwarmBuildContext,
     enrich_team_spec_for_swarm,
@@ -1548,18 +1551,39 @@ def test_leader_deep_agent_spec_forces_enable_task_planning_off(mode: str) -> No
 
 
 def test_code_subagent_specs_use_factory_names() -> None:
-    """Code modes declare explore/plan (+ gated code) sub-agents via factory_name."""
+    """Code modes declare plan (+ gated code) sub-agents via factory_name."""
     register_swarm_providers()
     config = {"react": {"subagents": {"code_agent": {"enabled": True}}}}
 
     subs = build_member_subagent_specs(config, "code.team", "leader")
     factory_names = [spec.factory_name for spec in subs]
 
-    assert registry.EXPLORE_AGENT in factory_names
+    assert registry.EXPLORE_AGENT not in factory_names
     assert registry.PLAN_AGENT in factory_names
     assert registry.CODE_AGENT in factory_names
     # Team mode has no code sub-agents.
     assert build_member_subagent_specs({}, "team", "leader") == []
+
+
+def test_code_member_deep_spec_removes_base_explore_agent() -> None:
+    """A base team spec cannot reintroduce explore_agent in code mode."""
+    from openjiuwen.agent_teams.schema.deep_agent_spec import SubAgentSpec
+    from openjiuwen.core.single_agent import AgentCard
+
+    base = DeepAgentSpec(
+        subagents=[
+            SubAgentSpec(
+                agent_card=AgentCard(name="explore_agent"),
+                system_prompt="",
+                factory_name=registry.EXPLORE_AGENT,
+            )
+        ]
+    )
+
+    spec = build_member_deep_agent_spec({}, "code.team", "leader", base)
+    names = [sub.agent_card.name for sub in spec.subagents or []]
+
+    assert names == ["plan_agent"]
 
 
 def test_code_runtime_language_by_mode_and_role() -> None:
@@ -2187,7 +2211,7 @@ def test_rebuilt_member_spec_keeps_provider_declarations() -> None:
     leader_factory_names = {
         sub.factory_name for sub in rebuilt.agents["leader"].subagents
     }
-    assert registry.EXPLORE_AGENT in leader_factory_names
+    assert registry.EXPLORE_AGENT not in leader_factory_names
     assert registry.PLAN_AGENT in leader_factory_names
     # The code system prompt is carried declaratively on the spec.
     assert teammate.system_prompt
@@ -2243,6 +2267,31 @@ def test_browser_subagent_spec_included_when_enabled() -> None:
     subs = build_member_subagent_specs(config, "code.team", "leader")
     factory_names = [s.factory_name for s in subs]
     assert SWARM_BROWSER_AGENT in factory_names
+    browser_spec = next(s for s in subs if s.factory_name == SWARM_BROWSER_AGENT)
+    assert (
+        browser_spec.factory_kwargs["max_iterations"]
+        == DEFAULT_BROWSER_AGENT_MAX_ITERATIONS
+    )
+
+
+def test_browser_subagent_spec_honors_explicit_iteration_budget() -> None:
+    """An explicit browser budget wins over the generous browser default."""
+    config = {
+        "react": {
+            "max_iterations": 9,
+            "subagents": {
+                "browser_agent": {
+                    "enabled": True,
+                    "max_iterations": 23,
+                },
+            },
+        },
+    }
+
+    subs = build_member_subagent_specs(config, "code.team", "leader")
+    browser_spec = next(s for s in subs if s.factory_name == SWARM_BROWSER_AGENT)
+
+    assert browser_spec.factory_kwargs["max_iterations"] == 23
 
 
 def test_browser_subagent_spec_excluded_when_disabled() -> None:
@@ -2306,6 +2355,10 @@ def test_browser_subagent_provider_passes_correct_browser_key(
     assert result is not None
     assert len(captured) == 1
     assert captured[0]["browser_key"] == "sess42-browser-usd-sgd"
+    assert (
+        captured[0]["max_iterations"]
+        == DEFAULT_BROWSER_AGENT_MAX_ITERATIONS
+    )
 
 
 def test_browser_subagent_teammates_get_distinct_keys(
