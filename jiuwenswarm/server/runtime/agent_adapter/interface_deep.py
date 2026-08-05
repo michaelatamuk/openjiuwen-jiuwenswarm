@@ -9648,6 +9648,20 @@ class JiuWenSwarmDeepAdapter:
 
                 chunk_type = chunk.type
 
+                if chunk_type in ("llm_call_start", "llm_call_end"):
+                    payload = chunk.payload if isinstance(chunk.payload, dict) else {}
+                    yield AgentResponseChunk(
+                        request_id=rid,
+                        channel_id=cid,
+                        payload=note_chat_payload({
+                            "event_type": "chat." + chunk_type,
+                            "member_name": payload.get("member_name"),
+                            "role": payload.get("role"),
+                        }),
+                        is_complete=False,
+                    )
+                    continue
+
                 if chunk_type == "llm_usage":
                     logger.info(f"[JiuWenSwarmDeepAdapter] llm_usage chunk: {chunk}")
                     usage_meta = (
