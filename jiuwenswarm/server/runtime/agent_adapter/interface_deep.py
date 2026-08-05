@@ -4801,6 +4801,33 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach AutonomousModeRail: %s", exc)
             return None
 
+    def _build_tool_call_deduplication_rail(
+        self, config_base: dict[str, Any]
+    ) -> ToolCallDeduplicationRail | None:
+        """Build ToolCallDeduplicationRail: collapse repeated identical tool calls.
+
+        Only added to the rail set when ``tool_dedup.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``tool_dedup.warn_after`` (default 3).
+        The rail short-circuits identical repeat calls to deterministic tools
+        (read_file / glob / list_files / grep …) and injects a warning once the
+        agent repeats the same call ``warn_after`` times, so it stops looping
+        instead of hammering the same call.
+        """
+        try:
+            _td_cfg = config_base.get("tool_dedup") or {}
+            _warn_after = int(_td_cfg.get("warn_after", 3))
+            rail = ToolCallDeduplicationRail(_warn_after)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] ToolCallDeduplicationRail attached (warn_after=%d)",
+                _warn_after,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] Failed to attach ToolCallDeduplicationRail: %s", exc
+            )
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4875,6 +4902,20 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_task_description_rail",
                     self._build_task_description_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Tool-call deduplication: short-circuit identical repeat calls to
+        # deterministic tools and warn on repeated calls. Disabled by default —
+        # only inserted when enabled so the registry's "build returned None"
+        # warning is not spammed on every normal build.
+        _dedup_cfg = config_base.get("tool_dedup") or {}
+        if bool(_dedup_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_tool_call_deduplication_rail",
+                    self._build_tool_call_deduplication_rail,
                     {"config_base": config_base},
                 )
             )
