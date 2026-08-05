@@ -18,6 +18,10 @@ The configuration panel is organized into three tabs:
 - **Security**: Tool security guardrails, sensitive-info filtering (see [7. Tool Security Guardrails](#7-tool-security-guardrails))
 - **Other**: Third-party services, self-evolution, context compression, skill symphony, etc.
 
+Additional backend configuration sections include:
+
+- **Shell Command Output Limits**: Head+tail truncation for large command output (see [11. Shell Command Output Limits](#12-shell-command-output-limits))
+
 > 💡 **Tip**: Model configuration (`api_base`, `api_key`, `model`, `model_provider`) is required; all other configurations are optional.
 
 ---
@@ -476,6 +480,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `team.verification.pass_threshold` | Minimum score (0–100) for a PASS verdict | `70` |
 | `team.verification.rework_threshold` | Score below which a FAIL verdict is issued | `40` |
 | `team.verification.auto_rework` | Automatically create rework tasks when a sub-agent fails verification | `false` |
+| `shell_output.max_chars` | Maximum characters returned per command output (`0` = no limit) | `20000` |
+| `shell_output.head_ratio` | Fraction of the output budget kept from the beginning; the remainder is the tail | `0.6` |
 
 <a id="dotenv-configuration"></a>
 
@@ -537,14 +543,14 @@ jiuwenswarm-agentserver
 
 The `shell_output` section controls how much command output is returned to the model after running a shell command (via `BashTool` or `mcp_exec_command`). This prevents large output from flooding the context window while ensuring that error messages at the **end** of output (e.g. pytest failure details) are always visible.
 
-### 11.1 Config keys
+### 12.1 Config keys
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `shell_output.max_chars` | integer | `20000` | Maximum characters returned per command output. `0` = no limit (not recommended for long-running commands). |
 | `shell_output.head_ratio` | float | `0.6` | Fraction of the budget kept from the **beginning** of output. The remainder (`1 - head_ratio`) is kept from the **end** (tail). |
 
-### 11.2 Truncation strategy
+### 12.2 Truncation strategy
 
 When output exceeds `max_chars`, a **head+tail** view is returned:
 
@@ -560,7 +566,7 @@ With the default ratio of `0.6`, 60 % of the budget goes to the head (setup/cont
 
 For `BashTool` specifically: when the underlying engine persists very large output to a temp file (its internal limit is also 20 000 chars by default), jiuwenswarm reads the persisted file and applies the head+tail view inline, with a note pointing to the full file for reference.
 
-### 11.3 Example — tighter limit for bandwidth-constrained deployments
+### 12.3 Example — tighter limit for bandwidth-constrained deployments
 
 ```yaml
 shell_output:
@@ -568,7 +574,7 @@ shell_output:
   head_ratio: 0.5   # equal split; show more of the tail
 ```
 
-### 11.4 Opting out per command
+### 12.4 Opting out per command
 
 Pass a large explicit `max_output_chars` value to `mcp_exec_command` to get near-unlimited output for a single call:
 
