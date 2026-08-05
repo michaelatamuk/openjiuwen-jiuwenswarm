@@ -20,7 +20,7 @@ The configuration panel is organized into three tabs:
 
 Additional backend configuration sections include:
 
-- **Shell Command Output Limits**: Head+tail truncation for large command output (see [11. Shell Command Output Limits](#12-shell-command-output-limits))
+- **Shell Command Output Limits**: Head+tail truncation for large command output (see [12. Shell Command Output Limits](#12-shell-command-output-limits))
 
 > 💡 **Tip**: Model configuration (`api_base`, `api_key`, `model`, `model_provider`) is required; all other configurations are optional.
 
@@ -480,8 +480,6 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `team.verification.pass_threshold` | Minimum score (0–100) for a PASS verdict | `70` |
 | `team.verification.rework_threshold` | Score below which a FAIL verdict is issued | `40` |
 | `team.verification.auto_rework` | Automatically create rework tasks when a sub-agent fails verification | `false` |
-| `shell_output.max_chars` | Maximum characters returned per command output (`0` = no limit) | `20000` |
-| `shell_output.head_ratio` | Fraction of the output budget kept from the beginning; the remainder is the tail | `0.6` |
 
 <a id="dotenv-configuration"></a>
 
