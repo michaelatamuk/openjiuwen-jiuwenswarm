@@ -18,6 +18,10 @@ The configuration panel is organized into three tabs:
 - **Security**: Tool security guardrails, sensitive-info filtering (see [7. Tool Security Guardrails](#7-tool-security-guardrails))
 - **Other**: Third-party services, self-evolution, context compression, skill symphony, etc.
 
+Additional backend configuration sections include:
+
+- **Shell Command Output Limits**: Head+tail truncation for large command output (see [11. Shell Command Output Limits](#11-shell-command-output-limits))
+
 > 💡 **Tip**: Model configuration (`api_base`, `api_key`, `model`, `model_provider`) is required; all other configurations are optional.
 
 ---
@@ -449,6 +453,8 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `heartbeat.every` | Heartbeat interval (seconds) | `3600` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
+| `shell_output.max_chars` | Maximum characters returned per command output (`0` = no limit) | `20000` |
+| `shell_output.head_ratio` | Fraction of the output budget kept from the beginning; the remainder is the tail | `0.6` |
 
 <a id="dotenv-configuration"></a>
 
