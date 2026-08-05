@@ -4671,6 +4671,28 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
+    def _build_failure_memory_rail(self, config_base: dict[str, Any]) -> FailureMemoryRail | None:
+        """Build FailureMemoryRail: keep a running summary of failed approaches.
+
+        Only added to the rail set when ``failure_memory.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``failure_memory.max_failures`` (default
+        10). The rail records tool failures in session state and injects a
+        summary into the system prompt so the agent knows which approaches have
+        already failed and should not be retried.
+        """
+        try:
+            _fm_cfg = config_base.get("failure_memory") or {}
+            _max_failures = int(_fm_cfg.get("max_failures", 10))
+            rail = FailureMemoryRail(_max_failures)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] FailureMemoryRail attached (max_failures=%d)",
+                _max_failures,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4720,6 +4742,20 @@ class JiuWenSwarmDeepAdapter:
                 {"config": self._config_cache},
             ),
         ]
+
+        # Failure-pattern memory: record failed approaches in session state and
+        # surface them in the system prompt. Disabled by default — only inserted
+        # when enabled so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _fm_cfg = config_base.get("failure_memory") or {}
+        if bool(_fm_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_failure_memory_rail",
+                    self._build_failure_memory_rail,
+                    {"config_base": config_base},
+                )
+            )
 
         # SkillEvolutionRail 不在冷启动时挂载，由 _update_rails_for_mode 按 mode 按需注册/注销
         # 智能模式下关闭自演进，plan 模式下按配置启用
