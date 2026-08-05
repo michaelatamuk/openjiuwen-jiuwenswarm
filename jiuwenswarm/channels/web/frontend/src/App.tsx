@@ -89,7 +89,7 @@ import {
 import { isSetupGuideEnabled } from './features/modelSetupGuide/modelSetupGuideState';
 import './App.css';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'heartbeat' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
 const TEAM_SESSION_MODES = new Set(['team', 'team.plan', 'code.team']);
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
@@ -111,8 +111,6 @@ function isTeamMode(mode: string): boolean {
 function shouldPreviewModelSetupGuide(): boolean {
   return PREVIEW_MODEL_SETUP_GUIDE;
 }
-
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
 
 type LoadedHistoryPage = {
   pageIdx: number;
@@ -2417,11 +2415,6 @@ function AppContent() {
         {activeNav === 'tracehound' && (
           <div className="app-section">
             <TraceHoundPanel isConnected={isConnected} />
-          </div>
-        )}
-        {activeNav === 'heartbeat' && (
-          <div className="app-section">
-            <HeartbeatPanel />
           </div>
         )}
         {activeNav === 'cron' && (
