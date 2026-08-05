@@ -4710,6 +4710,34 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
+    def _build_verifier_circuit_breaker_rail(
+        self, config_base: dict[str, Any]
+    ) -> VerifierCircuitBreakerRail | None:
+        """Build VerifierCircuitBreakerRail: force a strategy change on repeated verifier failures.
+
+        Reads ``verifier_circuit_breaker`` from the config snapshot (``enabled``
+        defaults True, ``break_after`` defaults 3). When the same verifier
+        failure repeats ``break_after`` times in a row without improvement, a
+        high-priority system-prompt section instructs the agent to abandon its
+        current approach. Returns None (skip) when explicitly disabled.
+        """
+        try:
+            _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+            if not bool(_vcb_cfg.get("enabled", True)):
+                return None
+            _break_after = int(_vcb_cfg.get("break_after", 3))
+            rail = VerifierCircuitBreakerRail(_break_after)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] VerifierCircuitBreakerRail attached (break_after=%d)",
+                _break_after,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] Failed to attach VerifierCircuitBreakerRail: %s", exc
+            )
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4757,6 +4785,11 @@ class JiuWenSwarmDeepAdapter:
                 "_context_processor_rail",
                 _build_context_processor_rail,
                 {"config": self._config_cache},
+            ),
+            _RailBuildInfo(
+                "_verifier_circuit_breaker_rail",
+                self._build_verifier_circuit_breaker_rail,
+                {"config_base": config_base},
             ),
         ]
 
