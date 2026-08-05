@@ -4874,6 +4874,28 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ContextHeadroomRail: %s", exc)
             return None
 
+    def _build_step_back_rail(self, config_base: dict[str, Any]) -> StepBackRail | None:
+        """Build StepBackRail: rethink the approach after consecutive shell failures.
+
+        Only added to the rail set when ``step_back.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``step_back_after`` (default 3). After
+        that many consecutive shell/tool failures the rail injects a directive
+        telling the agent to stop, re-read the task, and design a new strategy
+        instead of making another marginal fix.
+        """
+        try:
+            _sb_cfg = config_base.get("step_back") or {}
+            _step_back_after = int(_sb_cfg.get("step_back_after", 3))
+            rail = StepBackRail(_step_back_after)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] StepBackRail attached (step_back_after=%d)",
+                _step_back_after,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach StepBackRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4989,6 +5011,19 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_context_headroom_rail",
                     self._build_context_headroom_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Step-back prompt: rethink the approach after consecutive shell failures.
+        # Disabled by default — only inserted when enabled so the registry's
+        # "build returned None" warning is not spammed on every normal build.
+        _sb_cfg = config_base.get("step_back") or {}
+        if bool(_sb_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_step_back_rail",
+                    self._build_step_back_rail,
                     {"config_base": config_base},
                 )
             )
