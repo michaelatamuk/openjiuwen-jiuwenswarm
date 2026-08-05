@@ -20,11 +20,10 @@ import logging.handlers
 import os
 import sys
 
-from dotenv import load_dotenv
 from openjiuwen.core.common.logging import LogManager
 
 # --- Early --dotenv parsing (before jiuwenswarm imports) ---
-from jiuwenswarm.dotenv_early import parse_dotenv_early
+from jiuwenswarm.dotenv_early import parse_dotenv_early, load_dotenv_runtime
 parse_dotenv_early("jiuwenswarm-agentserver")
 
 # --- Now safe to import jiuwenswarm modules ---
@@ -115,7 +114,7 @@ else:
     _perm_ns_logger.propagate = False
 
 # Load env from user workspace config/.env
-load_dotenv(dotenv_path=get_env_file(), override=True)
+load_dotenv_runtime(dotenv_path=get_env_file(), override=True)
 reset_free_search_runtime_flags()
 
 from jiuwenswarm.agents.harness.common.tools.bash_tool_safety import (
@@ -128,6 +127,14 @@ install_shell_tool_safety_hooks()
 from jiuwenswarm.llm_sse_patch import apply_openai_sse_invoke_patch
 
 apply_openai_sse_invoke_patch()
+
+# /debug 模式下捕获 builtin TaskTool 分发的 subagent 流（reasoning/tool_call/usage），
+# 内联写入主 dump。非 debug 或 include_subagent_flow 关闭时走原始 invoke，零回归。
+from jiuwenswarm.server.runtime.debug_trace.task_tool_patch import (
+    apply_task_tool_debug_patch,
+)
+
+apply_task_tool_debug_patch()
 
 
 
@@ -154,18 +161,8 @@ async def _run(host: str, port: int) -> None:
     await extension_manager.load_all_extensions()
     logger.info("[AgentServer] 扩展加载完成，共 %d 个", len(extension_manager.list_extensions()))
 
-    # 启动迁移：给老会话的 metadata.json 补全 project_dir/model/last_user_message_at/status
-    # 等新字段并写回磁盘，保证升级后磁盘 schema 统一、前端永远拿到稳定结构。
-    # last_user_message_at 从 last_message_at/created_at/目录 mtime 推算，避免老会话排序错乱。
-    # 外层兜底：迁移本身已对单个会话容错，但任何意外异常都不得阻塞 AgentServer 启动。
-    from jiuwenswarm.server.runtime.session.session_metadata import (
-        migrate_legacy_session_metadata_at_startup,
-    )
-    try:
-        migrate_legacy_session_metadata_at_startup()
-    except (OSError, ValueError, TypeError, RuntimeError) as exc:
-        # 启动迁移为可选优化，任何异常都不得阻断 AgentServer 主流程
-        logger.warning("[AgentServer] 启动会话元数据迁移失败（已跳过，不影响启动）: %s", exc)
+    # 会话 metadata 的字段补全已改为惰性迁移:读取时按需推断并写回磁盘
+    # (见 session_metadata._apply_metadata_defaults_with_inference),无需启动全量扫描。
 
     server = AgentWebSocketServer.get_instance(
         host=host,
