@@ -4849,6 +4849,31 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", exc)
             return None
 
+    def _build_context_headroom_rail(self, config_base: dict[str, Any]) -> ContextHeadroomRail | None:
+        """Build ContextHeadroomRail: steer the agent as the context nears its limit.
+
+        Only added to the rail set when ``context_headroom.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``warn_ratio`` (default 0.60) and
+        ``critical_ratio`` (default 0.80). As context usage crosses each ratio
+        the rail injects a conciseness directive so the agent wraps up before
+        hitting the hard limit.
+        """
+        try:
+            _ch_cfg = config_base.get("context_headroom") or {}
+            _warn_ratio = float(_ch_cfg.get("warn_ratio", 0.60))
+            _critical_ratio = float(_ch_cfg.get("critical_ratio", 0.80))
+            rail = ContextHeadroomRail(_warn_ratio, _critical_ratio)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] ContextHeadroomRail attached "
+                "(warn=%.0f%%, critical=%.0f%%)",
+                _warn_ratio * 100,
+                _critical_ratio * 100,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ContextHeadroomRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4951,6 +4976,19 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_failure_memory_rail",
                     self._build_failure_memory_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Context headroom guard: warn as context usage approaches the limit.
+        # Disabled by default — only inserted when enabled so the registry's
+        # "build returned None" warning is not spammed on every normal build.
+        _ch_cfg = config_base.get("context_headroom") or {}
+        if bool(_ch_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_context_headroom_rail",
+                    self._build_context_headroom_rail,
                     {"config_base": config_base},
                 )
             )
