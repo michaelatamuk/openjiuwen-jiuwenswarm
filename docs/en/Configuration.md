@@ -18,6 +18,10 @@ The configuration panel is organized into three tabs:
 - **Security**: Tool security guardrails, sensitive-info filtering (see [7. Tool Security Guardrails](#7-tool-security-guardrails))
 - **Other**: Third-party services, self-evolution, context compression, skill symphony, etc.
 
+Additional backend configuration sections include:
+
+- **Verification**: Post-task verifier command for benchmark / CI environments (see [11. Verification Configuration](#11-verification-configuration))
+
 > 💡 **Tip**: Model configuration (`api_base`, `api_key`, `model`, `model_provider`) is required; all other configurations are optional.
 
 ---
