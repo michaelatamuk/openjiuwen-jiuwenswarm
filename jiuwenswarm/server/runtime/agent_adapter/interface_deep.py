@@ -174,7 +174,6 @@ from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDedu
 from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import ContextHeadroomRail
 from jiuwenswarm.agents.harness.common.rails.step_back_rail import StepBackRail
-from jiuwenswarm.agents.harness.common.rails.output_format_rail import OutputFormatRail
 from jiuwenswarm.agents.harness.common.rails.verifier_circuit_breaker_rail import VerifierCircuitBreakerRail
 from jiuwenswarm.agents.harness.common.rails.permissions.owner_scopes import (
     TOOL_PERMISSION_CONTEXT,
