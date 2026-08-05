@@ -594,6 +594,8 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
         if self._abort_requested.get(sid, False):
             raise asyncio.CancelledError("Agent abort requested")
 
+        await self._emit_llm_call_signal(ctx, "llm_call_start")
+
         self._inject_tool_call_goal_schema(ctx)
         self._ensure_tool_call_goal_prompt()
 
@@ -696,11 +698,35 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
             logger.warning("[StreamEventRail] inject call_goal prompt failed: %s", exc)
 
     async def after_model_call(self, ctx: AgentCallbackContext) -> None:
+        await self._emit_llm_call_signal(ctx, "llm_call_end")
         await self._emit_context_usage(
             ctx,
             member_name=self._member_name or None,
             role=self._role or None,
         )
+
+    async def _emit_llm_call_signal(self, ctx: AgentCallbackContext, phase: str) -> None:
+        """Emit an ``llm_call_start`` / ``llm_call_end`` stream event.
+
+        Lets the IDE show a live "thinking" indicator at the *beginning* of a
+        model call (before the first token) instead of only learning the call
+        happened once output arrives. Fires on every model call; in team mode
+        ``member_name`` / ``role`` identify which agent's lane to update.
+        """
+        session = ctx.session
+        if session is None:
+            return
+        payload: dict[str, Any] = {}
+        if self._member_name:
+            payload["member_name"] = self._member_name
+        if self._role:
+            payload["role"] = self._role
+        try:
+            await session.write_stream(
+                OutputSchema(type=phase, index=0, payload=payload)
+            )
+        except Exception:
+            logger.debug("[StreamEventRail] %s emit failed", phase, exc_info=True)
 
     async def before_tool_call(self, ctx: AgentCallbackContext) -> None:
         sid = self._resolve_sid(ctx, ctx.session)
