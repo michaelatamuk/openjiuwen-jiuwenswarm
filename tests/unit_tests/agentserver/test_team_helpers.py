@@ -3966,6 +3966,55 @@ def test_workflow_updated_to_team_events_ignores_non_workflow_events():
     assert out == []
 
 
+def test_workflow_updated_to_team_events_activity_emits_activity_changed():
+    """New worker activity entries become team.member.activity_changed events, deduped.
+
+    Activity present at spawn time is swallowed (the spawn event already covers the
+    worker's initial state); only entries appended in later deltas emit events.
+    """
+    seen_phase, seen_agent, spawned, seen_activity = {}, {}, set(), {}
+    phases = [
+        {
+            "id": "review-1",
+            "name": "review",
+            "status": "running",
+            "agents": [
+                {
+                    "id": "reviewer-1",
+                    "name": "reviewer",
+                    "status": "running",
+                    "activity": [
+                        {"type": "tool_call", "content": "tool: write_file"},
+                    ],
+                }
+            ],
+        }
+    ]
+    out = team_helpers._workflow_updated_to_team_events(
+        _wf_event(phases), "sess-wf", seen_phase, seen_agent, spawned, seen_activity
+    )
+    types = [e["event"]["type"] for e in out]
+    assert "team.member.spawned" in types
+    # The initial activity arrived inside the spawn delta -> no separate event yet.
+    assert "team.member.activity_changed" not in types
+
+    # A new entry in a later delta -> one activity_changed for the new entry only.
+    phases[0]["agents"][0]["activity"].append(
+        {"type": "tool_call", "content": "tool: bash"}
+    )
+    out2 = team_helpers._workflow_updated_to_team_events(
+        _wf_event(phases), "sess-wf", seen_phase, seen_agent, spawned, seen_activity
+    )
+    acts = [e for e in out2 if e["event"]["type"] == "team.member.activity_changed"]
+    assert [a["event"]["activity"] for a in acts] == ["tool: bash"]
+
+    # Same delta again -> no duplicate activity events.
+    again = team_helpers._workflow_updated_to_team_events(
+        _wf_event(phases), "sess-wf", seen_phase, seen_agent, spawned, seen_activity
+    )
+    assert all(e["event"]["type"] != "team.member.activity_changed" for e in again)
+
+
 def test_workflow_updated_to_team_events_planned_phase_creates_task():
     seen_phase, seen_agent, spawned = {}, {}, set()
     out = team_helpers._workflow_updated_to_team_events(
