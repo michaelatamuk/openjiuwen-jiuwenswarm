@@ -169,6 +169,7 @@ from jiuwenswarm.common.log_preview import preview_text
 from jiuwenswarm.common.stage_timer import StageTimer
 from jiuwenswarm.common.tool_ownership import mark_stateless, register_tool, unregister_tool
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
+from jiuwenswarm.agents.harness.common.rails.output_format_rail import OutputFormatRail
 from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDeduplicationRail
 from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import ContextHeadroomRail
@@ -4896,6 +4897,29 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach StepBackRail: %s", exc)
             return None
 
+    def _build_output_format_rail(self, config_base: dict[str, Any]) -> OutputFormatRail | None:
+        """Build OutputFormatRail: keep the output-format requirement visible.
+
+        Only added to the rail set when ``output_format.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``path`` (default /app/task.md) and
+        ``max_chars`` (default 800). The rail pins the expected output format
+        from the task file into the system prompt and reminds the agent to keep
+        its answer within the size limit.
+        """
+        try:
+            _of_cfg = config_base.get("output_format") or {}
+            _of_path = str(_of_cfg.get("path", "/app/task.md"))
+            _of_max_chars = int(_of_cfg.get("max_chars", 800))
+            rail = OutputFormatRail(_of_path, _of_max_chars)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] OutputFormatRail attached (path=%s)",
+                _of_path,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach OutputFormatRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -5024,6 +5048,20 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_step_back_rail",
                     self._build_step_back_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Output format reminder: keep the expected output format visible and
+        # within the size limit. Disabled by default — only inserted when
+        # enabled so the registry's "build returned None" warning is not spammed
+        # on every normal build.
+        _of_cfg = config_base.get("output_format") or {}
+        if bool(_of_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_output_format_rail",
+                    self._build_output_format_rail,
                     {"config_base": config_base},
                 )
             )
