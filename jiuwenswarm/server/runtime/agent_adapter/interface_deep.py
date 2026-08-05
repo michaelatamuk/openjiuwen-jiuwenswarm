@@ -171,7 +171,6 @@ from jiuwenswarm.common.tool_ownership import mark_stateless, register_tool, unr
 from jiuwenswarm.server.hooks.user_hook_rail import UserHookRail
 from jiuwenswarm.agents.harness.common.rails.tool_dedup_rail import ToolCallDeduplicationRail
 from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
-from jiuwenswarm.agents.harness.common.rails.failure_memory_rail import FailureMemoryRail
 from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import ContextHeadroomRail
 from jiuwenswarm.agents.harness.common.rails.step_back_rail import StepBackRail
 from jiuwenswarm.agents.harness.common.rails.output_format_rail import OutputFormatRail
@@ -4828,6 +4827,28 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
+    def _build_failure_memory_rail(self, config_base: dict[str, Any]) -> FailureMemoryRail | None:
+        """Build FailureMemoryRail: keep a running summary of failed approaches.
+
+        Only added to the rail set when ``failure_memory.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``failure_memory.max_failures`` (default
+        10). The rail records tool failures in session state and injects a
+        summary into the system prompt so the agent knows which approaches have
+        already failed and should not be retried.
+        """
+        try:
+            _fm_cfg = config_base.get("failure_memory") or {}
+            _max_failures = int(_fm_cfg.get("max_failures", 10))
+            rail = FailureMemoryRail(_max_failures)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] FailureMemoryRail attached (max_failures=%d)",
+                _max_failures,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -4916,6 +4937,20 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_tool_call_deduplication_rail",
                     self._build_tool_call_deduplication_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Failure-pattern memory: record failed approaches in session state and
+        # surface them in the system prompt. Disabled by default — only inserted
+        # when enabled so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _fm_cfg = config_base.get("failure_memory") or {}
+        if bool(_fm_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_failure_memory_rail",
+                    self._build_failure_memory_rail,
                     {"config_base": config_base},
                 )
             )
