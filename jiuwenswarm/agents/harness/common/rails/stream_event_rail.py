@@ -722,11 +722,111 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
         if self._role:
             payload["role"] = self._role
         try:
+            if phase == "llm_call_start":
+                prompt_preview = self._summarize_call_prompt(ctx)
+                if prompt_preview:
+                    payload["prompt"] = prompt_preview
+            elif phase == "llm_call_end":
+                response_text = self._extract_response_text(ctx)
+                if response_text:
+                    payload["content"] = response_text
             await session.write_stream(
                 OutputSchema(type=phase, index=0, payload=payload)
             )
         except Exception:
             logger.debug("[StreamEventRail] %s emit failed", phase, exc_info=True)
+
+    @staticmethod
+    def _extract_response_text(ctx: AgentCallbackContext, max_chars: int = 16000) -> str | None:
+        """Best-effort extraction of the model's text output for ``llm_call_end``.
+
+        Tolerates the content shapes providers use: a plain string, a list of
+        content parts (``[{"type": "text", "text": ...}]``), or a nested
+        ``message.content``.
+        """
+        response = getattr(ctx.inputs, "response", None)
+        if response is None:
+            return None
+        if isinstance(response, dict):
+            content = response.get("content")
+            if content is None:
+                message = response.get("message")
+                content = message.get("content") if isinstance(message, dict) else None
+        else:
+            content = getattr(response, "content", None)
+            if content is None:
+                message = getattr(response, "message", None)
+                content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
+
+        text = JiuSwarmStreamEventRail._coerce_content_text(content)
+        if not text:
+            return None
+        if len(text) > max_chars:
+            return text[:max_chars] + "\n… (truncated)"
+        return text
+
+    @staticmethod
+    def _coerce_content_text(content: Any) -> str | None:
+        if isinstance(content, str):
+            return content.strip() or None
+        if isinstance(content, list):
+            parts: list[str] = []
+            for part in content:
+                if isinstance(part, dict):
+                    ptext = part.get("text")
+                    if isinstance(ptext, str) and ptext.strip():
+                        parts.append(ptext)
+                elif isinstance(part, str) and part.strip():
+                    parts.append(part)
+            joined = " ".join(parts).strip()
+            return joined or None
+        if isinstance(content, dict):
+            ptext = content.get("text")
+            if isinstance(ptext, str) and ptext.strip():
+                return ptext.strip()
+        return None
+
+    @staticmethod
+    def _summarize_call_prompt(ctx: AgentCallbackContext, max_chars: int = 8000) -> str | None:
+        """Serialize the preview messages into a bounded, readable prompt string.
+
+        Carried inside ``llm_call_start`` so the IDE can show the prompt at the
+        moment a model call begins. Kept bounded: the static system prompt is
+        omitted, tool results are collapsed, and the total is truncated.
+        """
+        messages = getattr(ctx.inputs, "messages", None) or []
+        if not messages:
+            return None
+        parts: list[str] = []
+        total = 0
+        for msg in messages:
+            if isinstance(msg, dict):
+                role = str(msg.get("role") or "?")
+                content = msg.get("content")
+            else:
+                role = str(getattr(msg, "role", None) or "?")
+                content = getattr(msg, "content", None)
+            if role == "system":
+                continue
+            if role == "tool":
+                text = "<tool result>"
+            elif isinstance(content, str):
+                text = content
+            elif isinstance(content, list):
+                text = "\n".join(
+                    str(part.get("text", ""))
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") == "text"
+                )
+            else:
+                text = str(content) if content else ""
+            segment = f"<{role}>\n{text}"
+            if total + len(segment) > max_chars:
+                parts.append(segment[: max(0, max_chars - total)] + "\n… (truncated)")
+                break
+            parts.append(segment)
+            total += len(segment)
+        return "\n\n".join(parts)
 
     async def before_tool_call(self, ctx: AgentCallbackContext) -> None:
         sid = self._resolve_sid(ctx, ctx.session)
