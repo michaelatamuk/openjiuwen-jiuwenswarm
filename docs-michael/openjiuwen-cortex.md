@@ -9,9 +9,9 @@ OpenJiuwen Cortex is a collection of independent projects — algorithms, system
 ### SkillTend — Online Skill Maintenance
 *Solution + Research*
 
-**Solution — Skill Review Rail.** A background rail that keeps skills and memory current during live agent sessions without interrupting the agent. It fires after a configurable number of tool calls or user turns, snapshots the conversation, and asks an LLM to propose small, targeted patches to SKILL.md files and memory entries rather than full rewrites — preserving stable content while fixing what has drifted. All review work is serialised and non-blocking.
+**Skill Review Rail.** A background rail that keeps skills and memory current during live agent sessions without interrupting the agent. It fires after a configurable number of tool calls or user turns, snapshots the conversation, and asks an LLM to propose small, targeted patches to SKILL.md files and memory entries rather than full rewrites — preserving stable content while fixing what has drifted. All review work is serialised and non-blocking.
 
-**Solution — Curator.** A companion daemon that monitors skill usage over time and transitions skills through a lifecycle (ACTIVE → STALE → ARCHIVED), retiring skills that are no longer used and preventing the skill library from growing unbounded.
+**Curator.** A companion daemon that monitors skill usage over time and transitions skills through a lifecycle (ACTIVE → STALE → ARCHIVED), retiring skills that are no longer used and preventing the skill library from growing unbounded.
 
 **Research.** The research component (`skilltend_research/`) runs eight interdependent empirical studies:
 
@@ -20,12 +20,23 @@ OpenJiuwen Cortex is a collection of independent projects — algorithms, system
 - **Study 03** — identifies the minimum-cost LLM that achieves ≥95% of frontier-model review quality.
 - **Study 04** — compares four memory injection strategies at varying character limits.
 - **Study 05** — uses survival analysis and an XGBoost predictor (target AUC > 0.75) to replace the fixed-threshold lifecycle FSM with a learned one.
-- **Studies 06–08** — cover prompt ablations, mid-session patch interference, and library-level coverage gaps.
+- **Study 06** — prompt ablations: which parts of the review prompt drive quality gains.
+- **Study 07** — mid-session patch interference: whether review patches applied during a session destabilise ongoing agent behaviour.
+- **Study 08** — library-level coverage gaps: which skill types are systematically under-reviewed or under-triggered.
 
 ### SkillForge — Offline Skill Optimisation
 *Solution + Research*
 
-**Solution.** SkillForge automatically evolves JiuwenSwarm SKILL.md files between sessions using a genetic algorithm called GEPA (Genetic Evolutionary Prompt Adaptation). It maintains a population of skill variants, evaluates each against seven complementary fitness metrics (bag-of-words, F1, ROUGE, semantic similarity, graph structure, checklist coverage, cross-skill consistency), and uses Thompson Sampling at three levels — skill scheduling, training example selection, and acceptance gating — to concentrate the optimisation budget on skills most likely to improve. A regression-aware holdout gate prevents any evolved skill from being deployed if it degrades performance on examples that were already passing.
+**Solution.** SkillForge automatically evolves JiuwenSwarm SKILL.md files between sessions using a genetic algorithm called GEPA (Genetic Evolutionary Prompt Adaptation). It maintains a population of skill variants and concentrates the optimisation budget on candidates most likely to improve.
+
+**Fitness evaluation** — each variant is scored against seven complementary metrics: bag-of-words, F1, ROUGE, semantic similarity, graph structure, checklist coverage, and cross-skill consistency.
+
+**Thompson Sampling** focuses the budget at three levels:
+- *Skill scheduling* — which skills to evolve next
+- *Training example selection* — which examples to evaluate against
+- *Acceptance gating* — whether to promote a new variant
+
+**Safety gate** — a regression-aware holdout check prevents any evolved skill from being deployed if it degrades performance on examples that were already passing.
 
 **Research.** The paper (`docs/skillforge_paper.md`) identifies three structural problems the solution does not fully close:
 
@@ -33,7 +44,16 @@ OpenJiuwen Cortex is a collection of independent projects — algorithms, system
 - **Regression Trap** — local patches degrading other behaviour
 - **Production Trust Gap** — macro evolution requiring multi-dimensional verification before deployment
 
-Nine open research directions follow: formalising fitness traps and Goodhart's Law in evolutionary prompt systems; AutoML for fitness function selection (replacing the fixed 7-metric weighted average with a learned one); holdout gate composition theory; early gate rejection prediction to cut wasted evaluation budget; discriminative trace construction via optimal experimental design; multi-objective Pareto evolution that makes quality-cost trade-offs explicit; online versus batch evolution dynamics; and cross-task transfer of evolutionary progress between skill domains.
+Nine open research directions follow from these:
+
+- Formalising fitness traps and Goodhart's Law in evolutionary prompt systems
+- AutoML for fitness function selection (replacing the fixed 7-metric weighted average with a learned one)
+- Holdout gate composition theory
+- Early gate rejection prediction to cut wasted evaluation budget
+- Discriminative trace construction via optimal experimental design
+- Multi-objective Pareto evolution that makes quality-cost trade-offs explicit
+- Online versus batch evolution dynamics
+- Cross-task transfer of evolutionary progress between skill domains
 
 ---
 
@@ -106,8 +126,7 @@ A first group of improvements ensures the agent starts cleanly and with full con
 
 **Stability:** A foundational event loop fix eliminates a silent hang and `RuntimeError` in both the agent-core `Runner` startup and the jiuwenswarm `AutoHarness` service — without this fix, the agent produces zero output before a single hook fires.
 
-**Session initialisation — four rails:**
-- **ACP Tool Deduplication** — removes duplicate tools when the ACP channel provides its own file/terminal tools
+**Session initialisation — three rails:**
 - **Task Description Re-injection** — pins the full task goal into the system prompt as a permanent `PromptSection` so context compression can never lose it
 - **Output Format Reminder** — extracts and pins the last format-signal paragraphs and fenced code blocks from `task.md`
 - **External Skill Directories** — loads skills from configurable paths (or `EXTERNAL_SKILL_DIRS` env var); `external_only` flag suppresses personal skills in CI and benchmark environments
@@ -141,7 +160,7 @@ A third group improves the correctness and visibility of final outputs:
 
 - **Bash Output Head+Tail** — replaces head-only truncation of long shell output with a combined head+tail view, preserving verifier error messages at the end of long logs that were previously invisible to the model
 - **Self-Verification Prompt** — injects a system-prompt section instructing the agent to run a configured verifier command after writing output files and iterate until it passes, rather than declaring completion on the first attempt
-- **Prompt Serialisation** — captures the fully assembled prompt in `usage_metadata.prompt` after every LLM call (both streaming and non-streaming), making the exact model input available for logging and debugging without separate instrumentation
+- **Prompt Serialization** — captures the fully assembled prompt in `usage_metadata.prompt` after every LLM call (both streaming and non-streaming), making the exact model input available for logging and debugging without separate instrumentation
 
 ### Evaluation Framework
 *Solution*
@@ -154,7 +173,13 @@ The Evaluation Framework gives JiuwenSwarm a structured way to define test suite
 | `contains` | Expected text appears anywhere in the response | When extra explanation around required content is acceptable |
 | `llm_judge` | LLM returns boolean verdict + reason; retries once on malformed JSON, falls back to `contains` | Open-ended answers, synonymous phrasing, conversational replies |
 
-Running a suite executes all cases sequentially and records status, score, duration, and LLM reason per case. A **Gate Check** runs the suite and compares the pass rate against a configurable threshold (default 80 %); the result is a PASS or FAIL verdict shown inline in the UI and callable programmatically via `run_eval_gate()` — designed as a quality gate before deploying Harness changes or publishing new skills. Suites and run records are stored as plain JSON under `~/.jiuwenswarm/evaluations/` and survive restarts. The framework shares its `EvalRunner` and `judge()` primitives with Auto Harness, which uses the same machinery for its autonomous benchmark loop.
+**Running a suite** executes all cases sequentially, recording status, score, duration, and LLM reason per case.
+
+**Gate Check** runs the suite and compares the pass rate against a configurable threshold (default 80 %). The result — `PASS` or `FAIL` — is shown inline in the UI and is also callable programmatically via `run_eval_gate()`, making it usable as a quality gate before deploying Harness changes or publishing new skills.
+
+**Storage:** suites and run records are plain JSON files under `~/.jiuwenswarm/evaluations/`, surviving restarts and shared across all sessions.
+
+**Auto Harness integration:** the framework shares its `EvalRunner` and `judge()` primitives with Auto Harness, which uses the same machinery for its autonomous benchmark loop.
 
 ### Team Verification Layer
 *Solution*
@@ -178,12 +203,7 @@ The Team Verification Layer adds automatic quality assurance to Agent Team sessi
 
 Results are stored persistently in `TEAM_MEMORY.md` by a `VerificationMemory` component, making quality history available to subsequent tasks and agents in the same session. Two configuration flags govern escalation: `block_on_fail` holds the task until the verdict is returned; `auto_rework` automatically sends the task back to the originating agent with the reviewer's feedback. On completion the rail emits `team.verification.completed` (or `team.verification.error` on failure), which the IDE Swarm Map and OTel tracing consume like any other team event.
 
-**Core components** (Agent Team mode only — no effect on single-agent or DeepAgent-only sessions):
-- `TeamVerificationRail` — DeepAgentRail subclass; intercepts TASK_COMPLETED events
-- `VerificationReviewer` — makes the LLM scoring call with structured JSON output
-- `VerificationMemory` — persists results to TEAM_MEMORY.md
-- `VerificationResult` — structured result data model
-- `VerificationConfig` — typed configuration
+Agent Team mode only — no effect on single-agent or DeepAgent-only sessions. The five implementation components are `TeamVerificationRail`, `VerificationReviewer`, `VerificationMemory`, `VerificationResult`, and `VerificationConfig`.
 
 ---
 
@@ -192,7 +212,10 @@ Results are stored persistently in `TEAM_MEMORY.md` by a `VerificationMemory` co
 ### Thalamus — Context Selection at Runtime
 *Solution + Research*
 
-**Solution.** Thalamus solves context saturation: the problem where an agent's context window fills with irrelevant skill instructions, memory sections, and tool definitions before the actual task even begins. It precomputes optimal component combinations offline using evolutionary search and K-means clustering, then retrieves the right subset at runtime in under 10 ms with no LLM calls. A second path (Path B) trains logistic regression classifiers on operational turn logs and makes per-component inclusion decisions independently of the cluster assignments, providing a fallback that works even when a turn's profile doesn't match any cluster centroid closely.
+**Solution.** Thalamus solves context saturation — the problem where an agent's context window fills with irrelevant skill instructions, memory sections, and tool definitions before the actual task even begins. It operates through two complementary paths:
+
+- **Path A (offline precomputation)** — uses evolutionary search and K-means clustering to find the optimal subset of context components for each task profile. At runtime the right subset is retrieved in under 10 ms with no LLM calls.
+- **Path B (online learning)** — trains logistic regression classifiers on operational turn logs and makes per-component inclusion decisions independently of the cluster assignments. Serves as a fallback when a turn's profile does not match any cluster centroid closely, and feeds a co-inclusion signal back into Path A's fitness function.
 
 **Research.** The `thalamus_research/` module runs five phases validating nine testable claims against a fixed 120-task evaluation suite:
 
@@ -234,7 +257,15 @@ Everything is logged to an append-only JSONL file; no database. PerfRouter (belo
 
 A new model requires only a `models.yaml` entry and a 2-minute pipeline re-run — no benchmark runs needed. Pricing is applied at decision time from runtime config, not baked into the trained model, so cost changes take effect on restart without retraining.
 
-**Research.** Quality and cost data come from three sources: Artificial Analysis API (objective benchmark scores across 527 models), Arena ELO (human preference scores in 5 categories), and WildClawBench ground truth for the 3 models already measured. Evaluated against the current 10-model pool at a 25% quality degradation tolerance versus DeepSeek V4 Pro, PerfRouter achieves **32.2% cost reduction** (80.1% if the baseline is V4 Flash).
+**Research.** Training data comes from three sources:
+
+| Source | What it provides |
+|---|---|
+| Artificial Analysis API | Objective benchmark scores across 527 models |
+| Arena ELO | Human preference scores across 5 categories |
+| WildClawBench | Ground truth for the 3 models already measured |
+
+Evaluated at a 25% quality degradation tolerance versus DeepSeek V4 Pro, the current 10-model pool achieves **32.2% cost reduction** (80.1% if the baseline is V4 Flash).
 
 ---
 
@@ -279,7 +310,17 @@ All work lands on `feature-observability-enhancement`.
 ### TraceHound — Session Diagnostics and Observability
 *Solution*
 
-TraceHound reads JiuwenSwarm session-history JSONL files after sessions complete and produces structured diagnostics across eleven dimensions: data health, conversation length, time bottlenecks, token usage, LLM performance, tool success rates, error categorisation, user query patterns, session flow, tool argument analysis, and content delivery quality. Results are available as a structured report object or human-readable text. An autonomous **HoundAgent** variant runs continuously, watching a directory for new session files and triggering analysis automatically. A **GUI analyzer** provides interactive exploration for debugging a specific session. TraceHound handles post-session forensics; Agent-Core OTel handles real-time instrumentation.
+TraceHound analyzes JiuwenSwarm session-history JSONL files after sessions complete and produces structured diagnostics. It covers eleven dimensions:
+
+data health · conversation length · time bottlenecks · token usage · LLM performance · tool success rates · error categorisation · user query patterns · session flow · tool argument analysis · content delivery quality
+
+Results are available as a structured report object or human-readable text. Three usage modes:
+
+- **Batch analysis** — run against a finished session file on demand
+- **HoundAgent** — autonomous variant that watches a directory and triggers analysis automatically on new session files
+- **GUI analyzer** — interactive exploration for debugging a specific session
+
+TraceHound handles post-session forensics; Agent-Core OTel handles real-time instrumentation.
 
 ---
 
