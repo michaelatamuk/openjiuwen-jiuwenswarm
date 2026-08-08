@@ -12,31 +12,37 @@ Note: JiuwenSwarm already has Slack, Discord, Telegram, WhatsApp, WeChat, DingTa
 
 ### Technical Builders
 
-| Who They Are | What They Do | Best Way to Reach Them |
-|---|---|---|
-| **Software Developers** | Write code in IDEs every day | They already use the IDE plugin — this is the current core audience |
-| **Data Scientists** | Work with Python notebooks, ML models, data analysis | Post a working Kaggle notebook or Hugging Face demo showing a real task |
-| **AI / ML Researchers** | Study multi-agent systems, publish papers, build benchmarks | Publish a systems paper on arXiv with reproducible benchmarks |
-| **DevOps / SRE Teams** | Handle server alerts, incidents, on-call rotations | "Show HN" post on Hacker News about a real incident response use case |
-| **Cybersecurity Professionals** | Research threats, test systems, analyze vulnerabilities | GitHub repo with security use case + DEF CON or Black Hat Arsenal demo |
+| Audience                                                                                           | Best Way to Reach Them                                                           |
+|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| **Software Developers**<br/>Write code in IDEs every day                                           | They already use the IDE plugin — this is the current core audience              |
+| **Data Scientists**<br/>Work with Python notebooks, ML models, data analysis                       | Post a working Kaggle notebook or Hugging Face demo showing a real task          |
+| **Data Engineers**<br/>Build ETL pipelines, orchestrate data workflows, manage data infrastructure | Guest post on the dbt blog or a talk at a DataOps / dbt conference               |
+| **AI / ML Researchers**<br/>Study multi-agent systems, publish papers, build benchmarks            | Publish a systems paper on arXiv with reproducible benchmarks                    |
+| **DevOps / SRE Teams**<br/>Handle server alerts, incidents, on-call rotations                        | "Show HackerNews" post on Hacker News about a real incident response use case    |
+| **QA / Test Engineers**<br/>Write test specs, automate regression suites, triage test failures       | Blog post or Show HackerNews on generating test specs from a real codebase automatically |
+| **Cybersecurity Professionals**<br/>Research threats, test systems, analyze vulnerabilities          | GitHub repo with security use case + DEF CON or Black Hat Arsenal demo           |
 
 ### Knowledge & Business Workers
 
-| Who They Are | What They Do | Best Way to Reach Them |
-|---|---|---|
-| **Business Professionals** | Run projects, analyze information, coordinate teams | 90-second LinkedIn video showing a real business task being completed |
-| **Product Managers** | Write specs, do competitive research, manage roadmaps | Case study in Lenny's Newsletter or Lenny's Slack community |
-| **Legal Professionals** | Research cases, review contracts, monitor regulations | Case study from a real law firm + outreach to legal innovation teams at big firms |
-| **Journalists / Investigators** | Track sources, process documents, research stories | Article in Nieman Lab showing a real story that used JiuwenSwarm for research |
-| **Academic Researchers** | Run literature reviews, synthesize research, write papers | Co-author one real domain paper where JiuwenSwarm was used as a tool |
+| Audience                                                                                                          | Best Way to Reach Them |
+|-------------------------------------------------------------------------------------------------------------------|---|
+| **Business Professionals**<br/>Run projects, analyze information, coordinate teams                                | 90-second LinkedIn video showing a real business task being completed |
+| **Product Managers**<br/>Write specs, do competitive research, manage roadmaps                                    | Case study in Lenny's Newsletter or Lenny's Slack community |
+| **Financial Analysts**<br/>Research markets, model portfolios, write investment memos                             | LinkedIn post showing a real research workflow; direct outreach to fintech-forward fund analysts |
+| **Legal Professionals**<br/>Research cases, review contracts, monitor regulations                                 | Case study from a real law firm + outreach to legal innovation teams at big firms |
+| **Healthcare / Clinical Researchers**<br/>Synthesize clinical evidence, monitor guidelines, write trial protocols | Clinical informatics conference demo or co-authored systematic review |
+| **Journalists / Investigators**<br/>Track sources, process documents, research stories                            | Article in Nieman Lab showing a real story that used JiuwenSwarm for research |
+| **Academic Researchers**<br/>Run literature reviews, synthesize research, write papers                            | Co-author one real domain paper where JiuwenSwarm was used as a tool |
 
 ### Creators, Educators & Operators
 
-| Who They Are | What They Do | Best Way to Reach Them |
-|---|---|---|
-| **Content Creators** | Write newsletters, record YouTube videos, run podcasts | Get 2-3 YouTube creators in the "AI tools" niche to use it and show it |
-| **Educators & Students** | Teach AI courses, learn multi-agent systems | Get listed in GitHub Education toolbox; reach one professor who assigns it |
-| **Agencies & Freelancers** | Build client projects, deliver AI solutions for hire | Revenue story on Indie Hackers: "how I finished a project in half the time" |
+| Audience                                                                                      | Best Way to Reach Them |
+|-----------------------------------------------------------------------------------------------|---|
+| **Content Creators**<br/>Write newsletters, record YouTube videos, run podcasts               | Get 2–3 YouTube creators in the "AI tools" niche to use it and show it |
+| **Technical Writers**<br/>Maintain developer docs, write tutorials and release notes          | Write the Docs conference talk or community post showing a real documentation workflow |
+| **Educators & Students**<br/>Teach AI courses, learn multi-agent systems                        | Get listed in GitHub Education toolbox; reach one professor who assigns it |
+| **Startup Founders / Solo Operators**<br/>Run research, marketing, and ops alone without a team | Hacker News post framing JiuwenSwarm as a force multiplier for solo operators |
+| **Agencies & Freelancers**<br/>Build client projects, deliver AI solutions for hire             | Revenue story on Indie Hackers: "how I finished a project in half the time" |
 
 ### Which ones to focus on first (fastest path to real users):
 
@@ -45,9 +51,20 @@ Note: JiuwenSwarm already has Slack, Discord, Telegram, WhatsApp, WeChat, DingTa
 | Data Scientists | Fast — they discover tools online constantly | Low — one notebook demo or HF Space |
 | DevOps / SRE | Fast — very active on Hacker News | Low — one honest post about a real use case |
 | Agencies & Freelancers | Fast — always looking for leverage | Low — one Indie Hackers revenue story |
+| Startup Founders / Solo Operators | Fast — very HackerNews-native, voracious tool adopters | Low — one Show HackerNews framed for solo operators |
+| QA / Test Engineers | Fast — active in testing communities | Low — one blog post or Show HackerNews |
 | Content Creators | Fast — one video = mass reach | Medium — finding the right creator |
 | Product Managers | Medium — concentrated community | Medium — getting into Lenny's Slack |
+| AI / ML researchers | Medium | Low — one arXiv paper |
+| Data Engineers | Medium — community-driven discovery | Medium — requires a guest post or conference slot |
+| Technical Writers | Medium — Write the Docs community is small but focused | Low — one talk or community post |
+| Cybersecurity | Medium | Low — GitHub repo + DEF CON |
+| Journalists | Medium | Medium — one Nieman Lab piece |
+| Financial Analysts | Medium — LinkedIn and fintech-native | Medium — requires a credible workflow demo |
+| Educators / students | Slow | Medium — GitHub Education listing |
+| Business professionals | Slow | High — requires SaaS / no-install experience |
 | Legal Professionals | Slow — relationship-driven industry | High — requires real case study + conference |
+| Healthcare / Clinical Researchers | Slow — highly credentialed, evidence-required field | High — requires co-authored research or conference |
 | Academic Researchers | Slow — long citation cycle | High — requires co-authored paper |
 
 ---
@@ -101,15 +118,15 @@ People who build software, run systems, or do technical research. They discover 
 **Who:** Infrastructure engineers, site reliability engineers, platform teams — people who deal with alerts, incidents, runbooks, and on-call rotations.
 
 **Where they discover tools:**
-- Hacker News ("Show HN" posts from engineers about real operational problems)
+- Hacker News ("Show HackerNews" posts from engineers about real operational problems)
 - r/devops and r/sre
 - DevOps Days conference talks
 - Community blogs around incident tools (incident.io, PagerDuty, Grafana)
 - Engineering blogs from well-known companies
 
 **Discovery moves:**
-- A "Show HN: We built an incident response swarm that triages alerts and drafts the Slack summary automatically" post gets intense engagement from SREs who face exactly this problem.
-- A write-up of one real production incident where JiuwenSwarm reduced mean-time-to-resolution, posted on a personal engineering blog and submitted to HN, reaches this entire audience. SRE communities respond to operational war stories more than to product announcements.
+- A "Show HackerNews: We built an incident response swarm that triages alerts and drafts the Slack summary automatically" post gets intense engagement from SREs who face exactly this problem.
+- A write-up of one real production incident where JiuwenSwarm reduced mean-time-to-resolution, posted on a personal engineering blog and submitted to HackerNews, reaches this entire audience. SRE communities respond to operational war stories more than to product announcements.
 
 ---
 
@@ -287,14 +304,20 @@ Not all audiences are equal in reachability or strategic value. A rough ranking 
 | Audience | Discovery speed | Effort | Leverage |
 |---|---|---|---|
 | Data scientists | Fast | Low (one HF Space or Kaggle notebook) | High — very online, tool-sharing culture |
-| DevOps / SRE | Fast | Low (one HN post) | Medium — converts well if use case resonates |
+| DevOps / SRE | Fast | Low (one HackerNews post) | Medium — converts well if use case resonates |
 | Agencies / freelancers | Fast | Low (Indie Hackers post) | Medium — small individual impact, high count |
+| Startup founders / solo operators | Fast | Low (one Show HackerNews post) | High — force-multiplier framing resonates immediately |
+| QA / test engineers | Fast | Low (one blog post or Show HackerNews) | Medium — active in testing communities, adopt quickly |
 | Content creators | Fast | Medium (finding right creator) | Very high — one video = mass reach |
 | AI / ML researchers | Medium | Low (one arXiv paper) | High — citations compound |
 | Cybersecurity | Medium | Low (GitHub + DEF CON) | Medium — niche but loyal |
 | Product managers | Medium | Medium (Lenny's community) | High — early adopters, love sharing tools |
+| Data engineers | Medium | Medium (dbt blog or conference) | Medium — growing community, pipeline-automation resonates |
+| Technical writers | Medium | Low (Write the Docs talk or post) | Medium — small community, but docs teams influence developer tooling decisions |
 | Journalists | Medium | Medium (one Nieman Lab piece) | Medium — small but influential community |
+| Financial analysts | Medium | Medium (LinkedIn post + direct outreach) | High — high willingness to pay, large research surface |
 | Educators / students | Slow | Medium (GitHub Education) | High — sticky, long-term cohort |
 | Business professionals | Slow | High (requires SaaS / no-install) | High if friction removed |
 | Legal professionals | Slow | High (conference + case study) | High — high willingness to pay |
+| Healthcare / clinical researchers | Slow | High (requires co-authored research or conference) | High — systematic review bottleneck is acute |
 | Academic researchers | Slow | High (requires co-authorship) | Very high — decade-long citation trail |
