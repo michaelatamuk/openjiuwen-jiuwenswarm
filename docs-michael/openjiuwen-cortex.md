@@ -324,7 +324,7 @@ TraceHound handles post-session forensics; Agent-Core OTel handles real-time ins
 
 ---
 
-## IDE Integration
+## Developer Environment Integration
 
 ### jiuwenswarm-ide — IDE Plugin
 *Solution*
@@ -342,3 +342,17 @@ JiuwenSwarm IDE brings the full JiuwenSwarm multi-agent experience into the deve
 - Real-time Swarm Map panel with Map, List, and Board (kanban) views
 
 The plugin is infrastructure — agent logic runs in JiuwenSwarm; the IDE wraps it.
+
+### jiuwenswarm-jupyterlab — JupyterLab Extension
+*Solution*
+
+jiuwenswarm-jupyterlab brings JiuwenSwarm into Jupyter notebooks as a native in-process integration. The agent runs directly inside the notebook kernel — no separate server, no extra tool — and can read live variables, DataFrames, and cell history from the running Python namespace.
+
+**Features:**
+- `%%jiuwen` cell magic and `%jiuwen` line magic — works in JupyterLab, classic Notebook, VS Code Notebooks, Colab, and Kaggle
+- Streaming live output into cell output area with collapsible tool-call cards
+- Automatic notebook context injection (variables, DataFrames, cell history, imported packages)
+- JupyterLab sidebar chat panel and swarm map panel (shares `chat.html` / `swarm_map.html` with the IDE plugin)
+- `read_notebook_cell`, `read_variable`, and `insert_notebook_cell` agent tools for direct notebook manipulation
+
+Targets data scientists and ML researchers who work in notebooks rather than IDEs.
