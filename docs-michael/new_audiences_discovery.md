@@ -12,37 +12,37 @@ Note: JiuwenSwarm already has Slack, Discord, Telegram, WhatsApp, WeChat, DingTa
 
 ### Technical Builders
 
-| Audience                                                                                           | Best Way to Reach Them                                                           |
-|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| **Software Developers**<br/>Write code in IDEs every day                                           | They already use the IDE plugin — this is the current core audience              |
-| **Data Scientists**<br/>Work with Python notebooks, ML models, data analysis                       | Post a working Kaggle notebook or Hugging Face demo showing a real task          |
-| **Data Engineers**<br/>Build ETL pipelines, orchestrate data workflows, manage data infrastructure | Guest post on the dbt blog or a talk at a DataOps / dbt conference               |
-| **AI / ML Researchers**<br/>Study multi-agent systems, publish papers, build benchmarks            | Publish a systems paper on arXiv with reproducible benchmarks                    |
-| **DevOps / SRE Teams**<br/>Handle server alerts, incidents, on-call rotations                        | "Show HackerNews" post on Hacker News about a real incident response use case    |
-| **QA / Test Engineers**<br/>Write test specs, automate regression suites, triage test failures       | Blog post or Show HackerNews on generating test specs from a real codebase automatically |
-| **Cybersecurity Professionals**<br/>Research threats, test systems, analyze vulnerabilities          | GitHub repo with security use case + DEF CON or Black Hat Arsenal demo           |
+| Audience | Best Way to Reach Them | Missing Before Outreach |
+|---|---|---|
+| **Software Developers**<br/>Write code in IDEs every day | They already use the IDE plugin — this is the current core audience | Nothing blocking — ready now |
+| **Data Scientists**<br/>Work with Python notebooks, ML models, data analysis | Post a working Kaggle notebook or Hugging Face demo showing a real task | No feature gap — needs one polished public demo (Kaggle notebook or HF Space) |
+| **Data Engineers**<br/>Build ETL pipelines, orchestrate data workflows, manage data infrastructure | Guest post on the dbt blog or a talk at a DataOps / dbt conference | Integrations with dbt, Airflow, or Prefect; ability to read pipeline DAGs and understand task dependencies — without this the demo has no differentiation from a generic chat tool |
+| **AI / ML Researchers**<br/>Study multi-agent systems, publish papers, build benchmarks | Publish a systems paper on arXiv with reproducible benchmarks | Benchmarking suite with reproducible numbers on standard multi-agent tasks; Papers With Code listing |
+| **DevOps / SRE Teams**<br/>Handle server alerts, incidents, on-call rotations | "Show HN" post on Hacker News about a real incident response use case | Read integrations with PagerDuty, OpsGenie, Grafana, or Prometheus — without these the agent gives generic advice but cannot see the actual alert context |
+| **QA / Test Engineers**<br/>Write test specs, automate regression suites, triage test failures | Blog post or Show HN on generating test specs from a real codebase automatically | CI integration (GitHub Actions, GitLab CI); ability to read JUnit/coverage reports and use them as agent input |
+| **Cybersecurity Professionals**<br/>Research threats, test systems, analyze vulnerabilities | GitHub repo with security use case + DEF CON or Black Hat Arsenal demo | Local / air-gapped deployment option or explicit data-handling documentation — pentesters will not send vulnerability data to a cloud API without this |
 
 ### Knowledge & Business Workers
 
-| Audience                                                                                                          | Best Way to Reach Them |
-|-------------------------------------------------------------------------------------------------------------------|---|
-| **Business Professionals**<br/>Run projects, analyze information, coordinate teams                                | 90-second LinkedIn video showing a real business task being completed |
-| **Product Managers**<br/>Write specs, do competitive research, manage roadmaps                                    | Case study in Lenny's Newsletter or Lenny's Slack community |
-| **Financial Analysts**<br/>Research markets, model portfolios, write investment memos                             | LinkedIn post showing a real research workflow; direct outreach to fintech-forward fund analysts |
-| **Legal Professionals**<br/>Research cases, review contracts, monitor regulations                                 | Case study from a real law firm + outreach to legal innovation teams at big firms |
-| **Healthcare / Clinical Researchers**<br/>Synthesize clinical evidence, monitor guidelines, write trial protocols | Clinical informatics conference demo or co-authored systematic review |
-| **Journalists / Investigators**<br/>Track sources, process documents, research stories                            | Article in Nieman Lab showing a real story that used JiuwenSwarm for research |
-| **Academic Researchers**<br/>Run literature reviews, synthesize research, write papers                            | Co-author one real domain paper where JiuwenSwarm was used as a tool |
+| Audience | Best Way to Reach Them | Missing Before Outreach |
+|---|---|---|
+| **Business Professionals**<br/>Run projects, analyze information, coordinate teams | 90-second LinkedIn video showing a real business task being completed | Web app with no install — CLI setup is a hard blocker; this audience uses Notion, not terminals |
+| **Product Managers**<br/>Write specs, do competitive research, manage roadmaps | Case study in Lenny's Newsletter or Lenny's Slack community | Jira / Linear / Confluence read integration; ability to upload and process existing docs (PRDs, research decks) |
+| **Financial Analysts**<br/>Research markets, model portfolios, write investment memos | LinkedIn post showing a real research workflow; direct outreach to fintech-forward fund analysts | Financial data connectors (SEC EDGAR, Yahoo Finance); structured tabular output; data residency documentation (required in regulated environments) |
+| **Legal Professionals**<br/>Research cases, review contracts, monitor regulations | Case study from a real law firm + outreach to legal innovation teams at big firms | PDF / DOCX upload and processing; explicit data confidentiality posture (attorney-client privilege concerns block adoption without it); audit trail of agent reasoning steps |
+| **Healthcare / Clinical Researchers**<br/>Synthesize clinical evidence, monitor guidelines, write trial protocols | Clinical informatics conference demo or co-authored systematic review | HIPAA compliance documentation or HIPAA-compliant deployment option; PubMed / ClinicalTrials.gov integration; PRISMA-format systematic review output |
+| **Journalists / Investigators**<br/>Track sources, process documents, research stories | Article in Nieman Lab showing a real story that used JiuwenSwarm for research | Document upload + OCR (leaked PDFs, scanned records); continuous web / RSS monitoring mode; source attribution in agent output |
+| **Academic Researchers**<br/>Run literature reviews, synthesize research, write papers | Co-author one real domain paper where JiuwenSwarm was used as a tool | PubMed / arXiv / Semantic Scholar read integration; BibTeX / Zotero export; ability to process large PDF corpora |
 
 ### Creators, Educators & Operators
 
-| Audience                                                                                      | Best Way to Reach Them |
-|-----------------------------------------------------------------------------------------------|---|
-| **Content Creators**<br/>Write newsletters, record YouTube videos, run podcasts               | Get 2–3 YouTube creators in the "AI tools" niche to use it and show it |
-| **Technical Writers**<br/>Maintain developer docs, write tutorials and release notes          | Write the Docs conference talk or community post showing a real documentation workflow |
-| **Educators & Students**<br/>Teach AI courses, learn multi-agent systems                        | Get listed in GitHub Education toolbox; reach one professor who assigns it |
-| **Startup Founders / Solo Operators**<br/>Run research, marketing, and ops alone without a team | Hacker News post framing JiuwenSwarm as a force multiplier for solo operators |
-| **Agencies & Freelancers**<br/>Build client projects, deliver AI solutions for hire             | Revenue story on Indie Hackers: "how I finished a project in half the time" |
+| Audience | Best Way to Reach Them | Missing Before Outreach |
+|---|---|---|
+| **Content Creators**<br/>Write newsletters, record YouTube videos, run podcasts | Get 2–3 YouTube creators in the "AI tools" niche to use it and show it | Web app with no install — this audience uses tools like Notion and Canva; CLI install will not happen |
+| **Technical Writers**<br/>Maintain developer docs, write tutorials and release notes | Write the Docs conference talk or community post showing a real documentation workflow | Codebase-aware doc generation (read source → suggest matching docs); git integration; RST / MDX output; integration with ReadTheDocs or Mintlify |
+| **Educators & Students**<br/>Teach AI courses, learn multi-agent systems | Get listed in GitHub Education toolbox; reach one professor who assigns it | Free or educational pricing tier; sandboxed / constrained execution mode for classroom safety; ready-made assignment templates and curriculum materials |
+| **Startup Founders / Solo Operators**<br/>Run research, marketing, and ops alone without a team | Hacker News post framing JiuwenSwarm as a force multiplier for solo operators | Web app with no install; workflow templates for common founder tasks (competitor research, investor memos, customer interview synthesis) |
+| **Agencies & Freelancers**<br/>Build client projects, deliver AI solutions for hire | Revenue story on Indie Hackers: "how I finished a project in half the time" | Multi-project isolation (separate context per client); client-facing API or white-label option; project export format for client deliverables |
 
 ### Which ones to focus on first (fastest path to real users):
 
