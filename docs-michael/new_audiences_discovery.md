@@ -38,7 +38,7 @@ Note: JiuwenSwarm already has Slack, Discord, Telegram, WhatsApp, WeChat, DingTa
 | **Educators & Students** | Teach AI courses, learn multi-agent systems | Get listed in GitHub Education toolbox; reach one professor who assigns it |
 | **Agencies & Freelancers** | Build client projects, deliver AI solutions for hire | Revenue story on Indie Hackers: "how I finished a project in half the time" |
 
-**Which ones to focus on first (fastest path to real users):**
+### Which ones to focus on first (fastest path to real users):
 
 | Audience | How fast they can become users | How much effort it takes |
 |---|---|---|
@@ -52,7 +52,7 @@ Note: JiuwenSwarm already has Slack, Discord, Telegram, WhatsApp, WeChat, DingTa
 
 ---
 
-## Audiences
+## Audiences (Detailed)
 
 ### Technical Builders
 
