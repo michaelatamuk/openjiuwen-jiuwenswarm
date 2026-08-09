@@ -4985,7 +4985,8 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach ContextHeadroomRail: %s", exc)
             return None
 
-    def _build_step_back_rail(self, config_base: dict[str, Any]) -> StepBackRail | None:
+    @staticmethod
+    def _build_step_back_rail(config_base: dict[str, Any]) -> StepBackRail | None:
         """Build StepBackRail: rethink the approach after consecutive shell failures.
 
         Only added to the rail set when ``step_back.enabled`` is true (see
