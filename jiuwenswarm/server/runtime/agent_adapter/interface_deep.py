@@ -4816,7 +4816,6 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
-    def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
     def _build_task_description_rail(self, config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
@@ -4935,7 +4934,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_failure_memory_rail(self, config_base: dict[str, Any]) -> FailureMemoryRail | None:
+    @staticmethod
+    def _build_failure_memory_rail(config_base: dict[str, Any]) -> FailureMemoryRail | None:
         """Build FailureMemoryRail: keep a running summary of failed approaches.
 
         Only added to the rail set when ``failure_memory.enabled`` is true (see
