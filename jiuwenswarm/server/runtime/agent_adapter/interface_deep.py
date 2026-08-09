@@ -4816,8 +4816,6 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
-    def _build_output_format_rail(config_base: dict[str, Any]) -> OutputFormatRail | None:
-    @staticmethod
     def _build_task_description_rail(self, config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
@@ -5008,7 +5006,8 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach StepBackRail: %s", exc)
             return None
 
-    def _build_output_format_rail(self, config_base: dict[str, Any]) -> OutputFormatRail | None:
+    @staticmethod
+    def _build_output_format_rail(config_base: dict[str, Any],) -> OutputFormatRail | None:
         """Build OutputFormatRail: keep the output-format requirement visible.
 
         Only added to the rail set when ``output_format.enabled`` is true (see
