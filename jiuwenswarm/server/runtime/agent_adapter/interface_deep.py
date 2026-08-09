@@ -4777,7 +4777,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_autonomous_mode_rail(self, config_base: dict[str, Any]) -> AutonomousModeRail | None:
+    @staticmethod
+    def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
         """Build AutonomousModeRail: override interactive hedging when running unattended.
 
         Reads ``autonomy.enabled`` from the config snapshot. When enabled, the
