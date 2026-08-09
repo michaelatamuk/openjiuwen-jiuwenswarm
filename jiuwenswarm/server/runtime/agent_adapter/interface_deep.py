@@ -4777,7 +4777,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_task_description_rail(self, config_base: dict[str, Any]) -> TaskDescriptionRail | None:
+    @staticmethod
+    def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
         Only added to the rail set when ``task_description.enabled`` is true
