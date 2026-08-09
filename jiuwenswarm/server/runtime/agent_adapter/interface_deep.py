@@ -4775,9 +4775,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_verifier_circuit_breaker_rail(
-        self, config_base: dict[str, Any]
-    ) -> VerifierCircuitBreakerRail | None:
+    @staticmethod
+    def _build_verifier_circuit_breaker_rail(config_base: dict[str, Any]) -> VerifierCircuitBreakerRail | None:
         """Build VerifierCircuitBreakerRail: force a strategy change on repeated verifier failures.
 
         Reads ``verifier_circuit_breaker`` from the config snapshot (``enabled``
