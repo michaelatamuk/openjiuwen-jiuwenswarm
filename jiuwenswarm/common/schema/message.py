@@ -124,11 +124,12 @@ class ReqMethod(Enum):
     SKILLS_EVOLUTION_GET = "skills.evolution.get"
     SKILLS_EVOLUTION_SAVE = "skills.evolution.save"
 
-    SYMPHONY_BUILD_SCORE = "symphony.build_score"
-    SYMPHONY_PAUSE_BUILD = "symphony.pause_build"
-    SYMPHONY_SCORE_STATUS = "symphony.score_status"
-    SYMPHONY_GRAPH = "symphony.graph"
-    SYMPHONY_PLAN = "symphony.plan"
+    # Skill Graph Web panel transport. The implementation is provided by
+    # agent-core Symphony, while the public transport remains skill-domain API.
+    SKILLS_GRAPH_BUILD = "skills.graph.build"
+    SKILLS_GRAPH_STATUS = "skills.graph.status"
+    SKILLS_GRAPH_GET = "skills.graph.get"
+    SKILLS_GRAPH_CANCEL = "skills.graph.cancel"
 
     # Plugin management (reuses skills marketplace infrastructure)
     PLUGINS_LIST = "plugins.list"
@@ -268,6 +269,8 @@ class Mode(Enum):
     CODE_NORMAL = "code.normal"
     CODE_TEAM = "code.team"
     TEAM = "team"
+    TEAM_PLAN_NORMAL = "team.plan.normal"
+    TEAM_PLAN_CODE = "team.plan.code"
 
     @classmethod
     def from_raw(cls, raw_mode: Any, default: "Mode | None" = None) -> "Mode":
@@ -290,6 +293,8 @@ class Mode(Enum):
         # 不依赖 fallback 默认值恰好等于 AGENT。
         if normalized in ("plan", "fast"):
             return cls.AGENT
+        if normalized == "team.plan":
+            return cls.TEAM_PLAN_NORMAL
         try:
             return cls(normalized)
         except ValueError:
