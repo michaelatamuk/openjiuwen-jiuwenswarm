@@ -4816,6 +4816,8 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
+    def _build_output_format_rail(config_base: dict[str, Any]) -> OutputFormatRail | None:
+    @staticmethod
     def _build_task_description_rail(self, config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
