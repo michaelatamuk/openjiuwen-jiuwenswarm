@@ -4816,6 +4816,8 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
+    def _build_verifier_circuit_breaker_rail(config_base: dict[str, Any]) -> VerifierCircuitBreakerRail | None:
+    @staticmethod
     def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
