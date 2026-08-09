@@ -246,8 +246,15 @@ def _skill_mode(config: dict[str, Any]) -> str:
         return SkillUseRail.SKILL_MODE_AUTO_LIST
     react = _config_section(config, "react")
     raw = react.get("skill_mode", SkillUseRail.SKILL_MODE_ALL)
-    valid = {SkillUseRail.SKILL_MODE_AUTO_LIST, SkillUseRail.SKILL_MODE_ALL}
+    valid = {SkillUseRail.SKILL_MODE_AUTO_LIST, SkillUseRail.SKILL_MODE_ALL, SkillUseRail.SKILL_MODE_RECOMMENDATION}
     return raw if isinstance(raw, str) and raw in valid else SkillUseRail.SKILL_MODE_ALL
+
+
+def _oracle_dir(config: dict[str, Any]) -> str | None:
+    """Resolve oracle_dir from ``react.oracle_dir`` or ``JIUWENSWARM_ORACLE_DIR`` env var."""
+    react = _config_section(config, "react")
+    value = react.get("oracle_dir") or os.getenv("JIUWENSWARM_ORACLE_DIR")
+    return str(value) if value else None
 
 
 def _retrieval_enabled(config: dict[str, Any] | None = None) -> bool:
@@ -368,6 +375,7 @@ _RAIL_PARAM_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     registry.CODE_SKILL_USE: lambda c: {
         "skill_mode": _skill_mode(c),
         "include_tools": not _retrieval_enabled(c),
+        "oracle_dir": _oracle_dir(c),
     },
     registry.CODE_WORKTREE: lambda c: {"enabled": True},
 }
