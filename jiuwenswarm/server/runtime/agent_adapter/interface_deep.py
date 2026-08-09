@@ -4775,7 +4775,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_output_format_rail(self, config_base: dict[str, Any]) -> OutputFormatRail | None:
+    @staticmethod
+    def _build_output_format_rail(config_base: dict[str, Any]) -> OutputFormatRail | None:
         """Build OutputFormatRail: keep the output-format requirement visible.
 
         Only added to the rail set when ``output_format.enabled`` is true (see
