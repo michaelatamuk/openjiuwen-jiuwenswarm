@@ -4957,7 +4957,8 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", exc)
             return None
 
-    def _build_context_headroom_rail(self, config_base: dict[str, Any]) -> ContextHeadroomRail | None:
+    @staticmethod
+    def _build_context_headroom_rail(config_base: dict[str, Any]) -> ContextHeadroomRail | None:
         """Build ContextHeadroomRail: steer the agent as the context nears its limit.
 
         Only added to the rail set when ``context_headroom.enabled`` is true (see
