@@ -4815,6 +4815,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
+    @staticmethod
+    def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
     def _build_task_description_rail(self, config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
