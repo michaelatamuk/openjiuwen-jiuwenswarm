@@ -51,16 +51,21 @@ class ReqMethod(Enum):
     SESSION_REWIND_COMPACT = "session.rewind_compact"
     SESSION_RESTORE_FILES = "session.restore_files"
     HISTORY_LIST_TURNS = "history.list_turns"
+    TEAM_TEMPLATES_LIST = "team.templates.list"
+    TEAM_BINDINGS_LIST = "team.bindings.list"
+    TEAM_BINDING_CREATE = "team.binding.create"
+    TEAM_BINDING_GENERATE = "team.binding.generate"
+    TEAM_SESSION_BIND = "team.session.bind"
     TEAM_DELETE = "team.delete"
 
     PATH_GET = "path.get"
     PATH_SET = "path.set"
 
-    BROWSER_START = "browser.start"
     BROWSER_RUNTIME_RESTART = "browser.runtime_restart"
 
     CONFIG_CACHE_CLEAR = "config.cache_clear"
     AGENT_RELOAD_CONFIG = "agent.reload_config"
+    AGENT_PREWARM_SYNC = "agent.prewarm.sync"
 
     MEMORY_COMPUTE = "memory.compute"
 
@@ -119,11 +124,12 @@ class ReqMethod(Enum):
     SKILLS_EVOLUTION_GET = "skills.evolution.get"
     SKILLS_EVOLUTION_SAVE = "skills.evolution.save"
 
-    SYMPHONY_BUILD_SCORE = "symphony.build_score"
-    SYMPHONY_PAUSE_BUILD = "symphony.pause_build"
-    SYMPHONY_SCORE_STATUS = "symphony.score_status"
-    SYMPHONY_GRAPH = "symphony.graph"
-    SYMPHONY_PLAN = "symphony.plan"
+    # Skill Graph Web panel transport. The implementation is provided by
+    # agent-core Symphony, while the public transport remains skill-domain API.
+    SKILLS_GRAPH_BUILD = "skills.graph.build"
+    SKILLS_GRAPH_STATUS = "skills.graph.status"
+    SKILLS_GRAPH_GET = "skills.graph.get"
+    SKILLS_GRAPH_CANCEL = "skills.graph.cancel"
 
     # Plugin management (reuses skills marketplace infrastructure)
     PLUGINS_LIST = "plugins.list"
@@ -163,6 +169,8 @@ class ReqMethod(Enum):
 
     CHANNEL_TELEGRAM_GET_CONF = "channel.telegram.get_conf"
     CHANNEL_TELEGRAM_SET_CONF = "channel.telegram.set_conf"
+    CHANNEL_SLACK_GET_CONF = "channel.slack.get_conf"
+    CHANNEL_SLACK_SET_CONF = "channel.slack.set_conf"
     CHANNEL_DINGTALK_GET_CONF = "channel.dingtalk.get_conf"
     CHANNEL_DINGTALK_SET_CONF = "channel.dingtalk.set_conf"
 
@@ -182,6 +190,7 @@ class ReqMethod(Enum):
     TEAM_SNAPSHOT = "team.snapshot"
     TEAM_HISTORY_GET = "team.history.get"
     TEAM_MEMBERS_GET = "team.members.get"
+    TEAM_MQ_PUBLISH = "team.mq.publish"
 
     # Harness package management
     HARNESS_PACKAGES_GET = "harness.packages.get"
@@ -255,6 +264,8 @@ class Mode(Enum):
     CODE_NORMAL = "code.normal"
     CODE_TEAM = "code.team"
     TEAM = "team"
+    TEAM_PLAN_NORMAL = "team.plan.normal"
+    TEAM_PLAN_CODE = "team.plan.code"
 
     @classmethod
     def from_raw(cls, raw_mode: Any, default: "Mode | None" = None) -> "Mode":
@@ -277,6 +288,8 @@ class Mode(Enum):
         # 不依赖 fallback 默认值恰好等于 AGENT。
         if normalized in ("plan", "fast"):
             return cls.AGENT
+        if normalized == "team.plan":
+            return cls.TEAM_PLAN_NORMAL
         try:
             return cls(normalized)
         except ValueError:
