@@ -4775,9 +4775,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_tool_call_deduplication_rail(
-        self, config_base: dict[str, Any]
-    ) -> ToolCallDeduplicationRail | None:
+    @staticmethod
+    def _build_tool_call_deduplication_rail(config_base: dict[str, Any]) -> ToolCallDeduplicationRail | None:
         """Build ToolCallDeduplicationRail: collapse repeated identical tool calls.
 
         Only added to the rail set when ``tool_dedup.enabled`` is true (see
