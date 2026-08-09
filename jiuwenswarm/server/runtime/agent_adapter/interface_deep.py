@@ -4777,7 +4777,8 @@ class JiuWenSwarmDeepAdapter:
             )
             return None
 
-    def _build_iteration_budget_rail(self, config: dict[str, Any]) -> IterationBudgetRail | None:
+    @staticmethod
+    def _build_iteration_budget_rail(config: dict[str, Any]) -> IterationBudgetRail | None:
         """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
 
         Reads ``max_iterations`` / ``budget_warning_threshold`` from the mode
