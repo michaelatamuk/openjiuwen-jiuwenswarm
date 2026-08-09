@@ -36,6 +36,7 @@ import {
   type FetchHistoryPageResult,
 } from './features/historyRestore';
 import { prefetchHistoryPages } from './features/historyPagination';
+import { queueOrAddGoalObjectiveMessage } from './features/goalPendingObjectiveBubble';
 import {
   normalizeToolCallPayload,
   normalizeToolResultPayload,
@@ -90,7 +91,13 @@ import { isSetupGuideEnabled } from './features/modelSetupGuide/modelSetupGuideS
 import './App.css';
 
 type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
-const TEAM_SESSION_MODES = new Set(['team', 'team.plan', 'code.team']);
+const TEAM_SESSION_MODES = new Set([
+  'team',
+  'team.plan',
+  'team.plan.normal',
+  'team.plan.code',
+  'code.team',
+]);
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
 const CHAT_PANEL_MAX_WIDTH_PCT = 70;
@@ -365,7 +372,7 @@ function AppContent() {
   const historyPageCancelRef = useRef(new Map<string, () => void>());
   const historyBackgroundPrefetchTokensRef = useRef(new Map<string, number>());
   const creatingSessionRef = useRef(false);
-  const promotedFromNewSessionIdsRef = useRef(new Set<string>());
+  const sessionIdsCreatedInThisPageRef = useRef(new Set<string>());
   const shareExportRef = useRef<HTMLDivElement>(null);
   const shareExportFilenameRef = useRef('jiuwenswarm-share.png');
   const shareExportTokenRef = useRef(0);
@@ -1342,7 +1349,7 @@ function AppContent() {
   useEffect(() => {
     if (!isConnected || !sessionId || sessionId === NEW_CONVERSATION_ID) return;
     
-    if (promotedFromNewSessionIdsRef.current.has(sessionId)) {
+    if (sessionIdsCreatedInThisPageRef.current.has(sessionId)) {
       setHistoryPagerMeta(sessionId, null);
       setHistoryLoadingMore(false);
       setLoadingHistory(sessionId, false);
@@ -1358,8 +1365,8 @@ function AppContent() {
       return;
     }
 
-    // 已有完整历史恢复状态则跳过历史加载，直接使用内存数据。
-    // historyPagerMeta 是唯一可靠的"history 是否完整加载过"标记。
+    // 当前页面新建的会话已在上方复用实时内存数据；对于其他会话，
+    // historyPagerMeta 表示已完成 history 首屏恢复，可直接复用并继续补齐剩余分页。
     const existingRuntime = useChatStore.getState().getRuntime(sessionId);
     if (existingRuntime && existingRuntime.historyPagerMeta) {
       setLoadingHistory(sessionId, false);
@@ -1731,7 +1738,7 @@ function AppContent() {
         }
         usePlanStore.getState().removeRuntime(NEW_CONVERSATION_ID);
         useWorkspaceStore.getState().upsertSession(createdSession, { isNew: true });
-        promotedFromNewSessionIdsRef.current.add(newSid);
+        sessionIdsCreatedInThisPageRef.current.add(newSid);
         useChatStore.getState().setProcessing(NEW_CONVERSATION_ID, false);
         sessionIdRef.current = newSid;
         setSessionId(newSid);
@@ -1741,13 +1748,7 @@ function AppContent() {
         if (goalArmedOnNew) {
           // 欢迎页 "+" 选了「目标」：这条内容不走普通 chat.send，
           // 本地落一条 user 消息（供徽章匹配）后改调 command.goal（见 InputArea.tsx 的同款分流逻辑）
-          useChatStore.getState().addMessage(newSid, {
-            id: `user-${Date.now()}`,
-            role: 'user',
-            content,
-            timestamp: new Date().toISOString(),
-            isGoalObjectiveMessage: true,
-          });
+          queueOrAddGoalObjectiveMessage(newSid, content);
           setGoalObjective(newSid, content);
         } else {
           const sent = await sendMessage(content, newSid, mediaItems);
@@ -1955,7 +1956,6 @@ function AppContent() {
         }
       }
 
-      setHistoryPagerMeta(targetSessionId, null);
       setHistoryLoadingMore(false);
       const existingRuntime = useChatStore.getState().getRuntime(targetSessionId);
       if (!existingRuntime) {
@@ -2013,7 +2013,6 @@ function AppContent() {
       setActiveNav,
       setCurrentSession,
       setHistoryLoadingMore,
-      setHistoryPagerMeta,
       setMode,
       setPaused,
       setProcessing,
@@ -2239,7 +2238,7 @@ function AppContent() {
     && isConversationMissing(routeSessionId, true, sessions);
   const showConversationNotFound = route.kind === 'not-found' || routeSessionMissing;
   const showWorkspaceDivider = isTeamAreaExpanded && !showConversationNotFound;
-  const isNewSessionPromotion = Boolean(sessionId && promotedFromNewSessionIdsRef.current.has(sessionId));
+  const isNewSessionPromotion = Boolean(sessionId && sessionIdsCreatedInThisPageRef.current.has(sessionId));
   const composerFocusKey = showConversationNotFound ? null : `${sessionId}:${composerFocusNonce}`;
 
   useEffect(() => {
