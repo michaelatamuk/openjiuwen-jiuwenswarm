@@ -20,7 +20,7 @@ symphony:
   enabled: false
   paths:
     skills_root: ""
-    score_dir: ""
+    graph_dir: ""
 
   fingerprint:
     scan:
@@ -29,11 +29,6 @@ symphony:
       workers: 4
       batch_size: 2
       body_limit:
-    normalization:
-      workers: 4
-      batch_size: 2
-      duplicate_name_similarity_threshold: 0.8
-      max_vocab_size:
 
   build:
     workers: 4
@@ -533,13 +528,8 @@ react:
       tool_args_bailout_threshold: 2       # 工具入参规则压缩次数达此值后终止
   # Skills 在线自演进配置
   evolution:
-    enabled: true             # true = 启用在线 Skills 自演进
-    auto_scan: false           # 兼容开关：单 Agent / leader 触发 review，teammate 触发 signal
-    signal_trigger:            # true / false = 显式覆盖规则触发；留空使用场景默认值
-    review_trigger:            # true / false = 显式覆盖软触发；留空时按场景回退 auto_scan
-    auto_save: false           # true = 自演进审批无需用户点击自动通过（内部开关）
-    skill_create: false        # true = 注册 SkillCreateRail（单 agent）及 TeamSkillCreateRail（leader）
-    skill_base_dir: "agent/skills"  # Skill 根目录
+    skill_evolution: false     # true = 启用技能演进与创建（自动及手动）
+    auto_save: false           # true = 自演进审批无需用户点击自动通过
   a2x_registry:
     base_url: "http://127.0.0.1:8000"
     timeout: 30.0
@@ -629,6 +619,10 @@ gateway:
       user_template: "yr:instance:{instance}"
       connect_timeout_s: 30
       client_keys_dir: "/root/.ssh"
+    auth_service_url: ${AGENTOS_AUTH_SERVICE_URL:-http://iam-agentos:8080}
+    timeout: ${AGENTOS_AUTH_TIMEOUT:-10}
+    # Web/TUI token 鉴权总开关；默认关闭。true 时创建 AgentOSAuthenticator 校验连接。
+    auth_enabled: false
 
 heartbeat:
   # 心跳间隔（秒），默认 3600
@@ -1047,7 +1041,6 @@ extensions:
   # 扩展包搜索目录（字符串），用 ';' 分割多个目录：
   # EXTENSION_DIRS="E:/a;D:/b"
   extension_dirs: ${EXTENSION_DIRS:-jiuwenswarm/extensions}
-
 
 # ============================================================
 # Hooks 配置

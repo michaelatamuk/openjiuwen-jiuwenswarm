@@ -76,7 +76,11 @@ import {
   findActiveTeamLeaderMessage as findActiveTeamLeaderMessageInTurn,
 } from '../features/teamLeaderMessages';
 import { buildGoalCompletedContent } from '../components/GoalBar/goalCompletedMessage';
-import { stripUploadDocumentBlocks } from '../utils/documentMessage';
+import {
+  stripUploadDocumentBlocks,
+  toUploadDocumentHints,
+  withUploadDocumentBlock,
+} from '../utils/documentMessage';
 
 const WS_RECONNECT_EVENT = 'jiuwenclaw:ws-reconnect-request';
 
@@ -1475,6 +1479,14 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               }
               if (persistedDocs.files && typeof persistedDocs.files === 'object') {
                 Object.assign(mergedFiles, persistedDocs.files);
+              }
+              // The composer could not persist these documents before send (a
+              // brand-new session has no id yet), so its hint block carries
+              // filenames without paths. Rewrite it now that paths exist —
+              // team mode reads paths from the message text only.
+              const documentHints = toUploadDocumentHints(persistedDocs.media_items);
+              if (documentHints.length) {
+                outgoingContent = withUploadDocumentBlock(outgoingContent, documentHints);
               }
             }
             outgoingMediaItems = mergedItems.length ? slimPersistedMediaRecords(mergedItems) : undefined;
@@ -3223,11 +3235,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         if (!sessionId) return;
         if (shouldDropDuplicatedEvent('chat.error', payload)) return;
         useChatStore.getState().setThinking(sessionId, false);
+        // 任何 chat.error 都应解除历史加载态：faas 侧 history.get 流超时
+        // （旧 session runtime 过 TTL 被回收、init 超时）只回发 chat.error
+        // 而非结束帧，若不清 isLoadingHistory 会永久吞掉后续
+        // chat.processing_status(is_processing=false)，表现为「一直加载中」。
+        useChatStore.getState().setLoadingHistory(sessionId, false);
         const errorMsg =
           typeof payload.error === 'string' ? payload.error : t('network.unknownError');
         // 忽略 "invalid page_idx or session history not found" 错误，因为这是新会话的正常情况
         if (errorMsg.includes('invalid page_idx or session history not found')) {
-          useChatStore.getState().setLoadingHistory(sessionId, false);
           return;
         }
         useChatStore.getState().setExecutionError(sessionId, errorMsg);
@@ -3629,6 +3645,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
             name?: string;
             execution_status?: string | null;
             mode?: string;
+            role?: string;
+            cli_agent?: string | null;
           };
           const activeSessionId = getPayloadSessionId(payload) || undefined;
           upsertHumanShareCommandFromEvent(payload, e);
@@ -3658,7 +3676,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
                 mode: e.mode,
               });
             }
-          } else if (!e.type || e.type === 'team.member.spawned' || e.type === 'team.member.restarted') {
+          } else if (
+            !e.type ||
+            e.type === 'team.member.spawned' ||
+            e.type === 'team.member.restarted' ||
+            // 成员刚建好还没被拉起（status=unstarted）。后端在 leader 建人后主动
+            // 补广播这条，否则成员在被消息唤醒前对前端完全不存在——而"能 @ 到"
+            // 正是唤醒它的手段（运行时会先 auto_start 再投递）。
+            e.type === 'team.member.registered'
+          ) {
             useSessionStore.getState().addTeamMember(sessionId, {
               id: `member-${Date.now()}`,
               member_id: e.member_id || '',
@@ -3667,6 +3693,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               name: e.name,
               execution_status: e.execution_status,
               mode: e.mode,
+              role: e.role,
+              cli_agent: e.cli_agent,
             });
           }
         }

@@ -10,6 +10,8 @@ import {
   type SlashCommand as TuiSlashCommand,
   TUI,
   matchesKey,
+  isKeyRelease,
+  isKeyRepeat,
   decodeKittyPrintable,
   truncateToWidth,
   visibleWidth,
@@ -56,7 +58,7 @@ import type { McpListItem, McpListPayload } from "../core/commands/builtins/mcp.
 import { buildModeAutocompleteItems } from "../core/commands/builtins/mode.js";
 import { MemoryViewController, type MemoryViewTab } from "./memory-view.js";
 import { PIPELINE_VALUES, PIPELINE_OPTIONS, INTERVAL_VALUES, INTERVAL_OPTIONS, FLAG_OPTIONS } from "../core/commands/builtins/auto-harness.js";
-import { isClientMode, isTeamMode } from "../core/modes.js";
+import { formatModeForDisplay, isClientMode, isTeamMode } from "../core/modes.js";
 import {
   countWaitingForHuman,
   sessionTurnLabelNumber,
@@ -125,6 +127,7 @@ const TRANSCRIPT_WHEEL_SCROLL_LINES = 3;
 // 不可中断的命令列表（ESC 按下时显示提示）
 const UNINTERRUPTIBLE_COMMANDS = ["compact"];
 const SWARM_WORKFLOW_LOG_PREVIEW_ROWS = 8;
+const SWARM_WORKFLOW_AGENT_PREVIEW_LIMIT = 8;
 const SWARM_WORKFLOW_AGENT_TEXT_PREVIEW_ROWS = 6;
 const PERMISSION_TOOL_RE = /工具\s+`([^`]+)`\s+需要授权/;
 const CONFIRM_TOOL_RE = /(?:Tool|工具)\s*:\s*`([^`]+)`/i;
@@ -2637,6 +2640,22 @@ export class AppScreen implements Component, Focusable {
       return;
     }
 
+    if (
+      pendingQuestion &&
+      (pendingQuestion.source === "harmonyos_dev_install_confirm" ||
+        pendingQuestion.source === "harmonyos_dev_update_confirm" ||
+        pendingQuestion.source === "harmonyos_knowledge_mcp_confirm") &&
+      (isKeyRepeat(data) || isKeyRelease(data)) &&
+      matchesKey(data, "enter")
+    ) {
+      // The Enter used to submit /harmonyos-dev-init can still emit Kitty
+      // repeat/release events after the confirmation becomes visible. Ignore
+      // those residual events, but keep the first option selected so a new
+      // Enter press explicitly confirms installation/configuration.
+      this.tui.requestRender();
+      return;
+    }
+
     if (pendingQuestion && this.handlePendingQuestionInput(data, snapshot)) {
       this.tui.requestRender();
       return;
@@ -3604,8 +3623,8 @@ export class AppScreen implements Component, Focusable {
           enterConfigEditor: (focusKey, configPayload, mode) => {
             this.openConfigEditor(focusKey, configPayload, mode);
           },
-          openInEditor: (filePath: string, onDone?: () => void) => {
-            openInExternalEditor(this.tui, filePath, onDone);
+          openInEditor: async (filePath: string, onDone?: (success?: boolean) => void) => {
+            await openInExternalEditor(this.tui, filePath, onDone);
           },
           openFolder: (folderPath: string) => {
             return openFolderInExplorer(folderPath);
@@ -3673,6 +3692,10 @@ export class AppScreen implements Component, Focusable {
     );
     for (const key of this.shownBudgetExhaustedWorkflowKeys) {
       if (!currentWorkflowKeys.has(key)) this.shownBudgetExhaustedWorkflowKeys.delete(key);
+    }
+    if (this.commands.setSkillEvolutionEnabled(snapshot.skillEvolutionEnabled)) {
+      this.composerAutocompleteProvider = this.rebuildAutocompleteProvider();
+      this.editor.setAutocompleteProvider(this.composerAutocompleteProvider);
     }
     // Populate the skill cache as soon as the WebSocket connection is established
     if (!this.didEagerFetchSkills && snapshot.connectionStatus === "connected") {
@@ -6126,7 +6149,7 @@ export class AppScreen implements Component, Focusable {
       void this.openSwarmWorkflowBudget();
       return;
     }
-    if (action === "swarm:back") {
+    if (action === "swarm:back" || action === "swarm:left") {
       if (state.phase === "pending-list") {
         this.restoreFromPendingList(state.previous_phase);
         this.tui.requestRender();
@@ -6135,7 +6158,15 @@ export class AppScreen implements Component, Focusable {
       if (state.phase === "list") {
         this.closeSwarmWorkflowsView();
       } else if (state.phase === "workflow") {
-        this.swarmWorkflowsViewState = this.buildSwarmWorkflowsListState(false, state.workflowId);
+        this.swarmWorkflowsViewState =
+          state.focus === "agents"
+            ? this.buildSwarmWorkflowDetailState(
+                state.workflowId,
+                state.selectedPhaseId,
+                "phases",
+                state.agentList.getSelectedItem()?.value,
+              )
+            : this.buildSwarmWorkflowsListState(false, state.workflowId);
       } else if (state.phase === "agent") {
         if (state.returnTo?.kind === "pending-list") {
           this.replyingToHumanPrompt = null;
@@ -6161,55 +6192,6 @@ export class AppScreen implements Component, Focusable {
         this.restoreFromSessionDetail(state.returnTo);
       }
       // pending-list phase is handled separately above
-      this.tui.requestRender();
-      return;
-    }
-    if (action === "swarm:left") {
-      if (state.phase === "list") {
-        this.closeSwarmWorkflowsView();
-        this.tui.requestRender();
-        return;
-      }
-      if (state.phase === "pending-list") {
-        this.restoreFromPendingList(state.previous_phase);
-        this.tui.requestRender();
-        return;
-      }
-      if (state.phase === "agent") {
-        if (state.returnTo?.kind === "pending-list") {
-          this.replyingToHumanPrompt = null;
-          this.editor.setText("");
-          this.editor.focused = false;
-          this.swarmWorkflowsViewState = this.buildPendingListState(
-            state.returnTo.previous_phase ?? "chat",
-          );
-          this.tui.requestRender();
-          return;
-        }
-        const lookup = findWorkflowAgent(
-          this.state.getSnapshot().workflowRuns,
-          state.workflowId,
-          state.agentId,
-        );
-        this.swarmWorkflowsViewState = this.buildSwarmWorkflowDetailState(
-          state.workflowId,
-          lookup?.phase.id,
-          "agents",
-          state.agentId,
-        );
-      } else if (state.phase === "session-detail") {
-        this.restoreFromSessionDetail(state.returnTo);
-      } else if (state.phase === "workflow") {
-        this.swarmWorkflowsViewState =
-          state.focus === "agents"
-            ? this.buildSwarmWorkflowDetailState(
-                state.workflowId,
-                state.selectedPhaseId,
-                "phases",
-                state.agentList.getSelectedItem()?.value,
-              )
-            : this.buildSwarmWorkflowsListState(false, state.workflowId);
-      }
       this.tui.requestRender();
       return;
     }
@@ -6984,6 +6966,20 @@ export class AppScreen implements Component, Focusable {
     ];
     if (state.focus === "phases") {
       lines.push(...this.renderSwarmWorkflowDetailTree(workflow, state.selectedPhaseId, width));
+      lines.push("");
+      const agentsTitle = selectedPhase ? `Agents · ${selectedPhase.name}` : "Agents";
+      lines.push(padToWidth(palette.text.secondary(agentsTitle), width));
+      if (selectedPhase) {
+        lines.push(
+          ...this.renderSwarmWorkflowAgentRows(
+            selectedPhase.agents ?? [],
+            width,
+            SWARM_WORKFLOW_AGENT_PREVIEW_LIMIT,
+          ),
+        );
+      } else {
+        lines.push(padToWidth(palette.text.dim("No agents"), width));
+      }
     } else {
       lines.push(...this.renderSwarmWorkflowPhaseRows(workflow, state.selectedPhaseId, width));
       lines.push("");
@@ -8386,7 +8382,7 @@ export class AppScreen implements Component, Focusable {
       { value: "__display__", label: `session: ${payload.session_id || snapshot.sessionId}`, description: "" },
       { value: "__display__", label: `name: ${snapshot.sessionTitle || "/rename to add a name"}`, description: "" },
       { value: "__display__", label: `cwd: ${payload.cwd || "unknown"}`, description: "" },
-      { value: "__display__", label: `mode: ${snapshot.mode}`, description: "" },
+      { value: "__display__", label: `mode: ${formatModeForDisplay(snapshot.mode)}`, description: "" },
       { value: "__display__", label: `model: ${payload.model || "unknown"}`, description: "" },
       { value: "__display__", label: `provider: ${payload.provider || "unknown"}`, description: "" },
       { value: "__display__", label: `api_base: ${payload.api_base || "unknown"}`, description: "" },
