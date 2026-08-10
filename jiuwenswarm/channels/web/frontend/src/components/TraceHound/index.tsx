@@ -286,9 +286,13 @@ function findLLMResponseForUsage(
     if (et === 'chat.usage_metadata') break;
     // Stop at user messages — they're not LLM responses
     if (r.role === 'user') break;
-    // Collect response-type events
+    // Collect response-type events. chat.llm_call_end carries the model's
+    // answer and lands AFTER the usage_metadata record in history, so it must
+    // be counted as a response even though the final text may also appear in
+    // chat.final (which can be timestamped before the usage record).
     if (
       et === 'chat.final' ||
+      et === 'chat.llm_call_end' ||
       et === 'chat.tool_call' ||
       et === 'chat.reasoning' ||
       et === 'chat.delta' ||
@@ -1520,6 +1524,9 @@ function RecordCard({ rec, isRetry, displayDelta, allRecords }: { rec: HistoryRe
             const responseParts = responseRecs.map(r => {
               const et = r.event_type ?? '';
               if (et === 'chat.final') {
+                return { type: 'text' as const, label: 'Text', content: r.content ?? '' };
+              }
+              if (et === 'chat.llm_call_end') {
                 return { type: 'text' as const, label: 'Text', content: r.content ?? '' };
               }
               if (et === 'chat.tool_call') {
