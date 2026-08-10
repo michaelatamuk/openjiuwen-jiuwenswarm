@@ -10213,6 +10213,7 @@ class JiuWenSwarmDeepAdapter:
             # A previous consumer may have stopped mid-round; this stream must
             # sample the run kind again on its own first chunk.
             self._reset_round_kind_latch()
+            last_llm_prompt: str | None = None
             async for chunk in interaction_stream:
                 self._track_round_output_boundary(chunk)
                 # First chunk handed back by the runner: records the time to
@@ -10298,6 +10299,8 @@ class JiuWenSwarmDeepAdapter:
                     prompt = payload.get("prompt")
                     if prompt:
                         forward["prompt"] = prompt
+                        if chunk_type == "llm_call_start":
+                            last_llm_prompt = str(prompt)
                     content = payload.get("content")
                     if content:
                         forward["content"] = content
@@ -10317,6 +10320,20 @@ class JiuWenSwarmDeepAdapter:
                         else {}
                     )
                     if isinstance(usage_meta, dict):
+                        for token in (
+                            "input_tokens",
+                            "output_tokens",
+                            "total_tokens",
+                            "cache_tokens",
+                        ):
+                            usage_accumulator[token] += usage_meta.get(token, 0) or 0
+                        for cost in ("input_cost", "output_cost", "total_cost"):
+                            usage_accumulator[cost] += usage_meta.get(cost, 0.0) or 0.0
+
+                        if last_llm_prompt and not usage_meta.get("prompt"):
+                            usage_meta = {**usage_meta, "prompt": last_llm_prompt}
+                            if isinstance(chunk.payload, dict):
+                                chunk.payload["usage_metadata"] = usage_meta
                         _accumulate_usage_metadata(usage_meta, "main")
                     yield AgentResponseChunk(
                         request_id=rid,
