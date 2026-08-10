@@ -745,12 +745,13 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
         return None
 
     @staticmethod
-    def _summarize_call_prompt(ctx: AgentCallbackContext, max_chars: int = 8000) -> str | None:
-        """Serialize the preview messages into a bounded, readable prompt string.
+    def _summarize_call_prompt(ctx: AgentCallbackContext, max_chars: int | None = None) -> str | None:
+        """Serialize the full prompt sent to the model.
 
-        Carried inside ``llm_call_start`` so the IDE can show the prompt at the
-        moment a model call begins. Kept bounded: the static system prompt is
-        omitted, tool results are collapsed, and the total is truncated.
+        Carried inside ``llm_call_start`` so the IDE can show the exact final
+        prompt: system message included, tool results kept, no truncation by
+        default. Inline base64 images are replaced with ``[image]`` to keep the
+        dump readable.
         """
         messages = getattr(ctx.inputs, "messages", None) or []
         if not messages:
@@ -764,11 +765,7 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
             else:
                 role = str(getattr(msg, "role", None) or "?")
                 content = getattr(msg, "content", None)
-            if role == "system":
-                continue
-            if role == "tool":
-                text = "<tool result>"
-            elif isinstance(content, str):
+            if isinstance(content, str):
                 text = content
             elif isinstance(content, list):
                 text = "\n".join(
@@ -778,8 +775,10 @@ class JiuSwarmStreamEventRail(DeepAgentRail):
                 )
             else:
                 text = str(content) if content else ""
+            if "data:image" in text:
+                text = "[image]"
             segment = f"<{role}>\n{text}"
-            if total + len(segment) > max_chars:
+            if max_chars is not None and total + len(segment) > max_chars:
                 parts.append(segment[: max(0, max_chars - total)] + "\n… (truncated)")
                 break
             parts.append(segment)
