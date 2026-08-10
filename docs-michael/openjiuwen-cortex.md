@@ -355,21 +355,16 @@ jiuwenswarm-jupyterlab puts JiuwenSwarm inside Jupyter notebooks, where data sci
 
 Targets data scientists and ML researchers who work in notebooks rather than IDEs.
 
-### jiuwenswarm-browser — Chrome Extension
+### jiuwenswarm-browser — Chromium Extension
 *Solution*
 
-jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research assistant — a side panel that stays open alongside any page the user is reading. Where the IDE plugin understands code and the JupyterLab extension understands data, the browser extension understands web content: articles, papers, filings, social media threads, video transcripts. The user does not need to copy and paste anything; the agent reads the pages they are already browsing.
+jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research assistant. Where the IDE plugin understands code and the JupyterLab extension understands data, the browser extension understands web content — articles, papers, filings, threads, transcripts. Works on Chrome and on Chromium-based browsers without the Side Panel API (major Chinese browsers included), where the panel opens as a popup window automatically.
 
 **What researchers and analysts can do:**
-- Pin pages from multiple open tabs into a named research session — the agent receives all of them as context for every question
-- Ask questions that span several sources at once ("compare the revenue figures across these three reports")
-- Get warnings when a page could not be read properly, with a one-click option to retry
-- Use the agent on 9 categories of structured content out of the box: news articles, GitHub repositories, academic papers, SEC filings, PubMed studies, Wikipedia articles, YouTube videos, Twitter/X threads, and Hacker News discussions
-- Have the agent highlight the specific passages it is citing in the original page, scroll to relevant sections, fill in forms, take screenshots, or open follow-up sources — without leaving the side panel
-- Start from a template — Company Research, Paper Review, or Due Diligence — which pre-fills the session name, mode, and a structured starting prompt
-- Export a session as a portable research package (JSON for re-import, Markdown for sharing or filing)
-- Import a previously exported session to restore pinned pages into any active session
-- Open the active session in the JiuwenSwarm web app in one click — sessions are shared, so chat history and context are already there
-- Share sessions with the JiuwenSwarm web app — a session started in the browser extension is immediately visible in the web app, and vice versa
+- Pin pages from multiple tabs into a named session; the agent treats all of them as one unified context
+- Ask cross-source questions against 9 specialized content types (arXiv, GitHub, SEC EDGAR, PubMed, Wikipedia, YouTube, Twitter/X, Hacker News, generic articles)
+- Let the agent act on pages — highlight cited passages, scroll to sections, fill forms, take screenshots, open follow-up URLs
+- Manage sessions with templates, export to JSON or Markdown, import, and open directly in the web app
+- Save highlights and session notes persistently; notes are injected as context with every message
 
-Targets researchers, financial analysts, journalists, legal professionals, and product managers who work primarily in the browser — reading papers, filings, news, and documentation — rather than in an IDE or notebook.
+Targets researchers, analysts, journalists, and professionals who work primarily in the browser rather than an IDE or notebook.
