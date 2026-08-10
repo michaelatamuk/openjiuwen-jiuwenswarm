@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -2700,26 +2700,41 @@ def _team_event_envelope(
     return {"event_type": category, "session_id": session_id, "event": event}
 
 
+@dataclass
+class _WorkflowEventDedup:
+    """Dedup/aggregation state shared across ``workflow.updated`` deltas for one session.
+
+    The ``workflow.updated`` delta repeatedly re-includes a running phase (once
+    per agent that starts inside it) and a running worker across its stream, so
+    these track last-observed status / spawned members / activity length to avoid
+    emitting duplicate ``team.task`` / ``team.member`` events.
+    """
+
+    seen_phase: dict[str, str] = field(default_factory=dict)
+    seen_agent: dict[str, str] = field(default_factory=dict)
+    spawned_members: set[str] = field(default_factory=set)
+    seen_activity: dict[str, int] = field(default_factory=dict)
+
+
 def _workflow_updated_to_team_events(
     event: dict[str, Any],
     session_id: str,
-    seen_phase: dict[str, str],
-    seen_agent: dict[str, str],
-    spawned_members: set[str],
-    seen_activity: dict[str, int] | None = None,
+    state: _WorkflowEventDedup,
 ) -> list[dict[str, Any]]:
     """Convert one ``workflow.updated`` event into web ``team.member`` / ``team.task`` events.
 
     Each swarmflow phase becomes a ``team.task`` and each worker (agent) becomes a
     ``team.member``. Only status *changes* produce events — the ``workflow.updated``
     delta repeatedly re-includes a running phase (once per agent that starts inside
-    it), so ``seen_phase`` / ``seen_agent`` dedup by last-observed status.
-    Live worker activity (appended to ``agent.activity`` between start/completion)
-    produces ``team.member.activity_changed`` events, deduped by ``seen_activity``
-    (last-seen activity length per member).
+    it), so ``state.seen_phase`` / ``state.seen_agent`` dedup by last-observed
+    status. Live worker activity (appended to ``agent.activity`` between
+    start/completion) produces ``team.member.activity_changed`` events, deduped by
+    ``state.seen_activity`` (last-seen activity length per member).
     """
-    if seen_activity is None:
-        seen_activity = {}
+    seen_phase = state.seen_phase
+    seen_agent = state.seen_agent
+    spawned_members = state.spawned_members
+    seen_activity = state.seen_activity
     if event.get("event_type") != "workflow.updated":
         return []
 
@@ -2847,10 +2862,7 @@ async def _consume_workflow_events(
     existing web frontend can render swarmflow workers/phases.
     """
     is_tui = _resolve_channel_id(channel_id) == "tui"
-    seen_phase: dict[str, str] = {}
-    seen_agent: dict[str, str] = {}
-    spawned_members: set[str] = set()
-    seen_activity: dict[str, int] = {}
+    state = _WorkflowEventDedup()
     try:
         logger.info(
             "[TeamHelpers] workflow event loop started: channel_id=%s session_id=%s is_tui=%s",
@@ -2887,9 +2899,7 @@ async def _consume_workflow_events(
                     )
                     get_team_manager(channel_id).mark_workflow_completed(session_id)
                 continue
-            for team_ev in _workflow_updated_to_team_events(
-                event, session_id, seen_phase, seen_agent, spawned_members, seen_activity
-            ):
+            for team_ev in _workflow_updated_to_team_events(event, session_id, state):
                 _persist_team_history_event(channel_id, session_id, team_ev)
                 await _broadcast_event(channel_id, session_id, team_ev)
             # When the workflow reaches a terminal status, mark
