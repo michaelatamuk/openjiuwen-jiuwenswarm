@@ -9627,6 +9627,9 @@ class JiuWenSwarmDeepAdapter:
             # sample the run kind again on its own first chunk.
             self._reset_round_kind_latch()
             last_llm_prompt: str | None = None
+            # Call-start time — anchors the chat.usage_metadata record so the LLM
+            # Call card renders before the response text (recorded at completion).
+            last_llm_start_ts: float | None = None
             async for chunk in interaction_stream:
                 self._track_round_output_boundary(chunk)
                 # First chunk handed back by the runner: records the time to
@@ -9714,9 +9717,15 @@ class JiuWenSwarmDeepAdapter:
                         forward["prompt"] = prompt
                         if chunk_type == "llm_call_start":
                             last_llm_prompt = str(prompt)
+                            last_llm_start_ts = time.time()
                     content = payload.get("content")
                     if content:
                         forward["content"] = content
+                    # Anchor start / end / usage of the same call to the call's
+                    # start timestamp so the call events group together ahead of
+                    # chat.final (which is recorded at completion).
+                    if chunk_type in ("llm_call_start", "llm_call_end") and last_llm_start_ts is not None:
+                        forward["llm_start_ts"] = last_llm_start_ts
                     yield AgentResponseChunk(
                         request_id=rid,
                         channel_id=cid,
@@ -9742,7 +9751,9 @@ class JiuWenSwarmDeepAdapter:
                             usage_accumulator[token] += usage_meta.get(token, 0) or 0
                         for cost in ("input_cost", "output_cost", "total_cost"):
                             usage_accumulator[cost] += usage_meta.get(cost, 0.0) or 0.0
-
+                        # agent-core no longer serializes the prompt; carry the one
+                        # captured by the llm_call_start rail event so the final
+                        # prompt stays available for the LLM call.
                         if last_llm_prompt and not usage_meta.get("prompt"):
                             usage_meta = {**usage_meta, "prompt": last_llm_prompt}
                             if isinstance(chunk.payload, dict):
@@ -9754,6 +9765,7 @@ class JiuWenSwarmDeepAdapter:
                             "event_type": "chat.usage_metadata",
                             "metadata": chunk.payload,
                             "session_id": session_id,
+                            **({"llm_start_ts": last_llm_start_ts} if last_llm_start_ts is not None else {}),
                         },
                         is_complete=False,
                     )
