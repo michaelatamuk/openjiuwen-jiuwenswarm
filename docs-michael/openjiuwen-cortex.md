@@ -324,35 +324,48 @@ TraceHound handles post-session forensics; Agent-Core OTel handles real-time ins
 
 ---
 
-## Developer Environment Integration
+## Meet users where they work
 
 ### jiuwenswarm-ide — IDE Plugin
 *Solution*
 
-JiuwenSwarm IDE brings the full JiuwenSwarm multi-agent experience into the developer's editor through a JetBrains plugin and a VS Code extension. Both plugins share the same webview UI (`chat.html`, `swarm_map.html`) and connect to a locally running JiuwenSwarm server over WebSocket.
+JiuwenSwarm IDE puts the agent directly inside the developer's editor — available as both a VS Code extension and a JetBrains plugin. The agent is aware of what the developer is currently looking at: open files, recent errors, git state, and project-level rules. This awareness is automatic — the developer does not need to paste context into a chat window.
 
-**Features:**
-- Streaming chat with full tool-call transparency
-- Automatic IDE context injection (active file, cursor position, diagnostics, git state, project rules)
-- File-edit diff viewers with approval workflows
-- Per-turn checkpoint rewind
-- Clickable file and symbol links
-- Terminal integration
-- Session management
-- Real-time Swarm Map panel with Map, List, and Board (kanban) views
+**What developers can do:**
+- Chat with the agent without leaving the editor
+- Review proposed code changes as a diff before accepting or rejecting them
+- Rewind to an earlier point in a session if a direction turns out to be wrong
+- Navigate directly from an agent response to the relevant file or symbol in the editor
+- Let the agent run terminal commands as part of a task
+- Monitor a live multi-agent team through a visual panel that shows which agents are active and what they are working on
 
-The plugin is infrastructure — agent logic runs in JiuwenSwarm; the IDE wraps it.
+Targets software engineers and engineering teams who spend most of their working time in an IDE.
 
 ### jiuwenswarm-jupyterlab — JupyterLab Extension
 *Solution*
 
-jiuwenswarm-jupyterlab brings JiuwenSwarm into Jupyter notebooks as a native in-process integration. The agent runs directly inside the notebook kernel — no separate server, no extra tool — and can read live variables, DataFrames, and cell history from the running Python namespace.
+jiuwenswarm-jupyterlab puts JiuwenSwarm inside Jupyter notebooks, where data scientists and ML researchers actually work. The agent has direct access to the live notebook environment — it can see the current state of variables, datasets, and cell outputs without the user copying anything. It works in JupyterLab, classic Notebook, VS Code Notebooks, Colab, and Kaggle.
 
-**Features:**
-- `%%jiuwen` cell magic and `%jiuwen` line magic — works in JupyterLab, classic Notebook, VS Code Notebooks, Colab, and Kaggle
-- Streaming live output into cell output area with collapsible tool-call cards
-- Automatic notebook context injection (variables, DataFrames, cell history, imported packages)
-- JupyterLab sidebar chat panel and swarm map panel (shares `chat.html` / `swarm_map.html` with the IDE plugin)
-- `read_notebook_cell`, `read_variable`, and `insert_notebook_cell` agent tools for direct notebook manipulation
+**What data scientists can do:**
+- Ask the agent a question or give it a task from inside a notebook cell, without switching windows
+- Get agent responses and generated code written directly into the notebook
+- Have the agent reason over live data — it sees actual variable values and DataFrame contents, not just code
+- Use the sidebar chat panel for a longer back-and-forth conversation while keeping the notebook in view
+- Track multi-agent work on a visual swarm map panel
 
 Targets data scientists and ML researchers who work in notebooks rather than IDEs.
+
+### jiuwenswarm-browser — Chrome Extension
+*Solution*
+
+jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research assistant — a side panel that stays open alongside any page the user is reading. Where the IDE plugin understands code and the JupyterLab extension understands data, the browser extension understands web content: articles, papers, filings, social media threads, video transcripts. The user does not need to copy and paste anything; the agent reads the pages they are already browsing.
+
+**What researchers and analysts can do:**
+- Pin pages from multiple open tabs into a named research session — the agent receives all of them as context for every question
+- Ask questions that span several sources at once ("compare the revenue figures across these three reports")
+- Get warnings when a page could not be read properly, with a one-click option to retry
+- Use the agent on 9 categories of structured content out of the box: news articles, GitHub repositories, academic papers, SEC filings, PubMed studies, Wikipedia articles, YouTube videos, Twitter/X threads, and Hacker News discussions
+- Have the agent highlight the specific passages it is citing in the original page
+- Share sessions with the JiuwenSwarm web app — a session started in the browser extension is immediately visible in the web app, and vice versa
+
+Targets researchers, financial analysts, journalists, legal professionals, and product managers who work primarily in the browser — reading papers, filings, news, and documentation — rather than in an IDE or notebook.
