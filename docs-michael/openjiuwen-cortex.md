@@ -365,7 +365,11 @@ jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research ass
 - Ask questions that span several sources at once ("compare the revenue figures across these three reports")
 - Get warnings when a page could not be read properly, with a one-click option to retry
 - Use the agent on 9 categories of structured content out of the box: news articles, GitHub repositories, academic papers, SEC filings, PubMed studies, Wikipedia articles, YouTube videos, Twitter/X threads, and Hacker News discussions
-- Have the agent highlight the specific passages it is citing in the original page
+- Have the agent highlight the specific passages it is citing in the original page, scroll to relevant sections, fill in forms, take screenshots, or open follow-up sources — without leaving the side panel
+- Start from a template — Company Research, Paper Review, or Due Diligence — which pre-fills the session name, mode, and a structured starting prompt
+- Export a session as a portable research package (JSON for re-import, Markdown for sharing or filing)
+- Import a previously exported session to restore pinned pages into any active session
+- Open the active session in the JiuwenSwarm web app in one click — sessions are shared, so chat history and context are already there
 - Share sessions with the JiuwenSwarm web app — a session started in the browser extension is immediately visible in the web app, and vice versa
 
 Targets researchers, financial analysts, journalists, legal professionals, and product managers who work primarily in the browser — reading papers, filings, news, and documentation — rather than in an IDE or notebook.
