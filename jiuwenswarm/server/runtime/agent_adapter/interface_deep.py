@@ -9724,7 +9724,7 @@ class JiuWenSwarmDeepAdapter:
                     # Anchor start / end / usage of the same call to the call's
                     # start timestamp so the call events group together ahead of
                     # chat.final (which is recorded at completion).
-                    if chunk_type in ("llm_call_start", "llm_call_end") and last_llm_start_ts is not None:
+                    if chunk_type == "llm_call_start" and last_llm_start_ts is not None:
                         forward["llm_start_ts"] = last_llm_start_ts
                     yield AgentResponseChunk(
                         request_id=rid,
