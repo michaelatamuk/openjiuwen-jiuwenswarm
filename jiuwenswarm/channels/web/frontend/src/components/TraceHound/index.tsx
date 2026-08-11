@@ -1294,7 +1294,7 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
   'chat.error':         { icon: '🚨', label: 'Error',            color: '#ef4444' },
 };
 
-function RecordCard({ rec, isRetry, displayDelta, allRecords }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; allRecords?: HistoryRecord[] }) {
+function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[] }) {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
   const icon  = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
@@ -1362,9 +1362,15 @@ function RecordCard({ rec, isRetry, displayDelta, allRecords }: { rec: HistoryRe
         <span style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', flexShrink: 0 }}>
           <span>{fmtTime(rec.timestamp)}</span>
           {displayDelta != null && displayDelta > 0 && (
-            <Tooltip text={`${fmtDelta(displayDelta)} since start of this attempt`}>
+            <Tooltip text={
+              endDelta != null && endDelta > displayDelta
+                ? `LLM call ${fmtDelta(displayDelta)} → response ${fmtDelta(endDelta)}`
+                : `${fmtDelta(displayDelta)} since start of this attempt`
+            }>
               <span style={{ marginLeft: 5, color: displayDelta > 10 ? '#f59e0b' : '#d1d5db', cursor: 'help' }}>
-                {fmtDelta(displayDelta)}
+                {endDelta != null && endDelta > displayDelta
+                  ? `${fmtDelta(displayDelta)} → ${fmtDelta(endDelta)}`
+                  : fmtDelta(displayDelta)}
               </span>
             </Tooltip>
           )}
@@ -1653,11 +1659,38 @@ function TurnDetailView() {
   // show time elapsed within that attempt — never the misleading idle gap duration.
   const displayItems = useMemo(() => {
     type Item =
-      | { type: 'record'; rec: HistoryRecord; displayDelta: number | null }
+      | { type: 'record'; rec: HistoryRecord; displayDelta: number | null; endDelta?: number | null }
       | { type: 'gap'; seconds: number };
     const items: Item[] = [];
     let attemptStartTs = 0;
     let prevTs = 0;
+
+    const pushRecord = (rec: HistoryRecord, i: number, displayDelta: number | null) => {
+      let endDelta: number | null = null;
+      if (rec.event_type === 'chat.usage_metadata') {
+        // LLM Call card: show when the call actually ended — the first
+        // chat.llm_call_end after this usage record (the response/answer of that
+        // call), not later tool execution or the next call.
+        let endTs = 0;
+        for (let j = i + 1; j < turnRecords.length; j++) {
+          const rj = turnRecords[j];
+          const et = rj.event_type ?? '';
+          if (et === 'chat.usage_metadata' || rj.role === 'user') break;
+          if (et === 'chat.llm_call_end') {
+            endTs = rj.timestamp ?? 0;
+            break;
+          }
+          if (!endTs && (et === 'chat.final' || et === 'chat.tool_call' || et === 'chat.delta')) {
+            endTs = rj.timestamp ?? 0;
+          }
+        }
+        if (endTs > 0) {
+          const d = endTs - attemptStartTs;
+          endDelta = d > 0 ? d : null;
+        }
+      }
+      items.push({ type: 'record', rec, displayDelta, endDelta });
+    };
 
     turnRecords.forEach((rec, i) => {
       const ts = rec.timestamp ?? 0;
@@ -1665,21 +1698,27 @@ function TurnDetailView() {
       if (i === 0) {
         attemptStartTs = ts;
         prevTs = ts;
-        items.push({ type: 'record', rec, displayDelta: null });
+        pushRecord(rec, i, null);
         return;
       }
 
       const deltaFromPrev = ts - prevTs;
+      const prevEt = turnRecords[i - 1]?.event_type ?? '';
 
-      if (deltaFromPrev > IDLE_GAP_THRESHOLD_S) {
+      // A tool_result after a tool_call is the same tool execution — the gap is
+      // the tool's runtime, not idle time and not a retry. Keep the attempt
+      // clock running so the result shows its real elapsed time.
+      const isToolResultGap = rec.event_type === 'chat.tool_result' && prevEt === 'chat.tool_call';
+
+      if (deltaFromPrev > IDLE_GAP_THRESHOLD_S && !isToolResultGap) {
         // Large idle gap: separator + reset attempt clock
         items.push({ type: 'gap', seconds: deltaFromPrev });
         attemptStartTs = ts;
         // First record of the new attempt — no delta to show
-        items.push({ type: 'record', rec, displayDelta: null });
+        pushRecord(rec, i, null);
       } else {
         const attemptDelta = ts - attemptStartTs;
-        items.push({ type: 'record', rec, displayDelta: attemptDelta > 0 ? attemptDelta : null });
+        pushRecord(rec, i, attemptDelta > 0 ? attemptDelta : null);
       }
 
       prevTs = ts;
@@ -1763,7 +1802,7 @@ function TurnDetailView() {
           );
         }
         const rec = item.rec;
-        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} allRecords={turnRecords} />;
+        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} />;
       })}
     </div>
   );
