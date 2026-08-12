@@ -599,6 +599,11 @@ _PARENT_REQ_BY_SESSION: dict[str, tuple[str, str, str]] = {}
 # sub-agent run are sequential, so a single slot per sub-session is enough.
 _LAST_PROMPT_BY_SESSION: dict[str, str] = {}
 
+# Wall-clock start of the most recent sub-agent LLM call per session, so
+# ``_on_output`` can stamp the real call duration on the usage_metadata record
+# (TraceHound's Latency / LLM-call latency) instead of leaving it empty.
+_LAST_CALL_START_BY_SESSION: dict[str, float] = {}
+
 
 def set_parent_request_context(
     *, session_id: str, request_id: str, channel_id: str, mode: str,
@@ -816,6 +821,7 @@ def install_subagent_llm_history_forwarder() -> None:
             prompt = _subagent_prompt_preview(kwargs.get("messages"))
             if prompt:
                 _LAST_PROMPT_BY_SESSION[sid] = prompt
+            _LAST_CALL_START_BY_SESSION[sid] = time.time()
             _append_subagent_llm_record(
                 parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
                 event_type="chat.llm_call_start",
@@ -859,10 +865,15 @@ def install_subagent_llm_history_forwarder() -> None:
                     if val is not None:
                         usage_meta[key] = val
 
+            usage_metadata = {"usage_metadata": usage_meta}
+            call_start = _LAST_CALL_START_BY_SESSION.get(_ctx_session_id2(), 0.0)
+            if call_start:
+                usage_metadata["total_latency_ms"] = (time.time() - call_start) * 1000.0
+
             _append_subagent_llm_record(
                 parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
                 event_type="chat.usage_metadata",
-                extra={"metadata": {"usage_metadata": usage_meta}},
+                extra={"metadata": usage_metadata},
             )
             _append_subagent_llm_record(
                 parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
