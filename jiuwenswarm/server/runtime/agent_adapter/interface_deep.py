@@ -9139,6 +9139,22 @@ class JiuWenSwarmDeepAdapter:
         Returns:
             AgentResponse 包含执行结果
         """
+        # Record the parent request context so sub-agent LLM calls (which run in
+        # sub-sessions) can be forwarded into this session's history (TraceHound).
+        try:
+            from jiuwenswarm.agents.harness.agent_observability import (
+                set_parent_request_context,
+            )
+            set_parent_request_context(
+                session_id=request.session_id or "default",
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                mode=(request.params.get("mode", "agent")
+                      if isinstance(request.params, dict) else "agent"),
+            )
+        except Exception:
+            pass
+
         if not self._is_session_scoped_adapter:
             session_adapter = await self._get_or_create_session_adapter(request.session_id)
             try:
@@ -9468,6 +9484,25 @@ class JiuWenSwarmDeepAdapter:
 
         if self._instance is None:
             raise RuntimeError("JiuWenSwarmDeepAdapter 未初始化，请先调用 create_instance()")
+
+        # Record the parent request context so sub-agent LLM calls (which run in
+        # sub-sessions) can be forwarded into this session's history (TraceHound).
+        # Mirror of the non-streaming path (process_message_impl) — the web chat
+        # rides this streaming handler, and without it no sub-agent LLM records
+        # are attributed to the parent session.
+        try:
+            from jiuwenswarm.agents.harness.agent_observability import (
+                set_parent_request_context,
+            )
+            set_parent_request_context(
+                session_id=request.session_id or "default",
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                mode=(request.params.get("mode", "agent")
+                      if isinstance(request.params, dict) else "agent"),
+            )
+        except Exception:
+            pass
 
         _req_model = (request.params.get("model_name") or "") if isinstance(request.params, dict) else ""
         if not self._has_valid_model_config(_req_model):
