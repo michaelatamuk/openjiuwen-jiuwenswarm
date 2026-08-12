@@ -323,7 +323,12 @@ function recordToText(rec: HistoryRecord, allRecords?: HistoryRecord[]): string 
 
 function formatLatencyS(sec: number): string {
   if (!Number.isFinite(sec) || sec <= 0) return '';
-  if (sec >= 60) return `~${Math.round(sec / 60)}m ${Math.round(sec % 60)}s`;
+  if (sec >= 60) {
+    let m = Math.floor(sec / 60);
+    let s = Math.round(sec % 60);
+    if (s === 60) { m += 1; s = 0; }
+    return s > 0 ? `~${m}m ${s}s` : `~${m}m`;
+  }
   return `~${sec.toFixed(1)}s`;
 }
 
@@ -342,6 +347,30 @@ function mdTrunc(s: string, n: number): string {
 function lastUserSegment(prompt: string): string {
   const idx = prompt.lastIndexOf('<user>');
   return idx >= 0 ? prompt.slice(idx + 6) : prompt;
+}
+
+// The main agent's user message is wrapped in an envelope:
+// "You receive a new message: {"source": "web", ..., "content": "<real text>"}".
+// Unwrap it so the cell shows the actual user message, not the JSON envelope.
+function extractUserMessage(prompt: string): string {
+  const seg = lastUserSegment(prompt);
+  const start = seg.indexOf('{');
+  const end = seg.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(seg.slice(start, end + 1));
+      const content = parsed?.content;
+      if (typeof content === 'string' && content.trim()) return content;
+      if (Array.isArray(content)) {
+        const text = content
+          .filter((p: Record<string, unknown>) => p && p.type === 'text' && typeof p.text === 'string')
+          .map((p: Record<string, unknown>) => p.text)
+          .join('\n');
+        if (text.trim()) return text;
+      }
+    } catch { /* not the envelope JSON — fall through */ }
+  }
+  return seg;
 }
 
 // Extract the first http(s) URL found anywhere in a tool-call's parsed args.
@@ -366,6 +395,15 @@ function extractUrlSignature(fmtArgs: string): string {
   return '';
 }
 
+// Host of the call's URL — a weaker but still useful signal: fetch_webpage
+// results often echo a redirected URL (captcha, canonical page) that differs
+// from the requested one but keeps the same host.
+function extractHostSignature(fmtArgs: string): string {
+  const url = extractUrlSignature(fmtArgs);
+  const m = url.match(/^https?:\/\/([^/]+)/);
+  return m ? m[1] : '';
+}
+
 // A fetch_webpage result echoes its URL ("URL: <url>\nStatus: 200 ..."), which
 // already appears in the Input cell. Drop that first line for the Output cell.
 function summarizeToolResult(resultText: string): string {
@@ -379,12 +417,23 @@ function summarizeToolResult(resultText: string): string {
 
 // Pair each tool_call with its tool_result. Parallel results arrive in
 // completion order and can be interleaved with later LLM calls, so this is a
-// greedy match over the whole section: each result claims the earliest pending
-// call with the same tool whose URL signature (when present) appears in the
-// result text.
+// greedy match over the whole section, in four passes of decreasing precision:
+//   0. unique tool_call_id — the call's id appears once and a result carries it
+//      (main agent's task_tool calls; sub-agent tools share a stable card id)
+//   1. exact URL — the result text contains the call's requested URL
+//   2. host — the result text contains the call's host (redirects/captchas)
+//   3. same name — earliest unclaimed result of that tool after the call
 function buildToolPairings(records: HistoryRecord[]): Map<number, { latency: string; output: string }> {
   const pairings = new Map<number, { latency: string; output: string }>();
-  const pending: { idx: number; name: string; sig: string }[] = [];
+  const idCounts = new Map<string, number>();
+  records.forEach(r => {
+    if ((r.event_type ?? '') === 'chat.tool_call') {
+      const cid = String((r.tool_call as Record<string, unknown>)?.tool_call_id ?? '');
+      if (cid) idCounts.set(cid, (idCounts.get(cid) ?? 0) + 1);
+    }
+  });
+  const calls: { idx: number; name: string; sig: string; host: string; callId: string }[] = [];
+  const results: { idx: number; name: string; text: string; callId: string }[] = [];
   records.forEach((r, i) => {
     const et = r.event_type ?? '';
     if (et === 'chat.tool_call') {
@@ -393,22 +442,49 @@ function buildToolPairings(records: HistoryRecord[]): Map<number, { latency: str
       let fmtArgs = '';
       try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
       catch { fmtArgs = String(args ?? ''); }
-      pending.push({ idx: i, name, sig: extractUrlSignature(fmtArgs) });
+      const cid = String((r.tool_call as Record<string, unknown>)?.tool_call_id ?? '');
+      calls.push({
+        idx: i, name,
+        sig: extractUrlSignature(fmtArgs),
+        host: extractHostSignature(fmtArgs),
+        callId: cid && idCounts.get(cid) === 1 ? cid : '',
+      });
     } else if (et === 'chat.tool_result') {
-      const text = `${r.result ?? ''} ${r.content ?? ''}`;
-      for (let p = 0; p < pending.length; p++) {
-        const cand = pending[p];
-        if (cand.name !== r.tool_name) continue;
-        if (cand.sig && !text.includes(cand.sig)) continue;
-        pairings.set(cand.idx, {
-          latency: formatLatencyS((r.timestamp ?? 0) - (records[cand.idx]?.timestamp ?? 0)),
-          output: summarizeToolResult(r.result ?? r.content ?? ''),
-        });
-        pending.splice(p, 1);
-        break;
-      }
+      results.push({ idx: i, name: r.tool_name ?? '', text: `${r.result ?? ''} ${r.content ?? ''}`, callId: r.tool_call_id ?? '' });
     }
   });
+
+  const used = new Set<number>();
+  const pair = (callIdx: number, resIdx: number) => {
+    pairings.set(callIdx, {
+      latency: formatLatencyS((records[resIdx]?.timestamp ?? 0) - (records[callIdx]?.timestamp ?? 0)),
+      output: summarizeToolResult(records[resIdx]?.result ?? records[resIdx]?.content ?? ''),
+    });
+    used.add(resIdx);
+  };
+
+  const matches = (
+    call: { idx: number; name: string; sig: string; host: string; callId: string },
+    res: { idx: number; name: string; text: string; callId: string },
+    mode: 'id' | 'url' | 'host' | 'name',
+  ): boolean => {
+    if (res.idx <= call.idx) return false;
+    if (res.name !== call.name) return false;
+    if (mode === 'id') return !!call.callId && res.callId === call.callId;
+    if (mode === 'url') return !!call.sig && res.text.includes(call.sig);
+    if (mode === 'host') return !!call.host && res.text.includes(call.host);
+    return true;
+  };
+
+  for (const mode of ['id', 'url', 'host', 'name'] as const) {
+    for (const call of calls) {
+      if (pairings.has(call.idx)) continue;
+      for (const res of results) {
+        if (used.has(res.idx)) continue;
+        if (matches(call, res, mode)) { pair(call.idx, res.idx); break; }
+      }
+    }
+  }
   return pairings;
 }
 
@@ -453,7 +529,7 @@ function recordToStepRow(
           }
           return '';
         })();
-    const input = mdTrunc(lastUserSegment(um?.prompt ?? ''), 160);
+    const input = mdTrunc(extractUserMessage(um?.prompt ?? ''), 160);
     let output = '';
     for (const r of findLLMResponseForUsage(rec, records)) {
       if ((r.event_type === 'chat.final' || r.event_type === 'chat.llm_call_end') && r.content) {
@@ -514,21 +590,24 @@ function recordToStepRow(
 
 function turnToStepByStepMarkdown(records: HistoryRecord[]): string {
   const main: HistoryRecord[] = [];
+  // Group by sub-session when available (several parallel sub-agents of the
+  // same type would otherwise collapse into one section); fall back to type
+  // for records recorded before sub_session_id was stamped.
   const subs = new Map<string, HistoryRecord[]>();
   for (const r of records) {
-    if (r.subagent_type) {
-      const arr = subs.get(r.subagent_type) ?? [];
-      arr.push(r);
-      subs.set(r.subagent_type, arr);
-    } else {
-      main.push(r);
-    }
+    const key = r.sub_session_id ? `sid:${r.sub_session_id}` : (r.subagent_type ? `type:${r.subagent_type}` : '');
+    if (!key) { main.push(r); continue; }
+    const arr = subs.get(key) ?? [];
+    arr.push(r);
+    subs.set(key, arr);
   }
   const groups: { title: string; records: HistoryRecord[] }[] = [];
   if (main.length) groups.push({ title: 'Main Orchestrator Trace', records: main });
   let si = 1;
-  for (const [type, recs] of subs) {
-    groups.push({ title: `Subagent ${si++}: ${type} Trace`, records: recs });
+  for (const [key, recs] of subs) {
+    const type = recs[0]?.subagent_type ?? 'subagent';
+    const short = key.startsWith('sid:') ? ` (${key.slice(4).slice(-6)})` : '';
+    groups.push({ title: `Subagent ${si++}: ${type} Trace${short}`, records: recs });
   }
 
   const lines: string[] = [];

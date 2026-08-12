@@ -165,6 +165,7 @@ export interface HistoryRecord {
   timestamp: number;
   mode: string | null;
   subagent_type?: string;
+  sub_session_id?: string;
   tool_name?: string;
   tool_call?: { id: string; name: string; arguments: unknown };
   result?: string;
