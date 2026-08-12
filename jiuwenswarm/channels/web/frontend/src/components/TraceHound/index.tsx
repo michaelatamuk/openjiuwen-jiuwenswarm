@@ -237,6 +237,316 @@ function downloadJson(data: unknown, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function downloadText(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function recordHeaderLabel(rec: HistoryRecord): string {
+  const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
+  const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
+  const subLabel = rec.subagent_type ? ` · subagent: ${rec.subagent_type}` : '';
+  if (key === 'chat.tool_call') return `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}`;
+  if (key === 'chat.tool_result') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`;
+  if (key === 'chat.tool_update') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`;
+  if (key === 'chat.usage_metadata') return `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}`;
+  return meta.label;
+}
+
+// Serialize a history record as plain text, mirroring exactly what its on-screen
+// card shows (header label, body, tool arguments/result, LLM usage + prompt +
+// response, session id) so a downloaded page has the same boxes, order and data.
+function recordToText(rec: HistoryRecord, allRecords?: HistoryRecord[]): string {
+  const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
+  const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
+  const icon = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
+  const header = `${icon} ${recordHeaderLabel(rec)}`;
+  const lines: string[] = [header];
+
+  const bodyText = key === 'chat.error' ? (rec.error ?? rec.error_detail ?? rec.content ?? '') : (rec.content ?? '');
+
+  if (key === 'user' || key === 'chat.final') {
+    if (bodyText) lines.push('', bodyText);
+  } else if (key === 'chat.tool_call') {
+    const args = (rec.tool_call as Record<string, unknown>)?.arguments ?? rec.content;
+    let fmtArgs = '';
+    try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
+    catch { fmtArgs = String(args ?? ''); }
+    if (fmtArgs) lines.push('', 'Arguments:', fmtArgs);
+  } else if (key === 'chat.tool_result') {
+    const resultText = rec.result ?? rec.content ?? '';
+    if (rec.error_type) lines.push('', `Error type: ${rec.error_type}${rec.error_detail ? ` — ${rec.error_detail}` : ''}`);
+    if (resultText) lines.push('', 'Result:', resultText);
+    if (rec.raw_output) {
+      try { lines.push('', 'Raw Output:', JSON.stringify(rec.raw_output, null, 2)); }
+      catch { lines.push('', 'Raw Output:', String(rec.raw_output)); }
+    }
+  } else if (key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') {
+    if (bodyText) lines.push('', bodyText);
+  } else if (key === 'chat.usage_metadata') {
+    const um = rec.metadata?.usage_metadata;
+    if (um) {
+      const chips: string[] = [];
+      if (um.model_name) chips.push(`model: ${um.model_name}`);
+      if (um.input_tokens != null && um.output_tokens != null) chips.push(`${um.input_tokens} in / ${um.output_tokens} out = ${um.total_tokens ?? '?'} tot`);
+      if (um.cache_tokens != null && um.cache_tokens > 0) chips.push(`cache: ${um.cache_tokens}`);
+      if (um.total_cost != null && um.total_cost > 0) chips.push(`cost: $${um.total_cost.toFixed(4)}`);
+      if (chips.length) lines.push('', chips.join(' · '));
+      if (rec.metadata?.total_latency_ms != null) {
+        lines.push(`latency: ${(rec.metadata.total_latency_ms / 1000).toFixed(2)}s total${rec.metadata.ttft_ms != null ? `, TTFT ${rec.metadata.ttft_ms.toFixed(0)}ms` : ''}${rec.metadata.tpot_ms != null ? `, TPOT ${rec.metadata.tpot_ms.toFixed(1)}ms` : ''}`);
+      }
+      if (um.prompt) lines.push('', 'LLM Prompt:', um.prompt);
+      const responseRecs = findLLMResponseForUsage(rec, allRecords ?? []);
+      const parts: string[] = [];
+      for (const r of responseRecs) {
+        if (r.event_type === 'chat.final' && r.content) parts.push(`Response (final):\n${r.content}`);
+        else if (r.event_type === 'chat.llm_call_end' && r.content) parts.push(`Response:\n${r.content}`);
+        else if (r.event_type === 'chat.tool_call') parts.push(`Tool: ${(r.tool_call as Record<string, unknown>)?.name ?? r.tool_name ?? 'unknown'}`);
+        else if (r.event_type === 'chat.reasoning' && r.content) parts.push(`Reasoning:\n${r.content}`);
+        else if (r.event_type === 'chat.error') parts.push(`Error: ${r.error ?? r.error_detail ?? r.content ?? ''}`);
+      }
+      if (parts.length) lines.push('', parts.join('\n\n'));
+    }
+  }
+
+  if (rec.session_id) lines.push('', `session: ${rec.session_id}`);
+  return lines.join('\n');
+}
+
+// ── Step-by-step markdown export ──────────────────────────────────────────────
+// Mirrors docs-michael/step-by-step.md: one "### N. <Agent> Trace" section per
+// sub-agent (plus the main orchestrator), each a markdown table of
+// Operation | Technical Telemetry & Metrics | Latency | Input | Output.
+
+function formatLatencyS(sec: number): string {
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  if (sec >= 60) return `~${Math.round(sec / 60)}m ${Math.round(sec % 60)}s`;
+  return `~${sec.toFixed(1)}s`;
+}
+
+function mdEsc(s: string): string {
+  return (s ?? '').replace(/\|/g, '\\|').replace(/\r?\n+/g, ' ');
+}
+
+function mdTrunc(s: string, n: number): string {
+  const t = s ?? '';
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+}
+
+// The prompt preview is "<system>…\n<user>…\n…". For a readable table cell the
+// useful part is the actual user query, not the system preamble — take the text
+// after the last "<user>" marker.
+function lastUserSegment(prompt: string): string {
+  const idx = prompt.lastIndexOf('<user>');
+  return idx >= 0 ? prompt.slice(idx + 6) : prompt;
+}
+
+// Extract the first http(s) URL found anywhere in a tool-call's parsed args.
+// Used to pair a tool_result back to its tool_call when several identical tools
+// ran in parallel (tool_call_id is the shared card id, not a per-call id).
+function extractUrlSignature(fmtArgs: string): string {
+  try {
+    const parsed = JSON.parse(fmtArgs);
+    const stack: unknown[] = [parsed];
+    while (stack.length) {
+      const v = stack.pop();
+      if (typeof v === 'string') {
+        const m = v.match(/https?:\/\/[^\s"'\\]+/);
+        if (m) return m[0];
+      } else if (Array.isArray(v)) {
+        stack.push(...v);
+      } else if (v && typeof v === 'object') {
+        stack.push(...Object.values(v as Record<string, unknown>));
+      }
+    }
+  } catch { /* ignore */ }
+  return '';
+}
+
+// A fetch_webpage result echoes its URL ("URL: <url>\nStatus: 200 ..."), which
+// already appears in the Input cell. Drop that first line for the Output cell.
+function summarizeToolResult(resultText: string): string {
+  const t = resultText.trim();
+  if (t.startsWith('URL:')) {
+    const nl = t.indexOf('\n');
+    return nl >= 0 ? t.slice(nl + 1).trim() : '';
+  }
+  return t;
+}
+
+// Pair each tool_call with its tool_result. Parallel results arrive in
+// completion order and can be interleaved with later LLM calls, so this is a
+// greedy match over the whole section: each result claims the earliest pending
+// call with the same tool whose URL signature (when present) appears in the
+// result text.
+function buildToolPairings(records: HistoryRecord[]): Map<number, { latency: string; output: string }> {
+  const pairings = new Map<number, { latency: string; output: string }>();
+  const pending: { idx: number; name: string; sig: string }[] = [];
+  records.forEach((r, i) => {
+    const et = r.event_type ?? '';
+    if (et === 'chat.tool_call') {
+      const name = String(r.tool_name ?? (r.tool_call as Record<string, unknown>)?.name ?? '');
+      const args = (r.tool_call as Record<string, unknown>)?.arguments ?? r.content;
+      let fmtArgs = '';
+      try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
+      catch { fmtArgs = String(args ?? ''); }
+      pending.push({ idx: i, name, sig: extractUrlSignature(fmtArgs) });
+    } else if (et === 'chat.tool_result') {
+      const text = `${r.result ?? ''} ${r.content ?? ''}`;
+      for (let p = 0; p < pending.length; p++) {
+        const cand = pending[p];
+        if (cand.name !== r.tool_name) continue;
+        if (cand.sig && !text.includes(cand.sig)) continue;
+        pairings.set(cand.idx, {
+          latency: formatLatencyS((r.timestamp ?? 0) - (records[cand.idx]?.timestamp ?? 0)),
+          output: summarizeToolResult(r.result ?? r.content ?? ''),
+        });
+        pending.splice(p, 1);
+        break;
+      }
+    }
+  });
+  return pairings;
+}
+
+function recordToStepRow(
+  rec: HistoryRecord,
+  i: number,
+  records: HistoryRecord[],
+  nextLlmTurn: () => number,
+  pairings?: Map<number, { latency: string; output: string }>,
+): string | null {
+  const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
+
+  // Only LLM calls and tool calls get rows; llm_call_start/llm_call_end,
+  // tool_result (merged into its call), user, final and everything else is
+  // noise here.
+  if (key === 'chat.usage_metadata') {
+    const turnNo = nextLlmTurn();
+    const um = rec.metadata?.usage_metadata;
+    const tele = um
+      ? `Tokens: ${um.input_tokens?.toLocaleString() ?? '?'} in / ${um.output_tokens?.toLocaleString() ?? '?'} out${um.cache_tokens && um.cache_tokens > 0 ? `, Cache: ${um.cache_tokens.toLocaleString()} cached` : ''}`
+      : '';
+    // Real call duration: metadata when present (main agent), else the span
+    // from the preceding llm_call_start to the following llm_call_end. A sub-
+    // second span is just usage/end being written together — show nothing.
+    const latency = rec.metadata?.total_latency_ms != null
+      ? formatLatencyS(rec.metadata.total_latency_ms / 1000)
+      : (() => {
+          let startTs = 0;
+          for (let j = i - 1; j >= 0; j--) {
+            const rj = records[j];
+            if ((rj.event_type ?? '') === 'chat.llm_call_start') { startTs = rj.timestamp ?? 0; break; }
+            if (rj.role === 'user') break;
+          }
+          for (let j = i + 1; j < records.length; j++) {
+            const rj = records[j];
+            const et = rj.event_type ?? '';
+            if (et === 'chat.usage_metadata' || rj.role === 'user') break;
+            if (et === 'chat.llm_call_end') {
+              const d = (rj.timestamp ?? 0) - startTs;
+              return d >= 0.5 ? formatLatencyS(d) : '';
+            }
+          }
+          return '';
+        })();
+    const input = mdTrunc(lastUserSegment(um?.prompt ?? ''), 160);
+    let output = '';
+    for (const r of findLLMResponseForUsage(rec, records)) {
+      if ((r.event_type === 'chat.final' || r.event_type === 'chat.llm_call_end') && r.content) {
+        output = r.content;
+        break;
+      }
+    }
+    if (!output) {
+      // Tool-calling call: no text answer. Prefer the model's reasoning (stored
+      // on the main agent's tool_call records); otherwise summarize the calls.
+      const toolNames: string[] = [];
+      let reasoning = '';
+      for (let j = i + 1; j < records.length; j++) {
+        const rj = records[j];
+        const et = rj.event_type ?? '';
+        if (et === 'chat.usage_metadata' || rj.role === 'user') break;
+        if (et === 'chat.tool_call') {
+          const nm = String(rj.tool_name ?? (rj.tool_call as Record<string, unknown>)?.name ?? '');
+          if (nm) toolNames.push(nm);
+          const rc = String((rj as unknown as Record<string, unknown>).reasoning_content ?? '').trim();
+          if (!reasoning && rc) reasoning = rc;
+        }
+        if (et === 'chat.final' && rj.content) {
+          output = rj.content;
+          break;
+        }
+      }
+      if (!output && reasoning) {
+        output = reasoning;
+      } else if (!output && toolNames.length) {
+        const counts = new Map<string, number>();
+        toolNames.forEach(n => counts.set(n, (counts.get(n) ?? 0) + 1));
+        const parts = [...counts].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n));
+        output = parts.length > 1 ? `→ tool calls: ${parts.join(', ')}` : `→ tool call: ${parts[0]}`;
+      }
+    }
+    return `| LLM Generation (Turn ${turnNo}) | ${mdEsc(tele)} | ${latency} | ${mdEsc(input)} | ${mdEsc(mdTrunc(output, 200))} |`;
+  }
+
+  if (key === 'chat.tool_call') {
+    const name = rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? '';
+    const args = (rec.tool_call as Record<string, unknown>)?.arguments ?? rec.content;
+    let fmtArgs = '';
+    try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
+    catch { fmtArgs = String(args ?? ''); }
+    const pairing = pairings?.get(i);
+    const latency = pairing?.latency ?? '';
+    const output = pairing?.output ?? '';
+    const tele = name === 'task_tool'
+      ? 'Type: Subagent Runtime Fork'
+      : name === 'fetch_webpage' ? 'Protocol: HTTP GET'
+      : '—';
+    return `| Tool Call (\`${name}\`) | ${mdEsc(tele)} | ${latency} | ${mdEsc(mdTrunc(fmtArgs, 160))} | ${mdEsc(mdTrunc(output, 200))} |`;
+  }
+
+  return null;
+}
+
+function turnToStepByStepMarkdown(records: HistoryRecord[]): string {
+  const main: HistoryRecord[] = [];
+  const subs = new Map<string, HistoryRecord[]>();
+  for (const r of records) {
+    if (r.subagent_type) {
+      const arr = subs.get(r.subagent_type) ?? [];
+      arr.push(r);
+      subs.set(r.subagent_type, arr);
+    } else {
+      main.push(r);
+    }
+  }
+  const groups: { title: string; records: HistoryRecord[] }[] = [];
+  if (main.length) groups.push({ title: 'Main Orchestrator Trace', records: main });
+  let si = 1;
+  for (const [type, recs] of subs) {
+    groups.push({ title: `Subagent ${si++}: ${type} Trace`, records: recs });
+  }
+
+  const lines: string[] = [];
+  groups.forEach((g, gi) => {
+    lines.push(`### ${gi + 1}. ${g.title}`, '');
+    lines.push('| Operation | Technical Telemetry & Metrics | Latency | Input | Output |');
+    lines.push('| :--- | :--- | :--- | :--- | :--- |');
+    const pairings = buildToolPairings(g.records);
+    let llmTurn = 0;
+    for (let i = 0; i < g.records.length; i++) {
+      const row = recordToStepRow(g.records[i], i, g.records, () => { llmTurn += 1; return llmTurn; }, pairings);
+      if (row) lines.push(row);
+    }
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -1301,14 +1611,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
   const color = (key === 'chat.tool_result' && rec.error_type) ? '#ef4444' : meta.color;
   const danger = isDangerous(rec);
 
-  const subLabel = rec.subagent_type ? ` · subagent: ${rec.subagent_type}` : '';
-
-  const headerLabel = key === 'chat.tool_call'
-    ? `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}`
-    : key === 'chat.tool_result' ? `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`
-    : key === 'chat.tool_update' ? `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`
-    : key === 'chat.usage_metadata' ? `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}`
-    : meta.label;
+  const headerLabel = recordHeaderLabel(rec);
 
   // Body text
   const bodyText = key === 'chat.error'
@@ -1729,6 +2032,48 @@ function TurnDetailView() {
     return items;
   }, [turnRecords]);
 
+  const downloadPage = () => {
+    const chunks: string[] = [];
+    chunks.push(`USER MESSAGE #${(turn?.turn_index ?? 0) + 1}${selectedSession?.title ? ` — ${selectedSession.title}` : ''}`);
+    if (turn?.timestamp) {
+      let meta = fmtDateTime(turn.timestamp);
+      if (turn.duration_seconds > 0 && turn.retry_count <= 1) meta += ` · ${fmtDuration(turn.duration_seconds)}`;
+      chunks.push(meta);
+    }
+    const chips: string[] = [];
+    if (turn) {
+      if (turn.outcome) chips.push(`outcome: ${turn.outcome}${turn.issues && turn.issues.length > 0 ? ` (${turn.issues.join(', ')})` : ''}`);
+      if (turn.total_tokens > 0) chips.push(`${turn.total_tokens.toLocaleString()} tok`);
+      if (turn.llm_call_count > 0) chips.push(`${turn.llm_call_count} LLM call${turn.llm_call_count !== 1 ? 's' : ''}`);
+      if (turn.tool_names.length > 0) chips.push(`${turn.tool_names.length} tool${turn.tool_names.length !== 1 ? 's' : ''}`);
+      if (turn.skill_names.length > 0) chips.push(`${turn.skill_names.length} skill${turn.skill_names.length !== 1 ? 's' : ''}`);
+      if (turn.tool_failures > 0) chips.push(`${turn.tool_failures} failed`);
+      if (turn.file_count > 0) chips.push(`${turn.file_count} file${turn.file_count !== 1 ? 's' : ''}`);
+      if ((turn.avg_total_latency_ms ?? 0) > 0) chips.push(`${((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s avg`);
+      const ctxPct = turn.context_usage_percent ?? 0;
+      if (ctxPct > 0) chips.push(`${ctxPct.toFixed(1)}% ctx`);
+      if ((turn.total_cost ?? 0) > 0) chips.push(`$${(turn.total_cost ?? 0).toFixed(4)}`);
+      if (turn.models_used && turn.models_used.length > 0) chips.push(`models: ${turn.models_used.join(', ')}`);
+      if (turn.retry_count > 1) chips.push(`${turn.retry_count} attempts`);
+    }
+    if (chips.length) chunks.push(chips.join(' · '));
+
+    chunks.push('');
+    for (const item of displayItems) {
+      if (item.type === 'gap') {
+        chunks.push('', `⏸ ${fmtDuration(item.seconds)} idle — retry triggered by next incoming message`, '');
+      } else {
+        chunks.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        chunks.push(recordToText(item.rec, turnRecords));
+      }
+    }
+    downloadText(chunks.join('\n'), `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}-page.txt`);
+  };
+
+  const downloadMd = () => {
+    downloadText(turnToStepByStepMarkdown(turnRecords), `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}-step-by-step.md`);
+  };
+
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
@@ -1783,6 +2128,16 @@ function TurnDetailView() {
             onClick={() => downloadJson(turnRecords, `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}.json`)}
             disabled={turnRecords.length === 0}>
             ⬇ JSON
+          </button>
+          <button style={{ ...btnStyle, fontSize: 12 }} title="Download this page's content as text — same boxes, order and data as on screen"
+            onClick={downloadPage}
+            disabled={turnRecords.length === 0}>
+            ⬇ Page
+          </button>
+          <button style={{ ...btnStyle, fontSize: 12 }} title="Download this turn as step-by-step markdown (sections + tables, like docs-michael/step-by-step.md)"
+            onClick={downloadMd}
+            disabled={turnRecords.length === 0}>
+            ⬇ MD
           </button>
         </div>
       </div>
