@@ -1301,11 +1301,13 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
   const color = (key === 'chat.tool_result' && rec.error_type) ? '#ef4444' : meta.color;
   const danger = isDangerous(rec);
 
+  const subLabel = rec.subagent_type ? ` · subagent: ${rec.subagent_type}` : '';
+
   const headerLabel = key === 'chat.tool_call'
-    ? `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}`
-    : key === 'chat.tool_result' ? `${meta.label}: ${rec.tool_name ?? ''}`
-    : key === 'chat.tool_update' ? `${meta.label}: ${rec.tool_name ?? ''}`
-    : key === 'chat.usage_metadata' ? `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}`
+    ? `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}`
+    : key === 'chat.tool_result' ? `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`
+    : key === 'chat.tool_update' ? `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`
+    : key === 'chat.usage_metadata' ? `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}`
     : meta.label;
 
   // Body text
