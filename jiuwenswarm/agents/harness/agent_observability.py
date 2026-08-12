@@ -581,11 +581,11 @@ def _wrap_subagent_session_context(subagent: Any) -> None:
         logger.debug("[AgentObservability] wrap subagent session context failed: %s", exc)
 
 
-# ── Sub-agent LLM calls → parent session history (TraceHound) ────────────────
+# ── Sub-agent LLM calls → parent session history ────────────────
 # Each sub-agent runs under a sub-session id "<parent>_sub_<type>_<uuid>". The
 # LLM callbacks below detect those calls and append chat.llm_call_start /
 # chat.usage_metadata / chat.llm_call_end into the PARENT session's history so
-# TraceHound shows the sub-agent's own LLM calls nested under the task_tool.
+# Logger shows the sub-agent's own LLM calls nested under the task_tool.
 #
 # NOTE: the agent (and its sub-agents) execute in a different asyncio task than
 # the request handler, so a ContextVar is NOT visible there. We therefore keep
@@ -595,13 +595,13 @@ _PARENT_REQ_BY_SESSION: dict[str, tuple[str, str, str]] = {}
 
 # Prompt of the most recent sub-agent LLM call per session. ``_on_input`` sees
 # the model messages; ``_on_output`` needs the same prompt for the
-# usage_metadata record (TraceHound renders ``um.prompt``). Calls inside a
+# usage_metadata record (Logger renders ``um.prompt``). Calls inside a
 # sub-agent run are sequential, so a single slot per sub-session is enough.
 _LAST_PROMPT_BY_SESSION: dict[str, str] = {}
 
 # Wall-clock start of the most recent sub-agent LLM call per session, so
 # ``_on_output`` can stamp the real call duration on the usage_metadata record
-# (TraceHound's Latency / LLM-call latency) instead of leaving it empty.
+# (Logger's Latency / LLM-call latency) instead of leaving it empty.
 _LAST_CALL_START_BY_SESSION: dict[str, float] = {}
 
 
@@ -629,11 +629,15 @@ def _subagent_from_session_id(session_id: str) -> tuple[str, str] | None:
 
 
 def _subagent_prompt_preview(messages: Any, max_chars: int = 4000) -> str | None:
-    """Minimal serialization of the messages sent to the model (system included)."""
+    """Minimal serialization of the messages sent to the model (system included).
+
+    The actual query is the FIRST user message — a huge system prompt must never
+    push it out of the preview, and the harness may append a runtime-state
+    reminder as a trailing user message, so the last one is not the task.
+    """
     if not messages:
         return None
-    parts: list[str] = []
-    total = 0
+    segs: list[tuple[str, str]] = []
     for msg in messages:
         if isinstance(msg, dict):
             role = str(msg.get("role") or "?")
@@ -652,13 +656,42 @@ def _subagent_prompt_preview(messages: Any, max_chars: int = 4000) -> str | None
             text = str(content) if content else ""
         if "data:image" in text:
             text = "[image]"
-        seg = f"<{role}>\n{text}"
-        if total + len(seg) > max_chars:
-            parts.append(seg[: max(0, max_chars - total)] + "\n… (truncated)")
+        segs.append((role, text))
+
+    first_user = -1
+    for i, (role, _) in enumerate(segs):
+        if role.lower() == "user":
+            first_user = i
             break
-        parts.append(seg)
-        total += len(seg)
-    return "\n\n".join(parts)
+
+    def _trunc(seg: str, limit: int) -> str:
+        if len(seg) <= limit:
+            return seg
+        return seg[: max(0, limit)] + "\n… (truncated)"
+
+    user_seg = ""
+    if first_user >= 0:
+        user_budget = min(max_chars // 2, 1500)
+        user_seg = _trunc(f"<user>\n{segs[first_user][1]}", user_budget)
+
+    head = ""
+    remaining = max_chars - len(user_seg)
+    if remaining > 0:
+        head_parts: list[str] = []
+        head_total = 0
+        for role, text in segs[:first_user]:
+            seg = f"<{role}>\n{text}"
+            if head_total + len(seg) > remaining:
+                head_parts.append(_trunc(seg, max(0, remaining - head_total)))
+                head_total = remaining
+                break
+            head_parts.append(seg)
+            head_total += len(seg)
+        head = "\n\n".join(head_parts)
+
+    if head and user_seg:
+        return head + "\n\n" + user_seg
+    return head or user_seg or None
 
 
 def _is_image_probe_call(messages: Any) -> bool:
@@ -732,6 +765,11 @@ def _append_subagent_llm_record(
         rid, cid, mode = ctx
         record_extra = dict(extra or {})
         record_extra["subagent_type"] = subagent_type
+        # The sub-session id distinguishes parallel sub-agents of the same type
+        # (Logger groups sub-agent sections by it).
+        from openjiuwen.agent_teams.context import get_session_id as _ctx_session_id
+
+        record_extra["sub_session_id"] = _ctx_session_id() or parent_id
         append_history_record(
             session_id=parent_id,
             request_id=rid,
@@ -755,7 +793,7 @@ def _append_subagent_llm_record(
 
 
 def install_subagent_llm_history_forwarder() -> None:
-    """Forward sub-agent LLM calls into the parent session's history (TraceHound).
+    """Forward sub-agent LLM calls into the parent session's history.
 
     Registers LLM callbacks on the global Runner callback framework. A call is
     attributed to a sub-agent when the active session contextvar is a sub-session
