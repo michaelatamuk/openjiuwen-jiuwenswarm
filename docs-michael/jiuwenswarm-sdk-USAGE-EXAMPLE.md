@@ -30,6 +30,14 @@ Assumes the SDKs are installed and a JiuwenSwarm server is running locally on
    - [Agent builder](#19-agent-builder)
    - [Prompt builder](#20-prompt-builder)
    - [Custom store and checkpointer backend](#21-custom-store-and-checkpointer-backend)
+   - [Security rails and tool permission engine](#22-security-rails-and-tool-permission-engine)
+   - [LSP integration](#23-lsp-integration)
+   - [Human-in-the-loop (HITT)](#24-human-in-the-loop-hitt)
+   - [Agentic retrieval](#25-agentic-retrieval)
+   - [Graph knowledge base](#26-graph-knowledge-base)
+   - [Context engine and compression](#27-context-engine-and-compression)
+   - [Online RL and trajectory collection](#28-online-rl-and-trajectory-collection)
+   - [MCP server exposure](#29-mcp-server-exposure)
 2. [TypeScript / JavaScript SDK](#typescript--javascript-sdk)
    - [Connect and chat](#1-connect-and-chat)
    - [Session management](#2-session-management)
@@ -1098,6 +1106,539 @@ agent = await Agent.create(
     model=ModelConfig.from_env(),
     checkpoint_store="s3",
 )
+```
+
+---
+
+### 22. Security rails and tool permission engine
+
+JiuwenSwarm's `PermissionEngine` enforces fine-grained, configurable tool
+permissions at the harness level. Every tool call is evaluated before
+execution. Developers can define allow/deny policies per tool category,
+attach approval callbacks, and integrate with custom audit systems.
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, ModelConfig
+from openjiuwen.harness.security import (
+    PermissionEngine,
+    PermissionsSection,
+    PermissionLevel,
+)
+
+# Define a permission policy: allow read-only tools, require approval for writes,
+# block destructive file operations entirely.
+policy = PermissionsSection(
+    default_level=PermissionLevel.ALLOW,
+    tool_overrides={
+        "shell":          PermissionLevel.ASK,       # prompt before any shell command
+        "file_write":     PermissionLevel.ASK,
+        "file_delete":    PermissionLevel.DENY,      # never allowed
+        "process_kill":   PermissionLevel.DENY,
+    },
+    trusted_directories=["/workspace/project"],      # restrict file ops to this tree
+)
+
+engine = PermissionEngine(config=policy)
+
+async def main():
+    agent = await Agent.create(
+        "guarded-agent",
+        model=ModelConfig.from_env(),
+        permission_engine=engine,
+    )
+
+    # The agent can read freely, must ask before writing, and cannot delete files.
+    result = await agent.run("Refactor src/utils.py to use pathlib.")
+    print(result.text)
+
+asyncio.run(main())
+```
+
+Attach a custom approval callback (human-in-the-loop for permission prompts):
+
+```python
+from openjiuwen.harness.security import ToolPermissionHost, PermissionConfirmationRequest
+
+class CLIApprovalHost(ToolPermissionHost):
+    async def request_confirmation(
+        self, req: PermissionConfirmationRequest
+    ) -> bool:
+        answer = input(f"\n[SECURITY] Allow tool '{req.tool_name}'? (y/n): ")
+        return answer.strip().lower() == "y"
+
+engine = PermissionEngine(config=policy, host=CLIApprovalHost())
+```
+
+Update the policy at runtime (e.g., after the user grants elevated access):
+
+```python
+engine.update_config(PermissionsSection(default_level=PermissionLevel.ALLOW))
+engine.update_trusted_dirs(["/workspace/project", "/workspace/data"])
+```
+
+---
+
+### 23. LSP integration
+
+JiuwenSwarm agents can interact with a live Language Server Protocol (LSP)
+server to get real-time diagnostics, type information, and code actions.
+This gives the coding agent the same signals a human developer sees in an IDE.
+
+```python
+import asyncio
+from openjiuwen.harness import lsp
+from openjiuwen.harness.lsp import InitializeOptions
+
+async def main():
+    # Start the LSP server (e.g., pyright for Python)
+    await lsp.initialize_lsp(
+        options=InitializeOptions(
+            server_command=["pyright-langserver", "--stdio"],
+            root_uri="file:///workspace/project",
+            language_id="python",
+        )
+    )
+
+    # Check LSP readiness
+    status = lsp.get_lsp_status()
+    print(f"LSP ready: {status.ready}, server: {status.server_name}")
+
+    # Expose the LSP tool to an agent — the agent can request diagnostics and
+    # hover information autonomously during its task loop.
+    lsp_tool = lsp.get_lsp_tool()
+
+    from openjiuwen.sdk import Agent, ModelConfig
+    agent = await Agent.create(
+        "lsp-agent",
+        model=ModelConfig.from_env(),
+        tools=[lsp_tool],         # agent can call 'lsp_diagnostics', 'lsp_hover', etc.
+    )
+
+    result = await agent.run(
+        "Fix all type errors in src/handlers.py. Use the LSP to verify each fix."
+    )
+    print(result.text)
+
+    # Inspect accumulated diagnostics from this session
+    diagnostics = lsp.get_pending_lsp_diagnostics(max_per_file=10, max_total=50)
+    for file_diags in diagnostics:
+        print(f"\n{file_diags.uri} — {len(file_diags.items)} remaining issues:")
+        for item in file_diags.items:
+            print(f"  line {item.range.start.line}: [{item.severity}] {item.message}")
+
+    await lsp.shutdown_lsp()
+
+asyncio.run(main())
+```
+
+---
+
+### 24. Human-in-the-loop (HITT)
+
+JiuwenSwarm's HITT (Human-In-The-Team) feature adds a real user as a member
+of a multi-agent team. The human agent receives messages from other agents and
+can reply, approve, redirect, or provide additional context — turning the
+agent team into a collaborative human-AI system.
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, Team, ModelConfig
+from openjiuwen.agent_teams.schema.team import TeamRole, TeamMemberSpec, TeamAgentSpec
+
+async def main():
+    model_cfg = ModelConfig.from_env()
+
+    # Two AI agents
+    researcher = await Agent.create("researcher", model=model_cfg)
+    writer     = await Agent.create("writer",     model=model_cfg)
+
+    # Specify the team structure including a human member
+    spec = TeamAgentSpec(
+        predefined_members=[
+            TeamMemberSpec(
+                member_name="researcher",
+                role_type=TeamRole.TEAMMATE,
+                agent=researcher,
+            ),
+            TeamMemberSpec(
+                member_name="writer",
+                role_type=TeamRole.TEAMMATE,
+                agent=writer,
+            ),
+            TeamMemberSpec(
+                member_name="alice",
+                role_type=TeamRole.HUMAN_AGENT,  # human participant
+                description="Domain expert who approves research plans.",
+            ),
+        ],
+        enable_hitt=True,   # activate human-in-the-team protocol
+    )
+
+    team = await Team.create(spec=spec, model=model_cfg)
+
+    # The team will pause and route messages to the human member at decision points.
+    # The human interacts via the configured transport (WebSocket session, stdin, etc.)
+    result = await team.spawn(
+        "Research the impact of LLMs on legal discovery workflows and write a report."
+    )
+    print(result.final_output)
+
+asyncio.run(main())
+```
+
+The human agent's approval is required before the team proceeds past
+decision checkpoints. Messages to the human are delivered through the
+active session WebSocket, so the human can participate from any JiuwenSwarm
+client (browser extension, IDE plugin, mobile app).
+
+---
+
+### 25. Agentic retrieval
+
+`AgenticRetriever` wraps any base retriever with an LLM-driven loop that
+rewrites the query, expands retrieved context via graph traversal, and fuses
+results over multiple rounds. It dramatically improves recall on complex or
+ambiguous questions compared to a single embedding lookup.
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, ModelConfig
+from openjiuwen.core.retrieval import (
+    AgenticRetriever,
+    KnowledgeBase,
+    KnowledgeBaseConfig,
+    Document,
+)
+
+async def main():
+    model_cfg = ModelConfig.from_env()
+
+    # Build a standard knowledge base
+    kb = KnowledgeBase(
+        config=KnowledgeBaseConfig(
+            name="research-papers",
+            embedding_model="text-embedding-3-small",
+            vector_store="chroma",
+        )
+    )
+    await kb.add_documents([
+        Document(text="Transformers were introduced in 'Attention Is All You Need' (2017)."),
+        Document(text="RLHF was used to align GPT models to human preferences."),
+        Document(text="Constitutional AI (CAI) is an Anthropic technique for self-critique."),
+        Document(text="Sparse mixture-of-experts reduces FLOPs by activating only a few experts."),
+    ])
+
+    # Wrap the KB's built-in retriever with AgenticRetriever
+    agentic = AgenticRetriever(
+        retriever=kb.retriever,
+        llm_client=model_cfg.build_llm_client(),   # used for query rewriting
+        max_rounds=3,                               # up to 3 retrieval rounds
+        top_k_per_round=5,
+    )
+
+    # The agentic retriever rewrites the query, retrieves, decides if it needs
+    # more context, and iterates — all automatically.
+    results = await agentic.retrieve(
+        query="How do modern LLMs reduce inference costs while maintaining quality?"
+    )
+    for r in results:
+        print(f"[score={r.score:.2f}] {r.text}")
+
+    # Attach the agentic retriever directly to an agent
+    agent = await Agent.create(
+        "research-agent",
+        model=model_cfg,
+        knowledge_bases=[kb],
+        retriever=agentic,          # overrides the default single-shot retriever
+    )
+    result = await agent.run("Explain the key techniques for efficient LLM inference.")
+    print(result.text)
+
+asyncio.run(main())
+```
+
+---
+
+### 26. Graph knowledge base
+
+`GraphKnowledgeBase` extends the standard `KnowledgeBase` with a knowledge
+graph layer. Documents are chunked, embedded, and also parsed into
+subject-predicate-object triples. Retrieval uses both vector similarity and
+graph traversal, dramatically improving recall for relationship queries
+("What connects A to B?", "What did X influence?").
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, ModelConfig
+from openjiuwen.core.retrieval import (
+    GraphKnowledgeBase,
+    KnowledgeBaseConfig,
+    Document,
+)
+
+async def main():
+    model_cfg = ModelConfig.from_env()
+
+    gkb = GraphKnowledgeBase(
+        config=KnowledgeBaseConfig(
+            name="tech-history",
+            embedding_model="text-embedding-3-small",
+            vector_store="chroma",
+        ),
+        # Graph-specific components (defaults to built-in if not specified)
+        llm_client=model_cfg.build_llm_client(),  # used for triple extraction
+    )
+
+    await gkb.add_documents([
+        Document(text="Alan Turing invented the Turing machine, which influenced the Church-Turing thesis."),
+        Document(text="The Church-Turing thesis underpins the theory of computability."),
+        Document(text="Von Neumann architecture was inspired by Turing's stored-program concept."),
+        Document(text="Modern CPUs implement Von Neumann architecture."),
+    ])
+
+    # Graph retrieval follows relationship chains, not just embedding similarity
+    results = await gkb.retrieve(
+        query="How does Turing's work connect to modern CPUs?",
+        top_k=5,
+        use_graph=True,   # enable graph traversal in addition to vector search
+    )
+    for r in results:
+        print(f"[score={r.score:.2f}] {r.text}")
+
+    # Attach to an agent
+    agent = await Agent.create(
+        "historian",
+        model=model_cfg,
+        knowledge_bases=[gkb],
+    )
+    result = await agent.run(
+        "Trace the intellectual lineage from Turing to modern computing hardware."
+    )
+    print(result.text)
+
+asyncio.run(main())
+```
+
+---
+
+### 27. Context engine and compression
+
+JiuwenSwarm's `ContextEngine` manages the agent's in-context message window
+with pluggable compression processors. When context grows large, processors
+can summarise older messages, offload tool results, or compact the dialogue —
+keeping the agent within token limits without losing important information.
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, ModelConfig
+from openjiuwen.core.context_engine import (
+    ContextEngine,
+    ContextEngineConfig,
+    FullCompactProcessor,
+    MessageSummaryOffloader,
+    ToolResultBudgetProcessor,
+)
+
+async def main():
+    model_cfg = ModelConfig.from_env()
+
+    # Configure a compression strategy: budget tool results, then summarise old messages
+    engine = ContextEngine(
+        config=ContextEngineConfig(
+            max_messages=200,
+            token_limit=16_000,
+        ),
+        processors=[
+            # First, trim oversized tool results
+            ToolResultBudgetProcessor(max_chars_per_result=2000),
+            # Then, summarise message history when the window is 80% full
+            MessageSummaryOffloader(
+                trigger_ratio=0.8,
+                summary_model=model_cfg.build_llm_client(),
+            ),
+            # Final fallback: full compact (aggressive summarisation)
+            FullCompactProcessor(model=model_cfg.build_llm_client()),
+        ],
+    )
+
+    agent = await Agent.create(
+        "long-context-agent",
+        model=model_cfg,
+        context_engine=engine,
+    )
+
+    # The agent can now handle very long research tasks without hitting token limits
+    result = await agent.run(
+        "Read all files in /workspace and produce a comprehensive architecture document."
+    )
+    print(result.text)
+
+    # Inspect how much context was used
+    stats = engine.last_stats
+    if stats:
+        print(f"\nContext stats: {stats.input_tokens} tokens used, "
+              f"{stats.compressions_applied} compressions applied")
+
+asyncio.run(main())
+```
+
+Use `MicroCompactProcessor` for lighter, turn-by-turn compaction instead:
+
+```python
+from openjiuwen.core.context_engine import MicroCompactProcessor
+
+engine = ContextEngine(
+    config=ContextEngineConfig(token_limit=8_000),
+    processors=[MicroCompactProcessor()],  # compact after every N turns
+)
+```
+
+---
+
+### 28. Online RL and trajectory collection
+
+JiuwenSwarm's `OnlineRLOptimizer` enables in-deployment learning from agent
+trajectories. The agent runs, produces trajectories (sequences of actions and
+outcomes), and the optimizer updates model behaviour using reinforcement
+learning — without stopping production traffic.
+
+```python
+import asyncio
+from openjiuwen.sdk import Agent, ModelConfig
+from openjiuwen.agent_evolving import OnlineRLOptimizer, RLConfig
+from openjiuwen.agent_evolving.agent_rl import (
+    RLTask,
+    RolloutWithReward,
+    RewardRegistry,
+)
+
+# Define a reward function — returns a float in [0, 1]
+def code_quality_reward(rollout: RolloutWithReward) -> float:
+    """Reward based on whether the agent's code passes tests."""
+    if "all tests passed" in rollout.outcome.lower():
+        return 1.0
+    elif "test failed" in rollout.outcome.lower():
+        return 0.1
+    return 0.5
+
+async def main():
+    model_cfg = ModelConfig.from_env()
+
+    # Register the reward function
+    reward_registry = RewardRegistry()
+    reward_registry.register("code_quality", code_quality_reward)
+
+    rl_config = RLConfig(
+        task_type="code_generation",
+        reward_function="code_quality",
+        learning_rate=1e-5,
+        rollouts_per_step=4,          # collect 4 rollouts before each update
+        online=True,                   # update in real-time as trajectories arrive
+    )
+
+    optimizer = OnlineRLOptimizer(
+        config=rl_config,
+        reward_registry=reward_registry,
+    )
+
+    # Create agent with RL optimizer attached — trajectories are collected automatically
+    agent = await Agent.create(
+        "rl-agent",
+        model=model_cfg,
+        rl_optimizer=optimizer,
+    )
+
+    # Run tasks; optimizer updates weights in the background
+    tasks = [
+        "Implement a binary search function in Python with tests.",
+        "Write a function to flatten a nested list.",
+        "Implement merge sort and verify it sorts correctly.",
+    ]
+    for task in tasks:
+        result = await agent.run(task)
+        print(f"[task] {task[:50]}...\n[result] {result.text[:200]}\n")
+
+    # Inspect collected trajectories
+    trajectories = optimizer.get_trajectories()
+    print(f"\nCollected {len(trajectories)} trajectories this session.")
+    for t in trajectories[:2]:
+        print(f"  reward={t.reward:.2f} | turns={t.num_turns}")
+
+asyncio.run(main())
+```
+
+Collect trajectories without online updates (for offline batch training):
+
+```python
+from openjiuwen.agent_evolving import OfflineRLOptimizer
+
+offline = OfflineRLOptimizer(config=rl_config, reward_registry=reward_registry)
+agent = await Agent.create("data-collection-agent", model=model_cfg, rl_optimizer=offline)
+
+# Run tasks → trajectories accumulate
+for task in tasks:
+    await agent.run(task)
+
+# Export for offline training
+offline.export_trajectories("trajectories_batch_001.jsonl")
+```
+
+---
+
+### 29. MCP server exposure
+
+JiuwenSwarm can expose its agent runtime as a **Model Context Protocol (MCP)**
+server over stdio. External MCP clients (other AI systems, orchestrators, or
+IDE plugins) can then call JiuwenSwarm agents as MCP tools.
+
+```python
+# Run the JiuwenSwarm MCP server as a subprocess.
+# It reads OPENJIUWEN_TEAM_JOIN from the environment to discover the agent team.
+import subprocess, os
+
+proc = subprocess.Popen(
+    ["python", "-m", "openjiuwen.agent_teams.mcp"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    env={**os.environ, "OPENJIUWEN_TEAM_JOIN": "team://my-team@localhost:9000"},
+)
+# proc.stdin / proc.stdout speak the MCP stdio protocol (JSON-RPC newline-delimited)
+```
+
+Or build the MCP server programmatically and embed it in your process:
+
+```python
+import asyncio
+from openjiuwen.agent_teams.mcp import build_server
+
+async def main():
+    server = build_server()  # reads OPENJIUWEN_TEAM_JOIN from env
+    # server is a low-level `mcp.server.lowlevel.Server` instance
+    # Run it with the MCP stdio transport
+    from mcp.server.stdio import stdio_server
+    async with stdio_server() as (reader, writer):
+        await server.run(reader, writer, server.create_initialization_options())
+
+asyncio.run(main())
+```
+
+This makes JiuwenSwarm agents callable from any MCP-compatible client:
+
+```json
+// Example MCP tool call arriving on stdin
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "jiuwenswarm_run",
+    "arguments": {
+      "prompt": "Summarise the latest commits in this repository.",
+      "session_id": "sess_abc123"
+    }
+  }
+}
 ```
 
 ---
