@@ -526,8 +526,11 @@ def _wrap_subagent_session_context(subagent: Any) -> None:
                 if token is not None:
                     try:
                         reset_session_id(token)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "[AgentObservability] failed to reset sub-session id %s: %s",
+                            token, exc,
+                        )
 
         setattr(invoke_with_sub_session, "_jiuwenswarm_sub_ctx_wrapped", True)
         subagent.invoke = invoke_with_sub_session
@@ -563,9 +566,7 @@ _LAST_PROMPT_BY_SESSION: dict[str, str] = {}
 _LAST_CALL_START_BY_SESSION: dict[str, float] = {}
 
 
-def set_parent_request_context(
-    *, session_id: str, request_id: str, channel_id: str, mode: str,
-) -> None:
+def set_parent_request_context(*, session_id: str, request_id: str, channel_id: str, mode: str) -> None:
     """Record the parent request context so sub-agent LLM events can be written
     into the parent session's history. Call at request start."""
     _PARENT_REQ_BY_SESSION[session_id or "default"] = (request_id, channel_id, mode)
@@ -767,7 +768,10 @@ def install_subagent_llm_history_forwarder() -> None:
 
     framework = getattr(Runner, "callback_framework", None)
     if framework is None:
-        server_logger.info("[AgentObservability] subagent history forwarder: Runner.callback_framework unavailable — not installed")
+        server_logger.info(
+            "[AgentObservability] subagent history forwarder: "
+            "Runner.callback_framework unavailable — not installed"
+        )
         return
 
     server_logger.info("[AgentObservability] subagent history forwarder installing handlers on %r", framework)
@@ -792,12 +796,15 @@ def install_subagent_llm_history_forwarder() -> None:
                         content = m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
                         img_in = 0
                         if isinstance(content, list):
-                            img_in = sum(
-                                1 for p in content
-                                if isinstance(p, dict) and (
-                                    p.get("type") in ("image_url", "image") or "image_url" in p
-                                )
-                            )
+                            for p in content:
+                                if (
+                                    isinstance(p, dict)
+                                    and (
+                                        p.get("type") in ("image_url", "image")
+                                        or "image_url" in p
+                                    )
+                                ):
+                                    img_in += 1
                         parts.append(f"{role}[img={img_in}]")
                     server_logger.info(
                         "[AgentObservability] subagent msgs: n=%d %s",
