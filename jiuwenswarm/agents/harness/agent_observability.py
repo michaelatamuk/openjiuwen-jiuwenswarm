@@ -30,9 +30,13 @@ Shared-provider caveat (important):
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 from contextvars import ContextVar
 from typing import Any
+
+from openjiuwen.core.common.logging import server_logger
 
 from jiuwenswarm.common.config import get_config
 from jiuwenswarm.common.utils import get_user_workspace_dir
@@ -403,13 +407,11 @@ def attach_subagent_observability(subagent: Any) -> None:
         )
 
         rail = maybe_observability_rail()
-        if rail is None:
-            return  # observability not initialized -> nothing to trace
-        configured = subagent.configured_rails() if hasattr(subagent, "configured_rails") else []
-        if any(isinstance(r, ObservabilityRail) for r in configured):
-            return  # already attached — never add a second one
-        if hasattr(subagent, "add_rail"):
-            subagent.add_rail(rail)
+        if rail is not None:
+            configured = subagent.configured_rails() if hasattr(subagent, "configured_rails") else []
+            if not any(isinstance(r, ObservabilityRail) for r in configured):
+                if hasattr(subagent, "add_rail"):
+                    subagent.add_rail(rail)
     except Exception as exc:
         logger.debug("[AgentObservability] attach subagent rail failed: %s", exc)
 
@@ -417,6 +419,11 @@ def attach_subagent_observability(subagent: Any) -> None:
     # ``if not team_name: return``, which no sub-agent can satisfy on its own.
     # Harmless on newer versions, where that guard is gone.
     mark_single_agent_team(subagent)
+
+    # Pin the sub-session id in the session contextvar for the duration of the
+    # sub-agent's run, so the sub-agent LLM history forwarder can attribute its
+    # LLM calls to the parent session (id format "<parent>_sub_<type>_<uuid>").
+    _wrap_subagent_session_context(subagent)
 
 
 # Marker stamped on the wrapper below so a second install recognizes its own
@@ -457,6 +464,416 @@ def install_subagent_observability_hook() -> None:
 
     setattr(create_subagent_with_observability, _SUBAGENT_HOOK_MARKER_ATTR, True)
     DeepAgent.create_subagent = create_subagent_with_observability
+
+
+def _wrap_subagent_session_context(subagent: Any) -> None:
+    """Make the sub-session id the active session context during a sub-agent run.
+
+    Sub-agent invokes pass ``conversation_id=<sub_session_id>`` (see task_tool).
+    Wrapping invoke pins that id into the session contextvar so LLM callbacks
+    running inside the sub-agent can be attributed to the parent session.
+    Idempotent and best-effort.
+    """
+    try:
+        original = getattr(subagent, "invoke", None)
+        if original is None or getattr(original, "_jiuwenswarm_sub_ctx_wrapped", False):
+            return
+        from openjiuwen.agent_teams.context import reset_session_id, set_session_id
+
+        async def invoke_with_sub_session(inputs: Any, **kwargs: Any) -> Any:
+            conv_id = ""
+            if isinstance(inputs, dict):
+                conv_id = str(inputs.get("conversation_id") or "")
+            token = set_session_id(conv_id) if conv_id else None
+            try:
+                return await original(inputs, **kwargs)
+            finally:
+                if token is not None:
+                    try:
+                        reset_session_id(token)
+                    except Exception:
+                        pass
+
+        setattr(invoke_with_sub_session, "_jiuwenswarm_sub_ctx_wrapped", True)
+        subagent.invoke = invoke_with_sub_session
+        server_logger.info(
+            "[AgentObservability] subagent session ctx wrapped: subagent=%s",
+            getattr(subagent, "agent_type", type(subagent).__name__),
+        )
+    except Exception as exc:
+        logger.debug("[AgentObservability] wrap subagent session context failed: %s", exc)
+
+
+# ── Sub-agent LLM calls → parent session history (TraceHound) ────────────────
+# Each sub-agent runs under a sub-session id "<parent>_sub_<type>_<uuid>". The
+# LLM callbacks below detect those calls and append chat.llm_call_start /
+# chat.usage_metadata / chat.llm_call_end into the PARENT session's history so
+# TraceHound shows the sub-agent's own LLM calls nested under the task_tool.
+#
+# NOTE: the agent (and its sub-agents) execute in a different asyncio task than
+# the request handler, so a ContextVar is NOT visible there. We therefore keep
+# the parent request context in a process-global dict keyed by session id.
+
+_PARENT_REQ_BY_SESSION: dict[str, tuple[str, str, str]] = {}
+
+# Prompt of the most recent sub-agent LLM call per session. ``_on_input`` sees
+# the model messages; ``_on_output`` needs the same prompt for the
+# usage_metadata record (TraceHound renders ``um.prompt``). Calls inside a
+# sub-agent run are sequential, so a single slot per sub-session is enough.
+_LAST_PROMPT_BY_SESSION: dict[str, str] = {}
+
+
+def set_parent_request_context(
+    *, session_id: str, request_id: str, channel_id: str, mode: str,
+) -> None:
+    """Record the parent request context so sub-agent LLM events can be written
+    into the parent session's history. Call at request start."""
+    _PARENT_REQ_BY_SESSION[session_id or "default"] = (request_id, channel_id, mode)
+    server_logger.info(
+        "[AgentObservability] set_parent_request_context: session=%s rid=%s cid=%s mode=%s",
+        session_id, request_id, channel_id, mode,
+    )
+
+
+def _subagent_from_session_id(session_id: str) -> tuple[str, str] | None:
+    """If *session_id* is a sub-session id, return (parent_id, subagent_type)."""
+    sid = str(session_id or "").strip()
+    if "_sub_" not in sid:
+        return None
+    parent, _, rest = sid.partition("_sub_")
+    if not parent or not rest:
+        return None
+    return parent, rest.split("_")[0]
+
+
+def _subagent_prompt_preview(messages: Any, max_chars: int = 4000) -> str | None:
+    """Minimal serialization of the messages sent to the model (system included)."""
+    if not messages:
+        return None
+    parts: list[str] = []
+    total = 0
+    for msg in messages:
+        if isinstance(msg, dict):
+            role = str(msg.get("role") or "?")
+            content = msg.get("content")
+        else:
+            role = str(getattr(msg, "role", None) or "?")
+            content = getattr(msg, "content", None)
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(
+                str(p.get("text", "")) for p in content
+                if isinstance(p, dict) and p.get("type") == "text"
+            )
+        else:
+            text = str(content) if content else ""
+        if "data:image" in text:
+            text = "[image]"
+        seg = f"<{role}>\n{text}"
+        if total + len(seg) > max_chars:
+            parts.append(seg[: max(0, max_chars - total)] + "\n… (truncated)")
+            break
+        parts.append(seg)
+        total += len(seg)
+    return "\n\n".join(parts)
+
+
+def _is_image_probe_call(messages: Any) -> bool:
+    """Return True when *messages* is the harness's image-modality probe payload.
+
+    The probe (``schedule_image_support_probe``) sends a single user message
+    whose content is a list containing an ``image_url``/``image`` block plus a
+    color-naming text block. It runs inside the sub-session context, so the
+    history forwarder would otherwise attribute it to the parent as if it were
+    a real sub-agent LLM call — polluting the trace with llm_call_start records
+    (and, on a text-only model, a chat.error bubble from the probe's 400).
+    """
+    if not isinstance(messages, list) or len(messages) != 1:
+        return False
+    msg = messages[0]
+    content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return False
+    role = str(msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", "") or "")
+    if role.lower() != "user":
+        return False
+    return any(
+        isinstance(part, dict) and (
+            part.get("type") in ("image_url", "image") or "image_url" in part
+        )
+        for part in content
+    )
+
+
+def _tool_call_arguments(inputs: Any) -> str:
+    """Serialize a tool invoke's positional/keyword arguments into a JSON string."""
+    if isinstance(inputs, tuple) and len(inputs) >= 1:
+        a, kw = inputs[0], inputs[1] if len(inputs) > 1 else {}
+    else:
+        a, kw = inputs, {}
+    combined: dict[str, Any] = {}
+    if isinstance(a, dict):
+        combined.update(a)
+    elif a is not None:
+        combined["input"] = a
+    if isinstance(kw, dict):
+        combined.update(kw)
+    try:
+        return json.dumps(combined, ensure_ascii=False, default=str)
+    except Exception:
+        return str(combined)
+
+
+def _subagent_active() -> tuple[str, str, tuple[str, str, str]] | None:
+    """Return (parent_id, subagent_type, parent_ctx) when the active session is
+    a sub-agent run with a known parent request context."""
+    from openjiuwen.agent_teams.context import get_session_id as _ctx_session_id
+
+    sub = _subagent_from_session_id(_ctx_session_id())
+    if sub is None:
+        return None
+    ctx = _PARENT_REQ_BY_SESSION.get(sub[0])
+    if not ctx:
+        return None
+    return sub[0], sub[1], ctx
+
+
+def _append_subagent_llm_record(
+    *, parent_id: str, subagent_type: str, ctx: tuple[str, str, str],
+    event_type: str, content: str = "", extra: dict[str, Any] | None = None,
+) -> None:
+    """Write one history record into the parent session for a sub-agent LLM call."""
+    try:
+        from jiuwenswarm.server.runtime.session.session_history import append_history_record
+
+        rid, cid, mode = ctx
+        record_extra = dict(extra or {})
+        record_extra["subagent_type"] = subagent_type
+        append_history_record(
+            session_id=parent_id,
+            request_id=rid,
+            channel_id=cid,
+            role="assistant",
+            event_type=event_type,
+            content=content,
+            timestamp=time.time(),
+            extra=record_extra or None,
+            mode=mode,
+        )
+        logger.info(
+            "[AgentObservability] forwarded subagent llm record: session=%s subagent=%s event=%s",
+            parent_id, subagent_type, event_type,
+        )
+    except Exception as exc:
+        server_logger.warning(
+            "[AgentObservability] subagent history record failed: session=%s subagent=%s event=%s err=%s",
+            parent_id, subagent_type, event_type, exc,
+        )
+
+
+def install_subagent_llm_history_forwarder() -> None:
+    """Forward sub-agent LLM calls into the parent session's history (TraceHound).
+
+    Registers LLM callbacks on the global Runner callback framework. A call is
+    attributed to a sub-agent when the active session contextvar is a sub-session
+    id ("<parent>_sub_<type>_<uuid>"). Best-effort: never raises.
+    """
+    try:
+        from openjiuwen.core.runner import Runner
+        from openjiuwen.core.runner.callback.events import LLMCallEvents, ToolCallEvents
+        from openjiuwen.agent_teams.context import get_session_id as _ctx_session_id
+    except Exception as exc:
+        logger.debug("[AgentObservability] subagent history forwarder skipped: %s", exc)
+        return
+
+    framework = getattr(Runner, "callback_framework", None)
+    if framework is None:
+        server_logger.info("[AgentObservability] subagent history forwarder: Runner.callback_framework unavailable — not installed")
+        return
+
+    server_logger.info("[AgentObservability] subagent history forwarder installing handlers on %r", framework)
+
+    ns = "jiuwenswarm-subagent-history"
+
+    async def _on_input(*args: Any, **kwargs: Any) -> None:
+        try:
+            from openjiuwen.agent_teams.context import get_session_id as _ctx_session_id
+            sid = _ctx_session_id()
+            sub = _subagent_from_session_id(sid)
+            server_logger.info(
+                "[AgentObservability] subagent llm input cb fired: session=%s sub=%s parent_ctx=%s",
+                sid, sub, _PARENT_REQ_BY_SESSION.get((sub or ("", ""))[0]) if sub else None,
+            )
+            if sub:
+                try:
+                    msgs = kwargs.get("messages") or []
+                    parts = []
+                    for m in msgs:
+                        role = m.get("role") if isinstance(m, dict) else getattr(m, "role", "?")
+                        content = m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
+                        img_in = 0
+                        if isinstance(content, list):
+                            img_in = sum(
+                                1 for p in content
+                                if isinstance(p, dict) and (
+                                    p.get("type") in ("image_url", "image") or "image_url" in p
+                                )
+                            )
+                        parts.append(f"{role}[img={img_in}]")
+                    server_logger.info(
+                        "[AgentObservability] subagent msgs: n=%d %s",
+                        len(msgs), " ".join(parts[:12]),
+                    )
+                except Exception as exc:
+                    server_logger.warning("[AgentObservability] subagent msgs dump failed: %s", exc)
+            # The image-modality probe is a background diagnostic, not a real
+            # sub-agent LLM call: skip it so its records (and, on text-only
+            # models, its 400 chat.error bubble) do not pollute the trace.
+            if _is_image_probe_call(kwargs.get("messages")):
+                return
+            active = _subagent_active()
+            if not active:
+                return
+            parent_id, sub_type, ctx = active
+            prompt = _subagent_prompt_preview(kwargs.get("messages"))
+            if prompt:
+                _LAST_PROMPT_BY_SESSION[sid] = prompt
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.llm_call_start",
+                extra={"prompt": prompt} if prompt else {},
+            )
+        except Exception as exc:
+            server_logger.warning("[AgentObservability] subagent llm_start forward failed: %s", exc)
+
+    async def _on_output(*args: Any, **kwargs: Any) -> None:
+        try:
+            active = _subagent_active()
+            if not active:
+                return
+            parent_id, sub_type, ctx = active
+            response = kwargs.get("response") or kwargs.get("result")
+            content = ""
+            if isinstance(response, str):
+                content = response
+            elif response is not None:
+                content = str(getattr(response, "content", "") or "")
+
+            usage = kwargs.get("usage") or getattr(response, "usage_metadata", None)
+            model = (
+                kwargs.get("model")
+                or kwargs.get("model_name")
+                or getattr(response, "model", None)
+                or ""
+            )
+            usage_meta: dict[str, Any] = {"model_name": str(model or "")}
+            usage_meta["code"] = 0
+            usage_meta["err_msg"] = ""
+            from openjiuwen.agent_teams.context import get_session_id as _ctx_session_id2
+
+            usage_meta["prompt"] = _LAST_PROMPT_BY_SESSION.get(_ctx_session_id2(), "")
+            if usage is not None:
+                um = usage.model_dump() if hasattr(usage, "model_dump") else (
+                    usage if isinstance(usage, dict) else {}
+                )
+                for key in ("input_tokens", "output_tokens", "total_tokens", "cache_tokens"):
+                    val = um.get(key) if isinstance(um, dict) else None
+                    if val is not None:
+                        usage_meta[key] = val
+
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.usage_metadata",
+                extra={"metadata": {"usage_metadata": usage_meta}},
+            )
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.llm_call_end",
+                content=content[:2000],
+            )
+        except Exception as exc:
+            server_logger.warning("[AgentObservability] subagent llm_end forward failed: %s", exc)
+
+    async def _on_error(*args: Any, **kwargs: Any) -> None:
+        # Real sub-agent failures surface through the task_tool result (the
+        # parent reports them in its own output). Forwarding the raw model
+        # error here also catches background probes, producing misleading
+        # chat.error bubbles in the parent history — so errors are not copied.
+        pass
+
+    async def _on_tool_start(*args: Any, **kwargs: Any) -> None:
+        try:
+            active = _subagent_active()
+            if not active:
+                return
+            parent_id, sub_type, ctx = active
+            tool_name = kwargs.get("tool_name") or ""
+            tool_id = kwargs.get("tool_id") or ""
+            tool_call = {"name": tool_name, "arguments": _tool_call_arguments(kwargs.get("inputs"))}
+            if tool_id:
+                tool_call["tool_call_id"] = tool_id
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.tool_call",
+                extra={"tool_call": tool_call},
+            )
+        except Exception as exc:
+            server_logger.warning("[AgentObservability] subagent tool_start forward failed: %s", exc)
+
+    async def _on_tool_end(*args: Any, **kwargs: Any) -> None:
+        try:
+            active = _subagent_active()
+            if not active:
+                return
+            parent_id, sub_type, ctx = active
+            result = kwargs.get("result")
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.tool_result",
+                extra={
+                    "result": str(result) if result is not None else "",
+                    "tool_name": kwargs.get("tool_name") or "",
+                    "tool_call_id": kwargs.get("tool_id") or "",
+                },
+            )
+        except Exception as exc:
+            server_logger.warning("[AgentObservability] subagent tool_end forward failed: %s", exc)
+
+    async def _on_tool_error(*args: Any, **kwargs: Any) -> None:
+        try:
+            active = _subagent_active()
+            if not active:
+                return
+            parent_id, sub_type, ctx = active
+            error = kwargs.get("error")
+            _append_subagent_llm_record(
+                parent_id=parent_id, subagent_type=sub_type, ctx=ctx,
+                event_type="chat.tool_result",
+                extra={
+                    "result": "",
+                    "tool_name": kwargs.get("tool_name") or "",
+                    "tool_call_id": kwargs.get("tool_id") or "",
+                    "error": str(error) if error is not None else "tool call error",
+                    "error_type": "subagent_tool_error",
+                },
+            )
+        except Exception as exc:
+            server_logger.warning("[AgentObservability] subagent tool_error forward failed: %s", exc)
+
+    pairs: list[tuple[str, Any]] = [
+        (LLMCallEvents.LLM_INVOKE_INPUT, _on_input),
+        (LLMCallEvents.LLM_STREAM_INPUT, _on_input),
+        (LLMCallEvents.LLM_OUTPUT, _on_output),
+        (ToolCallEvents.TOOL_CALL_STARTED, _on_tool_start),
+        (ToolCallEvents.TOOL_CALL_FINISHED, _on_tool_end),
+        (ToolCallEvents.TOOL_CALL_ERROR, _on_tool_error),
+    ]
+    for event, cb in pairs:
+        try:
+            framework.register_sync(event, cb, namespace=ns)
+        except Exception as exc:
+            logger.debug("[AgentObservability] subagent history forwarder register failed: %s", exc)
 
 
 def _build_run_span_name(*, mode: str, session_id: str) -> str:
