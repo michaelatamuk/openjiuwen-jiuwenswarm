@@ -214,7 +214,7 @@ Manages model configs defined under `models.defaults` in `config.yaml`. Supports
 
 Per-turn diffs are computed from `.agent_history/file_ops_jiuwenswarm*.json` logs, not from git. The service reads and merges file operation logs from multiple locations:
 
-1. Agent workspace (`~/.jiuwenswarm/agent/jiuwenswarm_workspace/.agent_history/`)
+1. Agent workspace (`~/.jiuwenswarm/agent/workspace/.agent_history/`)
 2. User workspace `.agent_history/`
 3. Project directory `.agent_history/` (session-specific and global files)
 
@@ -526,7 +526,7 @@ Manage skills lifecycle: listing, installing, uninstalling, marketplace source m
 - **Marketplace source**: A remote Git repository that hosts available skills. Each source has a name, URL, and enabled/disabled state.
 - **Spec**: The install identifier format supporting: `<skill>@builtin` (builtin), `<slug>@clawhub` (ClawHub), `<skill>@<marketplace>` (Git marketplace); bare names without `@` are auto-detected as builtin if applicable.
 - **Local install**: Use `/skills install <path>` to install from a local directory (must contain `SKILL.md`) or remote archive URL; paths/URLs are auto-detected and routed to the local import flow.
-- **Install location**: The directory where a skill is stored after installation (`~/.jiuwenswarm/agent/jiuwenswarm_workspace/skills/`).
+- **Install location**: The directory where a skill is stored after installation (`~/.jiuwenswarm/agent/workspace/skills/`).
 - **Source tag**: Each skill in the list is tagged with its source: `[builtin]` = builtin, `[local]` = imported, `[clawhub]` = ClawHub, `[skillnet]` = SkillNet, `[project]` or marketplace name = other.
 
 #### Grouped List Display
@@ -707,7 +707,7 @@ Enter / leave jiuwenbox sandbox mode and tune its runtime policy. Calls `command
 - **Nested paths**: Supported: parent allow + child deny (e.g. allow `/tmp`, deny `/tmp/secret`). Not supported: child allow + parent deny (parent deny wins); the server rejects such configs.
 - **Effective write policy**: `files.allow_write` / `files.deny_write` in the status panel show the merged view of auto-managed and user-configured entries, each labeled `(rw)` or `(ro)`.
 - **preserve_file_sharing_mode**: Controlled by jiuwenswarm config, not by `/sandbox`. Only `mount` is supported: intrinsic files and `project_dir` are bind-mounted into the sandbox and `project_dir/config/config.yaml` is explicitly added to `deny_write`. Writing any other value into config.yaml is rejected by the server.
-- **excluded_commands**: Match the full command string (not just `argv[0]`); a match makes that tool call run on the host, effectively granting the command's side effects to the local environment.
+- **excluded_commands**: `fnmatch` per simple-command leaf (full leaf text or command name). All matches → whole command on host; none → whole command in sandbox; mixed leaves → local bash orchestrates and wraps remote leaves with `jiuwenbox sandbox exec` (CLI required).
 - **Add / remove are strict**: `exclude add` rejects a pattern that is already in the list; `exclude remove` rejects a pattern that is not in the list. `files allow|deny` rejects a path that is already in the same bucket, and rejects a path that exists in the opposite bucket (allow vs deny conflict) — run `files remove` first if you want to flip it. `files remove` rejects paths that have no matching user-configured entry.
 - **enable / disable**: Triggers an agent rebuild. The response lists `rebuilt_modes` (typically `agent.*` / `code.*`) and the jiuwenbox endpoint.
 
