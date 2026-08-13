@@ -568,7 +568,8 @@ _LAST_CALL_START_BY_SESSION: dict[str, float] = {}
 
 def set_parent_request_context(*, session_id: str, request_id: str, channel_id: str, mode: str) -> None:
     """Record the parent request context so sub-agent LLM events can be written
-    into the parent session's history. Call at request start."""
+    into the parent session's history. Call at request start.
+    """
     _PARENT_REQ_BY_SESSION[session_id or "default"] = (request_id, channel_id, mode)
     server_logger.info(
         "[AgentObservability] set_parent_request_context: session=%s rid=%s cid=%s mode=%s",
