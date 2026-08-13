@@ -368,3 +368,17 @@ jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research ass
 - Save highlights and session notes persistently; notes are injected as context with every message
 
 Targets researchers, analysts, journalists, and professionals who work primarily in the browser rather than an IDE or notebook.
+
+### jiuwenswarm-sdk — Programmatic Agent Access
+*Solution*
+
+JiuwenSwarm SDK exposes the agent runtime as a library — in Python, in TypeScript, or over plain HTTP — so developers can build JiuwenSwarm agents directly into their own products, CI pipelines, and internal tools instead of driving a chat UI. All three surfaces share the same server backend (`openjiuwen.core` + `openjiuwen.harness`); a REST + WebSocket gateway serves the same API to any language that can make an HTTP call.
+
+**What developers can do:**
+- Run agents in-process in Python (`Agent.create`) or connect to a remote server over WebSocket (`Agent.connect`)
+- Stream tokens, register `@tool` functions, attach lifecycle hooks, and checkpoint/restore sessions
+- Compose DAG workflows, spawn multi-agent teams, and expose them as MCP servers
+- Add memory, knowledge bases, and agentic retrieval; evaluate and trace with `Evaluator` and OpenTelemetry
+- Use the same capabilities from TypeScript/JavaScript or via the gateway's REST API with curl
+
+Targets software engineers who want to embed JiuwenSwarm agents in their own applications.
