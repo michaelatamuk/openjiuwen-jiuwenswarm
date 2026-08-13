@@ -201,7 +201,7 @@ The Team Verification Layer adds automatic quality assurance to Agent Team sessi
 | 40–69 | NEEDS_REWORK |
 | < 40 | FAIL |
 
-Results are stored persistently in `TEAM_MEMORY.md` by a `VerificationMemory` component, making quality history available to subsequent tasks and agents in the same session. Two configuration flags govern escalation: `block_on_fail` holds the task until the verdict is returned; `auto_rework` automatically sends the task back to the originating agent with the reviewer's feedback. On completion the rail emits `team.verification.completed` (or `team.verification.error` on failure), which the IDE Swarm Map and OTel tracing consume like any other team event.
+Results are stored persistently in `TEAM_MEMORY.md` by a `VerificationMemory` component, making quality history available to subsequent tasks and agents in the same session. Two configuration flags govern escalation: `block_on_fail` holds the task until the verdict is returned; `auto_rework` automatically sends the task back to the originating agent with the reviewer's feedback. On completion the rail emits `team.verification.completed` (or `team.verification.error` on failure), which OTel tracing consumes like any other team event.
 
 Agent Team mode only — no effect on single-agent or DeepAgent-only sessions. The five implementation components are `TeamVerificationRail`, `VerificationReviewer`, `VerificationMemory`, `VerificationResult`, and `VerificationConfig`.
 
@@ -321,64 +321,3 @@ Results are available as a structured report object or human-readable text. Thre
 - **GUI analyzer** — interactive exploration for debugging a specific session
 
 TraceHound handles post-session forensics; Agent-Core OTel handles real-time instrumentation.
-
----
-
-## Meet users where they work
-
-### jiuwenswarm-ide — IDE Plugin
-*Solution*
-
-JiuwenSwarm IDE puts the agent directly inside the developer's editor — available as both a VS Code extension and a JetBrains plugin. The agent is aware of what the developer is currently looking at: open files, recent errors, git state, and project-level rules. This awareness is automatic — the developer does not need to paste context into a chat window.
-
-**What developers can do:**
-- Chat with the agent without leaving the editor
-- Review proposed code changes as a diff before accepting or rejecting them
-- Rewind to an earlier point in a session if a direction turns out to be wrong
-- Navigate directly from an agent response to the relevant file or symbol in the editor
-- Let the agent run terminal commands as part of a task
-- Monitor a live multi-agent team through a visual panel that shows which agents are active and what they are working on
-
-Targets software engineers and engineering teams who spend most of their working time in an IDE.
-
-### jiuwenswarm-jupyterlab — JupyterLab Extension
-*Solution*
-
-jiuwenswarm-jupyterlab puts JiuwenSwarm inside Jupyter notebooks, where data scientists and ML researchers actually work. The agent has direct access to the live notebook environment — it can see the current state of variables, datasets, and cell outputs without the user copying anything. It works in JupyterLab, classic Notebook, VS Code Notebooks, Colab, and Kaggle.
-
-**What data scientists can do:**
-- Ask the agent a question or give it a task from inside a notebook cell, without switching windows
-- Get agent responses and generated code written directly into the notebook
-- Have the agent reason over live data — it sees actual variable values and DataFrame contents, not just code
-- Use the sidebar chat panel for a longer back-and-forth conversation while keeping the notebook in view
-- Track multi-agent work on a visual swarm map panel
-
-Targets data scientists and ML researchers who work in notebooks rather than IDEs.
-
-### jiuwenswarm-browser — Chromium Extension
-*Solution*
-
-jiuwenswarm-browser puts JiuwenSwarm into the browser as an ambient research assistant. Where the IDE plugin understands code and the JupyterLab extension understands data, the browser extension understands web content — articles, papers, filings, threads, transcripts. Works on Chrome and on Chromium-based browsers without the Side Panel API (major Chinese browsers included), where the panel opens as a popup window automatically.
-
-**What researchers and analysts can do:**
-- Pin pages from multiple tabs into a named session; the agent treats all of them as one unified context
-- Ask cross-source questions against 9 specialized content types (arXiv, GitHub, SEC EDGAR, PubMed, Wikipedia, YouTube, Twitter/X, Hacker News, generic articles)
-- Let the agent act on pages — highlight cited passages, scroll to sections, fill forms, take screenshots, open follow-up URLs
-- Manage sessions with templates, export to JSON or Markdown, import, and open directly in the web app
-- Save highlights and session notes persistently; notes are injected as context with every message
-
-Targets researchers, analysts, journalists, and professionals who work primarily in the browser rather than an IDE or notebook.
-
-### jiuwenswarm-sdk — Programmatic Agent Access
-*Solution*
-
-JiuwenSwarm SDK exposes the agent runtime as a library — in Python, in TypeScript, or over plain HTTP — so developers can build JiuwenSwarm agents directly into their own products, CI pipelines, and internal tools instead of driving a chat UI. All three surfaces share the same server backend (`openjiuwen.core` + `openjiuwen.harness`); a REST + WebSocket gateway serves the same API to any language that can make an HTTP call.
-
-**What developers can do:**
-- Run agents in-process in Python (`Agent.create`) or connect to a remote server over WebSocket (`Agent.connect`)
-- Stream tokens, register `@tool` functions, attach lifecycle hooks, and checkpoint/restore sessions
-- Compose DAG workflows, spawn multi-agent teams, and expose them as MCP servers
-- Add memory, knowledge bases, and agentic retrieval; evaluate and trace with `Evaluator` and OpenTelemetry
-- Use the same capabilities from TypeScript/JavaScript or via the gateway's REST API with curl
-
-Targets software engineers who want to embed JiuwenSwarm agents in their own applications.
