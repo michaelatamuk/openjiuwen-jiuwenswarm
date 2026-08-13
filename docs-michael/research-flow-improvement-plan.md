@@ -92,6 +92,14 @@ across parallel workers. Agents burn identical turns re-confirming that a search
 returns nothing, re-hitting blocked endpoints, and re-fetching low-value aggregators with
 slightly different URLs.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    A1["Subagent 1 fetches source X"] --> B1["403 / empty"]
+    A2["Subagent 2 fetches source X"] --> B2["403 / empty (again)"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -116,6 +124,15 @@ slightly different URLs.
 
 - Expose the store's per-skill aggregates to the SkillTend lifecycle so a skill that
   consistently fails (e.g. `ddg-search`) is flagged STALE / retired at the library level.
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1["First failure logged"] --> S2["SourceHealthStore"]
+    S2 --> S3["Next call to same source"]
+    S3 --> S4["Block or steer to alternative"]
+```
 
 ### Expected Result
 The first failure in any worker blocks or steers the same call in all other workers. In the
@@ -146,6 +163,14 @@ Pages that return HTTP 200 but unrelated, empty, or JS-shell content are treated
 evidence (e.g. hotel pages for the wrong city, `[empty]` flight results). This pollutes
 context and produces reports that silently mix real and garbage data.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Page returns Status 200"] --> P2["Wrong city / empty / landing page"]
+    P2 --> P3["Treated as evidence"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -167,6 +192,17 @@ context and produces reports that silently mix real and garbage data.
 - Add a `confidence` field to the agent's final structured report (real / estimated /
   unverified per data point) so the orchestrator can weigh the answer instead of reading
   prose caveats.
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1["Classify content"] --> S2{"Relevant?"}
+    S2 -- "no" --> S3["UNRELATED / EMPTY badge"]
+    S2 -- "ambiguous" --> S4["llm_judge"]
+    S2 -- "yes" --> S5["Keep as evidence"]
+    S3 --> S6["Not trusted in report"]
+```
 
 ### Expected Result
 Unrelated/empty pages either don't enter context or enter explicitly marked as worthless;
@@ -190,6 +226,14 @@ Input tokens grow monotonically with each turn (observed 16k → 61k) and late t
 slow, because full history — repeated identical task descriptions and full fetch bodies —
 is re-sent every call. This inflates cost and can hit the context limit on long runs.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Full history resent each turn"] --> P2["16k → 61k tokens"]
+    P2 --> P3["Slow late turns, high cost"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -207,6 +251,16 @@ is re-sent every call. This inflates cost and can hit the context limit on long 
 - Add a headroom guard that, based on current fill ratio, injects a conciseness directive
   into the prompt at 60% fill and a critical-brevity directive at 80% (the Cortex "Context
   Headroom Guard").
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1{"History > threshold?"} -- "yes" --> S2["Summarize oldest fetch/bash"]
+    S2 --> S3["Keep last N turns verbatim"]
+    S1 -- "no" --> S3
+    S3 --> S4["Smaller context, stable latency"]
+```
 
 ### Expected Result
 Token usage and latency scale with actual new evidence, not with run length. Late-turn
@@ -231,6 +285,13 @@ Research continues after enough evidence has been gathered. The existing evaluat
 research loops that keep producing *some* output, so agents run far past the point of
 diminishing returns.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Agent keeps researching"] --> P2["Turns past enough data"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -249,6 +310,17 @@ diminishing returns.
     of looping.
 - Make N and the force-finish cap configurable (env/config) so they can be tuned with Item
   7 metrics.
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1{"Turn has novel evidence?"} -- "no" --> S2["Loiter counter++"]
+    S2 --> S3{"Counter >= N?"}
+    S3 -- "yes" --> S4["Synthesize now (steering)"]
+    S4 --> S5["No progress → force finish"]
+    S1 -- "yes" --> S6["Reset, continue"]
+```
 
 ### Expected Result
 Runs converge to ~one-third fewer turns (e.g. 16 → ~10, 13 → ~9), cutting wall-clock and
@@ -277,6 +349,13 @@ Many turns are narration rather than action: the model announces intent ("let me
 "Bing gave generic results") without producing new evidence, which looks like progress to a
 turn-count-based loop but adds nothing.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Model narrates intent"] --> P2["No new evidence turns"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -290,6 +369,16 @@ turn-count-based loop but adds nothing.
   synthesis.
 - If narration-only turns persist (configurable count), escalate to the same
   `request_force_finish` path as Item 4.
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1{"Narration-only turn?"} -- "yes" --> S2["Inject 'act or synthesize'"]
+    S2 --> S3{"Persists?"}
+    S3 -- "yes" --> S4["Force finish"]
+    S1 -- "no" --> S5["Normal turn"]
+```
 
 ### Expected Result
 The signal-to-noise ratio of the transcript rises; turns that would have been pure
@@ -316,6 +405,13 @@ Prompts that demand "real, current, live" values from bot-hostile sources push t
 into an unwinnable scrape that consumes most of the runtime; the orchestrator also never
 tells the subagent what precision is actually needed.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Prompt demands real/current/live"] --> P2["Fights captchas for most of run"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -337,6 +433,16 @@ tells the subagent what precision is actually needed.
   dynamic-source list per domain, e.g. travel, finance, news) and pass them into subagent
   spawns so the section references real, working sources instead of generic advice.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1{"Data type?"} --> S2["Static → one call to known source"]
+    S1 --> S3["Dynamic → one attempt per source"]
+    S3 --> S4["Else estimates + confidence label"]
+    S1 --> S5["Blocked → mark once, move on"]
+```
+
 ### Expected Result
 Unwinnable subgoals are recognised up front; the flow becomes "gather good-enough data in a
 handful of turns, label confidence" instead of "fight every captcha". Data-gathering effort
@@ -356,6 +462,13 @@ matches the precision actually required by the orchestrator.
 There is no structured signal telling the team *why* a run was long or where the waste was,
 so thresholds and budgets are tuned by guesswork and improvements can't be measured.
 
+**Diagram:**
+
+```mermaid
+flowchart LR
+    P1["Only raw telemetry in trace"] --> P2["Waste must be inferred by hand"]
+```
+
 ### Technical Solution
 **agent-core:**
 
@@ -369,6 +482,15 @@ so thresholds and budgets are tuned by guesswork and improvements can't be measu
 - Add queries/dashboards over these events in Langfuse (or the OTel backend) and surface
   them as a new dimension in TraceHound, so a run's blocked/loitering/compacted behaviour
   is visible per session without reading raw logs.
+
+**Diagram:**
+
+```mermaid
+flowchart LR
+    S1["Rails emit counters"] --> S2["OTel / Langfuse spans"]
+    S2 --> S3["TraceHound queries"]
+    S3 --> S4["Measure before/after, tune thresholds"]
+```
 
 ### Expected Result
 Before/after of every item is measurable from real runs; thresholds (N turns, fill ratios,
