@@ -1,0 +1,2134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JiuwenClaw — Team Agent System Demo</title>
+<style>
+  /* ============================================================
+     RESET & BASE
+  ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-dark:       #0d1117;
+    --bg-sidebar:    #161b22;
+    --bg-panel:      #1c2128;
+    --bg-card:       #21262d;
+    --bg-card-hover: #2d333b;
+    --bg-input:      #0d1117;
+    --border:        #30363d;
+    --border-light:  #444c56;
+
+    --text-primary:  #e6edf3;
+    --text-secondary:#8b949e;
+    --text-muted:    #6e7681;
+
+    --blue:    #58a6ff;
+    --blue-bg: #1f3a5c;
+    --green:   #3fb950;
+    --green-bg:#122b1a;
+    --purple:  #c084fc;
+    --purple-bg:#2d1b4e;
+    --amber:   #d29922;
+    --amber-bg:#2e2007;
+    --red:     #f85149;
+    --red-bg:  #3d1512;
+    --gray-bg: #2d333b;
+
+    --leader-color:  #58a6ff;
+    --analyst-color: #3fb950;
+    --writer-color:  #c084fc;
+    --user-color:    #8b949e;
+
+    --radius-sm: 6px;
+    --radius:    8px;
+    --radius-lg: 12px;
+
+    --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.6);
+
+    --transition: 0.25s ease;
+    --transition-slow: 0.5s ease;
+  }
+
+  /* ============================================================
+     LIGHT THEME OVERRIDES
+  ============================================================ */
+  [data-theme="light"] {
+    --bg-dark:       #f6f8fa;
+    --bg-sidebar:    #ffffff;
+    --bg-panel:      #f0f2f5;
+    --bg-card:       #ffffff;
+    --bg-card-hover: #f0f2f5;
+    --bg-input:      #ffffff;
+    --border:        #d0d7de;
+    --border-light:  #b4bcc4;
+
+    --text-primary:  #1f2328;
+    --text-secondary:#57606a;
+    --text-muted:    #8c959f;
+
+    --blue:    #0969da;
+    --blue-bg: #ddf4ff;
+    --green:   #1a7f37;
+    --green-bg:#dafbe1;
+    --purple:  #7c3aed;
+    --purple-bg:#f3f0ff;
+    --amber:   #9a6700;
+    --amber-bg:#fff8c5;
+    --red:     #cf222e;
+    --red-bg:  #ffebe9;
+    --gray-bg: #eaeef2;
+
+    --leader-color:  #0969da;
+    --analyst-color: #1a7f37;
+    --writer-color:  #7c3aed;
+    --user-color:    #57606a;
+
+    --shadow:    0 1px 3px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+  }
+
+  /* Light-theme-specific overrides that can't be done via variables alone */
+  [data-theme="light"] .msg-bubble { color: var(--text-primary); }
+  [data-theme="light"] .tool-call  { background: #f6f8fa; }
+  [data-theme="light"] .task-card  { background: #f6f8fa; }
+  [data-theme="light"] .report-preview { background: #f6f8fa; }
+  [data-theme="light"] .diff-line-add  { background: #e6ffec; }
+  [data-theme="light"] .diff-line-rem  { background: #ffebe9; }
+  [data-theme="light"] code { background: #f6f8fa; color: #9a6700; }
+  [data-theme="light"] .ctrl-btn.primary { background: #0969da; border-color: #0969da; }
+  [data-theme="light"] .ctrl-btn.primary:hover { background: #0550ae; }
+  [data-theme="light"] .spinner {
+    border-color: rgba(9,105,218,0.25);
+    border-top-color: #0969da;
+  }
+  [data-theme="light"] .typing-dot { background: #8c959f; }
+
+  /* Theme toggle button */
+  .theme-toggle {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .theme-toggle:hover {
+    border-color: var(--border-light);
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+  }
+  .theme-toggle .toggle-icon { font-size: 14px; line-height: 1; }
+  .theme-toggle .toggle-label { line-height: 1; }
+
+  html { font-size: 14px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============================================================
+     TOP HEADER / SCENARIO TABS
+  ============================================================ */
+  .app-header {
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 52px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .app-logo {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .app-logo .logo-icon {
+    width: 26px; height: 26px;
+    background: linear-gradient(135deg, #1f6feb, #58a6ff);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+  .scenario-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: none;
+  }
+  .scenario-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all var(--transition);
+    line-height: 1.4;
+  }
+  .tab-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+  .tab-btn.active {
+    background: var(--bg-card);
+    border-color: var(--border-light);
+    color: var(--text-primary);
+  }
+  .tab-btn .tab-num {
+    display: inline-block;
+    width: 18px; height: 18px;
+    background: var(--blue-bg);
+    color: var(--blue);
+    border-radius: 4px;
+    text-align: center;
+    line-height: 18px;
+    font-size: 11px;
+    margin-right: 6px;
+  }
+  .tab-btn.active .tab-num { background: var(--blue); color: #fff; }
+
+  /* ============================================================
+     MAIN LAYOUT
+  ============================================================ */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ============================================================
+     SIDEBAR
+  ============================================================ */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-section {
+    padding: 14px 16px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .sidebar-content { flex: 1; overflow-y: auto; padding: 0 12px 12px; scrollbar-width: thin; }
+  .sidebar-content::-webkit-scrollbar { width: 4px; }
+  .sidebar-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Agent Member Cards */
+  .member-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+  .member-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    transition: background var(--transition);
+  }
+  .member-card.leader::before  { background: var(--leader-color); }
+  .member-card.analyst::before { background: var(--analyst-color); }
+  .member-card.writer::before  { background: var(--writer-color); }
+
+  .member-card.spawning {
+    animation: spawnPulse 0.8s ease-out;
+    border-color: var(--green);
+  }
+  @keyframes spawnPulse {
+    0%   { transform: scale(0.85); opacity: 0; }
+    60%  { transform: scale(1.03); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .member-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .member-avatar {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .member-avatar.leader  { background: var(--blue-bg);   color: var(--blue); }
+  .member-avatar.analyst { background: var(--green-bg);  color: var(--green); }
+  .member-avatar.writer  { background: var(--purple-bg); color: var(--purple); }
+
+  .member-info { flex: 1; min-width: 0; }
+  .member-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .member-role { font-size: 11px; color: var(--text-muted); }
+
+  .status-badge {
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all var(--transition);
+  }
+  .status-badge.idle    { background: var(--gray-bg); color: var(--text-muted); }
+  .status-badge.ready   { background: var(--green-bg); color: var(--green); }
+  .status-badge.working {
+    background: var(--amber-bg); color: var(--amber);
+    animation: workingPulse 1.5s infinite;
+  }
+  .status-badge.spawning { background: var(--blue-bg); color: var(--blue); }
+  @keyframes workingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  .member-tool {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: var(--bg-panel);
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    display: none;
+  }
+  .member-tool.visible { display: block; }
+
+  /* Skills panel in sidebar */
+  .skills-list { margin-top: 4px; }
+  .skill-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    transition: all var(--transition);
+  }
+  .skill-item.new-skill {
+    border-color: var(--green);
+    animation: skillAppear 0.6s ease-out;
+  }
+  @keyframes skillAppear {
+    0%   { opacity: 0; transform: translateX(-10px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  .skill-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .skill-dot.updated { background: var(--green); }
+  .skill-dot.new     { background: var(--amber); }
+  .skill-name-text { color: var(--text-primary); flex: 1; }
+  .skill-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+  .skill-tag.updated { background: var(--green-bg); color: var(--green); }
+  .skill-tag.new     { background: var(--amber-bg); color: var(--amber); }
+
+  /* ============================================================
+     MAIN CHAT AREA
+  ============================================================ */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-dark);
+  }
+
+  .chat-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .chat-title { font-size: 14px; font-weight: 600; }
+  .chat-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .step-controls {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .step-indicator {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .step-indicator .step-current { color: var(--blue); font-weight: 600; }
+
+  .ctrl-btn {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all var(--transition);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ctrl-btn:hover { background: var(--bg-card-hover); border-color: var(--blue); color: var(--blue); }
+  .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ctrl-btn:disabled:hover { background: var(--bg-card); border-color: var(--border-light); color: var(--text-primary); }
+
+  .ctrl-btn.primary {
+    background: #1f6feb;
+    border-color: #388bfd;
+    color: #fff;
+  }
+  .ctrl-btn.primary:hover { background: #388bfd; }
+
+  /* ============================================================
+     MESSAGES
+  ============================================================ */
+  .messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scrollbar-width: thin;
+  }
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .msg {
+    display: flex;
+    gap: 10px;
+    animation: msgAppear 0.3s ease-out;
+    opacity: 0;
+    animation-fill-mode: forwards;
+  }
+  @keyframes msgAppear {
+    0%   { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .msg.hidden { display: none; }
+
+  .msg-avatar {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .msg-avatar.leader  { background: var(--blue-bg);   color: var(--blue); }
+  .msg-avatar.analyst { background: var(--green-bg);  color: var(--green); }
+  .msg-avatar.writer  { background: var(--purple-bg); color: var(--purple); }
+  .msg-avatar.user    { background: var(--gray-bg);   color: var(--text-secondary); }
+  .msg-avatar.system  { background: var(--amber-bg);  color: var(--amber); }
+
+  .msg-body { flex: 1; max-width: 680px; }
+  .msg-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .msg-author { font-size: 12px; font-weight: 600; }
+  .msg-author.leader  { color: var(--leader-color); }
+  .msg-author.analyst { color: var(--analyst-color); }
+  .msg-author.writer  { color: var(--writer-color); }
+  .msg-author.user    { color: var(--text-secondary); }
+  .msg-author.system  { color: var(--amber); }
+  .msg-time { font-size: 11px; color: var(--text-muted); }
+
+  .msg-bubble {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px 10px 10px 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    transition: all var(--transition);
+  }
+  .msg-bubble.leader  { border-color: rgba(88,166,255,0.25); }
+  .msg-bubble.analyst { border-color: rgba(63,185,80,0.25); }
+  .msg-bubble.writer  { border-color: rgba(192,132,252,0.25); }
+  .msg-bubble.user    { background: var(--bg-panel); }
+
+  /* Tool call inside bubble */
+  .tool-call {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .tool-call-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .tool-call-icon { font-size: 10px; }
+  .tool-call-name { color: var(--amber); font-weight: 600; }
+  .tool-call-result { color: var(--text-muted); font-size: 11px; }
+  .tool-call-result.success { color: var(--green); }
+  .tool-call-result.error   { color: var(--red); }
+
+  /* Task card in message */
+  .task-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .task-card-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .task-card-dot.pending { background: var(--amber); }
+  .task-card-dot.working { background: var(--blue); animation: workingPulse 1.5s infinite; }
+  .task-card-dot.done    { background: var(--green); }
+
+  /* ============================================================
+     RIGHT PANEL (Evolution / Proposals / Diff)
+  ============================================================ */
+  .right-panel {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .right-panel-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+  .right-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    scrollbar-width: thin;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Evolution Signal Badge */
+  .signal-badge {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    animation: badgeAppear 0.5s ease-out;
+    display: none;
+  }
+  .signal-badge.visible { display: block; }
+  .signal-badge.amber   { background: var(--amber-bg); border-color: var(--amber); }
+  .signal-badge.green   { background: var(--green-bg); border-color: var(--green); }
+  .signal-badge.blue    { background: var(--blue-bg);  border-color: var(--blue); }
+  @keyframes badgeAppear {
+    0%   { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .signal-badge-title {
+    font-size: 12px; font-weight: 700;
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .signal-badge-title.amber { color: var(--amber); }
+  .signal-badge-title.green { color: var(--green); }
+  .signal-badge-title.blue  { color: var(--blue); }
+  .signal-badge-body { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+  .signal-badge-meta { margin-top: 6px; font-size: 10px; color: var(--text-muted); font-family: monospace; }
+
+  /* Diff Card */
+  .diff-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: none;
+  }
+  .diff-card.visible { display: block; animation: badgeAppear 0.4s ease-out; }
+  .diff-card-header {
+    padding: 8px 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .diff-content { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
+  .diff-line {
+    padding: 2px 12px;
+    line-height: 1.6;
+  }
+  .diff-line.context { color: var(--text-muted); }
+  .diff-line.removed { background: rgba(248,81,73,0.12); color: var(--red); }
+  .diff-line.added   { background: rgba(63,185,80,0.12); color: var(--green); }
+  .diff-line.removed::before { content: '- '; }
+  .diff-line.added::before   { content: '+ '; }
+  .diff-line.context::before { content: '  '; }
+
+  /* Proposal Card */
+  .proposal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: none;
+  }
+  .proposal-card.visible { display: block; animation: badgeAppear 0.5s ease-out; }
+  .proposal-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .proposal-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .proposal-pending-badge {
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-size: 10px;
+    background: var(--amber-bg);
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .proposal-body { padding: 12px 14px; }
+  .proposal-skill-name {
+    font-size: 13px;
+    color: var(--blue);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .proposal-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
+  .proposal-preview {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    max-height: 90px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
+  .proposal-actions { display: flex; gap: 8px; }
+  .approve-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--green);
+    background: var(--green-bg);
+    color: var(--green);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all var(--transition);
+  }
+  .approve-btn:hover { background: var(--green); color: #fff; }
+  .reject-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all var(--transition);
+  }
+  .reject-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Progress bar */
+  .progress-wrap {
+    background: var(--bg-dark);
+    border-radius: 20px;
+    height: 6px;
+    overflow: hidden;
+    margin-top: 8px;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue), var(--green));
+    border-radius: 20px;
+    width: 0%;
+    transition: width 1.2s ease;
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 18px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 9999;
+    pointer-events: none;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.35s ease;
+    display: flex; align-items: center; gap: 8px;
+    max-width: 320px;
+    box-shadow: var(--shadow-lg);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.green { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+  .toast.amber { background: var(--amber-bg); border: 1px solid var(--amber); color: var(--amber); }
+  .toast.blue  { background: var(--blue-bg);  border: 1px solid var(--blue);  color: var(--blue); }
+
+  /* ============================================================
+     CHAT INPUT
+  ============================================================ */
+  .chat-input-area {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .chat-input-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    transition: border-color var(--transition);
+  }
+  .chat-input-wrap:focus-within { border-color: var(--blue); }
+  .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    resize: none;
+  }
+  .chat-send-btn {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: #1f6feb;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background var(--transition);
+  }
+  .chat-send-btn:hover { background: #388bfd; }
+
+  /* ============================================================
+     SCENARIO SECTIONS (show/hide)
+  ============================================================ */
+  .scenario { display: none; width: 100%; height: 100%; }
+  .scenario.active { display: flex; flex: 1; overflow: hidden; }
+
+  /* ============================================================
+     STEP DESCRIPTION BAR
+  ============================================================ */
+  .step-desc-bar {
+    padding: 10px 20px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+  .step-desc-label {
+    color: var(--blue);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* ============================================================
+     LEGEND TOOLTIP AREA (bottom of sidebar)
+  ============================================================ */
+  .legend-area {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .legend-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .legend-items { display: flex; flex-wrap: wrap; gap: 4px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; color: var(--text-muted);
+  }
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ============================================================
+     TASK BOARD (used in S2)
+  ============================================================ */
+  .task-board {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .task-board-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .task-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    transition: all var(--transition);
+  }
+  .task-row:last-child { border-bottom: none; }
+  .task-row-label { flex: 1; color: var(--text-secondary); }
+  .task-row-assignee {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .task-row-assignee.leader  { background: var(--blue-bg);   color: var(--blue); }
+  .task-row-assignee.analyst { background: var(--green-bg);  color: var(--green); }
+  .task-row-assignee.writer  { background: var(--purple-bg); color: var(--purple); }
+
+  /* ============================================================
+     SPAWN ANIMATION AREA
+  ============================================================ */
+  .spawn-animation {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 10px;
+    background: var(--blue-bg);
+    border: 1px solid var(--blue);
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--blue);
+    margin-top: 6px;
+    animation: spawnIndicator 1s ease-out;
+  }
+  @keyframes spawnIndicator {
+    0%   { opacity: 0; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid rgba(88,166,255,0.3);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================
+     SCROLLBAR GLOBAL
+  ============================================================ */
+  * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  *::-webkit-scrollbar { width: 5px; height: 5px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ============================================================
+     REPORT PREVIEW
+  ============================================================ */
+  .report-preview {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+  .report-preview h4 { color: var(--text-primary); font-size: 13px; margin-bottom: 6px; }
+  .report-preview .metric { color: var(--green); font-weight: 600; }
+
+  /* Inline code */
+  code {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'SF Mono', monospace;
+    font-size: 11px;
+    color: var(--amber);
+  }
+
+  /* ============================================================
+     HEADER SCENARIO DESCRIPTION
+  ============================================================ */
+  .scenario-header-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .scenario-title-group {}
+  .scenario-main-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .scenario-sub-title  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ============================================================
+     TYPING INDICATOR
+  ============================================================ */
+  .typing-indicator {
+    display: none; align-items: center; gap: 4px; padding: 8px 14px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 4px 10px 10px 10px; width: fit-content;
+  }
+  .typing-indicator.visible { display: flex; }
+  .typing-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-muted);
+    animation: typingDot 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingDot {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.9); }
+    40%           { opacity: 1; transform: scale(1.2); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER / SCENARIO TABS
+============================================================ -->
+<header class="app-header">
+  <div class="app-logo">
+    <div class="logo-icon">J</div>
+    JiuwenClaw
+  </div>
+  <nav class="scenario-tabs" id="scenarioTabs">
+    <button class="tab-btn active" onclick="switchScenario(0)">
+      <span class="tab-num">1</span>Team Startup
+    </button>
+    <button class="tab-btn" onclick="switchScenario(1)">
+      <span class="tab-num">2</span>Task Delegation
+    </button>
+    <button class="tab-btn" onclick="switchScenario(2)">
+      <span class="tab-num">3</span>Error &amp; Evolution
+    </button>
+    <button class="tab-btn" onclick="switchScenario(3)">
+      <span class="tab-num">4</span>Skill Proposal
+    </button>
+    <button class="tab-btn" onclick="switchScenario(4)">
+      <span class="tab-num">5</span>User Correction
+    </button>
+  </nav>
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme (T)">
+    <span class="toggle-icon" id="themeIcon">☀️</span>
+    <span class="toggle-label" id="themeLabel">Light</span>
+  </button>
+</header>
+
+<!-- ============================================================
+     APP BODY
+============================================================ -->
+<div class="app-body">
+
+<!-- ====================  SCENARIO 1  ==================== -->
+<section class="scenario active" id="s1">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">Team Members</div>
+    <div class="sidebar-content">
+      <!-- Leader always present -->
+      <div class="member-card leader" id="s1-leader">
+        <div class="member-header">
+          <div class="member-avatar leader">TL</div>
+          <div class="member-info">
+            <div class="member-name">Team Leader</div>
+            <div class="member-role">leader · orchestrator</div>
+          </div>
+          <span class="status-badge idle" id="s1-leader-status">IDLE</span>
+        </div>
+        <div class="member-tool" id="s1-leader-tool"></div>
+      </div>
+
+      <!-- Analyst: hidden until spawned -->
+      <div class="member-card analyst" id="s1-analyst" style="display:none">
+        <div class="member-header">
+          <div class="member-avatar analyst">DA</div>
+          <div class="member-info">
+            <div class="member-name">Data Analyst</div>
+            <div class="member-role">teammate · analysis</div>
+          </div>
+          <span class="status-badge spawning" id="s1-analyst-status">SPAWNING</span>
+        </div>
+      </div>
+
+      <!-- Writer: hidden until spawned -->
+      <div class="member-card writer" id="s1-writer" style="display:none">
+        <div class="member-header">
+          <div class="member-avatar writer">RW</div>
+          <div class="member-info">
+            <div class="member-name">Report Writer</div>
+            <div class="member-role">teammate · writing</div>
+          </div>
+          <span class="status-badge spawning" id="s1-writer-status">SPAWNING</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend-area">
+      <div class="legend-title">Legend</div>
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--text-muted)"></div>IDLE</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>READY</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>WORKING</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>SPAWNING</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <div class="scenario-header-bar">
+      <div class="scenario-title-group">
+        <div class="scenario-main-title">Scenario 1 — Team Comes Alive</div>
+        <div class="scenario-sub-title">Watch the Leader spawn a team on demand to handle a complex task</div>
+      </div>
+      <div class="step-controls">
+        <div class="step-indicator">Step <span class="step-current" id="s1-step-cur">0</span> / <span id="s1-step-total">3</span></div>
+        <button class="ctrl-btn" id="s1-prev" onclick="s1Prev()" disabled>&#8592; Prev</button>
+        <button class="ctrl-btn primary" id="s1-next" onclick="s1Next()">Next &#8594;</button>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="step-desc-label" id="s1-state-label">BEFORE</span>
+      <span id="s1-state-desc">The app just opened. Team Leader is present but idle. No teammates yet.</span>
+    </div>
+    <div class="messages-area" id="s1-messages">
+      <!-- Messages injected by JS -->
+    </div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <input class="chat-input" type="text" value="Analyze our Q3 sales data and write a report" id="s1-input" readonly>
+        <button class="chat-send-btn" id="s1-send-btn" onclick="s1Next()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- No right panel for S1 -->
+</section>
+
+<!-- ====================  SCENARIO 2  ==================== -->
+<section class="scenario" id="s2">
+
+  <aside class="sidebar">
+    <div class="sidebar-section">Team Members</div>
+    <div class="sidebar-content">
+      <div class="member-card leader">
+        <div class="member-header">
+          <div class="member-avatar leader">TL</div>
+          <div class="member-info">
+            <div class="member-name">Team Leader</div>
+            <div class="member-role">leader · orchestrator</div>
+          </div>
+          <span class="status-badge ready" id="s2-leader-status">READY</span>
+        </div>
+        <div class="member-tool" id="s2-leader-tool"></div>
+      </div>
+      <div class="member-card analyst">
+        <div class="member-header">
+          <div class="member-avatar analyst">DA</div>
+          <div class="member-info">
+            <div class="member-name">Data Analyst</div>
+            <div class="member-role">teammate · analysis</div>
+          </div>
+          <span class="status-badge ready" id="s2-analyst-status">READY</span>
+        </div>
+        <div class="member-tool" id="s2-analyst-tool"></div>
+      </div>
+      <div class="member-card writer">
+        <div class="member-header">
+          <div class="member-avatar writer">RW</div>
+          <div class="member-info">
+            <div class="member-name">Report Writer</div>
+            <div class="member-role">teammate · writing</div>
+          </div>
+          <span class="status-badge ready" id="s2-writer-status">READY</span>
+        </div>
+        <div class="member-tool" id="s2-writer-tool"></div>
+      </div>
+    </div>
+    <div class="sidebar-section">Task Board</div>
+    <div style="padding: 0 12px 12px;">
+      <div class="task-board" id="s2-task-board">
+        <div class="task-board-title">Active Tasks</div>
+        <div class="task-row" id="s2-task-1" style="display:none">
+          <div class="task-card-dot pending" id="s2-t1-dot"></div>
+          <div class="task-row-label">Analyze Q3 data</div>
+          <div class="task-row-assignee analyst">Analyst</div>
+        </div>
+        <div class="task-row" id="s2-task-2" style="display:none">
+          <div class="task-card-dot pending" id="s2-t2-dot"></div>
+          <div class="task-row-label">Write exec summary</div>
+          <div class="task-row-assignee writer">Writer</div>
+        </div>
+        <div style="font-size:12px; color: var(--text-muted); padding: 4px 0;" id="s2-no-tasks">No active tasks</div>
+      </div>
+    </div>
+    <div class="legend-area">
+      <div class="legend-title">Legend</div>
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>READY</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>WORKING</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="scenario-header-bar">
+      <div class="scenario-title-group">
+        <div class="scenario-main-title">Scenario 2 — Team at Work</div>
+        <div class="scenario-sub-title">Leader delegates, members execute, results flow back</div>
+      </div>
+      <div class="step-controls">
+        <div class="step-indicator">Step <span class="step-current" id="s2-step-cur">0</span> / <span id="s2-step-total">5</span></div>
+        <button class="ctrl-btn" id="s2-prev" onclick="s2Prev()" disabled>&#8592; Prev</button>
+        <button class="ctrl-btn primary" id="s2-next" onclick="s2Next()">Next &#8594;</button>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="step-desc-label" id="s2-state-label">BEFORE</span>
+      <span id="s2-state-desc">Team is assembled. A task has arrived. Leader is about to delegate.</span>
+    </div>
+    <div class="messages-area" id="s2-messages"></div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <input class="chat-input" type="text" placeholder="Team is working..." id="s2-input" readonly>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================  SCENARIO 3  ==================== -->
+<section class="scenario" id="s3">
+
+  <aside class="sidebar">
+    <div class="sidebar-section">Team Members</div>
+    <div class="sidebar-content">
+      <div class="member-card analyst">
+        <div class="member-header">
+          <div class="member-avatar analyst">DA</div>
+          <div class="member-info">
+            <div class="member-name">Data Analyst</div>
+            <div class="member-role">teammate · analysis</div>
+          </div>
+          <span class="status-badge working" id="s3-analyst-status">WORKING</span>
+        </div>
+        <div class="member-tool visible" id="s3-analyst-tool">Running: execute_python_code</div>
+      </div>
+      <div class="sidebar-section">Evolution Activity</div>
+      <div id="s3-evo-log" style="padding: 0 4px;">
+        <div style="font-size:11px; color: var(--text-muted); padding: 6px 0;" id="s3-evo-empty">No signals yet</div>
+      </div>
+    </div>
+    <div class="legend-area">
+      <div class="legend-title">Evolution Signals</div>
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>execution_failure</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>user_correction</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Skill updated</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="scenario-header-bar">
+      <div class="scenario-title-group">
+        <div class="scenario-main-title">Scenario 3 — Something Goes Wrong</div>
+        <div class="scenario-sub-title">A tool failure triggers automatic skill evolution</div>
+      </div>
+      <div class="step-controls">
+        <div class="step-indicator">Step <span class="step-current" id="s3-step-cur">0</span> / <span id="s3-step-total">4</span></div>
+        <button class="ctrl-btn" id="s3-prev" onclick="s3Prev()" disabled>&#8592; Prev</button>
+        <button class="ctrl-btn primary" id="s3-next" onclick="s3Next()">Next &#8594;</button>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="step-desc-label" id="s3-state-label">BEFORE</span>
+      <span id="s3-state-desc">Data Analyst is running. About to call a Python tool to compute statistics.</span>
+    </div>
+    <div class="messages-area" id="s3-messages"></div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <input class="chat-input" type="text" placeholder="Observing agent execution..." readonly>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel: evolution signals + diff -->
+  <div class="right-panel">
+    <div class="right-panel-header">Evolution Monitor</div>
+    <div class="right-panel-content">
+
+      <div class="signal-badge amber" id="s3-signal" style="display:none">
+        <div class="signal-badge-title amber">
+          <span>&#9888;</span> Evolution Signal Detected
+        </div>
+        <div class="signal-badge-body">
+          <strong>Type:</strong> execution_failure<br>
+          <strong>Skill:</strong> data_analysis<br>
+          <strong>Section:</strong> Troubleshooting
+        </div>
+        <div class="signal-badge-meta">signal_type: "execution_failure"</div>
+      </div>
+
+      <div class="diff-card" id="s3-diff" style="display:none">
+        <div class="diff-card-header">
+          <span>&#128196;</span> SKILL.md — data_analysis / Troubleshooting
+        </div>
+        <div class="diff-content">
+          <div class="diff-line context">## Troubleshooting</div>
+          <div class="diff-line context"></div>
+          <div class="diff-line removed">No entries.</div>
+          <div class="diff-line added">### pandas not available in sandbox</div>
+          <div class="diff-line added">Use the built-in `statistics` module</div>
+          <div class="diff-line added">instead of pandas for basic stats:</div>
+          <div class="diff-line added">  import statistics</div>
+          <div class="diff-line added">  mean = statistics.mean(data)</div>
+          <div class="diff-line added">  stdev = statistics.stdev(data)</div>
+        </div>
+      </div>
+
+      <div class="signal-badge green" id="s3-saved" style="display:none">
+        <div class="signal-badge-title green">
+          <span>&#10003;</span> Skill Updated (auto-save)
+        </div>
+        <div class="signal-badge-body">
+          <strong>File:</strong> data_analysis/SKILL.md<br>
+          <strong>Section:</strong> Troubleshooting<br>
+          The workaround has been written. Data Analyst will use it next run.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====================  SCENARIO 4  ==================== -->
+<section class="scenario" id="s4">
+
+  <aside class="sidebar">
+    <div class="sidebar-section">Team Members</div>
+    <div class="sidebar-content">
+      <div class="member-card leader">
+        <div class="member-header">
+          <div class="member-avatar leader">TL</div>
+          <div class="member-info">
+            <div class="member-name">Team Leader</div>
+            <div class="member-role">leader · orchestrator</div>
+          </div>
+          <span class="status-badge ready" id="s4-leader-status">READY</span>
+        </div>
+      </div>
+      <div class="sidebar-section">Global Skills Library</div>
+      <div class="skills-list" id="s4-skills-list">
+        <div class="skill-item">
+          <div class="skill-dot"></div>
+          <div class="skill-name-text">web_search</div>
+        </div>
+        <div class="skill-item">
+          <div class="skill-dot"></div>
+          <div class="skill-name-text">data_analysis</div>
+        </div>
+        <div class="skill-item">
+          <div class="skill-dot"></div>
+          <div class="skill-name-text">report_writing</div>
+        </div>
+        <div class="skill-item" id="s4-new-skill" style="display:none">
+          <div class="skill-dot new"></div>
+          <div class="skill-name-text">cross_member_handoff</div>
+          <span class="skill-tag new">NEW</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="scenario-header-bar">
+      <div class="scenario-title-group">
+        <div class="scenario-main-title">Scenario 4 — Skill Proposal &amp; Approval</div>
+        <div class="scenario-sub-title">Leader proposes a new team skill. User reviews and approves.</div>
+      </div>
+      <div class="step-controls">
+        <div class="step-indicator">Step <span class="step-current" id="s4-step-cur">0</span> / <span id="s4-step-total">4</span></div>
+        <button class="ctrl-btn" id="s4-prev" onclick="s4Prev()" disabled>&#8592; Prev</button>
+        <button class="ctrl-btn primary" id="s4-next" onclick="s4Next()">Next &#8594;</button>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="step-desc-label" id="s4-state-label">BEFORE</span>
+      <span id="s4-state-desc">Leader has observed repeated collaboration friction. It has drafted a new skill proposal.</span>
+    </div>
+    <div class="messages-area" id="s4-messages"></div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <input class="chat-input" type="text" placeholder="Review the proposal in the panel..." readonly>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel: proposal -->
+  <div class="right-panel">
+    <div class="right-panel-header">Skill Proposals</div>
+    <div class="right-panel-content">
+
+      <div class="proposal-card" id="s4-proposal" style="display:none">
+        <div class="proposal-header">
+          <div class="proposal-title">New Skill Proposal</div>
+          <span class="proposal-pending-badge" id="s4-pending-badge">PENDING</span>
+        </div>
+        <div class="proposal-body">
+          <div class="proposal-skill-name">cross_member_handoff</div>
+          <div class="proposal-desc">
+            A standardized pattern for passing structured data between team members, reducing message mismatches and retry loops.
+          </div>
+          <div class="proposal-preview" id="s4-proposal-preview">
+# Cross-Member Data Handoff
+
+## Description
+When passing results between members, always use
+structured JSON with a defined schema.
+
+## Pattern
+sender must include:
+  - task_id (string)
+  - result_type (one of: data, report, error)
+  - payload (dict)
+
+receiver must validate result_type before processing.
+
+## Examples
+Leader -> Analyst: { task_id: "q3-001", ... }
+Analyst -> Writer: { task_id: "q3-001",
+  result_type: "data", payload: { revenue: 4.2 } }
+          </div>
+          <div class="proposal-actions" id="s4-actions">
+            <button class="approve-btn" onclick="s4Approve()">Approve</button>
+            <button class="reject-btn" onclick="s4Reject()">Reject</button>
+          </div>
+          <div class="progress-wrap" id="s4-progress">
+            <div class="progress-bar" id="s4-progress-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:12px; color:var(--text-muted); padding: 8px 4px;" id="s4-empty-state">
+        No pending proposals
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====================  SCENARIO 5  ==================== -->
+<section class="scenario" id="s5">
+
+  <aside class="sidebar">
+    <div class="sidebar-section">Team Members</div>
+    <div class="sidebar-content">
+      <div class="member-card writer">
+        <div class="member-header">
+          <div class="member-avatar writer">RW</div>
+          <div class="member-info">
+            <div class="member-name">Report Writer</div>
+            <div class="member-role">teammate · writing</div>
+          </div>
+          <span class="status-badge ready" id="s5-writer-status">READY</span>
+        </div>
+      </div>
+      <div class="sidebar-section">Skill Updates</div>
+      <div class="skills-list" id="s5-skills-list">
+        <div class="skill-item">
+          <div class="skill-dot" id="s5-report-dot"></div>
+          <div class="skill-name-text">report_writing</div>
+          <span class="skill-tag updated" id="s5-report-tag" style="display:none">UPDATED</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="scenario-header-bar">
+      <div class="scenario-title-group">
+        <div class="scenario-main-title">Scenario 5 — User Correction Signal</div>
+        <div class="scenario-sub-title">User corrects the agent. The system learns and updates the skill.</div>
+      </div>
+      <div class="step-controls">
+        <div class="step-indicator">Step <span class="step-current" id="s5-step-cur">0</span> / <span id="s5-step-total">4</span></div>
+        <button class="ctrl-btn" id="s5-prev" onclick="s5Prev()" disabled>&#8592; Prev</button>
+        <button class="ctrl-btn primary" id="s5-next" onclick="s5Next()">Next &#8594;</button>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="step-desc-label" id="s5-state-label">BEFORE</span>
+      <span id="s5-state-desc">Report Writer just delivered a report. Something is wrong with the metric used.</span>
+    </div>
+    <div class="messages-area" id="s5-messages"></div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <input class="chat-input" type="text" value="That's wrong — you should be using gross margin, not revenue." id="s5-input" readonly>
+        <button class="chat-send-btn" id="s5-send-btn" onclick="s5Next()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel: correction signal + diff -->
+  <div class="right-panel">
+    <div class="right-panel-header">Evolution Monitor</div>
+    <div class="right-panel-content">
+
+      <div class="signal-badge blue" id="s5-signal" style="display:none">
+        <div class="signal-badge-title blue">
+          <span>&#9432;</span> User Correction Detected
+        </div>
+        <div class="signal-badge-body">
+          <strong>Type:</strong> user_correction<br>
+          <strong>Skill:</strong> report_writing<br>
+          <strong>Section:</strong> Examples
+        </div>
+        <div class="signal-badge-meta">signal_type: "user_correction"</div>
+      </div>
+
+      <div class="diff-card" id="s5-diff" style="display:none">
+        <div class="diff-card-header">
+          <span>&#128196;</span> SKILL.md — report_writing / Examples
+        </div>
+        <div class="diff-content">
+          <div class="diff-line context">## Examples</div>
+          <div class="diff-line context"></div>
+          <div class="diff-line context">### Basic financial report</div>
+          <div class="diff-line context">Use revenue figures from the dataset.</div>
+          <div class="diff-line context"></div>
+          <div class="diff-line added">### Metric preference (user feedback)</div>
+          <div class="diff-line added">When asked for financial analysis,</div>
+          <div class="diff-line added">prefer gross_margin over revenue</div>
+          <div class="diff-line added">unless revenue is explicitly requested.</div>
+        </div>
+      </div>
+
+      <div class="signal-badge green" id="s5-saved" style="display:none">
+        <div class="signal-badge-title green">
+          <span>&#10003;</span> Skill Updated
+        </div>
+        <div class="signal-badge-body">
+          <strong>File:</strong> report_writing/SKILL.md<br>
+          <strong>Section:</strong> Examples<br>
+          Writer will prefer gross margin on next run.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</div><!-- /.app-body -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+'use strict';
+
+/* ============================================================
+   UTILITY HELPERS
+============================================================ */
+function showToast(msg, type='green', duration=2800) {
+  const t = document.getElementById('toast');
+  t.className = 'toast ' + type;
+  t.innerHTML = (type==='green' ? '&#10003; ' : type==='amber' ? '&#9888; ' : '&#9432; ') + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function el(id) { return document.getElementById(id); }
+
+function addMsg(containerId, who, authorLabel, text, delay=0, extra='') {
+  const avatarInitials = {
+    leader: 'TL', analyst: 'DA', writer: 'RW', user: 'You', system: '&#9776;'
+  };
+  const authorNames = {
+    leader: 'Team Leader', analyst: 'Data Analyst', writer: 'Report Writer',
+    user: 'You', system: 'System'
+  };
+  const container = el(containerId);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg hidden';
+  wrapper.innerHTML = `
+    <div class="msg-avatar ${who}">${avatarInitials[who] || 'A'}</div>
+    <div class="msg-body">
+      <div class="msg-meta">
+        <span class="msg-author ${who}">${authorNames[who] || who}</span>
+        <span class="msg-time">${getTime()}</span>
+      </div>
+      <div class="msg-bubble ${who}">${text}</div>
+      ${extra}
+    </div>`;
+  container.appendChild(wrapper);
+  setTimeout(() => {
+    wrapper.classList.remove('hidden');
+    container.scrollTop = container.scrollHeight;
+  }, delay);
+  return wrapper;
+}
+
+function clearMessages(containerId) {
+  el(containerId).innerHTML = '';
+}
+
+function getTime() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' +
+         d.getMinutes().toString().padStart(2,'0');
+}
+
+function setStatus(id, status) {
+  const el_ = el(id);
+  if (!el_) return;
+  el_.className = 'status-badge ' + status;
+  el_.textContent = status.toUpperCase();
+}
+
+function setStepInfo(prefix, cur, label, desc) {
+  el(prefix+'-step-cur').textContent = cur;
+  el(prefix+'-state-label').textContent = label;
+  el(prefix+'-state-desc').textContent = desc;
+  el(prefix+'-prev').disabled = cur <= 0;
+  const total = parseInt(el(prefix+'-step-total').textContent);
+  el(prefix+'-next').disabled = cur >= total;
+  if (cur >= total) {
+    el(prefix+'-next').textContent = 'Done';
+  } else {
+    el(prefix+'-next').innerHTML = 'Next &#8594;';
+  }
+}
+
+/* ============================================================
+   SCENARIO SWITCHER
+============================================================ */
+let currentScenario = 0;
+const scenarios = ['s1','s2','s3','s4','s5'];
+const tabs = document.querySelectorAll('.tab-btn');
+
+function switchScenario(idx) {
+  scenarios.forEach((id, i) => {
+    el(id).classList.toggle('active', i === idx);
+    tabs[i].classList.toggle('active', i === idx);
+  });
+  currentScenario = idx;
+}
+
+/* ============================================================
+   SCENARIO 1 — TEAM STARTUP
+============================================================ */
+let s1Step = 0;
+const S1_TOTAL = 3;
+el('s1-step-total').textContent = S1_TOTAL;
+
+function s1Reset() {
+  s1Step = 0;
+  clearMessages('s1-messages');
+  el('s1-analyst').style.display = 'none';
+  el('s1-writer').style.display = 'none';
+  setStatus('s1-leader-status', 'idle');
+  el('s1-leader-tool').className = 'member-tool';
+  el('s1-send-btn').style.display = 'inline-block';
+  setStepInfo('s1', 0, 'BEFORE',
+    'The app just opened. Team Leader is present but idle. No teammates yet.');
+}
+s1Reset();
+
+function s1Next() {
+  if (s1Step >= S1_TOTAL) return;
+  s1Step++;
+  el('s1-prev').disabled = false;
+  el('s1-send-btn').style.display = 'none';
+
+  if (s1Step === 1) {
+    setStepInfo('s1', 1, 'STEP 1',
+      'User sends the task. Leader receives it and decides to build a team.');
+    addMsg('s1-messages', 'user', 'You',
+      'Analyze our Q3 sales data and write a report');
+    setStatus('s1-leader-status', 'working');
+    setTimeout(() => {
+      addMsg('s1-messages', 'leader', 'Team Leader',
+        "I'll set up the right team for this task. I'll need a Data Analyst and a Report Writer.", 600);
+    }, 800);
+    setTimeout(() => {
+      el('s1-leader-tool').textContent = 'spawn_member("data_analyst")';
+      el('s1-leader-tool').className = 'member-tool visible';
+    }, 1600);
+  }
+  else if (s1Step === 2) {
+    setStepInfo('s1', 2, 'STEP 2',
+      'Leader spawns the Data Analyst, then the Report Writer. Watch them appear.');
+    el('s1-leader-tool').textContent = 'spawn_member("data_analyst")';
+    el('s1-leader-tool').className = 'member-tool visible';
+
+    const analystCard = el('s1-analyst');
+    analystCard.style.display = 'block';
+    analystCard.classList.add('spawning');
+    setStatus('s1-analyst-status', 'spawning');
+    addMsg('s1-messages', 'leader', 'Team Leader',
+      'Spawning <strong>Data Analyst</strong>... <span class="spawn-animation"><span class="spinner"></span>spawning...</span>', 100);
+
+    setTimeout(() => {
+      setStatus('s1-analyst-status', 'ready');
+      analystCard.classList.remove('spawning');
+      el('s1-leader-tool').textContent = 'spawn_member("report_writer")';
+      addMsg('s1-messages', 'leader', 'Team Leader',
+        'Data Analyst is ready. Now spawning <strong>Report Writer</strong>... <span class="spawn-animation"><span class="spinner"></span>spawning...</span>', 0);
+      const writerCard = el('s1-writer');
+      writerCard.style.display = 'block';
+      writerCard.classList.add('spawning');
+      setStatus('s1-writer-status', 'spawning');
+    }, 1200);
+
+    setTimeout(() => {
+      setStatus('s1-writer-status', 'ready');
+      el('s1-writer').classList.remove('spawning');
+      el('s1-leader-tool').className = 'member-tool';
+    }, 2400);
+  }
+  else if (s1Step === 3) {
+    setStepInfo('s1', 3, 'AFTER',
+      'All three agents are READY. Leader addresses the user to confirm the team is set.');
+    setStatus('s1-leader-status', 'ready');
+    setStatus('s1-analyst-status', 'ready');
+    setStatus('s1-writer-status', 'ready');
+    el('s1-leader-tool').className = 'member-tool';
+    addMsg('s1-messages', 'leader', 'Team Leader',
+      'Team is ready. <strong>Data Analyst</strong> will crunch the numbers, <strong>Report Writer</strong> will produce the output. Starting analysis now.', 300);
+    el('s1-next').disabled = true;
+    el('s1-next').textContent = 'Done';
+    showToast('Team assembled successfully', 'green');
+  }
+}
+
+function s1Prev() {
+  if (s1Step <= 0) return;
+  s1Step--;
+  s1Reset();
+  // replay up to current step without animation delays
+  for(let i = 0; i < s1Step; i++) {
+    s1Next();
+  }
+}
+
+/* ============================================================
+   SCENARIO 2 — TASK DELEGATION
+============================================================ */
+let s2Step = 0;
+const S2_TOTAL = 5;
+el('s2-step-total').textContent = S2_TOTAL;
+
+function s2Reset() {
+  s2Step = 0;
+  clearMessages('s2-messages');
+  setStatus('s2-leader-status', 'ready');
+  setStatus('s2-analyst-status', 'ready');
+  setStatus('s2-writer-status', 'ready');
+  el('s2-leader-tool').className = 'member-tool';
+  el('s2-analyst-tool').className = 'member-tool';
+  el('s2-writer-tool').className = 'member-tool';
+  el('s2-task-1').style.display = 'none';
+  el('s2-task-2').style.display = 'none';
+  el('s2-no-tasks').style.display = 'block';
+  setStepInfo('s2', 0, 'BEFORE',
+    'Team is assembled. A task has arrived. Leader is about to delegate.');
+}
+s2Reset();
+
+function s2Next() {
+  if (s2Step >= S2_TOTAL) return;
+  s2Step++;
+  el('s2-prev').disabled = false;
+
+  if (s2Step === 1) {
+    setStepInfo('s2', 1, 'STEP 1', 'Leader assigns "Analyze Q3 data" to the Data Analyst via a task card.');
+    el('s2-no-tasks').style.display = 'none';
+    el('s2-task-1').style.display = 'flex';
+    el('s2-t1-dot').className = 'task-card-dot pending';
+    setStatus('s2-leader-status', 'working');
+    addMsg('s2-messages', 'leader', 'Team Leader',
+      `I'm assigning the data analysis task to our analyst.<br>
+      <span class="task-card"><span class="task-card-dot pending"></span>
+      Task: Analyze Q3 sales data &rarr; <strong>Data Analyst</strong></span>`);
+  }
+  else if (s2Step === 2) {
+    setStepInfo('s2', 2, 'STEP 2', 'Data Analyst is working: querying the database and running calculations.');
+    setStatus('s2-leader-status', 'ready');
+    setStatus('s2-analyst-status', 'working');
+    el('s2-t1-dot').className = 'task-card-dot working';
+    el('s2-analyst-tool').textContent = 'search_database("sales_q3_2024")';
+    el('s2-analyst-tool').className = 'member-tool visible';
+    addMsg('s2-messages', 'analyst', 'Data Analyst',
+      `Starting analysis on Q3 data...
+      <div class="tool-call">
+        <div class="tool-call-header"><span class="tool-call-icon">&#8594;</span><span class="tool-call-name">search_database</span><span style="color:var(--text-muted)"> ("sales_q3_2024")</span></div>
+        <div class="tool-call-result">Searching sales database...</div>
+      </div>`);
+    setTimeout(() => {
+      el('s2-analyst-tool').textContent = 'execute_python_code("statistics.mean(q3_data)")';
+      addMsg('s2-messages', 'analyst', 'Data Analyst',
+        `<div class="tool-call">
+          <div class="tool-call-header"><span class="tool-call-icon">&#8594;</span><span class="tool-call-name">execute_python_code</span></div>
+          <div class="tool-call-result success">&#10003; Q3 revenue: $4.2M (+18% YoY) | Avg deal size: $42K | Win rate: 34%</div>
+        </div>`, 0);
+    }, 1400);
+  }
+  else if (s2Step === 3) {
+    setStepInfo('s2', 3, 'STEP 3', 'Analyst sends results back to Leader. Leader assigns report writing to Writer.');
+    setStatus('s2-analyst-status', 'ready');
+    el('s2-analyst-tool').className = 'member-tool';
+    el('s2-t1-dot').className = 'task-card-dot done';
+    el('s2-task-2').style.display = 'flex';
+    el('s2-t2-dot').className = 'task-card-dot pending';
+    setStatus('s2-leader-status', 'working');
+    addMsg('s2-messages', 'analyst', 'Data Analyst',
+      'Analysis complete. Sending results to Leader: <strong>Q3 revenue $4.2M, up 18% YoY. Win rate 34%.</strong>');
+    setTimeout(() => {
+      addMsg('s2-messages', 'leader', 'Team Leader',
+        `Results received. Delegating report writing now.<br>
+        <span class="task-card"><span class="task-card-dot pending"></span>
+        Task: Write executive summary &rarr; <strong>Report Writer</strong></span>`, 0);
+      el('s2-t2-dot').className = 'task-card-dot working';
+    }, 1000);
+  }
+  else if (s2Step === 4) {
+    setStepInfo('s2', 4, 'STEP 4', 'Report Writer composes the executive summary and sends it back.');
+    setStatus('s2-leader-status', 'ready');
+    setStatus('s2-writer-status', 'working');
+    el('s2-writer-tool').textContent = 'create_note("Q3 Executive Summary")';
+    el('s2-writer-tool').className = 'member-tool visible';
+    addMsg('s2-messages', 'writer', 'Report Writer',
+      `Drafting the executive summary...
+      <div class="tool-call">
+        <div class="tool-call-header"><span class="tool-call-icon">&#8594;</span><span class="tool-call-name">create_note</span><span style="color:var(--text-muted)"> ("Q3 Executive Summary")</span></div>
+        <div class="tool-call-result success">&#10003; Draft complete. 312 words.</div>
+      </div>`);
+    setTimeout(() => {
+      addMsg('s2-messages', 'writer', 'Report Writer',
+        'Executive summary ready. Sending to Leader.', 0);
+      el('s2-writer-tool').className = 'member-tool';
+      el('s2-t2-dot').className = 'task-card-dot done';
+      setStatus('s2-writer-status', 'ready');
+    }, 1400);
+  }
+  else if (s2Step === 5) {
+    setStepInfo('s2', 5, 'AFTER', 'Leader compiles the final answer and delivers it to the user.');
+    setStatus('s2-leader-status', 'ready');
+    const reportHtml = `
+      <div class="report-preview">
+        <h4>Q3 Sales Performance — Executive Summary</h4>
+        <p><span class="metric">Q3 Revenue: $4.2M</span> — up <span class="metric">18% YoY</span></p>
+        <p>Average deal size reached <span class="metric">$42K</span>. Win rate held at <span class="metric">34%</span>, consistent with Q2.</p>
+        <p>Key drivers: enterprise segment growth (+31%) and new product line contribution ($620K).</p>
+        <p style="margin-top:8px; color:var(--text-muted)">Recommendation: Increase enterprise headcount in Q4 to sustain trajectory.</p>
+      </div>`;
+    addMsg('s2-messages', 'leader', 'Team Leader',
+      'Here is the compiled report from the team:' + reportHtml, 200);
+    el('s2-next').disabled = true;
+    el('s2-next').textContent = 'Done';
+    showToast('Task completed by team', 'green');
+  }
+}
+
+function s2Prev() {
+  if (s2Step <= 0) return;
+  const target = s2Step - 1;
+  s2Reset();
+  for(let i = 0; i < target; i++) s2Next();
+}
+
+/* ============================================================
+   SCENARIO 3 — ERROR & EVOLUTION
+============================================================ */
+let s3Step = 0;
+const S3_TOTAL = 4;
+el('s3-step-total').textContent = S3_TOTAL;
+
+function s3Reset() {
+  s3Step = 0;
+  clearMessages('s3-messages');
+  setStatus('s3-analyst-status', 'working');
+  el('s3-analyst-tool').textContent = 'Running: execute_python_code';
+  el('s3-analyst-tool').className = 'member-tool visible';
+  el('s3-signal').style.display = 'none';
+  el('s3-diff').style.display = 'none';
+  el('s3-saved').style.display = 'none';
+  el('s3-evo-empty').style.display = 'block';
+  setStepInfo('s3', 0, 'BEFORE',
+    'Data Analyst is running. About to call a Python tool to compute statistics.');
+}
+s3Reset();
+
+function s3Next() {
+  if (s3Step >= S3_TOTAL) return;
+  s3Step++;
+  el('s3-prev').disabled = false;
+
+  if (s3Step === 1) {
+    setStepInfo('s3', 1, 'STEP 1', 'Analyst calls execute_python_code. The tool fails with a pandas error.');
+    addMsg('s3-messages', 'analyst', 'Data Analyst',
+      `I'll compute the revenue statistics using pandas.
+      <div class="tool-call">
+        <div class="tool-call-header"><span class="tool-call-icon">&#8594;</span><span class="tool-call-name">execute_python_code</span></div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
+          import pandas as pd<br>
+          df = pd.read_csv("q3_sales.csv")<br>
+          print(df["revenue"].describe())
+        </div>
+      </div>`, 0);
+    setTimeout(() => {
+      addMsg('s3-messages', 'analyst', 'Data Analyst',
+        `<div class="tool-call">
+          <div class="tool-call-header"><span class="tool-call-icon">&#10008;</span>
+          <span class="tool-call-name" style="color:var(--red)">Tool Error</span></div>
+          <div class="tool-call-result error">Error: ModuleNotFoundError: No module named 'pandas'<br>
+          Sandbox environment does not include pandas.</div>
+        </div>`, 0);
+    }, 1000);
+  }
+  else if (s3Step === 2) {
+    setStepInfo('s3', 2, 'STEP 2', 'SkillEvolutionRail detects an execution_failure signal. Badge appears.');
+    el('s3-evo-empty').style.display = 'none';
+    el('s3-analyst-tool').textContent = 'SkillEvolutionRail — scanning...';
+    el('s3-signal').style.display = 'block';
+    addMsg('s3-messages', 'system', 'System',
+      '<strong>SkillEvolutionRail</strong> intercepted a tool failure. Running signal detection on trajectory...');
+    setTimeout(() => {
+      showToast('Evolution signal detected: execution_failure', 'amber');
+    }, 600);
+    // log entry
+    setTimeout(() => {
+      const log = el('s3-evo-log');
+      const entry = document.createElement('div');
+      entry.style.cssText = 'font-size:11px; padding:4px 6px; background:var(--amber-bg); border:1px solid var(--amber); border-radius:5px; color:var(--amber); margin-bottom:4px;';
+      entry.textContent = '\u26A0 execution_failure — data_analysis';
+      log.insertBefore(entry, log.firstChild);
+    }, 800);
+  }
+  else if (s3Step === 3) {
+    setStepInfo('s3', 3, 'STEP 3', 'System reads the existing SKILL.md and generates an improved Troubleshooting section. Diff shown.');
+    el('s3-analyst-tool').textContent = 'Writing improved SKILL.md section...';
+    addMsg('s3-messages', 'system', 'System',
+      'Reading <code>data_analysis/SKILL.md</code>... Generating improved Troubleshooting section via LLM...');
+    setTimeout(() => {
+      el('s3-diff').style.display = 'block';
+      addMsg('s3-messages', 'system', 'System',
+        'Diff ready. Old section had no pandas guidance. New section adds the <code>statistics</code> module workaround.', 0);
+    }, 900);
+  }
+  else if (s3Step === 4) {
+    setStepInfo('s3', 4, 'AFTER', 'Skill saved automatically (auto_save=True on member rail). Next run will use the workaround.');
+    el('s3-analyst-tool').className = 'member-tool';
+    setStatus('s3-analyst-status', 'ready');
+    el('s3-saved').style.display = 'block';
+    addMsg('s3-messages', 'system', 'System',
+      '<strong>SKILL.md updated.</strong> data_analysis/Troubleshooting now contains the pandas workaround. Data Analyst will use <code>statistics</code> module on next invocation.');
+    const log = el('s3-evo-log');
+    const entry = document.createElement('div');
+    entry.style.cssText = 'font-size:11px; padding:4px 6px; background:var(--green-bg); border:1px solid var(--green); border-radius:5px; color:var(--green); margin-bottom:4px;';
+    entry.textContent = '\u2713 Skill saved — data_analysis';
+    log.insertBefore(entry, log.firstChild);
+    showToast('Skill Updated: data_analysis/SKILL.md', 'green');
+    el('s3-next').disabled = true;
+    el('s3-next').textContent = 'Done';
+  }
+}
+
+function s3Prev() {
+  if (s3Step <= 0) return;
+  const target = s3Step - 1;
+  s3Reset();
+  for(let i = 0; i < target; i++) s3Next();
+}
+
+/* ============================================================
+   SCENARIO 4 — SKILL PROPOSAL
+============================================================ */
+let s4Step = 0;
+const S4_TOTAL = 4;
+el('s4-step-total').textContent = S4_TOTAL;
+let s4Approved = false;
+
+function s4Reset() {
+  s4Step = 0;
+  s4Approved = false;
+  clearMessages('s4-messages');
+  setStatus('s4-leader-status', 'ready');
+  el('s4-proposal').style.display = 'none';
+  el('s4-empty-state').style.display = 'block';
+  el('s4-pending-badge').textContent = 'PENDING';
+  el('s4-pending-badge').style.background = 'var(--amber-bg)';
+  el('s4-pending-badge').style.color = 'var(--amber)';
+  el('s4-actions').style.display = 'flex';
+  el('s4-progress').className = 'progress-wrap';
+  el('s4-progress-bar').style.width = '0%';
+  el('s4-new-skill').style.display = 'none';
+  setStepInfo('s4', 0, 'BEFORE',
+    'Leader has observed repeated collaboration friction across team trajectories.');
+}
+s4Reset();
+
+function s4Next() {
+  if (s4Step >= S4_TOTAL) return;
+  s4Step++;
+  el('s4-prev').disabled = false;
+
+  if (s4Step === 1) {
+    setStepInfo('s4', 1, 'STEP 1', 'Leader generates a new skill proposal from observed team patterns.');
+    setStatus('s4-leader-status', 'working');
+    addMsg('s4-messages', 'leader', 'Team Leader',
+      `I've reviewed our last 8 sessions. Members are mismatching data formats when passing results to each other — causing retries and confusion.
+      <br><br>I'm generating a new skill proposal: <strong>cross_member_handoff</strong>.`);
+    setTimeout(() => {
+      el('s4-empty-state').style.display = 'none';
+      el('s4-proposal').style.display = 'block';
+      addMsg('s4-messages', 'leader', 'Team Leader',
+        'Proposal ready. Awaiting your approval before saving to global skills.', 0);
+      setStatus('s4-leader-status', 'ready');
+    }, 1200);
+  }
+  else if (s4Step === 2) {
+    setStepInfo('s4', 2, 'STEP 2', 'Proposal is PENDING. Review and click Approve or Reject in the right panel.');
+    addMsg('s4-messages', 'system', 'System',
+      'Skill proposal is waiting for your decision in the right panel. Click <strong>Approve</strong> to save to the global skills library, or <strong>Reject</strong> to discard.');
+  }
+  else if (s4Step === 3) {
+    // This step is the approve action — instructions to user
+    setStepInfo('s4', 3, 'STEP 3', 'Click "Approve" in the right panel to confirm. Watch the sync progress bar.');
+    addMsg('s4-messages', 'system', 'System',
+      'Action required: click <strong>Approve</strong> in the right panel to trigger the sync.');
+  }
+  else if (s4Step === 4) {
+    if (!s4Approved) {
+      // Auto-approve if user didn't click
+      s4Approve(true);
+    }
+  }
+}
+
+function s4Approve(auto=false) {
+  s4Approved = true;
+  el('s4-actions').style.display = 'none';
+  el('s4-pending-badge').textContent = 'SYNCING';
+  el('s4-pending-badge').style.background = 'var(--blue-bg)';
+  el('s4-pending-badge').style.color = 'var(--blue)';
+  el('s4-progress').className = 'progress-wrap visible';
+  setTimeout(() => { el('s4-progress-bar').style.width = '100%'; }, 50);
+  setTimeout(() => {
+    el('s4-pending-badge').textContent = 'APPROVED';
+    el('s4-pending-badge').style.background = 'var(--green-bg)';
+    el('s4-pending-badge').style.color = 'var(--green)';
+    el('s4-new-skill').style.display = 'flex';
+    setStepInfo('s4', 4, 'AFTER', 'Skill approved and synced to global library. All future teams will have it.');
+    addMsg('s4-messages', 'system', 'System',
+      '<strong>Skill saved.</strong> <code>cross_member_handoff/SKILL.md</code> has been synced from team workspace to the global skills library.');
+    addMsg('s4-messages', 'leader', 'Team Leader',
+      'The new handoff protocol is now part of the global skill library. Every new team will receive it automatically.', 400);
+    showToast('Skill approved and saved to global library', 'green');
+    el('s4-next').disabled = true;
+    el('s4-next').textContent = 'Done';
+  }, 1400);
+}
+
+function s4Reject() {
+  el('s4-pending-badge').textContent = 'REJECTED';
+  el('s4-pending-badge').style.background = 'var(--red-bg)';
+  el('s4-pending-badge').style.color = 'var(--red)';
+  el('s4-actions').style.display = 'none';
+  addMsg('s4-messages', 'system', 'System',
+    'Proposal rejected. Skill was not saved. Leader will keep the existing collaboration pattern.');
+  showToast('Proposal rejected', 'amber');
+}
+
+function s4Prev() {
+  if (s4Step <= 0) return;
+  const target = s4Step - 1;
+  s4Reset();
+  for(let i = 0; i < target; i++) s4Next();
+}
+
+/* ============================================================
+   SCENARIO 5 — USER CORRECTION
+============================================================ */
+let s5Step = 0;
+const S5_TOTAL = 4;
+el('s5-step-total').textContent = S5_TOTAL;
+
+function s5Reset() {
+  s5Step = 0;
+  clearMessages('s5-messages');
+  setStatus('s5-writer-status', 'ready');
+  el('s5-signal').style.display = 'none';
+  el('s5-diff').style.display = 'none';
+  el('s5-saved').style.display = 'none';
+  el('s5-report-dot').className = 'skill-dot';
+  el('s5-report-tag').style.display = 'none';
+  el('s5-send-btn').style.display = 'inline-block';
+  setStepInfo('s5', 0, 'BEFORE',
+    'Report Writer just delivered a report. Something is wrong with the metric used.');
+}
+s5Reset();
+
+function s5Next() {
+  if (s5Step >= S5_TOTAL) return;
+  s5Step++;
+  el('s5-prev').disabled = false;
+  el('s5-send-btn').style.display = 'none';
+
+  if (s5Step === 1) {
+    setStepInfo('s5', 1, 'STEP 1', 'Writer delivers report using revenue. User sends a correction.');
+    const reportHtml = `
+      <div class="report-preview">
+        <h4>Q3 Financial Performance</h4>
+        <p>Total <strong>revenue</strong> for Q3: <span class="metric">$4.2M</span> (+18% YoY)</p>
+        <p>Revenue growth driven by enterprise segment expansion.</p>
+      </div>`;
+    addMsg('s5-messages', 'writer', 'Report Writer',
+      'Report complete. Here is the financial summary:' + reportHtml);
+    setTimeout(() => {
+      addMsg('s5-messages', 'user', 'You',
+        "That's wrong — you should be using <strong>gross margin</strong>, not revenue.", 0);
+    }, 900);
+  }
+  else if (s5Step === 2) {
+    setStepInfo('s5', 2, 'STEP 2', 'ConversationSignalDetector finds a user_correction pattern. Signal badge appears.');
+    el('s5-signal').style.display = 'block';
+    addMsg('s5-messages', 'system', 'System',
+      '<strong>ConversationSignalDetector</strong> matched user correction pattern in message. Signal type: <code>user_correction</code>. Targeting <code>report_writing/SKILL.md → Examples</code>.');
+    setTimeout(() => {
+      showToast('User correction signal detected', 'blue');
+    }, 600);
+  }
+  else if (s5Step === 3) {
+    setStepInfo('s5', 3, 'STEP 3', 'System generates a new example and diffs it into the Examples section of the skill file.');
+    addMsg('s5-messages', 'system', 'System',
+      'Generating new example for <code>report_writing/SKILL.md#Examples</code>...');
+    setTimeout(() => {
+      el('s5-diff').style.display = 'block';
+      addMsg('s5-messages', 'system', 'System',
+        'Diff ready. New example added: prefer <code>gross_margin</code> over <code>revenue</code> unless revenue is explicit.', 0);
+    }, 900);
+  }
+  else if (s5Step === 4) {
+    setStepInfo('s5', 4, 'AFTER', 'Skill updated. Report Writer will apply the correct metric next time.');
+    el('s5-saved').style.display = 'block';
+    el('s5-report-dot').className = 'skill-dot updated';
+    el('s5-report-tag').style.display = 'inline-block';
+    addMsg('s5-messages', 'system', 'System',
+      '<strong>SKILL.md updated.</strong> report_writing/Examples now contains the metric preference guidance. Report Writer will use gross_margin by default in future runs.');
+    addMsg('s5-messages', 'writer', 'Report Writer',
+      "Understood. I've updated my approach. I'll use gross margin as the default metric for financial analysis going forward.", 600);
+    showToast('Skill Updated: report_writing/SKILL.md', 'green');
+    el('s5-next').disabled = true;
+    el('s5-next').textContent = 'Done';
+  }
+}
+
+function s5Prev() {
+  if (s5Step <= 0) return;
+  const target = s5Step - 1;
+  s5Reset();
+  for(let i = 0; i < target; i++) s5Next();
+}
+
+/* ============================================================
+   THEME TOGGLE
+============================================================ */
+let isDark = true;
+
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  el('themeIcon').textContent  = isDark ? '☀️' : '🌙';
+  el('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+/* ============================================================
+   KEYBOARD SHORTCUTS
+============================================================ */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 't' || e.key === 'T') { toggleTheme(); return; }
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    const fns = [s1Next, s2Next, s3Next, s4Next, s5Next];
+    fns[currentScenario]();
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const fns = [s1Prev, s2Prev, s3Prev, s4Prev, s5Prev];
+    fns[currentScenario]();
+  }
+  if (e.key >= '1' && e.key <= '5') {
+    switchScenario(parseInt(e.key) - 1);
+  }
+});
+</script>
+</body>
+</html>

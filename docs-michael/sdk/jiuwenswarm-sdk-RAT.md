@@ -150,7 +150,7 @@ JiuwenSwarm server. Developers in any language can call it without a language SD
 | `@tool` decorator and `ToolCard` convenience | `openjiuwen/sdk/tools.py` |
 | `Team` façade class (create, spawn, send) | `openjiuwen/sdk/team.py` |
 | Event emitter mixin for Python SDK | `openjiuwen/sdk/events.py` |
-| Python SDK package metadata and entry points | `pyproject.toml` + `openjiuwen/sdk/__init__.py` |
+| Python SDK package metadata and entry points | `../../pyproject.toml` + `openjiuwen/sdk/__init__.py` |
 | HTTP REST gateway (FastAPI) | `openjiuwen/gateway/rest/` |
 | WebSocket gateway (versioned, with `client_type`) | `openjiuwen/gateway/ws/` |
 | OpenAPI spec generation (from FastAPI) | auto-generated via `/docs` endpoint |
@@ -236,7 +236,7 @@ audiences.
 **MCP server (`openjiuwen/agent_teams/mcp`):**
 Unchanged. MCP is for team coordination over stdio; the SDK does not wrap MCP.
 
-**`pyproject.toml`:**
+**`../../pyproject.toml`:**
 The `openjiuwen-sdk` package can be a sub-package of the existing `openjiuwen`
 namespace (`openjiuwen.sdk`) or published as a separate distribution. For v1,
 it lives inside the same monorepo as a namespace sub-package.

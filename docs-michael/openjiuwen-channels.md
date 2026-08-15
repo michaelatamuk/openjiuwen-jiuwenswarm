@@ -90,4 +90,4 @@ jiuwenswarm-mobile is a planned cross-platform iOS and Android app built with Ex
 
 Targets users who primarily work on a phone or tablet, or who need access to JiuwenSwarm away from their workstation.
 
-Development is planned in five phases — protocol client, mobile-native inputs, share sheet, push notifications, and distribution — with the core protocol client (connect, sessions, chat) as the first milestone. Design details and constraints live in `jiuwenswarm-mobile-SIG.md`; the phased plan lives in `jiuwenswarm-mobile-PLAN.md`.
+Development is planned in five phases — protocol client, mobile-native inputs, share sheet, push notifications, and distribution — with the core protocol client (connect, sessions, chat) as the first milestone. Design details and constraints live in `mobile/jiuwenswarm-mobile-SIG.md`; the phased plan lives in `mobile/jiuwenswarm-mobile-PLAN.md`.

@@ -89,7 +89,7 @@ and get a streaming agent response. No gateway or TypeScript yet.
 | Task | File | Done when |
 |---|---|---|
 | Re-export public symbols from `openjiuwen/sdk/__init__.py` | `openjiuwen/sdk/__init__.py` | `from openjiuwen.sdk import Agent, Session, tool, SdkConfig, SdkError` all work |
-| Update `pyproject.toml` | `pyproject.toml` | `openjiuwen-sdk` is an installable distribution (or `openjiuwen[sdk]` extra); `pip install -e ".[sdk]"` succeeds |
+| Update `../../pyproject.toml` | `../../pyproject.toml` | `openjiuwen-sdk` is an installable distribution (or `openjiuwen[sdk]` extra); `pip install -e ".[sdk]"` succeeds |
 | First-run example script | `examples/sdk/hello_agent.py` | Running the script with a live local server produces a streaming response (< 15 lines of code) |
 
 **Phase 1 done when:**
@@ -152,7 +152,7 @@ into a versioned, documented endpoint.
 | `/v1/sessions/{id}/chat/stream` (SSE) | `openjiuwen/gateway/rest/sessions.py` | Returns `text/event-stream`; sends `event: token` lines as agent produces tokens; ends with `event: done` |
 | `/v1/agents` list + run + stream | `openjiuwen/gateway/rest/agents.py` | Agent list returns registered agents; run and stream work like session chat |
 | `/v1/tools` list | `openjiuwen/gateway/rest/tools.py` | Returns all registered tools with name and description |
-| Unit tests for all routes | `tests/unit_tests/gateway/` | Each route tested with mocked runtime bridge |
+| Unit tests for all routes | `../../tests/unit_tests/gateway` | Each route tested with mocked runtime bridge |
 
 ### Step 3 — WebSocket gateway
 
@@ -250,7 +250,7 @@ and mobile app can optionally migrate to this package.
 | Task | File | Done when |
 |---|---|---|
 | Set `publishConfig` in `package.json` | `packages/sdk/package.json` | `npm publish --dry-run` shows correct package contents (dist/, README, no src/) |
-| Add `README.md` to `packages/sdk/` | `packages/sdk/README.md` | Quick-start section with 3 code examples (connect, stream, custom events) |
+| Add `../../README.md` to `packages/sdk/` | `packages/sdk/README.md` | Quick-start section with 3 code examples (connect, stream, custom events) |
 | Publish `0.1.0` to npm (or private registry) | — | `npm install @jiuwenswarm/sdk` works from a fresh project |
 
 **Phase 4 done when:**

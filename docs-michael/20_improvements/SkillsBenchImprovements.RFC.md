@@ -141,7 +141,7 @@ Each rail or fix must have targeted unit tests covering:
 - **Session-state correctness**: for stateful rails (#396, #409), session state is written on failure and read correctly on the next turn.
 - **Edge cases**: empty output, zero remaining iterations, context at exactly the threshold boundary.
 
-The existing test suite at `tests/unit_tests/` must continue to pass after each merge. Run with `make test`.
+The existing test suite at `../../tests/unit_tests` must continue to pass after each merge. Run with `make test`.
 
 ### Integration test (required before merge to `develop`)
 

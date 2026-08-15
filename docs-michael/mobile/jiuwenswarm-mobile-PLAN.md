@@ -32,7 +32,7 @@ The JiuwenSwarm server currently binds to `127.0.0.1`. Add a `--host` flag (or
 | Install Expo Router | `npx expo install expo-router` + configure `app.json` | File-based routing works |
 | Install all dependencies | See dependency table in SIG | `npx expo start` has no missing-module errors |
 | Configure NativeWind | `tailwind.config.js` + `global.css` | A test component renders with Tailwind classes |
-| Configure TypeScript paths | `tsconfig.json` `paths`: `@stores/*`, `@connection/*`, `@protocol/*` | Imports resolve without relative `../../` chains |
+| Configure TypeScript paths | `tsconfig.json` `paths`: `@stores/*`, `@connection/*`, `@protocol/*` | Imports resolve without relative `../../..` chains |
 | Set up EAS project | `eas init` | `eas.json` created; project linked to Expo account |
 | Set up `eas.json` profiles | development, preview, production | `eas build --profile development` succeeds for Android (no Apple account needed yet) |
 | Create `src/protocol/types.ts` | Mirror from `jiuwenswarm-browser/src/shared/types.ts` | `ResearchSession`, `AgentMode`, `InboundEnvelope`, etc. defined |
