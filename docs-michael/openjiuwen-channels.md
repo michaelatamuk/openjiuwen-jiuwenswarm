@@ -6,13 +6,14 @@ These channels join a growing family of ways to communicate with JiuwenSwarm. Th
 
 Every channel in this suite is a client over the same server runtime (`openjiuwen.core` + `openjiuwen.harness`) and speaks the same WebSocket envelope protocol. The heavy work — reasoning, memory, retrieval, and tool execution — always stays on the server; a channel only adds the input and output surfaces that fit a particular working context. Because sessions are server-side objects, work started in one channel (say, the browser) can be continued in another (say, the phone) without duplication, and the agent's awareness of its environment is automatic — no user has to copy and paste context into a chat window.
 
-The suite currently consists of four shipped surfaces, with a mobile app in development:
+The suite currently consists of four shipped surfaces, with two more in development:
 
 - **SDK** — programmatic agent access for developers
 - **IDE** — an editor plugin for software engineers
 - **JupyterLab** — a notebook extension for data scientists and ML researchers
 - **Browser** — an ambient research assistant for researchers and analysts
 - **Mobile** (planned) — an iOS and Android app for on-the-go use
+- **VibeStudio** (planned) — a browser-based vibe coding and app-generation environment
 
 ---
 
@@ -91,3 +92,24 @@ jiuwenswarm-mobile is a planned cross-platform iOS and Android app built with Ex
 Targets users who primarily work on a phone or tablet, or who need access to JiuwenSwarm away from their workstation.
 
 Development is planned in five phases — protocol client, mobile-native inputs, share sheet, push notifications, and distribution — with the core protocol client (connect, sessions, chat) as the first milestone. Design details and constraints live in `mobile/jiuwenswarm-mobile-SIG.md`; the phased plan lives in `mobile/jiuwenswarm-mobile-PLAN.md`.
+
+---
+
+## jiuwenswarm-vibestudio — Vibe Coding and App Generation *(planned — future development)*
+
+VibeStudio is a planned browser-based app-generation environment that lets users build full-stack applications through natural language conversation — no terminal, no configuration, no prior coding knowledge required.  It is the OpenJiuwen answer to products like Base44, Bolt.new, and Lovable: a vibe coding surface where describing what you want is enough to get a working, deployable app.
+
+Unlike those products, VibeStudio runs on JiuwenSwarm.  It uses the `@jiuwenswarm/sdk` TypeScript package as its sole communication layer, making it simultaneously a product in its own right and a proof-of-concept for what the SDK enables when used inside a real application.  Complex apps are built by a coordinated team of specialised JiuwenSwarm agents — Architect, Frontend, Backend, Database, and QA — orchestrated through JiuwenSwarm's team mode.  Simple apps are handled by a single agent turn.
+
+**What users will be able to do:**
+- Describe any web app in plain language and receive a complete, runnable React or Next.js project within a single conversation turn
+- Iterate through conversation — "make the sidebar collapsible", "add a login page", "connect to a Postgres database" — without losing context, because JiuwenSwarm session memory carries the full project history across turns and browser sessions
+- See every generated version of the app running live in a sandboxed in-browser preview (Sandpack / StackBlitz WebContainers) immediately after generation, with no local dev environment required
+- Watch a real-time swarm panel that shows which agent is active and what it is building, making the multi-agent coordination visible rather than opaque
+- Rewind any generation step with one click, rolling the project back to a previous state using the SDK's `client.rewind()` capability
+- Deploy the finished app to Vercel or Netlify in one click, or download the project as a standard ZIP for self-hosting or further development in an IDE
+- Continue working on a VibeStudio project from a different channel — such as the IDE plugin — because the project is a JiuwenSwarm session and sessions are portable across all channels
+
+Targets non-developers and developers alike who want to prototype or ship a web application rapidly, without configuring a development environment or writing boilerplate.
+
+Development is planned in three phases — core generation loop (React/Vite apps, chat UI, Sandpack preview, project dashboard, ZIP export), full-stack apps (Next.js, Monaco editor, swarm panel, rewind, deployment pipeline), and collaboration (real-time shared editing, VibeStudio server, plugin system). Design details and system architecture live in `vibestudio/vibestudio-SIG.md`; requirements analysis lives in `vibestudio/vibestudio-RAT.md`.
