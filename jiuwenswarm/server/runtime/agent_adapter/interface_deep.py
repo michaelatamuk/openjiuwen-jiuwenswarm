@@ -136,7 +136,7 @@ try:
     from openjiuwen.harness.tools import is_paid_search_enabled
 except ImportError:  # Compatibility with older agent-core versions.
     try:
-        from openjiuwen.harness.tools.web_tools import is_paid_search_enabled
+        from openjiuwen.harness.tools.web import is_paid_search_enabled
     except ImportError:
 
         def is_paid_search_enabled() -> bool:

@@ -104,6 +104,7 @@ STRUCTURED_ASK_USER = _code_rails.STRUCTURED_ASK_USER
 CODE_TASK_PLANNING = _code_rails.CODE_TASK_PLANNING
 CODE_AGENT_RAIL = _code_rails.CODE_AGENT_RAIL
 USER_HOOKS = _code_rails.USER_HOOKS
+CODE_SKILL_USE = _code_rails.CODE_SKILL_USE
 
 # Sub-agent provider names (resolved via SubAgentSpec.factory_name). explore /
 # plan / browser are provided by openjiuwen; code_agent stays swarm-side (reuses
@@ -232,6 +233,7 @@ __all__ = [
     "CODE_TASK_PLANNING",
     "CODE_AGENT_RAIL",
     "USER_HOOKS",
+    "CODE_SKILL_USE",
     "CODE_WORKTREE",
     "EXPLORE_AGENT",
     "PLAN_AGENT",
