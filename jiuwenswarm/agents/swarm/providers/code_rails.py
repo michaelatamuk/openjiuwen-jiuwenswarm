@@ -32,7 +32,6 @@ from openjiuwen.agent_teams.harness.manifest import (
     param_field,
 )
 from openjiuwen.harness.prompts import resolve_language
-from openjiuwen.harness.rails import SkillUseRail
 
 from jiuwenswarm.agents.swarm.context import SwarmBuildContext
 from jiuwenswarm.common.mode_matrix import (
@@ -55,7 +54,6 @@ STRUCTURED_ASK_USER = "swarm.structured_ask_user"
 CODE_TASK_PLANNING = "swarm.code_task_planning"
 CODE_AGENT_RAIL = "swarm.code_agent_rail"
 USER_HOOKS = "swarm.user_hooks"
-CODE_SKILL_USE = "swarm.code_skill_use"
 
 # Key under ``ctx.extras`` where the main agent's CodingMemoryRail is published
 # for the code_agent sub-agent to reuse the same instance.
@@ -604,7 +602,6 @@ __all__ = [
     "CODE_TASK_PLANNING",
     "CODE_AGENT_RAIL",
     "USER_HOOKS",
-    "CODE_SKILL_USE",
     "CODING_MEMORY_EXTRAS_KEY",
     "code_runtime_language",
     "structured_ask_user_language",

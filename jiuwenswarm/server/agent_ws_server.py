@@ -676,6 +676,10 @@ def _apply_resolved_mode_to_request(
     *,
     work_mode: Any = None,
 ) -> tuple[str, str | None]:
+    if not hasattr(request, "_original_mode") and isinstance(request.params, dict):
+        raw_mode = request.params.get("mode")
+        if isinstance(raw_mode, str) and raw_mode.strip():
+            setattr(request, "_original_mode", canonicalize_mode_text(raw_mode))
     resolved = resolve_request_runtime_mode(request, work_mode=work_mode)
     if isinstance(request.params, dict):
         request.params["mode"] = resolved.canonical_mode
@@ -5377,12 +5381,17 @@ class AgentWebSocketServer:
             mode, sub_mode, _ = resolve_agent_request_mode(params.get("mode", "agent"))
             agent_mode = "agent" if mode == "auto_harness" else mode
 
-            agent = await self._agent_manager.get_agent(
+            agent = self._agent_manager.get_agent_for_session_nowait(
                 channel_id=channel_id,
-                mode=agent_mode,
-                project_dir=resolve_request_project_dir(request),
-                sub_mode=sub_mode,
+                session_id=session_id,
             )
+            if agent is None:
+                agent = await self._agent_manager.get_agent(
+                    channel_id=channel_id,
+                    mode=agent_mode,
+                    project_dir=resolve_request_project_dir(request),
+                    sub_mode=sub_mode,
+                )
 
             if agent is None:
                 raise ValueError("Failed to get agent")
