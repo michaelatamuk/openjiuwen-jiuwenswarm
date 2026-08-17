@@ -1369,6 +1369,16 @@ class TeamManager:
         if entry not in rails:
             rails.append(entry)
 
+    def register_team_verification_rail(
+        self, session_id: str, rail: TeamVerificationRail
+    ) -> None:
+        """Register a TeamVerificationRail instance for monitor handler wiring."""
+        self._team_verification_rails[session_id] = rail
+
+    def get_team_verification_rail(self, session_id: str) -> TeamVerificationRail | None:
+        """Return the TeamVerificationRail for a session, or None."""
+        return self._team_verification_rails.get(session_id)
+
     async def reload_team_skill_views(self, session_id: str | None = None) -> int:
         """Re-scan the shared Skill library for live team members.
 
@@ -1434,7 +1444,6 @@ class TeamManager:
         self._team_member_rail_contexts.pop(session_id, None)
         self._team_live_rails.pop(session_id, None)
         self._team_verification_rails.pop(session_id, None)
-        self._team_shared_skill_link_targets.pop(session_id, None)
 
     def _clear_terminal_session_markers(self, session_id: str) -> None:
         """Release process-wide markers only for non-resumable teardown."""
