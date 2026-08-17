@@ -553,88 +553,33 @@ def test_role_skills_seed_only_the_team_skill_rail() -> None:
 
 
 @pytest.mark.parametrize("role", ["leader", "teammate"])
-def test_team_skill_rail_appends_external_dirs(role: str, tmp_path: Path) -> None:
-    """``skills.external_dirs`` become extra Skill library roots on the team rail.
-
-    Task-provided external skills must reach team members the same way they reach
-    single agents; the personal library stays first so name collisions resolve
-    in its favour.
-    """
-    ext = tmp_path / "ext-skills"
-    ext.mkdir()
+def test_team_skill_rail_accepts_recommendation_mode_and_oracle_dir(role: str) -> None:
+    """``react.skill_mode: recommendation`` + ``react.oracle_dir`` reach the team rail."""
     config = {
-        "skills": {"external_dirs": [str(ext)]},
+        "react": {
+            "skill_mode": "recommendation",
+            "oracle_dir": "~/.jiuwenswarm/agent/workspace/oracle",
+        },
         "agents": {"leader": {"skills": []}, "teammate": {"skills": []}},
     }
 
     rails, _ = build_member_capability_specs(config, "team", role)
     skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
 
-    assert skill_rail.params["skills_dir"][-1] == str(ext)
-    assert skill_rail.params["skills_dir"][0] != str(ext)
+    assert skill_rail.params["skill_mode"] == "recommendation"
+    assert skill_rail.params["oracle_dir"] == "~/.jiuwenswarm/agent/workspace/oracle"
 
 
 @pytest.mark.parametrize("role", ["leader", "teammate"])
-def test_team_skill_rail_external_only_drops_personal_dir(role: str, tmp_path: Path) -> None:
-    """``external_only=true`` with external dirs excludes the personal library."""
-    ext = tmp_path / "ext-skills"
-    ext.mkdir()
-    config = {
-        "skills": {"external_dirs": [str(ext)], "external_only": True},
-        "agents": {"leader": {"skills": []}, "teammate": {"skills": []}},
-    }
-
-    rails, _ = build_member_capability_specs(config, "team", role)
-    skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
-
-    assert skill_rail.params["skills_dir"] == [str(ext)]
-
-
-@pytest.mark.parametrize("role", ["leader", "teammate"])
-def test_team_skill_rail_external_dirs_semicolon_string(role: str, tmp_path: Path) -> None:
-    """A semicolon-separated ``external_dirs`` string (env expansion) is honoured."""
-    ext_a = tmp_path / "ext-a"
-    ext_b = tmp_path / "ext-b"
-    ext_a.mkdir()
-    ext_b.mkdir()
-    config = {
-        "skills": {"external_dirs": f"{ext_a};{ext_b}"},
-        "agents": {"leader": {"skills": []}, "teammate": {"skills": []}},
-    }
-
-    rails, _ = build_member_capability_specs(config, "team", role)
-    skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
-
-    assert skill_rail.params["skills_dir"][-2:] == [str(ext_a), str(ext_b)]
-
-
-@pytest.mark.parametrize("role", ["leader", "teammate"])
-def test_team_skill_rail_without_external_dirs_declares_none(role: str) -> None:
-    """No external dirs configured → no ``skills_dir`` is declared.
-
-    The completion path then fills the single physical library root, keeping the
-    default (whole personal library) behaviour unchanged.
-    """
+def test_team_skill_rail_oracle_dir_defaults_to_none(role: str) -> None:
+    """Without ``react.oracle_dir`` the team Skill rail gets ``None``."""
     config = {"agents": {"leader": {"skills": []}, "teammate": {"skills": []}}}
 
     rails, _ = build_member_capability_specs(config, "team", role)
     skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
 
-    assert "skills_dir" not in skill_rail.params
-
-
-@pytest.mark.parametrize("role", ["leader", "teammate"])
-def test_team_skill_rail_skips_missing_external_dirs(role: str, tmp_path: Path) -> None:
-    """Configured but non-existent external dirs are filtered out."""
-    config = {
-        "skills": {"external_dirs": [str(tmp_path / "does-not-exist")]},
-        "agents": {"leader": {"skills": []}, "teammate": {"skills": []}},
-    }
-
-    rails, _ = build_member_capability_specs(config, "team", role)
-    skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
-
-    assert "skills_dir" not in skill_rail.params
+    assert skill_rail.params["skill_mode"] == "all"
+    assert skill_rail.params["oracle_dir"] is None
 
 
 def test_swarm_skill_retrieval_tools_use_global_skill_manager(
