@@ -552,6 +552,36 @@ def test_role_skills_seed_only_the_team_skill_rail() -> None:
     assert not (toolkit.params or {})
 
 
+@pytest.mark.parametrize("role", ["leader", "teammate"])
+def test_team_skill_rail_accepts_recommendation_mode_and_oracle_dir(role: str) -> None:
+    """``react.skill_mode: recommendation`` + ``react.oracle_dir`` reach the team rail."""
+    config = {
+        "react": {
+            "skill_mode": "recommendation",
+            "oracle_dir": "~/.jiuwenswarm/agent/workspace/oracle",
+        },
+        "agents": {"leader": {"skills": []}, "teammate": {"skills": []}},
+    }
+
+    rails, _ = build_member_capability_specs(config, "team", role)
+    skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
+
+    assert skill_rail.params["skill_mode"] == "recommendation"
+    assert skill_rail.params["oracle_dir"] == "~/.jiuwenswarm/agent/workspace/oracle"
+
+
+@pytest.mark.parametrize("role", ["leader", "teammate"])
+def test_team_skill_rail_oracle_dir_defaults_to_none(role: str) -> None:
+    """Without ``react.oracle_dir`` the team Skill rail gets ``None``."""
+    config = {"agents": {"leader": {"skills": []}, "teammate": {"skills": []}}}
+
+    rails, _ = build_member_capability_specs(config, "team", role)
+    skill_rail = next(spec for spec in rails if spec.type == TEAM_SKILL_USE)
+
+    assert skill_rail.params["skill_mode"] == "all"
+    assert skill_rail.params["oracle_dir"] is None
+
+
 def test_swarm_skill_retrieval_tools_use_global_skill_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
