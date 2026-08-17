@@ -21,19 +21,20 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import (
     Any,
     Callable,
 )
 
+from openjiuwen.agent_teams.rails.builtin_elements import SKILL_USE as CORE_SKILL_USE
+from openjiuwen.agent_teams.rails.elements import TEAM_SKILL_USE
 from openjiuwen.agent_teams.schema.deep_agent_spec import (
     BuiltinToolSpec,
     DeepAgentSpec,
     RailSpec,
     SubAgentSpec,
 )
-from openjiuwen.agent_teams.rails.builtin_elements import SKILL_USE as CORE_SKILL_USE
-from openjiuwen.agent_teams.rails.elements import TEAM_SKILL_USE
 from openjiuwen.core.foundation.kv_cache import KVCacheAffinityConfig
 from openjiuwen.core.foundation.tool import McpServerConfig
 from openjiuwen.core.single_agent import AgentCard
@@ -43,22 +44,23 @@ from openjiuwen.harness.rails import SkillUseRail
 from jiuwenswarm.agents.harness.common.browser_defaults import (
     DEFAULT_BROWSER_AGENT_MAX_ITERATIONS,
 )
-from jiuwenswarm.common.config import (
-    ASCEND_AFFINITY_PROVIDER,
-    get_default_model_provider,
-    get_evolution_auto_save_enabled,
-    get_skill_evolution_enabled,
-)
 from jiuwenswarm.agents.harness.team.team_runtime_inheritance import (
     get_context_engine_enabled,
     resolve_model_config,
 )
 from jiuwenswarm.agents.swarm import registry
 from jiuwenswarm.agents.swarm.providers import tools as _tools
+from jiuwenswarm.common.config import (
+    ASCEND_AFFINITY_PROVIDER,
+    get_default_model_provider,
+    get_evolution_auto_save_enabled,
+    get_skill_evolution_enabled,
+)
 from jiuwenswarm.common.mode_matrix import (
     TEAM_PLAN_CODE_MODE,
     TEAM_PLAN_NORMAL_MODE,
 )
+from jiuwenswarm.common.utils import get_agent_skills_dir
 
 # Modes that route to the code adapter and get the code member profile.
 _CODE_MODES: frozenset[str] = frozenset({"code.team", TEAM_PLAN_CODE_MODE})
@@ -156,8 +158,7 @@ _CODE_RAIL_NAMES: tuple[str, ...] = (
     registry.CODE_TASK_PLANNING,
     registry.CODE_AGENT_RAIL,
     registry.USER_HOOKS,
-    # The Skill rail is appended separately: it is the team-owned
-    # ``core.team.skill_use``, shared with the chat profile.
+    registry.CODE_SKILL_USE,
     registry.SKILL_RETRIEVAL_PROMPT,
     registry.SYMPHONY_ORCHESTRATION_PROMPT,
 )
@@ -274,7 +275,7 @@ def _skill_mode(config: dict[str, Any]) -> str:
 
 
 def _oracle_dir(config: dict[str, Any]) -> str | None:
-    """Resolve oracle_dir from ``react.oracle_dir`` or ``JIUWENSWARM_ORACLE_DIR`` env var."""
+    """Resolve oracle_dir from ``react.oracle_dir`` or the oracle env var."""
     react = _config_section(config, "react")
     value = react.get("oracle_dir") or os.getenv("JIUWENSWARM_ORACLE_DIR")
     return str(value) if value else None
@@ -291,6 +292,51 @@ def _retrieval_enabled(config: dict[str, Any] | None = None) -> bool:
     if isinstance(retrieval, dict):
         return bool(retrieval.get("enabled", False))
     return False
+
+
+def _external_skill_dirs(config: dict[str, Any]) -> list[str]:
+    """Resolve the configured external skill directories for team Skill rails.
+
+    Reads ``skills.external_dirs`` from the resolved config — a YAML list or a
+    semicolon-separated string (e.g. the ``${EXTERNAL_SKILL_DIRS:-}`` env
+    expansion) — mirroring ``SkillManager._load_external_skill_dirs`` so team
+    members and single agents resolve the same set of directories. Only paths
+    that exist and are directories are returned.
+
+    Args:
+        config: The resolved config mapping.
+
+    Returns:
+        Existing external skill directory paths (absolute), in config order.
+    """
+    skills_cfg = _config_section(config, "skills")
+    raw = skills_cfg.get("external_dirs") or []
+    if isinstance(raw, str):
+        parts = [p.strip() for p in raw.split(";") if p.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        parts = [str(p).strip() for p in raw if str(p).strip()]
+    else:
+        return []
+
+    dirs: list[str] = []
+    for p in parts:
+        try:
+            path = Path(p).expanduser().resolve()
+        except Exception:
+            logger.warning(
+                "[swarm.skill_use] invalid skills.external_dirs entry %r, skipped",
+                p,
+            )
+            continue
+        if path.is_dir():
+            dirs.append(str(path))
+        else:
+            logger.warning(
+                "[swarm.skill_use] skills.external_dirs %s does not exist "
+                "or is not a directory, skipped",
+                path,
+            )
+    return dirs
 
 
 def _team_skill_use_rail_spec(config: dict[str, Any], role: str) -> RailSpec:
@@ -315,13 +361,27 @@ def _team_skill_use_rail_spec(config: dict[str, Any], role: str) -> RailSpec:
     Returns:
         A ``core.team.skill_use`` RailSpec.
     """
+    params: dict[str, Any] = {
+        "skill_mode": _skill_mode(config),
+        "bootstrap_allow": _resolve_member_skills(config, role),
+        "oracle_dir": _oracle_dir(config),
+    }
+    # External skill dirs mirror the single-agent path: skills.external_dirs
+    # (config or EXTERNAL_SKILL_DIRS env expansion) are added as extra library
+    # roots so task-provided skills reach team members too. With
+    # skills.external_only=true and a non-empty external list the personal
+    # library is dropped entirely — the benchmark / CI mode that hides
+    # unrelated installed skills from the agent.
+    external_only = bool(_config_section(config, "skills").get("external_only", False))
+    external_dirs = _external_skill_dirs(config)
+    if external_dirs:
+        if external_only:
+            params["skills_dir"] = external_dirs
+        else:
+            params["skills_dir"] = [str(get_agent_skills_dir())] + external_dirs
     return RailSpec(
         type=TEAM_SKILL_USE,
-        params={
-            "skill_mode": _skill_mode(config),
-            "bootstrap_allow": _resolve_member_skills(config, role),
-            "oracle_dir": _oracle_dir(config),
-        },
+        params=params,
     )
 
 
@@ -346,7 +406,13 @@ def _collapse_skill_use_rails(rails: list[RailSpec], *, retrieval_enabled: bool)
     Returns:
         The rail list with at most one Skill rail left.
     """
-    skill_rail_types = {CORE_SKILL_USE, TEAM_SKILL_USE, "skill_use", "SkillUseRail"}
+    skill_rail_types = {
+        CORE_SKILL_USE,
+        TEAM_SKILL_USE,
+        "skill_use",
+        "SkillUseRail",
+        registry.CODE_SKILL_USE,
+    }
     has_skill_rail = False
     collapsed: list[RailSpec] = []
     for rail in rails:
@@ -457,6 +523,11 @@ _RAIL_PARAM_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
         "embed_config": _config_section(c, "embed")
     },
     registry.USER_HOOKS: lambda c: {"hooks_section": _config_section(c, "hooks")},
+    registry.CODE_SKILL_USE: lambda c: {
+        "skill_mode": _skill_mode(c),
+        "include_tools": not _retrieval_enabled(c),
+        "oracle_dir": _oracle_dir(c),
+    },
     registry.CODE_WORKTREE: lambda c: {"enabled": True},
 }
 

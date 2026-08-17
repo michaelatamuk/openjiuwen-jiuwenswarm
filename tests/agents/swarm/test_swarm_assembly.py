@@ -785,7 +785,7 @@ def test_code_member_deep_agent_spec_keeps_skill_use_rail_when_retrieval_enabled
     base = DeepAgentSpec(enable_skill_discovery=False)
 
     spec = build_member_deep_agent_spec(_agentic_retrieval_config(), mode, "leader", base)
-    skill_rails = [rail for rail in (spec.rails or []) if rail.type == TEAM_SKILL_USE]
+    skill_rails = [rail for rail in (spec.rails or []) if rail.type == registry.CODE_SKILL_USE]
 
     assert spec.enable_skill_discovery is False
     assert len(skill_rails) == 1
@@ -801,7 +801,7 @@ def test_code_member_deep_agent_spec_keeps_skill_use_rail_when_retrieval_disable
     rail_names = {rail.type for rail in (spec.rails or [])}
 
     assert spec.enable_skill_discovery is False
-    assert TEAM_SKILL_USE in rail_names
+    assert registry.CODE_SKILL_USE in rail_names
 
 
 def test_member_deep_agent_spec_merges_config_mcp_configs() -> None:
