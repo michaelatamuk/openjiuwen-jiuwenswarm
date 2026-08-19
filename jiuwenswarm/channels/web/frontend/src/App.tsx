@@ -69,6 +69,10 @@ import {
 import { resolveNewConversationProjectDir } from './multi-session/state/newConversationProject';
 import { toDisplaySessionTitle } from './utils/documentMessage';
 import { createConversationSession } from './multi-session/state/createConversationSession';
+import {
+  resolvePendingPreviousSession,
+  type PendingPreviousSession,
+} from './multi-session/state/newConversationPreviousSession';
 import { useTranslation } from 'react-i18next';
 import {
   normalizeA2UIEnabled,
@@ -170,10 +174,13 @@ type ConfigSaveResult = {
   updated?: string[];
   applied_without_restart?: boolean;
   models_count?: number | null;
-  codex_dependency_install?: CodexDependencyInstallStatus;
+  external_cli_dependency_installs?: Partial<Record<ExternalCliAgentKind, ExternalCliDependencyInstallStatus>>;
 };
 
-type CodexDependencyInstallStatus = {
+type ExternalCliAgentKind = "claude" | "codex";
+
+type ExternalCliDependencyInstallStatus = {
+  cli_agent?: ExternalCliAgentKind;
   status?: string;
   phase?: string;
   error?: string;
@@ -183,6 +190,35 @@ type CodexDependencyInstallStatus = {
   finished_at?: number;
   updated_at?: number;
 };
+
+function externalCliDependencyInstallAgents(result: ConfigSaveResult | void): Set<ExternalCliAgentKind> {
+  const installs = result?.external_cli_dependency_installs ?? {};
+  return new Set(
+    Object.entries(installs)
+      .filter((entry): entry is [ExternalCliAgentKind, ExternalCliDependencyInstallStatus] => {
+        const [cliAgent, status] = entry;
+        return (cliAgent === "claude" || cliAgent === "codex") && !!status?.status;
+      })
+      .map(([cliAgent]) => cliAgent),
+  );
+}
+
+function hasExternalCliDependencyInstallResult(result: ConfigSaveResult | void): boolean {
+  return externalCliDependencyInstallAgents(result).size > 0;
+}
+
+function removeExternalCliAgentsFromTeamPayload(
+  team: AgentsTeamsSavePayload["team"],
+  cliAgents: Set<ExternalCliAgentKind>,
+): AgentsTeamsSavePayload["team"] {
+  if (cliAgents.size === 0) {
+    return team;
+  }
+  return team.map((item) => ({
+    ...item,
+    external_cli_agents: item.external_cli_agents?.filter((agent) => !cliAgents.has(agent.cli_agent)),
+  }));
+}
 
 function getWorkContextForSession(sessionId: string): {
   project_id?: string;
@@ -296,6 +332,9 @@ function AppContent() {
 
   const [activeNav, setActiveNav] = useState<MainNavKey>('chat');
   const [serverConfig, setServerConfig] = useState<Record<string, unknown> | null>(null);
+  const kvCacheAffinityEnabled = normalizeConfigBoolean(
+    serverConfig?.kv_cache_affinity_enabled,
+  );
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -315,6 +354,7 @@ function AppContent() {
   const [hasVisitedChannels, setHasVisitedChannels] = useState(false);
   const [sidebarMorePanelOpen, setSidebarMorePanelOpen] = useState(false);
   const [modelSetupGuideStep, setModelSetupGuideStep] = useState<ModelSetupGuideStep | null>(null);
+  const [modelSetupGuideManual, setModelSetupGuideManual] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -372,6 +412,8 @@ function AppContent() {
   const [historyBootstrapKey, setHistoryBootstrapKey] = useState(0);
   const sessionIdRef = useRef(sessionId);
   const sessionRestoreQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const kvcViewIdRef = useRef(generateUuidV4());
+  const kvcPreparedInputSessionRef = useRef<string | null>(null);
   const historyLoadingSessionsRef = useRef(new Set<string>());
   const historyRestoreHandlesRef = useRef(new Map<string, HistoryRestoreHandle>());
   const historyPageHandlesRef = useRef(new Map<string, HistoryRestoreHandle>());
@@ -385,10 +427,7 @@ function AppContent() {
   const shareExportTokenRef = useRef(0);
   const preserveSelectedProjectOnChatNewRef = useRef(false);
   const newConversationProjectRef = useRef<Pick<Session, 'project_id' | 'project_dir'> | null>(null);
-  const newConversationPreviousSessionRef = useRef<{
-    sessionId: string;
-    mode: AgentMode;
-  } | null>(null);
+  const newConversationPreviousSessionRef = useRef<PendingPreviousSession | null>(null);
   /** 为 true 表示刚从「会话列表」恢复；history 为空时在 useEffect 的 onEmpty 中提示一次 */
   const historyRestoreFromPanelHintRef = useRef(false);
   const { loadProjects, setSelectedProject } = useWorkspaceStore();
@@ -410,9 +449,36 @@ function AppContent() {
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
+    // A new foreground visit gets one fresh input-intent opportunity. Merely
+    // switching to the Session still does not prefetch; the first real editor
+    // insertion below does.
+    kvcPreparedInputSessionRef.current = null;
     setHistoryLoadingMore(false);
     setHistoryPrepending(historyLoadingSessionsRef.current.has(sessionId));
   }, [sessionId]);
+
+  useEffect(() => {
+    // A Session can stay mounted in its own browser tab/window while another
+    // Session is used elsewhere. In that case `sessionId` never changes, so
+    // the per-visit input latch above would otherwise remain consumed by the
+    // Session's initial turn. Re-arm only when this page returns to the
+    // foreground; focus/visibility alone still does not issue a prefetch.
+    const rearmInputIntent = () => {
+      kvcPreparedInputSessionRef.current = null;
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        rearmInputIntent();
+      }
+    };
+
+    window.addEventListener('focus', rearmInputIntent);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', rearmInputIntent);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const {
     teamAreaExpanded,
@@ -953,7 +1019,8 @@ function AppContent() {
         modelSetupGuideEvaluatedRef.current = true;
         if (shouldPreviewModelSetupGuide() || isSetupGuideEnabled(config.setup_guide_enabled)) {
           setActiveNav('chat');
-          setModelSetupGuideStep(1);
+          setModelSetupGuideManual(false);
+          setModelSetupGuideStep(0);
         }
       }
     } catch (error) {
@@ -1091,9 +1158,9 @@ function AppContent() {
     }
   }, [request, setAvailableModels]);
 
-  const detectExternalCli = useCallback(async (cliAgent: "claude" | "codex", cliPath?: string) => {
+  const detectExternalCli = useCallback(async (cliAgent: ExternalCliAgentKind, cliPath?: string) => {
     return request<{
-      cli_agent: "claude" | "codex";
+      cli_agent: ExternalCliAgentKind;
       status: "ok" | "warning" | "missing" | "unsupported" | "unavailable";
       path?: string;
       version?: string;
@@ -1105,7 +1172,7 @@ function AppContent() {
     });
   }, [request]);
 
-  const selectExternalCliPath = useCallback(async (cliAgent: "claude" | "codex", initialPath?: string) => {
+  const selectExternalCliPath = useCallback(async (cliAgent: ExternalCliAgentKind, initialPath?: string) => {
     const desktopPicker = window.pywebview?.api?.select_local_file_path;
     const title = t("config.externalCli.selectFileTitle", { agent: cliAgent });
     if (typeof desktopPicker === "function") {
@@ -1127,21 +1194,24 @@ function AppContent() {
     return payload.path;
   }, [request, t]);
 
-  const getCodexDependencyInstallStatus = useCallback(async (): Promise<CodexDependencyInstallStatus> => {
-    return request<CodexDependencyInstallStatus>(
-      "external_cli.codex_install_status",
-      {},
-      { timeoutMs: 10 * 1000 },
-    );
-  }, [request]);
+  const getExternalCliDependencyInstallStatus = useCallback(
+    async (cliAgent: ExternalCliAgentKind): Promise<ExternalCliDependencyInstallStatus> => {
+      return request<ExternalCliDependencyInstallStatus>(
+        "external_cli.install_status",
+        { cli_agent: cliAgent },
+        { timeoutMs: 10 * 1000 },
+      );
+    },
+    [request],
+  );
 
   const saveConfigAndRestart = useCallback(async (updates: Record<string, string>): Promise<ConfigSaveResult> => {
     const payload = await request<ConfigSaveResult>(
       'config.set',
       updates
     );
-    const codexDependencyInstalling = payload.codex_dependency_install?.status === "running";
-    const effectiveUpdates = codexDependencyInstalling
+    const hasExternalCliDependencyInstall = hasExternalCliDependencyInstallResult(payload);
+    const effectiveUpdates = hasExternalCliDependencyInstall
       ? Object.fromEntries(
           Object.entries(updates).filter(([key]) => !EXTERNAL_CLI_AGENT_CONFIG_KEYS.has(key)),
         )
@@ -1158,7 +1228,7 @@ function AppContent() {
       }
       return next;
     });
-    if (codexDependencyInstalling) {
+    if (hasExternalCliDependencyInstall) {
       return payload;
     }
     setConfigError(null);
@@ -1300,11 +1370,12 @@ function AppContent() {
       'config.save_all',
       payload as unknown as Record<string, unknown>
     );
-    const codexDependencyInstalling = result.codex_dependency_install?.status === "running";
+    const pendingExternalCliAgents = externalCliDependencyInstallAgents(result);
+    const hasExternalCliDependencyInstall = pendingExternalCliAgents.size > 0;
     setServerConfig((prev) => {
       const next: Record<string, unknown> = { ...(prev ?? {}) };
       if (payload.config) {
-        const effectiveConfig = codexDependencyInstalling
+        const effectiveConfig = hasExternalCliDependencyInstall
           ? Object.fromEntries(
               Object.entries(payload.config).filter(([key]) => !EXTERNAL_CLI_AGENT_CONFIG_KEYS.has(key)),
             )
@@ -1323,7 +1394,7 @@ function AppContent() {
       }
       if (payload.agents !== undefined || payload.team !== undefined) {
         const agents = payload.agents || {};
-        const team = payload.team || [];
+        const team = removeExternalCliAgentsFromTeamPayload(payload.team || [], pendingExternalCliAgents);
         Object.assign(next, buildAgentsTeamsFlatConfig({
           agents,
           team,
@@ -1331,7 +1402,7 @@ function AppContent() {
       }
       return next;
     });
-    if (codexDependencyInstalling) {
+    if (hasExternalCliDependencyInstall) {
       return result;
     }
     if (isA2UIChange) {
@@ -1712,16 +1783,20 @@ function AppContent() {
     setComposerFocusNonce((nonce) => nonce + 1);
   }, []);
 
-  const enterNewConversation = useCallback((targetMode: AgentMode = mode, options: NewConversationOptions = {}) => {
+  const enterNewConversation = useCallback((
+    targetMode: AgentMode = mode,
+    options: NewConversationOptions = {},
+    lifecycle: { clearPreviousSession?: boolean } = {},
+  ) => {
     const currentSessionId = sessionIdRef.current;
     const currentRuntime = useSessionStore.getState().getRuntime(currentSessionId);
-    newConversationPreviousSessionRef.current =
-      currentSessionId && currentSessionId !== NEW_CONVERSATION_ID
-        ? {
-          sessionId: currentSessionId,
-          mode: currentRuntime?.mode ?? mode,
-        }
-        : null;
+    newConversationPreviousSessionRef.current = resolvePendingPreviousSession({
+      currentSessionId,
+      currentMode: currentRuntime?.mode ?? mode,
+      pending: newConversationPreviousSessionRef.current,
+      newConversationId: NEW_CONVERSATION_ID,
+      clear: lifecycle.clearPreviousSession,
+    });
     // 新建会话固定使用配置的默认模型，不继承当前会话手动切换过的模型；
     // 默认模型列表尚未加载完成时兜底沿用当前会话的模型，避免新会话没有模型可用。
     const selectedModelName = useSessionStore.getState().defaultModelName ?? currentRuntime?.selectedModelName ?? null;
@@ -1775,6 +1850,40 @@ function AppContent() {
     enterNewConversation(targetMode);
   }, [enterNewConversation, setMode]);
 
+  const handleKVCInputIntent = useCallback((targetSessionId: string) => {
+    // OFF must remain the ordinary JiuwenSwarm path: do not emit even the
+    // best-effort prepare control request. AgentServer keeps its own gate as
+    // a fail-closed boundary for stale or non-Web clients.
+    if (!kvCacheAffinityEnabled) return;
+    if (!targetSessionId || targetSessionId === NEW_CONVERSATION_ID) return;
+    if (kvcPreparedInputSessionRef.current === targetSessionId) return;
+
+    // Leading-edge intent: start prefetch on the first real insertion instead
+    // of waiting until the user stops typing. InputArea reports beforeinput,
+    // paste and input as browser-compatible fallbacks; this latch collapses
+    // them into one control request for the current foreground visit.
+    kvcPreparedInputSessionRef.current = targetSessionId;
+    const runtime = useSessionStore.getState().getRuntime(targetSessionId);
+    void request<{ scheduled?: boolean; outcome?: string }>('session.kvc.prepare', {
+      session_id: targetSessionId,
+      intent_id: generateUuidV4(),
+      view_id: kvcViewIdRef.current,
+      mode: runtime?.mode ?? mode,
+    }).then((response) => {
+      if (response?.outcome === 'failed'
+          && kvcPreparedInputSessionRef.current === targetSessionId) {
+        kvcPreparedInputSessionRef.current = null;
+      }
+    }).catch((error) => {
+      // Allow the next editor event to retry when the control request itself
+      // could not reach AgentServer. KVC remains an optional optimization.
+      if (kvcPreparedInputSessionRef.current === targetSessionId) {
+        kvcPreparedInputSessionRef.current = null;
+      }
+      console.debug('session.kvc.prepare skipped:', error);
+    });
+  }, [kvCacheAffinityEnabled, mode, request]);
+
   const handleSendMessage = useCallback(async (content: string, mediaItems?: MediaItem[]) => {
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) return;
@@ -1802,6 +1911,7 @@ function AppContent() {
           is_swarm: runtimeSettings.mode === 'team',
           title: createConversationTitle(content).slice(0, 100),
           work_mode: workContext.work_mode,
+          view_id: kvcViewIdRef.current,
         };
         const previousSession = newConversationPreviousSessionRef.current;
         if (previousSession) {
@@ -2055,6 +2165,7 @@ function AppContent() {
             previous_session_id: previousSessionId,
             previous_mode: previousMode,
             mode: resolvedMode,
+            view_id: kvcViewIdRef.current,
           });
         } catch (error) {
           if (isTeamMode(resolvedMode)) {
@@ -2224,11 +2335,13 @@ function AppContent() {
         }
       }
       if (deletingCurrent) {
-        enterNewConversation();
+        // session.delete already owns B's KVC eviction. Do not carry the
+        // deleted Session into C's session.create as previous_session_id.
+        enterNewConversation(mode, {}, { clearPreviousSession: true });
       }
     } catch { setDialogError(t('multiSession.errors.delete')); }
     finally { setDialogBusy(false); }
-  }, [deleteTarget, enterNewConversation, request, t]);
+  }, [deleteTarget, enterNewConversation, mode, request, t]);
 
   const handleNavigate = useCallback((nav: MainNavKey) => {
     setActiveNav(nav);
@@ -2239,8 +2352,39 @@ function AppContent() {
     if (nav === 'channels') setHasVisitedChannels(true);
   }, [modelSetupGuideStep]);
 
-  const dismissModelSetupGuide = useCallback(() => {
+  const skipModelSetupGuide = useCallback(() => {
     setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
+
+    void request('config.set', { setup_guide_enabled: 'false' })
+      .then(() => {
+        setServerConfig((current) => ({
+          ...(current ?? {}),
+          setup_guide_enabled: 'false',
+        }));
+      })
+      .catch((error) => {
+        console.error('Failed to disable setup guide:', error);
+      });
+  }, [request]);
+
+  const quickSetupModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
+    // 显式指定使用 huawei-cloud-maas-setup skill，避免 agent 自行上网搜索
+    void handleSendMessage(
+      '请使用 huawei-cloud-maas-setup 技能帮我配置华为云 MaaS 服务。'
+      + '严格按照其中的步骤引导我完成购买、获取 API Key 和配置写入。'
+    );
+  }, [handleSendMessage]);
+
+  const manualSetupModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(1);
+  }, []);
+
+  const acknowledgeModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
 
     void request('config.set', { setup_guide_enabled: 'false' })
       .then(() => {
@@ -2365,11 +2509,14 @@ function AppContent() {
         onMorePanelOpenChange={setSidebarMorePanelOpen}
       />
 
-      {modelSetupGuideStep ? (
+      {modelSetupGuideStep !== null ? (
         <ModelSetupGuide
           step={modelSetupGuideStep}
-          onAcknowledge={dismissModelSetupGuide}
-          onSkip={dismissModelSetupGuide}
+          manual={modelSetupGuideManual}
+          onAcknowledge={acknowledgeModelSetupGuide}
+          onSkip={skipModelSetupGuide}
+          onQuickSetup={quickSetupModelSetupGuide}
+          onManualSetup={manualSetupModelSetupGuide}
         />
       ) : null}
 
@@ -2418,6 +2565,7 @@ function AppContent() {
                   <div className={`flex-1 min-h-0`}>
                     <ChatPanel
                       onSendMessage={handleSendMessage}
+                      onInputIntent={kvCacheAffinityEnabled ? handleKVCInputIntent : undefined}
                       onPersistMedia={handlePersistMedia}
                       onPersistDocuments={handlePersistDocuments}
                       onInterrupt={handleInterrupt}
@@ -2570,7 +2718,7 @@ function AppContent() {
               onHasChangesChange={handleHasChangesChange}
               onDetectExternalCli={detectExternalCli}
               onSelectExternalCliPath={selectExternalCliPath}
-              onGetCodexDependencyInstallStatus={getCodexDependencyInstallStatus}
+              onGetExternalCliDependencyInstallStatus={getExternalCliDependencyInstallStatus}
             />
           </div>
         )}
