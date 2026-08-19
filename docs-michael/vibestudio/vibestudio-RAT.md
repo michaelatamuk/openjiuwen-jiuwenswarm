@@ -13,28 +13,67 @@
 
 ### WHY
 
-Every existing OpenJiuwen channel assumes the user can write code, understands a
-terminal, or works within a technical environment — an IDE, a Jupyter notebook, a
-browser research context.  A large segment of potential users is excluded: product
-managers, designers, founders, domain experts, and developers who want to build
-something quickly without configuring a project from scratch.
+#### The problem: every OpenJiuwen channel assumes a developer
 
-The "vibe coding" pattern — describing a desired product in plain language and
-letting an AI agent generate a working app — has proven commercially viable
-(Base44, Bolt.new, v0, Lovable).  All of these products use a general-purpose
-LLM.  None of them have access to JiuwenSwarm's distinguishing capabilities:
-persistent memory across sessions, multi-agent team coordination, structured tool
-execution, and a protocol designed for long-running agent tasks.
+Every existing OpenJiuwen channel — the IDE plugin, the JupyterLab extension,
+the browser extension — assumes its user can write code, reads a terminal, or
+works inside a technical environment. That assumption is a filter, and it
+excludes the largest cohort of people who want to build software: product
+managers, designers, founders, domain experts, and developers who need a result
+in an hour, not a project scaffold.
 
-VibeStudio is the OpenJiuwen channel that closes this gap.  It is a browser-based
-app-generation environment where users describe what they want to build and a
-coordinated team of JiuwenSwarm agents produces a working, deployable application.
-The user never opens a terminal.  The user never writes a configuration file.  The
-user iterates on their app through conversation.
+For these people the current channels are not "harder to use" — they are
+unusable. There is no OpenJiuwen surface where describing an app in plain
+language produces a running app. They either hire a developer, use a
+general-purpose LLM and copy-paste fragments, or give up. Every one of those
+outcomes sends the user away from JiuwenSwarm.
 
-VibeStudio communicates with JiuwenSwarm entirely through the `@jiuwenswarm/sdk`
-TypeScript package — it is simultaneously a product and a proof-of-concept for
-what the SDK enables when used in a real application.
+#### The market is proven, and the moat is missing
+
+The "vibe coding" pattern — describe a product in plain language, let an agent
+generate a working app — is no longer speculative. Base44, Bolt.new, v0, and
+Lovable have proven there is a large, paying audience that builds this way.
+
+But every one of those products runs on a general-purpose LLM. None of them has
+JiuwenSwarm's distinguishing capabilities: persistent memory across sessions,
+multi-agent team coordination, structured tool execution, and a protocol built
+for long-running agent tasks. The market leaders are thin frontends over a
+model API; the hard part — a coordinated team that remembers the project and
+builds a deployable app, not just a pretty screenshot — is unserved. That is the
+open seam, and it is exactly the infrastructure JiuwenSwarm already owns.
+
+#### The stakes for JiuwenSwarm: why build it
+
+**The return.** VibeStudio is the lowest-friction entry point JiuwenSwarm has
+ever had: a URL, a text box, a generated app. Every person who today cannot use
+the IDE plugin becomes a reachable user. And VibeStudio is not a side product —
+it is the flagship demonstration of `@jiuwenswarm/sdk`, proving the SDK can
+carry a real application end to end, which in turn sells the SDK to the
+developers the platform strategy depends on.
+
+**Competitive position and timing.** The vibe-coding window is open now and it
+will not stay open. The incumbents are adding features monthly; every month
+JiuwenSwarm does not have a browser-native generation surface is a month the
+"describe → build → deploy" habit forms around a competitor. The differentiator
+— a coordinated agent team with persistent memory — is only a moat if it ships
+while the category is still being chosen. Shipping later means competing for
+users who already learned someone else's product.
+
+**What winning looks like.** VibeStudio succeeds when it changes who can build,
+not when it renders a preview: (a) reach — users outside the developer cohort
+complete a generated app; (b) retention — a user returns to iterate on the same
+project across days (session continuity working in practice); (c) capability
+proof — complex apps (database, auth, multi-agent) generate and run, proving the
+team mode, not just single-shot prompts; (d) SDK adoption — VibeStudio drives
+real `@jiuwenswarm/sdk` usage, validating the SDK as a product surface. If those
+move, VibeStudio paid for itself twice over; if none move, the wall was not the
+developer assumption.
+
+#### The user, in one sentence
+
+A non-developer with an idea who types what they want and gets a working,
+deployable app from a coordinated JiuwenSwarm agent team — without opening a
+terminal, writing a config file, or ever leaving the browser.
 
 ---
 
