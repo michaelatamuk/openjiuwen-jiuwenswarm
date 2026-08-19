@@ -8,7 +8,7 @@ re-applying the same broken strategy. Best-of-N replaces that loop with N
 independent repair attempts, each with a different strategy, and promotes the
 highest-scoring workspace.
 
-Issue #765 https://github.com/openJiuwen-ai/agent-core/issues/765
+Issue #765 https://github.com/openJiuwen-ai/agent-core/issues/765<br>
 PR #37 https://github.com/openJiuwen-ai/agent-core/pull/37
 
 ## Background Description
@@ -26,13 +26,14 @@ this capability.
 
 ```mermaid
 flowchart TD
-    classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
+    classDef fail  fill:#FFCDD2,color:#1a1a1a,stroke:#C62828
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     CI(["❌ CI failure
-    (complex failure)"])
+    (complex failure)"]):::plain
 
     CI --> LOOP(["Single incremental fix loop
-    read logs → patch → retry"])
+    read logs → patch → retry"]):::plain
 
     LOOP -->|"same repair strategy re-applied"| STUCK(["stuck in local optimum
     repeated failures"]):::fail
@@ -56,6 +57,32 @@ flowchart TD
   (primary: tests passed; tie-break: smaller diff; fallback: fewer lint errors),
   ranked by `BestOfNSelector` (max tests → min diff → min lint), then the winner
   is promoted back to the original directory and the rest are cleaned up.
+
+```mermaid
+flowchart TD
+    classDef ac    fill:#B2EBF2,color:#1a1a1a,stroke:#00838F
+    classDef run   fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef done  fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
+
+    CI(["❌ CI failure
+    (complex failure)"]):::plain
+
+    CI --> CLONE["clone workspace N times
+    WorkspaceCloner.clone_n_async()"]:::ac
+
+    CLONE --> R1(["Attempt 0 — correctness"]):::run
+    CLONE --> R2(["Attempt 1 — minimal diff"]):::run
+    CLONE --> RN(["Attempt N — edge cases"]):::run
+
+    R1 & R2 & RN --> SCORE["AttemptScorer
+    tests_passed → diff_lines → lint_errors"]:::ac
+
+    SCORE --> PICK["BestOfNSelector
+    max tests → min diff → min lint"]:::ac
+
+    PICK --> PROMOTE(["promote winner, clean up losers"]):::done
+```
 
 ### Rejected alternatives
 
@@ -170,12 +197,13 @@ When `best_of_n_enabled=True`, the fix loop is replaced with a multi-attempt pip
 
 ```mermaid
 flowchart TD
-    classDef ac   fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef run  fill:#01579B,color:#fff,stroke:#003c74
-    classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef ac    fill:#B2EBF2,color:#1a1a1a,stroke:#00838F
+    classDef run   fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef done  fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     CI(["❌ CI failure
-    (complex failure)"])
+    (complex failure)"]):::plain
 
     CI --> CLONE["clone workspace N times
     WorkspaceCloner.clone_n_async()"]:::ac

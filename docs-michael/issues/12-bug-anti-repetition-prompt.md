@@ -4,7 +4,7 @@
 
 A ReAct agent that receives no results, empty output, or an error from a tool calls the **same tool with identical arguments** again, producing repetition loops of dozens or hundreds of redundant calls. The fix strengthens the identity system prompt with an explicit "do not repeat failed tool calls" instruction.
 
-Issue #766 https://github.com/openJiuwen-ai/agent-core/issues/766
+Issue #766 https://github.com/openJiuwen-ai/agent-core/issues/766<br>
 PR #26 https://github.com/openJiuwen-ai/agent-core/pull/26
 
 ## 🐞 Detailed Description of the Problem
@@ -13,12 +13,13 @@ The identity system prompt told the model to "try different strategies when enco
 
 ```mermaid
 flowchart TD
-    classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
+    classDef fail  fill:#FFCDD2,color:#1a1a1a,stroke:#C62828
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     CALL(["🔧 Tool call
-    e.g. grep(pattern=X)"])
+    e.g. grep(pattern=X)"]):::plain
 
-    CALL --> RESULT(["No results / empty / error"])
+    CALL --> RESULT(["No results / empty / error"]):::plain
 
     RESULT -->|"identity prompt: 'try different
     strategies' (too vague)"| REPEAT(["Agent calls the same tool
@@ -85,13 +86,14 @@ This caused **ReAct repetition loops**, sometimes producing dozens or hundreds o
 
 ```mermaid
 flowchart TD
-    classDef fix fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef ok  fill:#01579B,color:#fff,stroke:#003c74
+    classDef fix   fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef ok    fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     CALL(["🔧 Tool call
-    e.g. grep(pattern=X)"])
+    e.g. grep(pattern=X)"]):::plain
 
-    CALL --> RESULT(["No results / empty / error"])
+    CALL --> RESULT(["No results / empty / error"]):::plain
 
     RESULT -->|"identity prompt: 'do NOT call the same tool
     with identical arguments again'"| SWITCH(["Agent tries a different

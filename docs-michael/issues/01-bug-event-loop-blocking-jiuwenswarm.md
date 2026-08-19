@@ -8,7 +8,7 @@ UI lag, delayed RL actions, and cascading timeouts. The fix replaces them with
 `await asyncio.sleep` / `httpx.AsyncClient` plus timeouts, and enables ruff
 `ASYNC101`/`ASYNC210` so CI blocks any regression.
 
-Issue #3466 https://github.com/openJiuwen-ai/jiuwenswarm/issues/3466
+Issue #3466 https://github.com/openJiuwen-ai/jiuwenswarm/issues/3466<br>
 PR #119 https://github.com/openJiuwen-ai/jiuwenswarm/pull/119
 
 ## 🐞 Detailed Description of the Problem
@@ -32,17 +32,18 @@ unpredictable stalls.
 
 ```mermaid
 flowchart TD
-    classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
+    classDef fail  fill:#FFCDD2,color:#1a1a1a,stroke:#C62828
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     LOOP(["🔄 Shared event loop
-    all agents + GUI + RL + background tasks"])
+    all agents + GUI + RL + background tasks"]):::plain
 
     LOOP --> A["async harness tools
-    browser_tools.py / command_tools.py"]
+    browser_tools.py / command_tools.py"]:::plain
     LOOP --> B["async tool HTTP calls
-    search_tools.py / web_fetch_tools.py"]
+    search_tools.py / web_fetch_tools.py"]:::plain
     LOOP --> C["~10 modules importing sync requests
-    in async-reachable paths"]
+    in async-reachable paths"]:::plain
 
     A -->|"❌ time.sleep(x)"| H1(["UI freezes"]):::fail
     B -->|"❌ requests.get()"| H2(["startup blocks all agents"]):::fail
@@ -178,18 +179,19 @@ Fixes #3466
 
 ```mermaid
 flowchart TD
-    classDef fix fill:#2E7D32,color:#fff,stroke:#1B5E20
-    classDef ok  fill:#01579B,color:#fff,stroke:#003c74
+    classDef fix   fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef ok    fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     LOOP(["🔄 Shared event loop
-    all agents + GUI + RL + background tasks"])
+    all agents + GUI + RL + background tasks"]):::plain
 
     LOOP --> A["async harness tools
-    browser_tools.py / command_tools.py"]
+    browser_tools.py / command_tools.py"]:::plain
     LOOP --> B["async tool HTTP calls
-    search_tools.py / web_fetch_tools.py"]
+    search_tools.py / web_fetch_tools.py"]:::plain
     LOOP --> C["~10 modules importing sync requests
-    in async-reachable paths"]
+    in async-reachable paths"]:::plain
 
     A -->|"✅ await asyncio.sleep(x)"| OK1(["GUI stays responsive"]):::ok
     B -->|"✅ httpx.AsyncClient().get()"| OK2(["startup yields control"]):::ok

@@ -8,7 +8,7 @@ would have succeeded. Multi-Rollout runs N subagents in parallel, each with a
 different strategy, and a selector returns the best result, lifting the pass rate
 from `p` to `1-(1-p)^N`.
 
-Issue #764 https://github.com/openJiuwen-ai/agent-core/issues/764
+Issue #764 https://github.com/openJiuwen-ai/agent-core/issues/764<br>
 PR #38 https://github.com/openJiuwen-ai/agent-core/pull/38
 
 ## Background Description
@@ -26,13 +26,14 @@ changing the user-facing `invoke()` contract.
 
 ```mermaid
 flowchart TD
-    classDef fail fill:#B71C1C,color:#fff,stroke:#6f0000
+    classDef fail  fill:#FFCDD2,color:#1a1a1a,stroke:#C62828
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     T(["📋 Hard task
-    (complex bug fix)"])
+    (complex bug fix)"]):::plain
 
     T --> ONE(["Single deterministic attempt
-    one strategy, one trajectory"])
+    one strategy, one trajectory"]):::plain
 
     ONE -->|"first strategy often not best
     gets stuck in local optimum"| FAIL(["Wrong / missing output"]):::fail
@@ -61,6 +62,35 @@ flowchart TD
 - **Pluggable selector** — the winner is chosen from `RolloutResult` objects via
   `FirstSuccessfulSelector` (fastest, safest default), `LongestOutputSelector`
   (prefers completeness), or `ShortestOutputSelector` (prefers minimal diffs).
+
+```mermaid
+flowchart TD
+    classDef ac    fill:#B2EBF2,color:#1a1a1a,stroke:#00838F
+    classDef run   fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef done  fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
+
+    T(["📋 Hard task
+    (complex bug fix)"]):::plain
+
+    T --> GATE{"multi_rollout
+    enabled?"}:::plain
+
+    GATE -->|"yes"| MR["MultiRolloutExecutor
+    DeepAgent.invoke() early-return gate"]:::ac
+
+    MR --> R1(["Run 1 — Correctness strategy"]):::run
+    MR --> R2(["Run 2 — Minimal-diff strategy"]):::run
+    MR --> RN(["Run N — Edge-case strategy"]):::run
+
+    R1 & R2 & RN --> GATHER["asyncio.gather — all N run in parallel"]:::plain
+
+    GATHER --> SEL["selector
+    FirstSuccessfulSelector (default)
+    LongestOutputSelector · ShortestOutputSelector"]:::ac
+
+    SEL --> END4(["🏁 Best task output"]):::done
+```
 
 ### Rejected alternatives
 
@@ -174,15 +204,16 @@ This gives the agent multiple "shots" at the same task without losing context or
 
 ```mermaid
 flowchart TD
-    classDef ac   fill:#2E86AB,color:#fff,stroke:#1a5f7a
-    classDef run  fill:#01579B,color:#fff,stroke:#003c74
-    classDef done fill:#2E7D32,color:#fff,stroke:#1B5E20
+    classDef ac    fill:#B2EBF2,color:#1a1a1a,stroke:#00838F
+    classDef run   fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef done  fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
 
     T(["📋 Hard task
-    (complex bug fix)"])
+    (complex bug fix)"]):::plain
 
     T --> GATE{"multi_rollout
-    enabled?"}
+    enabled?"}:::plain
 
     GATE -->|"yes"| MR["MultiRolloutExecutor
     DeepAgent.invoke() early-return gate"]:::ac
@@ -191,7 +222,7 @@ flowchart TD
     MR --> R2(["Run 2 — Minimal-diff strategy"]):::run
     MR --> RN(["Run N — Edge-case strategy"]):::run
 
-    R1 & R2 & RN --> GATHER["asyncio.gather — all N run in parallel"]
+    R1 & R2 & RN --> GATHER["asyncio.gather — all N run in parallel"]:::plain
 
     GATHER --> SEL["selector
     FirstSuccessfulSelector (default)
