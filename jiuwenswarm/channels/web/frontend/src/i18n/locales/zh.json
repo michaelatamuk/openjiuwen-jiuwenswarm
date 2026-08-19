@@ -308,6 +308,7 @@
       "tooltip": "切换对话使用的模型",
       "clusterLockedTooltip": "集群模式使用配置的默认模型，不支持修改",
       "configured": "已配置模型",
+      "free": "免费模型",
       "addModel": "添加自定义模型",
       "placeholder": "选择模型"
     },
@@ -322,7 +323,7 @@
     "skillsManage": "技能管理",
     "skillsAdd": "添加到输入栏",
     "skillsRemove": "移除",
-    "recentTasks": "最近任务",
+    "recentTasks": "任务规划",
     "teamPause": "暂停",
     "teamPauseHint": "团队暂停后，直接发送下一条消息即可继续",
     "teamBroadcastTarget": "@所有人",
@@ -763,18 +764,42 @@
   },
   "modelSetupGuide": {
     "progress": "第 {{current}} 步，共 {{total}} 步",
-    "clickMore": "点击“更多”继续",
+    "clickMore": "点击「更多」继续",
     "acknowledge": "我知道了",
     "skip": "跳过",
     "steps": {
+      "0": {
+        "title": "欢迎使用 jiuwenswarm",
+        "description": "你已获得免费体验额度！选择下方方式开始配置你的模型服务。"
+      },
       "1": {
         "title": "配置你的首个模型",
-        "description": "模型配置位于“更多”中的“配置信息”。"
+        "description": "模型配置位于「更多」中的「配置信息」。"
       },
       "2": {
         "title": "完成模型配置",
         "description": "在默认模型区域填写模型名称、API 地址、API Key 和模型提供商，然后点击保存。"
       }
+    },
+    "quickSetup": {
+      "title": "一键配置华为云 MaaS",
+      "description": "自动引导你完成华为云购买和 API 配置",
+      "steps": {
+        "openConsole": "打开华为云 MaaS 控制台",
+        "updateAuth": "自动更新服务授权权限",
+        "createApiKey": "创建 API Key（用于 JiuwenSwarm 调用模型）",
+        "enableModels": "开通预置模型服务（按调用量计费）"
+      },
+      "agreementPrefix": "点击「一键配置」即表示您同意",
+      "agreementMaas": "《MaaS 模型即服务声明》",
+      "agreementAnd": "和",
+      "agreementCloud": "《华为云用户协议》",
+      "agreementSuffix": "。",
+      "billingNote": "模型开通本身不产生费用，实际调用按用量计费。"
+    },
+    "manualSetup": {
+      "title": "手动配置",
+      "description": "已有 API Key，手动填入配置"
     }
   },
   "config": {
@@ -881,7 +906,8 @@
       "proactiveEnabled": "启用主动推荐",
       "proactiveTickInterval": "检查间隔（分钟）",
       "proactiveMaxPerDay": "每日推荐上限",
-      "proactiveMaxRounds": "每次检查对话轮数"
+      "proactiveMaxRounds": "每次检查对话轮数",
+      "enableFreeModels": "启用免费模型"
     },
     "defaults": {
       "teamLeaderDisplayName": "团队领导",
@@ -924,16 +950,17 @@
       "teamSpawnMode": "团队启动/拉起成员的方式。",
       "teamEnablePermissions": "是否对该 Team 启用工具安全护栏（permissions）。",
       "teamExternalCliAgents": "允许 Leader 拉起的三方 Agent 类型。Claude 使用内置 SDK 工具绑定；Codex 会额外配置外部 MCP 发布通道。",
-      "teamExternalCliClaude": "允许 Leader 拉起 Claude SDK 成员。",
-      "teamExternalCliCodex": "允许 Leader 拉起 Codex SDK 成员；保存时会按需安装 Codex Python 依赖。",
-      "externalCliAgentClaude": "启用后可在 Team 模式中使用 Claude。",
+      "teamExternalCliClaude": "允许 Leader 拉起 Claude SDK 成员；保存时会按需安装 Python 依赖。",
+      "teamExternalCliCodex": "允许 Leader 拉起 Codex SDK 成员；保存时会按需安装 Python 依赖。",
+      "externalCliAgentClaude": "启用后可在 Team 模式中使用 Claude；保存时会按需安装 Python 依赖。",
       "externalCliAgentUseBuiltin": "不指定本机 CLI 路径，由 SDK 使用默认查找方式。",
       "externalCliAgentCliPath": "指定 Claude/Codex 可执行文件路径。",
-      "externalCliAgentCodex": "启用后可在 Team 模式中使用 Codex；保存时会按需安装 Codex Python 依赖。",
+      "externalCliAgentCodex": "启用后可在 Team 模式中使用 Codex；保存时会按需安装 Python 依赖。",
       "teamMemberName": "成员内部 ID：须以小写字母开头，仅含小写字母、数字或连字符。",
       "teamPersona": "角色人设与职责描述，影响该成员的行为风格与分工。",
       "teamPromptHint": "额外提示词片段，会注入该成员的系统提示中。",
-      "teamAgentKey": "绑定到「多 Agent 配置」中已有 Agent 的名称（name）。"
+      "teamAgentKey": "绑定到「多 Agent 配置」中已有 Agent 的名称（name）。",
+      "enableFreeModels": "开启后实时拉取可用的免费模型，注意免费模型可能有限流、限窗口大小等限制。免费模型来源于 Opencode Zen 网关（https://opencode.ai/zen），由 models.dev 目录（https://models.opencode.ai/api.json）与 Zen 实时模型列表取交集得到（判定标准：输入价格为 0）。"
     },
     "hideValue": "隐藏明文",
     "showValue": "显示明文",
@@ -1111,14 +1138,15 @@
         "compatibilityWarning": "检测到的版本可能不兼容。可以更换可执行文件路径、升级版本，或勾选“使用内置”，改用默认启动方式。",
         "compatibilityWarningWithVersion": "检测到的版本可能不兼容。可以更换可执行文件路径、升级到 {{version}} 或更高版本，或勾选“使用内置”，改用默认启动方式。",
         "windowsScriptPath": "当前选择的是 Windows 脚本文件。请改选真实的可执行文件，或勾选“使用内置”。",
-        "codexDependencyInstalling": "正在后台安装 Codex 依赖。安装期间 Codex 暂未启用；安装完成后，请再次启用 Codex 并保存配置。",
-        "codexDependencyInstalled": "请再次启用 Codex 并保存配置。",
-        "codexInstallPhasePreparing": "准备安装 Codex 依赖",
-        "codexInstallPhaseInstalling": "正在安装 Codex 依赖",
-        "codexInstallPhaseVerifying": "正在校验 Codex 依赖",
-        "codexInstallPhaseSucceeded": "Codex 依赖已安装",
-        "codexInstallPhaseFailed": "Codex 依赖安装失败",
-        "codexInstallRecentOutput": "安装日志"
+        "dependencyInstalling": "正在后台安装 {{agents}} 依赖。安装期间暂未启用；安装完成后，请再次启用并保存配置。",
+        "dependencyInstalled": "请再次启用 {{agent}} 并保存配置。",
+        "dependencyInstallFailed": "{{agent}} 依赖安装失败。请检查安装日志后重试。",
+        "dependencyInstallPhasePreparing": "准备安装 {{agent}} 依赖",
+        "dependencyInstallPhaseInstalling": "正在安装 {{agent}} 依赖",
+        "dependencyInstallPhaseVerifying": "正在校验 {{agent}} 依赖",
+        "dependencyInstallPhaseSucceeded": "{{agent}} 依赖已安装",
+        "dependencyInstallPhaseFailed": "{{agent}} 依赖安装失败",
+        "dependencyInstallRecentOutput": "安装日志"
       },
     "permissionsTools": {
       "title": "工具防护（permissions.tools）",
@@ -1208,7 +1236,7 @@
     "autoManagedHint": "此任务由主动推荐开关自动创建/删除；开关在设置→主动推荐。仅 Cron 表达式与时区可在此面板编辑，其余字段（名称/状态/描述/偏移/频道）不可改；删除请到设置关闭开关。",
     "autoManagedToggleDisabled": "自动维护任务的开关由设置→主动推荐控制，不可在此切换。",
     "pageTitle": "定时任务",
-    "pageSubtitle": "配置和管理自动化任务，Jiuwen 将按计划执行。",
+    "pageSubtitle": "配置和管理按计划执行的自动化任务。",
     "actions": {
       "confirm": "确定"
     },
@@ -1480,19 +1508,25 @@
   },
   "browser": {
     "title": "浏览器",
-    "subtitle": "配置浏览器 Agent 使用的 Chrome 路径和显示模式。",
-    "refreshPath": "刷新路径",
-    "savePath": "保存路径",
-    "pathConfigHelp": "CHROME 路径配置（Chrome地址栏输入：chrome://version查看，复制可执行文件路径）",
-    "examplePath": "例如：/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "subtitle": "配置浏览器 Agent 使用的浏览器类型、可执行文件路径和显示模式。",
+    "refreshPath": "刷新配置",
+    "savePath": "保存配置",
+    "pathConfigHelp": "浏览器配置（留空路径时自动探测；同时安装时默认优先 Chrome，其次 Edge）",
+    "browserType": "浏览器类型",
+    "browserTypeAuto": "自动（Chrome > Edge）",
+    "browserTypeChrome": "Chrome",
+    "browserTypeEdge": "Microsoft Edge",
+    "browserTypeHelp": "指定类型时只查找该浏览器；填写路径时以路径为准。",
+    "binaryPath": "可执行文件路径（可选）",
+    "examplePath": "例如：C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe 或 msedge.exe 路径",
     "success": {
-      "pathSaved": "Chrome 路径已保存"
+      "pathSaved": "浏览器配置已保存"
     },
     "showBrowser": "显示浏览器",
     "showBrowserDesc": "执行浏览器任务时打开可见的浏览器窗口。",
     "errors": {
-      "loadPath": "加载 Chrome 路径失败",
-      "savePath": "保存 Chrome 路径失败"
+      "loadPath": "加载浏览器配置失败",
+      "savePath": "保存浏览器配置失败"
     }
   },
   "logsPanel": {
@@ -1698,7 +1732,8 @@
     },
     "graph": {
       "orchestration": {
-        "description": "开启后，JiuwenSwarm 会为已安装的技能构建技能图谱（消耗Token），并在执行任务时基于图谱自动选择、组合和编排技能，提高任务执行成功率；关闭后将不再进行技能编排，已构建的技能图谱不会删除。",
+        "description": "开启后，JiuwenSwarm 会为已安装的技能构建技能图谱（消耗Token），并在执行任务时基于图谱自动选择、组合和编排技能，提高任务执行效率；关闭后将不再进行技能编排，已构建的技能图谱不会删除。",
+        "graphDefinition": "技能图谱就像一张技能关系地图：每个点代表一个技能，点之间的线表示它们可以配合使用。",
         "saving": "正在保存…",
         "saveFailed": "技能编排开关保存失败，请稍后重试。",
         "toggleLabel": "启用技能编排",
@@ -1706,10 +1741,12 @@
       },
       "stats": {
         "skillsSuffix": "技能",
-        "edgesSuffix": "边"
+        "edgesSuffix": "关联"
       },
       "searchPlaceholder": "搜索技能",
-      "minConfidence": "最小置信度 {{percent}}%",
+      "minConfidence": "最小关联强度 {{percent}}%",
+      "minConfidenceHelp": "拖动滑块，调整右侧视图中的最小关联强度；数值越高，可显示的关联越少；数值越低，可显示的关联越多。",
+      "linkStrength": "关联强度 {{percent}}%",
       "buildLogFallback": "构建日志",
       "tokenUsage": "{{prompt}} in / {{completion}} out / {{total}} total",
       "required": "必需",
@@ -1721,15 +1758,21 @@
       "outDegree": "出度",
       "description": "描述",
       "tasks": "任务",
-      "relatedEdges": "相关边",
-      "noRelatedEdges": "暂无相关边。",
-      "selectSkillHint": "选择一个技能查看指纹",
+      "relatedEdges": "关联技能",
+      "noRelatedEdges": "暂无关联技能。",
+      "selectSkillHint": "选择一个技能查看详情",
       "actions": {
         "read": "读取图谱",
         "incrementalBuild": "增量构建",
         "cancelBuild": "取消构建",
-        "fullRebuild": "全量重新构建",
-        "fitView": "适配视图"
+        "fullRebuild": "全量构建",
+        "fitView": "调整视图"
+      },
+      "actionHelp": {
+        "incrementalBuild": "增量构建：更新新增或变更的技能，适合日常维护。",
+        "cancelBuild": "取消构建：停止当前增量或全量构建。",
+        "fullRebuild": "全量构建：扫描全部已安装技能，首次使用或重建图谱时使用。",
+        "fitView": "调整视图：自动调整右侧视图，使图谱居中并完整显示。"
       },
       "status": {
         "refreshing": "正在刷新技能图谱",
@@ -2346,7 +2389,7 @@
   },
   "multiSession": {
     "title": "工作",
-    "conversations": "对话",
+    "conversations": "任务",
     "newConversation": "新建任务",
     "empty": "暂无对话",
     "untitled": "未命名对话",
