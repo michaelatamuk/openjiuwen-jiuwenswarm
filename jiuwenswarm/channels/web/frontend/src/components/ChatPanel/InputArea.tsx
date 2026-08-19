@@ -10,6 +10,7 @@
   useMemo,
   forwardRef,
   useImperativeHandle,
+  FormEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +28,7 @@ import {
 } from '../../stores';
 import { supportsPlanMode } from '../../features/planMode/wireMode';
 import { queueOrAddGoalObjectiveMessage } from '../../features/goalPendingObjectiveBubble';
-import { AgentMode, MediaItem, Permission, type ProjectInfo } from '../../types';
+import { AgentMode, MediaItem, ModelEntry, Permission, type ProjectInfo } from '../../types';
 import { NEW_CONVERSATION_ID } from '../../multi-session/state/newConversationLifecycle';
 import { ProjectCreateMenu, type ProjectCreateMode } from '../../multi-session/sidebar/ProjectCreateMenu';
 import { projectCreateErrorKey } from '../../multi-session/sidebar/projectCreateErrors';
@@ -132,6 +133,8 @@ function isDefaultProject(project: ProjectInfo): boolean {
 
 interface InputAreaProps {
   onSubmit: (content: string, mediaItems?: MediaItem[]) => void;
+  /** Signals that the user is editing an existing real Session. */
+  onInputIntent?: (sessionId: string) => void;
   onPersistMedia: (content: string, mediaItems: MediaItem[]) => Promise<PersistMediaResponse>;
   onPersistDocuments: (content: string, mediaItems: MediaItem[]) => Promise<PersistMediaResponse>;
   onInterrupt: (newInput?: string) => void;
@@ -479,6 +482,7 @@ function buildSubmitContent(text: string, attachments: AttachmentDraft[]): strin
 export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function InputArea(
   {
     onSubmit,
+    onInputIntent,
     onPersistMedia,
     onPersistDocuments,
     onInterrupt,
@@ -1544,8 +1548,20 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     el.focus();
   }, [extractPlainText, getCurrentComposerTrigger, setRangeStartByTextOffset]);
 
+  const notifyKVCInputIntent = useCallback(() => {
+    if (!activeSessionId || activeSessionId === NEW_CONVERSATION_ID) return;
+    onInputIntent?.(activeSessionId);
+  }, [activeSessionId, onInputIntent]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
+      // keydown is the most reliable signal in the current Web frontend. Keep
+      // beforeinput/input/paste below as IME and WebView compatibility paths.
+      const isPrintableKey = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const isPasteShortcut = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v';
+      if (isPrintableKey || isPasteShortcut) {
+        notifyKVCInputIntent();
+      }
       if (composerSuggestion) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -1593,7 +1609,23 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       composerSuggestionItems,
       handleSubmit,
       insertComposerToken,
+      notifyKVCInputIntent,
     ]
+  );
+
+  /**
+   * Start KVC preparation on the leading edge of a real editor insertion.
+   * `onInput` remains below as a compatibility fallback for WebViews that do
+   * not expose a useful beforeinput event.
+   */
+  const handleEditorBeforeInput = useCallback(
+    (event: FormEvent<HTMLDivElement>) => {
+      const nativeEvent = event.nativeEvent as InputEvent;
+      if (String(nativeEvent.inputType || '').startsWith('insert')) {
+        notifyKVCInputIntent();
+      }
+    },
+    [notifyKVCInputIntent],
   );
 
   /** contenteditable 输入时同步纯文本到 store + 联动 selectedSkills */
@@ -1603,6 +1635,9 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     // 提取纯文本
     const text = extractPlainText();
     useChatStore.getState().setInputValue(sid, text);
+    if (text.trim() && sid !== NEW_CONVERSATION_ID) {
+      notifyKVCInputIntent();
+    }
     // 联动 selectedSkills：扫描 contenteditable 现有 chip，移除已不在的技能（backspace 删除等情况）
     const el = inputRef.current;
     if (el) {
@@ -1620,7 +1655,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       });
     }
     updateComposerSuggestion();
-  }, [extractPlainText, updateComposerSuggestion]);
+  }, [extractPlainText, notifyKVCInputIntent, updateComposerSuggestion]);
 
   /** 保存当前光标位置（用于技能插入时定位） */
   const saveSelection = useCallback(() => {
@@ -1691,12 +1726,15 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLDivElement>) => {
+      if (event.clipboardData.getData('text/plain').trim()) {
+        notifyKVCInputIntent();
+      }
       if (handleDesktopFilePaste(event)) return;
       if (clipboardHasFileItems(event.clipboardData)) {
         event.preventDefault();
       }
     },
-    [handleDesktopFilePaste],
+    [handleDesktopFilePaste, notifyKVCInputIntent],
   );
 
   useEffect(() => {
@@ -2144,6 +2182,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
         ref={inputRef}
         contentEditable
         suppressContentEditableWarning
+        onBeforeInput={handleEditorBeforeInput}
         onInput={handleEditorInput}
         onKeyDown={handleKeyDown}
         onCompositionStart={() => { isComposingRef.current = true; }}
@@ -2920,38 +2959,54 @@ function ModelSelector({
             : { position: 'fixed', top: menuAnchor.bottom + 10, left: menuAnchor.left, zIndex: 9999 }
           }
         >
-          <div className="model-select__section-header" data-testid="chat-panel-model-selector-section-header">{t('chat.modelSelector.configured')}</div>
-          {chatAvailableModels.map((m, idx) => {
-            const key = m.alias || m.model_name;
-            const isActive = key === (selectedModel.alias || selectedModel.model_name);
+          {(() => {
+            const isFree = (m: ModelEntry) => m.is_free === true;
+            const freeModels = chatAvailableModels.filter(isFree);
+            const configuredModels = chatAvailableModels.filter((m) => !isFree(m));
+            const renderGroup = (label: string, models: ModelEntry[]) =>
+              models.length === 0 ? null : (
+                <>
+                  <div className="model-select__section-header" data-testid="chat-panel-model-selector-section-header" data-variant={label === t('chat.modelSelector.free') ? 'free' : 'configured'}>{label}</div>
+                  {models.map((m, idx) => {
+                    const key = m.alias || m.model_name;
+                    const isActive = key === (selectedModel.alias || selectedModel.model_name);
+                    return (
+                      <button
+                        type="button"
+                        key={`${m.model_name}-${idx}`}
+                        onClick={() => handleSelect(key)}
+                        className={clsx(
+                          'chat-mode-select__option',
+                          isActive && 'chat-mode-select__option--active',
+                        )}
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        data-testid="chat-panel-model-selector-option"
+                        data-variant={key}
+                      >
+                        <span className="chat-mode-select__option-main">
+                          <span className="chat-mode-select__icon" aria-hidden="true">
+                            <ModelProviderIcon model={m} />
+                          </span>
+                          <span className="chat-mode-select__label">{key}</span>
+                        </span>
+                        {isActive && (
+                          <svg className="chat-mode-select__check" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 10.5l3 3L15 6.5" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
+              );
             return (
-              <button
-                type="button"
-                key={`${m.model_name}-${idx}`}
-                onClick={() => handleSelect(key)}
-                className={clsx(
-                  'chat-mode-select__option',
-                  isActive && 'chat-mode-select__option--active',
-                )}
-                role="menuitemradio"
-                aria-checked={isActive}
-                data-testid="chat-panel-model-selector-option"
-                data-variant={key}
-              >
-                <span className="chat-mode-select__option-main">
-                  <span className="chat-mode-select__icon" aria-hidden="true">
-                    <ModelProviderIcon model={m} />
-                  </span>
-                  <span className="chat-mode-select__label">{key}</span>
-                </span>
-                {isActive && (
-                  <svg className="chat-mode-select__check" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10.5l3 3L15 6.5" />
-                  </svg>
-                )}
-              </button>
+              <>
+                {renderGroup(t('chat.modelSelector.free'), freeModels)}
+                {renderGroup(t('chat.modelSelector.configured'), configuredModels)}
+              </>
             );
-          })}
+          })()}
           <button
             type="button"
             className="model-select__add-btn"
