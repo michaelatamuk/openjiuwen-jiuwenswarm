@@ -291,6 +291,18 @@ CLI_FORWARD_REQ_METHODS = frozenset(
         "plugins.enable",
         "plugins.disable",
         "plugins.reload",
+        "agent_templates.list",
+        "agent_templates.show",
+        "agent_templates.file.list",
+        "agent_templates.file.read",
+        "agent_templates.create",
+        "agent_templates.install",
+        "agent_templates.uninstall",
+        "plugin_packages.list",
+        "plugin_packages.show",
+        "plugin_packages.create",
+        "plugin_packages.install",
+        "plugin_packages.uninstall",
         "permissions.tools.get",
         "permissions.tools.update",
         "permissions.tools.delete",
@@ -390,6 +402,18 @@ CLI_FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset(
         "plugins.enable",
         "plugins.disable",
         "plugins.reload",
+        "agent_templates.list",
+        "agent_templates.show",
+        "agent_templates.file.list",
+        "agent_templates.file.read",
+        "agent_templates.create",
+        "agent_templates.install",
+        "agent_templates.uninstall",
+        "plugin_packages.list",
+        "plugin_packages.show",
+        "plugin_packages.create",
+        "plugin_packages.install",
+        "plugin_packages.uninstall",
         "permissions.tools.get",
         "permissions.tools.update",
         "permissions.tools.delete",
@@ -1805,7 +1829,7 @@ def register_cli_handlers(bind: CliHandlersBindParams) -> None:
             )
             return
 
-        from jiuwenswarm.server.runtime.session.kv_cache_affinity_lifecycle import (
+        from jiuwenswarm.server.runtime.session.kv_cache.kv_cache_lifecycle import (
             evict_session_kv_cache,
         )
 
