@@ -19,6 +19,7 @@ so openjiuwen builds the member from the merged spec. Two profiles are supported
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import (
@@ -62,6 +63,8 @@ from jiuwenswarm.common.mode_matrix import (
     TEAM_PLAN_NORMAL_MODE,
 )
 from jiuwenswarm.common.utils import get_agent_skills_dir
+
+logger = logging.getLogger(__name__)
 
 # Modes that route to the code adapter and get the code member profile.
 _CODE_MODES: frozenset[str] = frozenset({"code.team", TEAM_PLAN_CODE_MODE})
