@@ -13,14 +13,14 @@ Each section below identifies: the failure mode, a feature summary, prior art, a
 
 #### <strong>Group 1 — Stability: Stop the agent from crashing before it even starts</strong>
 
-**Failure mode:<br>** The process hangs or crashes before any iteration fires, producing zero output.
+**Failure mode:<br>** Blocking synchronous calls inside async functions freeze the shared event loop, stalling every concurrent agent (UI lag, delayed RL actions, stalled workflows, apparent hangs under load).
 
 **Feature summary:<br>**
-A prerequisite — if missing, the agent produces zero output before a single hook fires. Item #1 fixes the asyncio lifecycle bug at both layers (agent-core and jiuwenswarm).
+A prerequisite — if missing, the agent produces zero output before a single hook fires. Item #1 fixes the blocking-sync-call bug at both layers (agent-core and jiuwenswarm); each repo carries its own PR.
 
 | # | Feature | What it does |
 |---|---|---|
-| #1 | Event Loop Fix (both layers) | Replaces blocking asyncio call in both `Runner` startup (agent-core) and `AutoHarness` service (jiuwenswarm); prevents silent hang |
+| #1 | Event Loop Fix (both layers) | Replaces blocking `time.sleep`/`requests.get` inside async functions with `await asyncio.sleep` / `httpx.AsyncClient` (+ timeouts) in both agent-core (PR #28) and jiuwenswarm (PR #119); enables ruff `ASYNC101`/`ASYNC210` to block regressions |
 
 <b>Data Flow</b>
 
@@ -32,36 +32,42 @@ flowchart TD
 
     T(["📋 Task"])
 
-    T --> AC["agent-core Runner startup
-    core/runner/runner.py"]
+    T --> AC["agent-core — shared event loop
+    coordinate_action_tools.py / agent_rl/proxy.py"]
 
-    AC -->|"❌ blocking asyncio call"| H1(["hangs silently"]):::fail
-    AC -->|"✅ (PR #28) — async await replaces blocking call"| JW["jiuwenswarm AutoHarness startup
-    auto_harness/service.py"]:::fix
+    AC -->|"❌ time.sleep / requests.get in async"| H1(["freezes all agents"]):::fail
+    AC -->|"✅ (PR #28) — asyncio.sleep / httpx.AsyncClient"| JW["jiuwenswarm — shared event loop"]:::fix
 
-    JW -->|"❌ same blocking-call pattern"| H2(["RuntimeError: loop already running"]):::fail
-    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| RUN(["Agent runs normally ✅"]):::ok
+    JW -->|"❌ same blocking-call pattern"| H2(["UI lag / stalled workflows"]):::fail
+    JW -->|"✅ (PR #119) — same fix at jiuwenswarm layer"| RUN(["All agents run concurrently ✅"]):::ok
 ```
 
 <u>Technical Details</u>
 
 <details>
-<summary><strong>#1 — Event Loop Fix (both layers)</strong> &nbsp;(agent-core <code>fix/event-loop-blocking</code> (PR #28) + jiuwenswarm <code>bugfix/event-loop-blocking</code> (PR #119))</summary>
+<summary><strong>#1 — Event Loop Fix (both layers)</strong> &nbsp;(agent-core <a href="https://github.com/openJiuwen-ai/agent-core/pull/28"><code>PR #28</code></a> + jiuwenswarm <a href="https://github.com/openJiuwen-ai/jiuwenswarm/pull/119"><code>PR #119</code></a>)</summary>
 
 <br>
 
 **How it works**
 
-- Root cause: blocking `asyncio` call at two independent layers — `Runner` startup in agent-core and the `AutoHarness` service in jiuwenswarm
-- Symptoms: process hangs silently (agent-core) or raises `RuntimeError: This event loop is already running` (jiuwenswarm)
-- Fix: replace the blocking call with proper `async/await` in both locations. Both fixes are required.
+- Root cause: blocking synchronous calls executed inside `async def` functions — `time.sleep()` in `type_text_action` and `requests.get()` in `_wait_for_server_ready`, plus ~10 modules importing sync `requests` in async-reachable paths — at two independent layers (agent-core and jiuwenswarm)
+- Symptoms: the shared event loop freezes, stalling every concurrent agent — UI lag, delayed RL actions, stalled workflows, cascading timeouts, apparent hangs under load
+- Fix: `time.sleep` → `await asyncio.sleep`; `requests.get` → `httpx.AsyncClient().get()`; add timeouts to remaining sync `requests` calls; `await asyncio.to_thread(...)` as interim compatibility measure. Both fixes are required (each repo carries its own PR).
+- Regression prevention: enable ruff `ASYNC101` / `ASYNC210` so CI fails on new blocking sleep or sync HTTP in async code
+
+**Verification**
+
+- Loop-lag probe: background sampler checks event-loop drift every 50 ms while GUI + RL paths run — max drift < 100 ms (previously > 2 s under load)
+- Stress test with 20 concurrent agents: no stalls, no frozen tasks, no delayed coroutine scheduling
 
 **Technical metadata**
 
 | | |
 |---|---|
-| **Hook points** | None — process-level fix, before any hook fires |
-| **Files** | `core/runner/runner.py` — `Runner.__init__` / startup sequence<br>`agents/harness/common/auto_harness/service.py` — `AutoHarness` startup |
+| **Hook points** | None — process/runtime-level fix, before any hook fires |
+| **Files (agent-core)** | `openjiuwen/harness/tools/mobile_gui/coordinate_action_tools.py` — `time.sleep` → `asyncio.sleep`<br>`openjiuwen/agent_evolving/agent_rl/proxy.py` — `requests.get` → `httpx.AsyncClient`<br>~10 modules with sync `requests` in async-reachable paths |
+| **Files (jiuwenswarm)** | same blocking-call patterns in the jiuwenswarm runtime |
 
 </details>
 
@@ -1304,9 +1310,9 @@ Integration branch combining all: `New-Features-Integration` (both repos)
 
 | System | Equivalent |
 |---|---|
-| SWE-agent | Had identical asyncio lifecycle bug in early release |
-| OpenHands | Had identical asyncio lifecycle bug in early release |
-| AutoGPT | Had identical asyncio lifecycle bug in early release |
+| SWE-agent | Had identical blocking-call-in-async bug in early release |
+| OpenHands | Had identical blocking-call-in-async bug in early release |
+| AutoGPT | Had identical blocking-call-in-async bug in early release |
 | Note | Universal early-stage issue in Python async agent frameworks |
 
 ### Group 2 — Scale
