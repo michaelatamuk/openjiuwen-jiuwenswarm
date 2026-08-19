@@ -210,6 +210,7 @@ from jiuwenswarm.agents.harness.common.rails.autonomous_mode_rail import (
 )
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.config import get_model_names
+from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.common.log_preview import preview_text
 from jiuwenswarm.common.stage_timer import StageTimer
@@ -6015,26 +6016,6 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
-    def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
-        """Build TaskDescriptionRail: pin a task-description file into the system prompt.
-
-        Only added to the rail set when ``task_description.enabled`` is true
-        (see ``_build_agent_rails``). Reads the file path from
-        ``task_description.path`` (default /app/task.md) and keeps its content
-        visible for every model call — never compressed away — for CI /
-        evaluation runs where the task is written to a file first.
-        """
-        try:
-            _td_cfg = config_base.get("task_description") or {}
-            _td_path = str(_td_cfg.get("path", "/app/task.md"))
-            rail = TaskDescriptionRail(_td_path)
-            logger.info("[JiuWenSwarmDeepAdapter] TaskDescriptionRail loaded from %s", _td_path)
-            return rail
-        except Exception as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", exc)
-            return None
-
-    @staticmethod
     def _build_iteration_budget_rail(config: dict[str, Any]) -> IterationBudgetRail | None:
         """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
 
@@ -6229,6 +6210,26 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach AutonomousModeRail: %s", exc)
             return None
 
+    @staticmethod
+    def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
+        """Build TaskDescriptionRail: pin a task-description file into the system prompt.
+
+        Only added to the rail set when ``task_description.enabled`` is true
+        (see ``_build_agent_rails``). Reads the file path from
+        ``task_description.path`` (default /app/task.md) and keeps its content
+        visible for every model call — never compressed away — for CI /
+        evaluation runs where the task is written to a file first.
+        """
+        try:
+            _td_cfg = config_base.get("task_description") or {}
+            _td_path = str(_td_cfg.get("path", "/app/task.md"))
+            rail = TaskDescriptionRail(_td_path)
+            logger.info("[JiuWenSwarmDeepAdapter] TaskDescriptionRail loaded from %s", _td_path)
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
@@ -6371,6 +6372,19 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_output_format_rail",
                     self._build_output_format_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Task description pinning: keep task file content visible throughout the run.
+        # Disabled by default — only inserted when enabled so the registry's
+        # "build returned None" warning is not spammed on every normal build.
+        _td_cfg = config_base.get("task_description") or {}
+        if bool(_td_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_task_description_rail",
+                    self._build_task_description_rail,
                     {"config_base": config_base},
                 )
             )
