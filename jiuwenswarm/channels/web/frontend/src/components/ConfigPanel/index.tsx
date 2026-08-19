@@ -210,7 +210,9 @@ interface ConfigPanelProps {
   sessionId?: string;
   onSaveConfig: (updates: Record<string, string>) => Promise<ConfigSaveResult | void>;
   onSaveAllConfig?: (payload: ConfigSaveAllPayload) => Promise<ConfigSaveResult | void>;
-  onGetCodexDependencyInstallStatus?: () => Promise<CodexDependencyInstallStatus>;
+  onGetExternalCliDependencyInstallStatus?: (
+    cliAgent: ExternalCliAgentKind,
+  ) => Promise<ExternalCliDependencyInstallStatus>;
   /** 校验默认模型配置（api_base / api_key / model / model_provider）能否完成一次最小 LLM 请求 */
   onValidateModel?: (fields: {
     api_base: string;
@@ -270,10 +272,11 @@ interface ConfigSaveResult {
   updated?: string[];
   applied_without_restart?: boolean;
   models_count?: number | null;
-  codex_dependency_install?: CodexDependencyInstallStatus;
+  external_cli_dependency_installs?: Partial<Record<ExternalCliAgentKind, ExternalCliDependencyInstallStatus>>;
 }
 
-interface CodexDependencyInstallStatus {
+interface ExternalCliDependencyInstallStatus {
+  cli_agent?: ExternalCliAgentKind;
   status?: string;
   phase?: string;
   error?: string;
@@ -777,19 +780,40 @@ function hasExternalCliAgentInFlatConfig(values: Record<string, string>, cliAgen
   return false;
 }
 
-function isCodexDependencyInstalling(result: ConfigSaveResult | void): boolean {
-  return result?.codex_dependency_install?.status === "running";
+function externalCliDependencyInstallAgents(result: ConfigSaveResult | void): Set<ExternalCliAgentKind> {
+  const installs = result?.external_cli_dependency_installs ?? {};
+  return new Set(
+    Object.entries(installs)
+      .filter((entry): entry is [ExternalCliAgentKind, ExternalCliDependencyInstallStatus] => {
+        const [cliAgent, status] = entry;
+        return (cliAgent === "claude" || cliAgent === "codex") && !!status?.status;
+      })
+      .map(([cliAgent]) => cliAgent),
+  );
 }
 
-function getCodexInstallPhaseLabel(status: CodexDependencyInstallStatus | null, t: (key: string) => string): string {
+function hasExternalCliDependencyInstallResult(result: ConfigSaveResult | void): boolean {
+  return externalCliDependencyInstallAgents(result).size > 0;
+}
+
+function externalCliAgentLabel(cliAgent: ExternalCliAgentKind): string {
+  return cliAgent === "claude" ? "Claude" : "Codex";
+}
+
+function getExternalCliDependencyInstallPhaseLabel(
+  cliAgent: ExternalCliAgentKind,
+  status: ExternalCliDependencyInstallStatus | null,
+  t: (key: string, options?: Record<string, string>) => string,
+): string {
   const phase = status?.phase || status?.status || "idle";
+  const agent = externalCliAgentLabel(cliAgent);
   const labels: Record<string, string> = {
-    preparing: t("config.externalCli.codexInstallPhasePreparing"),
-    installing: t("config.externalCli.codexInstallPhaseInstalling"),
-    verifying: t("config.externalCli.codexInstallPhaseVerifying"),
-    succeeded: t("config.externalCli.codexInstallPhaseSucceeded"),
-    failed: t("config.externalCli.codexInstallPhaseFailed"),
-    running: t("config.externalCli.codexInstallPhaseInstalling"),
+    preparing: t("config.externalCli.dependencyInstallPhasePreparing", { agent }),
+    installing: t("config.externalCli.dependencyInstallPhaseInstalling", { agent }),
+    verifying: t("config.externalCli.dependencyInstallPhaseVerifying", { agent }),
+    succeeded: t("config.externalCli.dependencyInstallPhaseSucceeded", { agent }),
+    failed: t("config.externalCli.dependencyInstallPhaseFailed", { agent }),
+    running: t("config.externalCli.dependencyInstallPhaseInstalling", { agent }),
   };
   return labels[phase] || phase;
 }
@@ -1534,7 +1558,6 @@ const OPENAI_ACCOUNT_LOGIN_START_TIMEOUT_MS = 90_000;
 
 const MODEL_PROVIDER_OPTIONS = [
   "OpenAI",
-  OPENAI_ACCOUNT_PROVIDER,
   "OpenRouter",
   "DashScope",
   "SiliconFlow",
@@ -4042,7 +4065,7 @@ export function ConfigPanel({
   onHasChangesChange,
   onDetectExternalCli,
   onSelectExternalCliPath,
-  onGetCodexDependencyInstallStatus,
+  onGetExternalCliDependencyInstallStatus,
 }: ConfigPanelProps) {
   const { t, i18n } = useTranslation();
   const activeSessionId = useChatStore((s) => s.activeSessionId);
@@ -4050,7 +4073,15 @@ export function ConfigPanel({
   const globalTaskRunning = useChatStore((s) => s.globalTaskRunning);
   const availableModels = useSessionStore((s) => s.availableModels);
   const configSaveBlocked = isProcessing || globalTaskRunning;
-  const storeAvailableModels = availableModels;
+  // 免费模型（如 Opencode Zen）只在对话下拉框展示，不在“模型配置”页编辑--
+  // 它们是内存态、不入 config.yaml，在此过滤掉以免误编辑/误提交。
+  // 用 useMemo 缓存：只有 availableModels 真正变化才重算，避免每次渲染返回
+  // 新数组引用触发下方 [storeAvailableModels] effect 不断重置 draftModels，
+  // 那会抹掉用户正在进行的增删改编辑。
+  const storeAvailableModels = useMemo(
+    () => availableModels.filter((m) => m.is_free !== true),
+    [availableModels],
+  );
   const storeAvailableModelsRef = useRef(storeAvailableModels);
   storeAvailableModelsRef.current = storeAvailableModels;
   const [draftValues, setDraftValues] = useState<Record<string, string>>(() => {
@@ -4077,7 +4108,9 @@ export function ConfigPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [codexInstallStatus, setCodexInstallStatus] = useState<CodexDependencyInstallStatus | null>(null);
+  const [externalCliInstallStatuses, setExternalCliInstallStatuses] = useState<
+    Partial<Record<ExternalCliAgentKind, ExternalCliDependencyInstallStatus>>
+  >({});
   const [modelError, setModelError] = useState<string | null>(null);
   const [deleteAgentConfirm, setDeleteAgentConfirm] = useState<{ idx: number; agentName: string; references: string[] } | null>(null);
   const [deleteModelConfirm, setDeleteModelConfirm] = useState<{ idx: number; modelName: string; references: string[] } | null>(null);
@@ -4085,26 +4118,41 @@ export function ConfigPanel({
   const [deleteTeamMemberConfirm, setDeleteTeamMemberConfirm] = useState<{ teamIdx: number; memberIdx: number; memberName: string } | null>(null);
   const [installedSkills, setInstalledSkills] = useState<{ name: string; installed?: boolean }[]>([]);
 
+  const runningExternalCliInstallAgents = useMemo(
+    () => EXTERNAL_CLI_AGENT_KINDS.filter((cliAgent) => externalCliInstallStatuses[cliAgent]?.status === "running"),
+    [externalCliInstallStatuses],
+  );
+  const runningExternalCliInstallAgentsKey = runningExternalCliInstallAgents.join(",");
+
   useEffect(() => {
-    if (!onGetCodexDependencyInstallStatus || codexInstallStatus?.status !== "running") {
+    const runningAgents = runningExternalCliInstallAgentsKey
+      .split(",")
+      .filter((cliAgent): cliAgent is ExternalCliAgentKind => cliAgent === "claude" || cliAgent === "codex");
+    if (!onGetExternalCliDependencyInstallStatus || runningAgents.length === 0) {
       return;
     }
     let cancelled = false;
     const pollStatus = async () => {
-      try {
-        const status = await onGetCodexDependencyInstallStatus();
-        if (!cancelled) {
-          setCodexInstallStatus(status);
-        }
-      } catch (pollError) {
-        if (!cancelled) {
-          const message = pollError instanceof Error ? pollError.message : t("config.errors.saveFailed");
-          setCodexInstallStatus((prev) => ({
-            ...(prev ?? {}),
-            status: "failed",
-            phase: "failed",
-            error: message,
-          }));
+      for (const cliAgent of runningAgents) {
+        try {
+          const status = await onGetExternalCliDependencyInstallStatus(cliAgent);
+          if (!cancelled) {
+            setExternalCliInstallStatuses((prev) => ({ ...prev, [cliAgent]: status }));
+          }
+        } catch (pollError) {
+          if (!cancelled) {
+            const message = pollError instanceof Error ? pollError.message : t("config.errors.saveFailed");
+            setExternalCliInstallStatuses((prev) => ({
+              ...prev,
+              [cliAgent]: {
+                ...(prev[cliAgent] ?? {}),
+                cli_agent: cliAgent,
+                status: "failed",
+                phase: "failed",
+                error: message,
+              },
+            }));
+          }
         }
       }
     };
@@ -4116,20 +4164,29 @@ export function ConfigPanel({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [codexInstallStatus?.status, onGetCodexDependencyInstallStatus, t]);
+  }, [onGetExternalCliDependencyInstallStatus, runningExternalCliInstallAgentsKey, t]);
 
   useEffect(() => {
-    if (codexInstallStatus?.status !== "succeeded") {
+    const succeededAgents = EXTERNAL_CLI_AGENT_KINDS.filter(
+      (cliAgent) => externalCliInstallStatuses[cliAgent]?.status === "succeeded",
+    );
+    if (succeededAgents.length === 0) {
       return;
     }
     const timer = window.setTimeout(() => {
-      setCodexInstallStatus(null);
+      setExternalCliInstallStatuses((prev) => {
+        const next = { ...prev };
+        for (const cliAgent of succeededAgents) {
+          delete next[cliAgent];
+        }
+        return next;
+      });
       setNotice(null);
     }, 8000);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [codexInstallStatus?.status]);
+  }, [externalCliInstallStatuses]);
 
   const markAgentsTeamsEdited = () => {
     setAgentsTeamsEdited(true);
@@ -4487,12 +4544,14 @@ export function ConfigPanel({
 
   const groups = useMemo<ConfigGroup[]>(() => {
     if (!Object.keys(normalizedConfig).length) return [];
-    const externalCliAgentsSupported = parseBoolValue(normalizedConfig[EXTERNAL_CLI_AGENTS_SUPPORTED_KEY] ?? "true");
     const buckets: Record<string, [string, string][]> = {};
     for (const [key, value] of Object.entries(normalizedConfig)) {
       if (HIDDEN_CONFIG_KEYS.has(key) || HIDDEN_FROM_UI_CONFIG_KEYS.has(key)) continue;
       const tag = classifyKey(key);
-      if (tag === "external_cli_agents" && !externalCliAgentsSupported) continue;
+      // 按产品要求暂不在配置页展示三方 Agent，保留后端下发值及运行能力。
+      if (tag === "external_cli_agents") continue;
+      // 按产品要求暂不在配置页展示记忆敏感信息过滤，保留后端下发值及运行能力。
+      if (tag === "memory") continue;
       // 临时注释：先隐藏邮件配置，后续需要时可恢复。
       if (tag === "email") continue;
       // 飞书配置已迁移到 ChannelsPanel 管理，这里不再展示。
@@ -4839,10 +4898,15 @@ export function ConfigPanel({
     setAgentsTeamsUserEdited(false);
   };
 
-  const resetCodexEnabledDraftForDependencyInstall = () => {
+  const resetExternalCliEnabledDraftForDependencyInstall = (cliAgents: Set<ExternalCliAgentKind>) => {
+    if (cliAgents.size === 0) {
+      return;
+    }
     setDraftValues((prev) => ({
       ...prev,
-      [EXTERNAL_CLI_AGENT_CODEX_ENABLED_KEY]: "false",
+      ...Object.fromEntries(
+        Array.from(cliAgents).map((cliAgent) => [externalCliKey(cliAgent, "enabled"), "false"]),
+      ),
     }));
   };
 
@@ -4954,13 +5018,19 @@ export function ConfigPanel({
           payload.team = agentsTeamsPayload.team;
         }
         const result = await onSaveAllConfig(payload);
-        if (isCodexDependencyInstalling(result)) {
-          resetCodexEnabledDraftForDependencyInstall();
-          setCodexInstallStatus(result?.codex_dependency_install ?? { status: "running", phase: "installing" });
-          setNotice(t("config.externalCli.codexDependencyInstalling"));
+        if (hasExternalCliDependencyInstallResult(result)) {
+          const installAgents = externalCliDependencyInstallAgents(result);
+          resetExternalCliEnabledDraftForDependencyInstall(installAgents);
+          setExternalCliInstallStatuses((prev) => ({
+            ...prev,
+            ...(result?.external_cli_dependency_installs ?? {}),
+          }));
+          setNotice(t("config.externalCli.dependencyInstalling", {
+            agents: Array.from(installAgents).map(externalCliAgentLabel).join("、"),
+          }));
           return;
         }
-        setCodexInstallStatus(null);
+        setExternalCliInstallStatuses({});
         if (hasModelChanges && onModelsRefresh) await onModelsRefresh();
         if (hasAgentsTeamsChanges) {
           setAgentsTeamsJustSaved(true);
@@ -4993,13 +5063,19 @@ export function ConfigPanel({
         }
         if (Object.keys(configUpdates).length > 0) {
           const result = await onSaveConfig(configUpdates);
-          if (isCodexDependencyInstalling(result)) {
-            resetCodexEnabledDraftForDependencyInstall();
-            setCodexInstallStatus(result?.codex_dependency_install ?? { status: "running", phase: "installing" });
-            setNotice(t("config.externalCli.codexDependencyInstalling"));
+          if (hasExternalCliDependencyInstallResult(result)) {
+            const installAgents = externalCliDependencyInstallAgents(result);
+            resetExternalCliEnabledDraftForDependencyInstall(installAgents);
+            setExternalCliInstallStatuses((prev) => ({
+              ...prev,
+              ...(result?.external_cli_dependency_installs ?? {}),
+            }));
+            setNotice(t("config.externalCli.dependencyInstalling", {
+              agents: Array.from(installAgents).map(externalCliAgentLabel).join("、"),
+            }));
             return;
           }
-          setCodexInstallStatus(null);
+          setExternalCliInstallStatuses({});
         }
       }
   } catch (saveError) {
@@ -5010,10 +5086,12 @@ export function ConfigPanel({
     }
   };
 
-  const codexInstallLogs = codexInstallStatus?.log_tail?.filter((line: string) => line.trim()).slice(-4) ?? [];
-  const shouldShowCodexInstallStatus = !!codexInstallStatus && ["running", "failed", "succeeded"].includes(
-    codexInstallStatus.status || "",
-  );
+  const visibleExternalCliInstallStatuses = EXTERNAL_CLI_AGENT_KINDS
+    .map((cliAgent) => ({ cliAgent, status: externalCliInstallStatuses[cliAgent] }))
+    .filter((item): item is { cliAgent: ExternalCliAgentKind; status: ExternalCliDependencyInstallStatus } => (
+      !!item.status && ["running", "failed", "succeeded"].includes(item.status.status || "")
+    ));
+  const shouldShowExternalCliInstallStatus = visibleExternalCliInstallStatuses.length > 0;
 
   return (
     <div className="flex-1 min-h-0">
@@ -5054,31 +5132,50 @@ export function ConfigPanel({
             {error}
           </div>
         ) : null}
-        {!error && shouldShowCodexInstallStatus ? (
-          <div className={`mb-4 rounded-md border px-3 py-2 text-sm ${
-            codexInstallStatus?.status === "failed"
-              ? "border-[var(--color-border-danger)] bg-danger-subtle text-danger"
-              : "border-[var(--color-border-warning)] bg-warn-subtle text-warn"
-          }`} data-testid="config-panel-codex-install-status" data-variant={codexInstallStatus?.status || "running"}>
-            <div className="font-medium" data-testid="config-panel-codex-install-status-phase">
-              {getCodexInstallPhaseLabel(codexInstallStatus, t)}
-            </div>
-            <div className="mt-1" data-testid="config-panel-codex-install-status-message">
-              {codexInstallStatus?.status === "succeeded"
-                ? t("config.externalCli.codexDependencyInstalled")
-                : notice || t("config.externalCli.codexDependencyInstalling")}
-            </div>
-            {codexInstallStatus?.error ? (
-              <div className="mt-1 break-words" data-testid="config-panel-codex-install-status-error">{codexInstallStatus.error}</div>
-            ) : null}
-            {codexInstallStatus?.status !== "succeeded" && codexInstallLogs.length > 0 ? (
-              <div className="mt-2" data-testid="config-panel-codex-install-status-logs">
-                <div className="mb-1 text-xs opacity-80" data-testid="config-panel-codex-install-status-logs-label">{t("config.externalCli.codexInstallRecentOutput")}</div>
-                <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-black/10 px-2 py-1 text-xs" data-testid="config-panel-codex-install-status-logs-content">
-                  {codexInstallLogs.join("\n")}
-                </pre>
-              </div>
-            ) : null}
+        {!error && shouldShowExternalCliInstallStatus ? (
+          <div className="mb-4 space-y-2" data-testid="config-panel-external-cli-install-status">
+            {visibleExternalCliInstallStatuses.map(({ cliAgent, status }) => {
+              const installLogs = status.log_tail?.filter((line: string) => line.trim()).slice(-4) ?? [];
+              return (
+                <div
+                  key={cliAgent}
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    status.status === "failed"
+                      ? "border-[var(--color-border-danger)] bg-danger-subtle text-danger"
+                      : "border-[var(--color-border-warning)] bg-warn-subtle text-warn"
+                  }`}
+                  data-testid="config-panel-external-cli-install-status-item"
+                  data-agent={cliAgent}
+                  data-variant={status.status || "running"}
+                >
+                  <div className="font-medium" data-testid="config-panel-external-cli-install-status-phase">
+                    {getExternalCliDependencyInstallPhaseLabel(cliAgent, status, t)}
+                  </div>
+                  <div className="mt-1" data-testid="config-panel-external-cli-install-status-message">
+                    {status.status === "succeeded"
+                      ? t("config.externalCli.dependencyInstalled", { agent: externalCliAgentLabel(cliAgent) })
+                      : status.status === "failed"
+                        ? t("config.externalCli.dependencyInstallFailed", { agent: externalCliAgentLabel(cliAgent) })
+                        : notice || t("config.externalCli.dependencyInstalling", { agents: externalCliAgentLabel(cliAgent) })}
+                  </div>
+                  {status.error ? (
+                    <div className="mt-1 break-words" data-testid="config-panel-external-cli-install-status-error">
+                      {status.error}
+                    </div>
+                  ) : null}
+                  {status.status !== "succeeded" && installLogs.length > 0 ? (
+                    <div className="mt-2" data-testid="config-panel-external-cli-install-status-logs">
+                      <div className="mb-1 text-xs opacity-80" data-testid="config-panel-external-cli-install-status-logs-label">
+                        {t("config.externalCli.dependencyInstallRecentOutput")}
+                      </div>
+                      <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-black/10 px-2 py-1 text-xs" data-testid="config-panel-external-cli-install-status-logs-content">
+                        {installLogs.join("\n")}
+                      </pre>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : !error && notice ? (
           <div className="mb-4 rounded-md border border-[var(--color-border-warning)] bg-warn-subtle px-3 py-2 text-sm text-warn" data-testid="config-panel-notice">
@@ -5170,6 +5267,31 @@ export function ConfigPanel({
                       {t('config.modelList.modelNameRequired')}
                     </div>
                   ) : null}
+                  <div
+                    id="config-group-enable_free_models"
+                    data-testid="config-panel-group-enable_free_models"
+                    className="rounded-xl border border-border bg-card/70 backdrop-blur-sm overflow-hidden shadow-sm"
+                  >
+                    <div className="px-4 py-3 bg-secondary/30 border-b border-border flex items-center justify-between gap-3" data-testid="config-panel-group-enable_free_models-header">
+                      <div className="min-w-0">
+                        <span className="block text-sm font-medium text-text-strong" data-testid="config-panel-group-enable_free_models-label">{t("config.keys.enableFreeModels")}</span>
+                        <span className="block text-xs text-text-muted mt-0.5" data-testid="config-panel-group-enable_free_models-hint">{t("config.keyHelp.enableFreeModels")}</span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={parseBoolValue(draftValues["enable_free_models"] ?? "true")}
+                        onClick={() => handleFieldChange("enable_free_models", parseBoolValue(draftValues["enable_free_models"] ?? "true") ? "false" : "true")}
+                        title={t("config.keys.enableFreeModels")}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent focus:outline-none ${parseBoolValue(draftValues["enable_free_models"] ?? "true") ? "bg-[var(--color-toggle-enabled)]" : "bg-[var(--color-toggle-disabled)]"}`}
+                        data-testid="config-panel-group-enable_free_models-switch"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-[var(--color-control-thumb)] shadow ${parseBoolValue(draftValues["enable_free_models"] ?? "true") ? "translate-x-4" : "translate-x-0"}`}
+                        />
+                      </button>
+                    </div>
+                  </div>
                   <div
                     id="config-group-model_default"
                     data-testid="config-panel-group-model_default"
