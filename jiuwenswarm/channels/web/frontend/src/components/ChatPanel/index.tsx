@@ -64,6 +64,7 @@ export interface ChatHistoryPagerProps {
 
 interface ChatPanelProps {
   onSendMessage: (content: string, mediaItems?: MediaItem[]) => void;
+  onInputIntent?: (sessionId: string) => void;
   onPersistMedia: (content: string, mediaItems: MediaItem[]) => Promise<{
     content?: string;
     query?: string;
@@ -732,6 +733,7 @@ function scrollToBottom(el: HTMLDivElement): void {
 
 export function ChatPanel({
   onSendMessage,
+  onInputIntent,
   onPersistMedia,
   onPersistDocuments,
   onInterrupt,
@@ -1387,6 +1389,7 @@ export function ChatPanel({
                 <InputArea
                   ref={inputAreaRef}
                   onSubmit={handleSendMessage}
+                  onInputIntent={onInputIntent}
                   onPersistMedia={onPersistMedia}
                   onPersistDocuments={onPersistDocuments}
                   onInterrupt={onInterrupt}
@@ -1429,6 +1432,7 @@ export function ChatPanel({
           <InputArea
             ref={inputAreaRef}
             onSubmit={handleSendMessage}
+            onInputIntent={onInputIntent}
             onPersistMedia={onPersistMedia}
             onPersistDocuments={onPersistDocuments}
             onInterrupt={onInterrupt}
