@@ -4,7 +4,7 @@
 
 SkillsBench tasks ship skills under `tasks/<task>/environment/skills/`, but jiuwenswarm only scanned internal skill directories, so those task-provided skills were invisible to the agent (not in the system prompt, not listable, not retrievable, not mounted). This feature adds a first-class `skills.external_dirs` config (or `EXTERNAL_SKILL_DIRS` env var) that makes external directories behave exactly like internal ones, so benchmark skills become first-class citizens.
 
-Issue #<TBD> https://github.com/openJiuwen-ai/jiuwenswarm/issues/<TBD><br>
+Issue #3546 https://github.com/openJiuwen-ai/jiuwenswarm/issues/3546<br>
 PR #214 https://github.com/openJiuwen-ai/jiuwenswarm/pull/214
 
 ## Background Description
@@ -12,11 +12,13 @@ PR #214 https://github.com/openJiuwen-ai/jiuwenswarm/pull/214
 SkillsBench tasks provide skills under `tasks/<task>/environment/skills/`, but jiuwenswarm had no mechanism to discover them — `SkillManager` only scanned internal dirs (`~/.jiuwenswarm/.../skills/` plus built-ins). As a result, external skills were not visible in the system prompt, not listable via skill-listing tools, not retrievable via skill-get, not indexed by Symphony retrieval, not linked into team member workspaces, and not mounted into the Docker container at all. Benchmark skills were completely invisible to the agent.
 
 ```mermaid
-flowchart LR
+flowchart TD
     classDef fail fill:#FFCDD2,color:#111,stroke:#C62828
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    SKILL(["task skills in external dir"]):::plain
-    SKILL --> INVISIBLE["not discovered by agent"]:::fail
+    SETUP(["task setup: skills placed in<br/>external dir"]):::plain
+    SETUP -->|"external dir not configured"| NODISC["SkillManager never scans it"]:::fail
+    NODISC --> RUN(["task execution: agent"]):::plain
+    RUN --> MISS["skills invisible, agent<br/>cannot use them"]:::fail
 ```
 
 ## Design Ideas
@@ -31,14 +33,14 @@ flowchart LR
 - **Team workspaces** — the swarm skill provider links external skills into team member workspaces alongside internal ones.
 
 ```mermaid
-flowchart LR
+flowchart TD
     classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    DIR(["skills.external_dirs config"]):::plain
-    DIR --> MANAGER["SkillManager scans SKILL.md"]:::ok
-    MANAGER --> VISIBLE["skills visible to agent"]:::done
-    
+    SETUP(["task setup: external dir<br/>configured + mounted"]):::plain
+    SETUP -->|"skills.external_dirs set"| MANAGER["SkillManager scans SKILL.md<br/>at startup"]:::ok
+    MANAGER -->|"skills discovered"| RUN(["task execution: agent"]):::plain
+    RUN --> USE["agent sees and uses<br/>task skills"]:::done
 ```
 
 
@@ -99,7 +101,7 @@ Paired: [GitHub #214](https://github.com/openJiuwen-ai/jiuwenswarm/pull/214) ↔
 
 This PR introduces **Dynamic External Skill Discovery**, enabling jiuwenswarm to load skills from arbitrary external directories — including SkillsBench task-provided skills — exactly as if they were installed internally.
 
-Issue #<TBD>
+Issue #3546
 
 ### **The problem**
 
@@ -139,13 +141,14 @@ Any directory listed here is treated exactly like an internal skill directory:
 - Resolved by skill-get and content-reading operations
 
 ```mermaid
-flowchart LR
+flowchart TD
     classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    DIR(["skills.external_dirs config"]):::plain
-    DIR --> MANAGER["SkillManager scans SKILL.md"]:::ok
-    MANAGER --> VISIBLE["skills visible to agent"]:::done
+    SETUP(["task setup: external dir<br/>configured + mounted"]):::plain
+    SETUP -->|"skills.external_dirs set"| MANAGER["SkillManager scans SKILL.md<br/>at startup"]:::ok
+    MANAGER -->|"skills discovered"| RUN(["task execution: agent"]):::plain
+    RUN --> USE["agent sees and uses<br/>task skills"]:::done
 ```
 
 On the benchmark side, a setup script mounts each task's `skills/` directory into the container, and the launch wrapper auto-detects the mount path and writes it into `.env` as `EXTERNAL_SKILL_DIRS`.
