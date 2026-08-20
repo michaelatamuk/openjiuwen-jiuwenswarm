@@ -68,6 +68,11 @@ import {
 } from './multi-session/state/newConversationLifecycle';
 import { resolveNewConversationProjectDir } from './multi-session/state/newConversationProject';
 import { toDisplaySessionTitle } from './utils/documentMessage';
+import {
+  getHiddenNavItemsForPlatform,
+  resolveFrontendPlatform,
+  type SidebarNavKey,
+} from './utils/frontendPlatform';
 import { createConversationSession } from './multi-session/state/createConversationSession';
 import {
   resolvePendingPreviousSession,
@@ -136,7 +141,7 @@ function normalizeConfigBoolean(value: unknown): boolean {
   );
 }
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
+type MainNavKey = SidebarNavKey;
 
 type LoadedHistoryPage = {
   pageIdx: number;
@@ -646,6 +651,14 @@ function AppContent() {
   const restoreReasoningSegments = useChatStore((s) => s.restoreReasoningSegments);
   const isRestoringHistorySession = isLoadingHistory && !historyPagerMeta && messages.length === 0;
   const isRestoringTeamHistory = mode === 'team' && isRestoringHistorySession;
+
+  const frontendPlatform = resolveFrontendPlatform(
+    typeof window !== 'undefined' ? window.__JIWEN_PLATFORM__ : undefined,
+    import.meta.env.VITE_PLATFORM,
+    import.meta.env.MODE,
+    typeof serverConfig?.runtime_platform === 'string' ? serverConfig.runtime_platform : undefined,
+  );
+  const hiddenNavItems = getHiddenNavItemsForPlatform(frontendPlatform);
 
   useEffect(() => {
     if (!serverConfig) {
@@ -1899,6 +1912,7 @@ function AppContent() {
         mode: newRuntime?.mode ?? mode,
         selectedModelName: useSessionStore.getState().getEffectiveModelName(NEW_CONVERSATION_ID),
         projectDir: newRuntime?.projectDirectory ?? null,
+        persistSession: newRuntime?.persistSession ?? false,
       };
       const baseWorkContext = getWorkContextForSession(NEW_CONVERSATION_ID);
       const preservedProject = newConversationProjectRef.current;
@@ -1915,6 +1929,7 @@ function AppContent() {
           title: createConversationTitle(content).slice(0, 100),
           work_mode: workContext.work_mode,
           view_id: kvcViewIdRef.current,
+          persist_session: runtimeSettings.persistSession,
         };
         const previousSession = newConversationPreviousSessionRef.current;
         if (previousSession) {
@@ -1934,13 +1949,14 @@ function AppContent() {
         const newSid = created.session_id;
         const createdSession = registerCreatedConversation(
           created.session_id,
-          runtimeSettings,
+          { ...runtimeSettings, persistSession: created.persist_session },
           Date.now(),
           content,
           {
             project_id: created.project_id || workContext.project_id,
             project_dir: created.project_dir || workContext.project_dir,
             work_mode: created.work_mode || workContext.work_mode,
+            persist_session: created.persist_session,
           },
         );
         // 迁移 'new' 会话的已选技能到新会话
@@ -2508,7 +2524,7 @@ function AppContent() {
         isConnected={isConnected}
         onNewSession={handleNewSession}
         showNewSession={false}
-        hiddenNavItems={['sessions']}
+        hiddenNavItems={hiddenNavItems}
         onMorePanelOpenChange={setSidebarMorePanelOpen}
       />
 

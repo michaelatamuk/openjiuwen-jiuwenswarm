@@ -129,6 +129,11 @@ from jiuwenswarm.agents.harness.code.prompt.plan_approval import (
     PLAN_REMINDER_ORIGINAL_QUERY_KEY,
 )
 from jiuwenswarm.common.schema.message import ReqMethod
+from jiuwenswarm.server.personal_context import PersonalContextHostAPI
+from jiuwenswarm.server.personal_context.ws_handler import (
+    PERSONAL_CONTEXT_REQUEST_METHODS as _PERSONAL_CONTEXT_REQ_METHODS,
+    handle_personal_context_request,
+)
 from jiuwenswarm.common.log_preview import preview_text
 
 logger = logging.getLogger(__name__)
@@ -560,6 +565,16 @@ def _sync_chat_request_metadata(
     # 仅 chat 轮次（用户真正发消息）才刷新 last_user_message_at；只读 RPC 传 None，
     # 由 sync_session_request_metadata 的 None 守卫跳过，避免查询腐蚀会话排序时间。
     is_chat_turn = request.req_method in _CODE_MODE_SYNC_METHODS
+    legacy_eternal_value = params.get("eternal_conversation_enabled")
+    legacy_persist_session: bool | None = None
+    if isinstance(legacy_eternal_value, bool):
+        legacy_persist_session = legacy_eternal_value
+    elif isinstance(legacy_eternal_value, str):
+        normalized_legacy = legacy_eternal_value.strip().casefold()
+        if normalized_legacy in {"1", "true", "yes", "on", "enabled"}:
+            legacy_persist_session = True
+        elif normalized_legacy in {"0", "false", "no", "off", "disabled"}:
+            legacy_persist_session = False
     try:
         from jiuwenswarm.server.runtime.session.session_metadata import (
             sync_session_request_metadata,
@@ -581,6 +596,7 @@ def _sync_chat_request_metadata(
             explicit_mode_provided=explicit_mode_provided,
             explicit_model_provided=explicit_model_provided,
             work_mode=params.get("work_mode"),
+            persist_session=legacy_persist_session,
         )
     except (OSError, ValueError) as exc:
         logger.warning("[AgentWebSocketServer] 同步 chat 请求元数据失败: %s", exc)
@@ -923,6 +939,11 @@ class AgentWebSocketServer:
         self._default_model: Optional[Any] = None
         # 本地 jiuwenbox 子进程管理器 (lazy 启动, 在 /sandbox enable 时 ensure_running)
         self._jiuwenbox_runner = JiuwenBoxRunner.instance()
+        # AgentServer 内唯一持有的进程内 PersonalContext Host；Context Rail 使用同一固定目录。
+        self._personal_context_host = PersonalContextHostAPI(
+            home=Path.home() / ".jiuwenswarm" / ".personal_context",
+        )
+        self._personal_context_start_task: asyncio.Task[None] | None = None
         # checkpointer 后台预热任务 (start() 里 fire-and-forget, stop() 时 cancel)
         self._checkpointer_warmup_task: Optional[asyncio.Task] = None
         # 图像模态探针重探任务 (模型配置变更时拉起, stop() 时 cancel)
@@ -1051,10 +1072,51 @@ class AgentWebSocketServer:
         self._checkpointer_warmup_task = asyncio.create_task(
             _warmup_checkpointer(), name="checkpointer-warmup"
         )
+        self._personal_context_start_task = asyncio.create_task(
+            self._start_personal_context_best_effort(),
+            name="personal-context-host-start",
+        )
         # WS 监听已经开放, 现在按 config.yaml::sandbox 的 runtime.enabled +
         # startup_mode 决定要不要自动把 jiuwenbox 子进程也拉起来。失败不阻塞
         # 启动 (用户依然可以在 TUI 里跑 /sandbox enable 重试)。
         await self._bootstrap_internal_jiuwenbox()
+
+    async def _start_personal_context_best_effort(self) -> None:
+        """Start optional PersonalContext without changing AgentServer readiness."""
+        start_cancelled: asyncio.CancelledError | None = None
+        try:
+            await self._personal_context_host.start()
+        except asyncio.CancelledError as exc:
+            start_cancelled = exc
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[AgentWebSocketServer] optional PersonalContext startup failed: %s",
+                type(exc).__name__,
+            )
+            return
+        if start_cancelled is not None:
+            raise start_cancelled
+
+        rail_sync_cancelled: asyncio.CancelledError | None = None
+        try:
+            state_reader = getattr(
+                self._personal_context_host, "is_runtime_enabled", None
+            )
+            enabled = bool(await state_reader()) if callable(state_reader) else False
+            manager_setter = getattr(
+                self._agent_manager, "set_personal_context_runtime_enabled", None
+            )
+            if callable(manager_setter):
+                await manager_setter(enabled)
+        except asyncio.CancelledError as exc:
+            rail_sync_cancelled = exc
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[AgentWebSocketServer] optional PersonalContext Rail sync failed: %s",
+                type(exc).__name__,
+            )
+        if rail_sync_cancelled is not None:
+            raise rail_sync_cancelled
 
     async def _bootstrap_internal_jiuwenbox(self) -> None:
         """启动时按 ``config.yaml::sandbox`` 自动拉起 jiuwenbox 子进程。
@@ -1276,8 +1338,46 @@ class AgentWebSocketServer:
         )
         return forbidden_origin_response(args)
 
+    async def _stop_personal_context_best_effort(self) -> None:
+        """Cancel PersonalContext startup and stop PersonalContext without masking main shutdown."""
+        start_task = self._personal_context_start_task
+        self._personal_context_start_task = None
+        if start_task is not None:
+            if not start_task.done():
+                start_task.cancel()
+            try:
+                await start_task
+            except asyncio.CancelledError:
+                current_task = asyncio.current_task()
+                if current_task is not None and current_task.cancelling():
+                    raise
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "[AgentWebSocketServer] optional PersonalContext startup cleanup failed: %s",
+                    type(exc).__name__,
+                )
+        stop_cancelled: asyncio.CancelledError | None = None
+        try:
+            await self._personal_context_host.stop()
+        except asyncio.CancelledError as exc:
+            stop_cancelled = exc
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[AgentWebSocketServer] optional PersonalContext stop failed: %s",
+                type(exc).__name__,
+            )
+        if stop_cancelled is not None:
+            raise stop_cancelled
+
     async def stop(self) -> None:
         """停止 WebSocket 服务端."""
+        try:
+            await self._stop_main_services()
+        finally:
+            await self._stop_personal_context_best_effort()
+
+    async def _stop_main_services(self) -> None:
+        """Run the unchanged AgentServer shutdown before optional PersonalContext cleanup."""
         # 先取消 checkpointer 预热任务, 避免在 server 关闭后仍在后台跑.
         warmup = self._checkpointer_warmup_task
         self._checkpointer_warmup_task = None
@@ -1474,6 +1574,22 @@ class AgentWebSocketServer:
             )
 
         try:
+            if request.req_method in _PERSONAL_CONTEXT_REQ_METHODS:
+                manager = getattr(self, "_agent_manager", None)
+                runtime_callback = getattr(
+                    manager, "set_personal_context_runtime_enabled", None
+                )
+                await handle_personal_context_request(
+                    self._personal_context_host,
+                    ws,
+                    request,
+                    send_lock,
+                    runtime_enabled_changed=(
+                        runtime_callback if callable(runtime_callback) else None
+                    ),
+                )
+                return
+
             if request.channel_id == "acp" and request.req_method != ReqMethod.INITIALIZE:
                 metadata = dict(request.metadata or {})
                 ws_caps = self._get_ws_acp_client_capabilities(ws)
@@ -2305,6 +2421,7 @@ class AgentWebSocketServer:
         _raw_mode = params.get("mode")
         explicit_mode_provided = isinstance(_raw_mode, str) and bool(_raw_mode.strip())
         runtime_work_mode = None
+        session_metadata: dict[str, Any] = {}
         sid = str(request.session_id or "").strip()
         if sid:
             from jiuwenswarm.server.runtime.session.session_metadata import (
@@ -2376,6 +2493,18 @@ class AgentWebSocketServer:
                 explicit_mode_provided=explicit_mode_provided,
                 user_id=str(getattr(request, "user_id", "") or "").strip(),
             )
+            if sid:
+                # _sync_chat_request_metadata may have initialized a legacy
+                # metadata record. Re-read the cache so the first post-upgrade
+                # turn receives the value that was atomically locked above.
+                from jiuwenswarm.server.runtime.session.session_metadata import (
+                    get_session_metadata,
+                )
+
+                session_metadata = get_session_metadata(
+                    sid,
+                    enable_writeback=False,
+                )
         else:
             # Read-only path (e.g. command.goal get): never create/update
             # metadata.json. Prefer request project_dir, else locked disk value.
@@ -2398,6 +2527,39 @@ class AgentWebSocketServer:
             request.params["project_dir"] = project_dir
             request.metadata = dict(request.metadata or {})
             request.metadata["project_dir"] = project_dir
+
+        # Public clients configure Persist Session only during session.create.
+        # Per-turn values are never authoritative. Keep the existing adapter
+        # runtime key internal to minimize changes in Deep/Code adapters and the
+        # EternalConversationRail itself.
+        effective_persist_session = (
+            session_metadata.get("persist_session") is True
+            if isinstance(session_metadata, dict)
+            else False
+        )
+        requested_persist_session = params.pop("persist_session", None)
+        requested_legacy_eternal = params.get("eternal_conversation_enabled")
+        if (
+            isinstance(requested_persist_session, bool)
+            and requested_persist_session != effective_persist_session
+        ):
+            logger.warning(
+                "会话 %s 的 persist_session 已锁定为 %s，忽略 chat 请求值 %s",
+                sid,
+                effective_persist_session,
+                requested_persist_session,
+            )
+        if (
+            isinstance(requested_legacy_eternal, bool)
+            and requested_legacy_eternal != effective_persist_session
+        ):
+            logger.warning(
+                "会话 %s 的 Persist Session 权威值为 %s，忽略旧式运行时值 %s",
+                sid,
+                effective_persist_session,
+                requested_legacy_eternal,
+            )
+        params["eternal_conversation_enabled"] = effective_persist_session
 
         await self._agent_manager.wait_for_session_prewarm(request.session_id)
         agent = await self._agent_manager.get_agent(
@@ -8547,6 +8709,18 @@ class AgentWebSocketServer:
                         reason="model config change",
                     )
                 )
+            # 模型配置变更时同步刷新本进程（AgentServer）的 Zen 免费模型缓存
+            # （与上方 image modality 刷新同一 model scope）。Gateway 进程在
+            # config.set/config.save_all 时会 warm，但两进程缓存独立：若本进程
+            # 启动时免费模型开关关闭（后台重试循环已退出），之后经 web 打开开关，
+            # 本进程缓存会一直为空，免费模型解析将静默回退默认模型。放后台任务
+            # 执行——warm 自带超时且失败后自动调度后台重试，不阻塞 reload 响应。
+            if should_refresh_image_modality:
+                from jiuwenswarm.server.runtime.opencode_zen import warm_zen_free_models
+
+                asyncio.create_task(
+                    warm_zen_free_models(reason="agent.reload_config")
+                )
             if should_reload_agents:
                 await self._agent_manager.reload_agents_config(
                     config_payload,
@@ -8953,6 +9127,24 @@ class AgentWebSocketServer:
         try:
             channel_id = request.channel_id or "default"
             params = request.params if isinstance(request.params, dict) else {}
+            raw_persist_session = params.get("persist_session", False)
+            if not isinstance(raw_persist_session, bool):
+                resp = AgentResponse(
+                    request_id=request.request_id,
+                    channel_id=request.channel_id,
+                    ok=False,
+                    payload={
+                        "error": "persist_session must be a boolean",
+                        "code": "BAD_REQUEST",
+                    },
+                )
+                wire = encode_agent_response_for_wire(
+                    resp, response_id=request.request_id
+                )
+                async with send_lock:
+                    await send_wire_payload(ws, wire)
+                return
+            persist_session = raw_persist_session
             mode, _, canonical_mode = resolve_agent_request_mode(params.get("mode", "agent"))
             explicit_session_id = params.get("session_id")
             previous_session_id = str(params.get("previous_session_id") or "").strip()
@@ -9003,6 +9195,27 @@ class AgentWebSocketServer:
                     ).strip().lower()
                     if existing_channel not in {"", "tui"}:
                         raise ValueError("session_id is already owned by another channel")
+                    stored_persist_session = existing_metadata.get("persist_session") is True
+                    if (
+                        "persist_session" in params
+                        and persist_session != stored_persist_session
+                    ):
+                        resp = AgentResponse(
+                            request_id=request.request_id,
+                            channel_id=request.channel_id,
+                            ok=False,
+                            payload={
+                                "error": "persist_session is immutable after session creation",
+                                "code": "CONFLICT",
+                            },
+                        )
+                        wire = encode_agent_response_for_wire(
+                            resp, response_id=request.request_id
+                        )
+                        async with send_lock:
+                            await send_wire_payload(ws, wire)
+                        return
+                    persist_session = stored_persist_session
                     for field in ("project_id", "project_dir", "work_mode", "mode"):
                         value = existing_metadata.get(field)
                         if isinstance(value, str) and value.strip():
@@ -9152,6 +9365,7 @@ class AgentWebSocketServer:
                     project_dir=project_dir,
                     work_mode=final_work_mode,
                     is_swarm=is_swarm,
+                    persist_session=persist_session,
                     prewarm_eligible=prewarm_eligible,
                     create_token=create_token,
                 )
@@ -9161,6 +9375,10 @@ class AgentWebSocketServer:
             session_dir = get_agent_sessions_dir() / session_id
             if (session_dir / "metadata.json").is_file():
                 if not external_tui_session:
+                    from jiuwenswarm.server.runtime.session.session_metadata import (
+                        get_session_metadata as read_session_metadata,
+                    )
+
                     self._agent_manager.activate_session_prewarm(session_id)
                     resp = AgentResponse(
                         request_id=request.request_id,
@@ -9172,6 +9390,11 @@ class AgentWebSocketServer:
                             "projectId": project_id,
                             "projectDir": project_dir,
                             "workMode": final_work_mode,
+                            "persist_session": bool(
+                                read_session_metadata(session_id).get(
+                                    "persist_session", False
+                                )
+                            ),
                             "prewarm_hit": claim.prewarm_hit,
                             "prewarm_status": claim.prewarm_status,
                         },
@@ -9205,7 +9428,12 @@ class AgentWebSocketServer:
                     mode=canonical_mode,
                     project_dir=project_dir,
                     project_id=project_id,
+                    persist_session=persist_session,
                     work_mode=final_work_mode,
+                    # cron 执行会话（cron-session）创建时即写入 job 的 model（scheduler
+                    # SESSION_CREATE 携带 model_name），否则要等首条 chat.send 才落盘，
+                    # 前端首开会话会显示默认模型（刷新后才正确）。同步写盘，创建即可读。
+                    model=str(params.get("model_name") or "").strip(),
                     cron_id=str(params.get("cron_id") or "").strip(),
                     channel_metadata=channel_metadata,
                 )
@@ -9241,6 +9469,7 @@ class AgentWebSocketServer:
                     "projectId": project_id,
                     "projectDir": project_dir,
                     "workMode": final_work_mode,
+                    "persist_session": persist_session,
                     "prewarm_hit": claim.prewarm_hit,
                     "prewarm_status": claim.prewarm_status,
                     **(
