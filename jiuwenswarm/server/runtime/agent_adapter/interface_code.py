@@ -524,6 +524,14 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         self._dreaming_mode = "code"
 
         if self._skip_own_instance_build():
+            # Root adapter 不建 instance（DeepAdapter 同款逻辑）。web channel 在此
+            # 后台预热 connected MCP 的进程级缓存，首轮对话 reconcile 命中缓存不重
+            # spawn。fire-and-forget，不挂会话。
+            if (
+                getattr(self, "_channel_id", "") == "web"
+                and not self._is_session_scoped_adapter
+            ):
+                self._start_mcp_prewarm()
             return
 
         model = self._create_model(config_base)
@@ -663,6 +671,9 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         # 固定 Rails — code 模式特有
         rail_infos = [
             _RailBuildInfo("_runtime_prompt_rail", self._build_runtime_prompt_rail),
+            _RailBuildInfo(
+                "_eternal_conversation_rail", self._build_eternal_conversation_rail
+            ),
             _RailBuildInfo("_response_prompt_rail", self._build_response_prompt_rail),
             _RailBuildInfo("_skill_retrieval_prompt_rail", self._build_skill_retrieval_prompt_rail),
             _RailBuildInfo("_stream_event_rail", self._build_stream_event_rail),
@@ -1272,6 +1283,21 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
                 project_dir=runtime_config.project_dir or self._project_dir,
             )
             self._runtime_prompt_rail.set_session_id(runtime_config.session_id)
+        eternal_conversation_rail = getattr(self, "_eternal_conversation_rail", None)
+        if eternal_conversation_rail is not None:
+            self._eternal_conversation_enabled = runtime_config.eternal_conversation_enabled
+            eternal_conversation_rail.configure_runtime(
+                enabled=runtime_config.eternal_conversation_enabled,
+                session_id=runtime_config.session_id,
+                request_id=runtime_config.request_id,
+                mode=runtime_config.mode,
+                channel=resolved_channel,
+                project_dir=runtime_config.project_dir or self._project_dir,
+                model=getattr(self, "_active_request_model", None) or self._model,
+                interaction_resume=runtime_config.interaction_resume,
+            )
+            if self._eternal_conversation_enabled and self._context_processor_rail is not None:
+                self.shutdown_context_session_memory(self._context_processor_rail)
         # PermissionInterruptRail: per-request trusted_dirs 注入，使 external_directory
         # 检查将这些子树视为 internal 而跳过 ask/deny（与 RuntimePromptRail 对齐）。
         # 用 getattr 兼容绕过 __init__ 的测试构造（_permission_rail 仅在 rail 构建流程赋值）。
