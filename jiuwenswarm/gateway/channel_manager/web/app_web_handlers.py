@@ -671,6 +671,28 @@ _FORWARD_REQ_METHODS = frozenset({
     "skills.graph.status",
     "skills.graph.get",
     "skills.graph.cancel",
+    "personal_context.runtime.status",
+    "personal_context.runtime.start",
+    "personal_context.runtime.stop",
+    "personal_context.runtime.get_config",
+    "personal_context.runtime.patch_config",
+    "personal_context.runtime.select_model",
+    "personal_context.fetch.list_services",
+    "personal_context.fetch.create_service",
+    "personal_context.fetch.delete_service",
+    "personal_context.fetch.patch_service",
+    "personal_context.fetch.start_service",
+    "personal_context.fetch.stop_service",
+    "personal_context.fetch.start_scheduler",
+    "personal_context.fetch.stop_scheduler",
+    "personal_context.fetch.run_all",
+    "personal_context.fetch.run_one",
+    "personal_context.fetch.get_run_status",
+    "personal_context.fetch.get_authorization_status",
+    "personal_context.fetch.authorize_provider",
+    "personal_context.context.stream_graph",
+    "personal_context.context.search_pages",
+    "personal_context.context.get_node",
     "plugins.list",
     "plugins.install",
     "plugins.uninstall",
@@ -782,6 +804,28 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "skills.graph.status",
     "skills.graph.get",
     "skills.graph.cancel",
+    "personal_context.runtime.status",
+    "personal_context.runtime.start",
+    "personal_context.runtime.stop",
+    "personal_context.runtime.get_config",
+    "personal_context.runtime.patch_config",
+    "personal_context.runtime.select_model",
+    "personal_context.fetch.list_services",
+    "personal_context.fetch.create_service",
+    "personal_context.fetch.delete_service",
+    "personal_context.fetch.patch_service",
+    "personal_context.fetch.start_service",
+    "personal_context.fetch.stop_service",
+    "personal_context.fetch.start_scheduler",
+    "personal_context.fetch.stop_scheduler",
+    "personal_context.fetch.run_all",
+    "personal_context.fetch.run_one",
+    "personal_context.fetch.get_run_status",
+    "personal_context.fetch.get_authorization_status",
+    "personal_context.fetch.authorize_provider",
+    "personal_context.context.stream_graph",
+    "personal_context.context.search_pages",
+    "personal_context.context.get_node",
     "plugins.list",
     "plugins.install",
     "plugins.uninstall",
@@ -2870,6 +2914,15 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             logger.warning("[config.set] on_config_saved failed: %s", exc)
             applied_without_restart = False
 
+        # enable_free_models 开关变更时重新拉取 Zen 免费模型缓存，
+        # 使"禁用→启用"能实时填充、启用→禁用"能清空缓存。
+        if "enable_free_models" in apply_result.yaml_updated:
+            try:
+                from jiuwenswarm.server.runtime.opencode_zen import warm_zen_free_models
+                await warm_zen_free_models(reason="config-toggle")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[config.set] warm_zen_free_models failed: %s", exc)
+
         updated_param_keys = [k for k, e in _CONFIG_SET_ENV_MAP.items() if e in env_updates] + yaml_updated
         payload = {"updated": updated_param_keys, "applied_without_restart": applied_without_restart}
         if apply_result.external_cli_dependency_installs is not None:
@@ -3259,6 +3312,14 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                 force=bool(env_updates or yaml_updated),
             )
             applied_without_restart = await _apply_config_change_set(change_set)
+
+            # enable_free_models 开关变更时重新拉取 Zen 免费模型缓存。
+            if "enable_free_models" in yaml_updated:
+                try:
+                    from jiuwenswarm.server.runtime.opencode_zen import warm_zen_free_models
+                    await warm_zen_free_models(reason="config-toggle")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("[config.save_all] warm_zen_free_models failed: %s", exc)
 
             payload = {
                 "updated": [k for k, e in _CONFIG_SET_ENV_MAP.items() if e in env_updates] + yaml_updated,
@@ -3939,6 +4000,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             "pin_order": int(meta.get("pin_order", 0)),
             "project_dir": str(meta.get("project_dir", "")),
             "project_id": str(meta.get("project_id", "")),
+            "persist_session": meta.get("persist_session") is True,
             "cron_id": str(meta.get("cron_id", "")),
             "last_user_message_at": lum if isinstance(lum, (int, float)) and not isinstance(lum, bool) else None,
             "model": str(meta.get("model", "")),
