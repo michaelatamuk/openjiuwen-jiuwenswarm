@@ -43,6 +43,7 @@ class ReqMethod(Enum):
     SESSION_CREATE = "session.create"
     SESSION_SWITCH = "session.switch"
     SESSION_DELETE = "session.delete"
+    SESSION_KVC_PREPARE = "session.kvc.prepare"
     SESSION_RENAME = "session.rename"
     SESSION_FORK = "session.fork"
     SESSION_REBIND_PROJECT = "session.rebind_project"
@@ -87,6 +88,16 @@ class ReqMethod(Enum):
     AGENTS_TOOLS_LIST = "agents.tools_list"
     AGENT_SWITCH = "3rdagent.switch"
     AGENT_LIST = "3rdagent.list"
+
+    # mcp management.
+    MCP_LIST = "mcp.list"
+    MCP_SHOW = "mcp.show"
+    MCP_CONNECT = "mcp.connect"
+    MCP_WAIT_AUTH = "mcp.wait_auth"
+    MCP_DISCONNECT = "mcp.disconnect"
+    MCP_REGISTER_CUSTOM = "mcp.register_custom"
+    MCP_DELETE_CUSTOM = "mcp.delete_custom"
+    MCP_SAVE_CREDENTIALS = "mcp.save_credentials"
 
     SKILLS_MARKETPLACE_LIST = "skills.marketplace.list"
     SKILLS_LIST = "skills.list"
@@ -138,6 +149,33 @@ class ReqMethod(Enum):
     SKILLS_GRAPH_GET = "skills.graph.get"
     SKILLS_GRAPH_CANCEL = "skills.graph.cancel"
 
+    PERSONAL_CONTEXT_RUNTIME_STATUS = "personal_context.runtime.status"
+    PERSONAL_CONTEXT_RUNTIME_START = "personal_context.runtime.start"
+    PERSONAL_CONTEXT_RUNTIME_STOP = "personal_context.runtime.stop"
+    PERSONAL_CONTEXT_RUNTIME_GET_CONFIG = "personal_context.runtime.get_config"
+    PERSONAL_CONTEXT_RUNTIME_PATCH_CONFIG = "personal_context.runtime.patch_config"
+    PERSONAL_CONTEXT_RUNTIME_SELECT_MODEL = "personal_context.runtime.select_model"
+    PERSONAL_CONTEXT_FETCH_LIST_SERVICES = "personal_context.fetch.list_services"
+    PERSONAL_CONTEXT_FETCH_CREATE_SERVICE = "personal_context.fetch.create_service"
+    PERSONAL_CONTEXT_FETCH_DELETE_SERVICE = "personal_context.fetch.delete_service"
+    PERSONAL_CONTEXT_FETCH_PATCH_SERVICE = "personal_context.fetch.patch_service"
+    PERSONAL_CONTEXT_FETCH_START_SERVICE = "personal_context.fetch.start_service"
+    PERSONAL_CONTEXT_FETCH_STOP_SERVICE = "personal_context.fetch.stop_service"
+    PERSONAL_CONTEXT_FETCH_START_SCHEDULER = "personal_context.fetch.start_scheduler"
+    PERSONAL_CONTEXT_FETCH_STOP_SCHEDULER = "personal_context.fetch.stop_scheduler"
+    PERSONAL_CONTEXT_FETCH_RUN_ALL = "personal_context.fetch.run_all"
+    PERSONAL_CONTEXT_FETCH_RUN_ONE = "personal_context.fetch.run_one"
+    PERSONAL_CONTEXT_FETCH_GET_RUN_STATUS = "personal_context.fetch.get_run_status"
+    PERSONAL_CONTEXT_FETCH_GET_AUTHORIZATION_STATUS = (
+        "personal_context.fetch.get_authorization_status"
+    )
+    PERSONAL_CONTEXT_FETCH_AUTHORIZE_PROVIDER = (
+        "personal_context.fetch.authorize_provider"
+    )
+    PERSONAL_CONTEXT_CONTEXT_STREAM_GRAPH = "personal_context.context.stream_graph"
+    PERSONAL_CONTEXT_CONTEXT_SEARCH_PAGES = "personal_context.context.search_pages"
+    PERSONAL_CONTEXT_CONTEXT_GET_NODE = "personal_context.context.get_node"
+
     # Plugin management (reuses skills marketplace infrastructure)
     PLUGINS_LIST = "plugins.list"
     PLUGINS_INSTALL = "plugins.install"
@@ -150,6 +188,20 @@ class ReqMethod(Enum):
     EXTENSIONS_IMPORT = "extensions.import"
     EXTENSIONS_DELETE = "extensions.delete"
     EXTENSIONS_TOGGLE = "extensions.toggle"
+
+    # agent_template / plugin package catalog + lifecycle RPCs.
+    AGENT_TEMPLATES_LIST = "agent_templates.list"
+    AGENT_TEMPLATES_SHOW = "agent_templates.show"
+    AGENT_TEMPLATES_FILE_LIST = "agent_templates.file.list"
+    AGENT_TEMPLATES_FILE_READ = "agent_templates.file.read"
+    AGENT_TEMPLATES_CREATE = "agent_templates.create"
+    AGENT_TEMPLATES_INSTALL = "agent_templates.install"
+    AGENT_TEMPLATES_UNINSTALL = "agent_templates.uninstall"
+    PLUGIN_PACKAGES_LIST = "plugin_packages.list"
+    PLUGIN_PACKAGES_SHOW = "plugin_packages.show"
+    PLUGIN_PACKAGES_CREATE = "plugin_packages.create"
+    PLUGIN_PACKAGES_INSTALL = "plugin_packages.install"
+    PLUGIN_PACKAGES_UNINSTALL = "plugin_packages.uninstall"
 
     HOOKS_LIST = "hooks.list"
 

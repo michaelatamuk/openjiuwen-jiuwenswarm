@@ -69,7 +69,16 @@ import {
 } from './multi-session/state/newConversationLifecycle';
 import { resolveNewConversationProjectDir } from './multi-session/state/newConversationProject';
 import { toDisplaySessionTitle } from './utils/documentMessage';
+import {
+  getHiddenNavItemsForPlatform,
+  resolveFrontendPlatform,
+  type SidebarNavKey,
+} from './utils/frontendPlatform';
 import { createConversationSession } from './multi-session/state/createConversationSession';
+import {
+  resolvePendingPreviousSession,
+  type PendingPreviousSession,
+} from './multi-session/state/newConversationPreviousSession';
 import { useTranslation } from 'react-i18next';
 import {
   normalizeA2UIEnabled,
@@ -88,7 +97,6 @@ import {
 import { isSetupGuideEnabled } from './features/modelSetupGuide/modelSetupGuideState';
 import './App.css';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'teams' | 'sessions' | 'tracehound' | 'cron' | 'channels' | 'extensions' | 'configpanel' | 'browserpanel' | 'updatepanel';
 const TEAM_SESSION_MODES = new Set([
   'team',
   'team.plan',
@@ -134,7 +142,7 @@ function normalizeConfigBoolean(value: unknown): boolean {
   );
 }
 
-
+type MainNavKey = SidebarNavKey;
 
 type LoadedHistoryPage = {
   pageIdx: number;
@@ -330,6 +338,9 @@ function AppContent() {
 
   const [activeNav, setActiveNav] = useState<MainNavKey>('chat');
   const [serverConfig, setServerConfig] = useState<Record<string, unknown> | null>(null);
+  const kvCacheAffinityEnabled = normalizeConfigBoolean(
+    serverConfig?.kv_cache_affinity_enabled,
+  );
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -349,6 +360,7 @@ function AppContent() {
   const [hasVisitedChannels, setHasVisitedChannels] = useState(false);
   const [sidebarMorePanelOpen, setSidebarMorePanelOpen] = useState(false);
   const [modelSetupGuideStep, setModelSetupGuideStep] = useState<ModelSetupGuideStep | null>(null);
+  const [modelSetupGuideManual, setModelSetupGuideManual] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -406,6 +418,8 @@ function AppContent() {
   const [historyBootstrapKey, setHistoryBootstrapKey] = useState(0);
   const sessionIdRef = useRef(sessionId);
   const sessionRestoreQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const kvcViewIdRef = useRef(generateUuidV4());
+  const kvcPreparedInputSessionRef = useRef<string | null>(null);
   const historyLoadingSessionsRef = useRef(new Set<string>());
   const historyRestoreHandlesRef = useRef(new Map<string, HistoryRestoreHandle>());
   const historyPageHandlesRef = useRef(new Map<string, HistoryRestoreHandle>());
@@ -419,10 +433,7 @@ function AppContent() {
   const shareExportTokenRef = useRef(0);
   const preserveSelectedProjectOnChatNewRef = useRef(false);
   const newConversationProjectRef = useRef<Pick<Session, 'project_id' | 'project_dir'> | null>(null);
-  const newConversationPreviousSessionRef = useRef<{
-    sessionId: string;
-    mode: AgentMode;
-  } | null>(null);
+  const newConversationPreviousSessionRef = useRef<PendingPreviousSession | null>(null);
   /** 为 true 表示刚从「会话列表」恢复；history 为空时在 useEffect 的 onEmpty 中提示一次 */
   const historyRestoreFromPanelHintRef = useRef(false);
   const { loadProjects, setSelectedProject } = useWorkspaceStore();
@@ -444,9 +455,36 @@ function AppContent() {
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
+    // A new foreground visit gets one fresh input-intent opportunity. Merely
+    // switching to the Session still does not prefetch; the first real editor
+    // insertion below does.
+    kvcPreparedInputSessionRef.current = null;
     setHistoryLoadingMore(false);
     setHistoryPrepending(historyLoadingSessionsRef.current.has(sessionId));
   }, [sessionId]);
+
+  useEffect(() => {
+    // A Session can stay mounted in its own browser tab/window while another
+    // Session is used elsewhere. In that case `sessionId` never changes, so
+    // the per-visit input latch above would otherwise remain consumed by the
+    // Session's initial turn. Re-arm only when this page returns to the
+    // foreground; focus/visibility alone still does not issue a prefetch.
+    const rearmInputIntent = () => {
+      kvcPreparedInputSessionRef.current = null;
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        rearmInputIntent();
+      }
+    };
+
+    window.addEventListener('focus', rearmInputIntent);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', rearmInputIntent);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const {
     teamAreaExpanded,
@@ -615,6 +653,14 @@ function AppContent() {
   const isRestoringHistorySession = isLoadingHistory && !historyPagerMeta && messages.length === 0;
   const isRestoringTeamHistory = mode === 'team' && isRestoringHistorySession;
 
+  const frontendPlatform = resolveFrontendPlatform(
+    typeof window !== 'undefined' ? window.__JIWEN_PLATFORM__ : undefined,
+    import.meta.env.VITE_PLATFORM,
+    import.meta.env.MODE,
+    typeof serverConfig?.runtime_platform === 'string' ? serverConfig.runtime_platform : undefined,
+  );
+  const hiddenNavItems = getHiddenNavItemsForPlatform(frontendPlatform);
+
   useEffect(() => {
     if (!serverConfig) {
       if (sessionId) setTeamLeaderMemberIds(sessionId, []);
@@ -717,6 +763,9 @@ function AppContent() {
     },
     onConfigChanged: () => {
       handleConfigChanged();
+    },
+    onModelsUpdated: () => {
+      handleModelsRefresh();
     },
     onCronResultArrived: (cronSessionId: string, cronJobId: string) => {
       // 仅当用户当前停留在该任务的"立即执行"页面时才自动跳转：
@@ -987,7 +1036,8 @@ function AppContent() {
         modelSetupGuideEvaluatedRef.current = true;
         if (shouldPreviewModelSetupGuide() || isSetupGuideEnabled(config.setup_guide_enabled)) {
           setActiveNav('chat');
-          setModelSetupGuideStep(1);
+          setModelSetupGuideManual(false);
+          setModelSetupGuideStep(0);
         }
       }
     } catch (error) {
@@ -1750,16 +1800,20 @@ function AppContent() {
     setComposerFocusNonce((nonce) => nonce + 1);
   }, []);
 
-  const enterNewConversation = useCallback((targetMode: AgentMode = mode, options: NewConversationOptions = {}) => {
+  const enterNewConversation = useCallback((
+    targetMode: AgentMode = mode,
+    options: NewConversationOptions = {},
+    lifecycle: { clearPreviousSession?: boolean } = {},
+  ) => {
     const currentSessionId = sessionIdRef.current;
     const currentRuntime = useSessionStore.getState().getRuntime(currentSessionId);
-    newConversationPreviousSessionRef.current =
-      currentSessionId && currentSessionId !== NEW_CONVERSATION_ID
-        ? {
-          sessionId: currentSessionId,
-          mode: currentRuntime?.mode ?? mode,
-        }
-        : null;
+    newConversationPreviousSessionRef.current = resolvePendingPreviousSession({
+      currentSessionId,
+      currentMode: currentRuntime?.mode ?? mode,
+      pending: newConversationPreviousSessionRef.current,
+      newConversationId: NEW_CONVERSATION_ID,
+      clear: lifecycle.clearPreviousSession,
+    });
     // 新建会话固定使用配置的默认模型，不继承当前会话手动切换过的模型；
     // 默认模型列表尚未加载完成时兜底沿用当前会话的模型，避免新会话没有模型可用。
     const selectedModelName = useSessionStore.getState().defaultModelName ?? currentRuntime?.selectedModelName ?? null;
@@ -1813,6 +1867,40 @@ function AppContent() {
     enterNewConversation(targetMode);
   }, [enterNewConversation, setMode]);
 
+  const handleKVCInputIntent = useCallback((targetSessionId: string) => {
+    // OFF must remain the ordinary JiuwenSwarm path: do not emit even the
+    // best-effort prepare control request. AgentServer keeps its own gate as
+    // a fail-closed boundary for stale or non-Web clients.
+    if (!kvCacheAffinityEnabled) return;
+    if (!targetSessionId || targetSessionId === NEW_CONVERSATION_ID) return;
+    if (kvcPreparedInputSessionRef.current === targetSessionId) return;
+
+    // Leading-edge intent: start prefetch on the first real insertion instead
+    // of waiting until the user stops typing. InputArea reports beforeinput,
+    // paste and input as browser-compatible fallbacks; this latch collapses
+    // them into one control request for the current foreground visit.
+    kvcPreparedInputSessionRef.current = targetSessionId;
+    const runtime = useSessionStore.getState().getRuntime(targetSessionId);
+    void request<{ scheduled?: boolean; outcome?: string }>('session.kvc.prepare', {
+      session_id: targetSessionId,
+      intent_id: generateUuidV4(),
+      view_id: kvcViewIdRef.current,
+      mode: runtime?.mode ?? mode,
+    }).then((response) => {
+      if (response?.outcome === 'failed'
+          && kvcPreparedInputSessionRef.current === targetSessionId) {
+        kvcPreparedInputSessionRef.current = null;
+      }
+    }).catch((error) => {
+      // Allow the next editor event to retry when the control request itself
+      // could not reach AgentServer. KVC remains an optional optimization.
+      if (kvcPreparedInputSessionRef.current === targetSessionId) {
+        kvcPreparedInputSessionRef.current = null;
+      }
+      console.debug('session.kvc.prepare skipped:', error);
+    });
+  }, [kvCacheAffinityEnabled, mode, request]);
+
   const handleSendMessage = useCallback(async (content: string, mediaItems?: MediaItem[]) => {
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) return;
@@ -1825,6 +1913,7 @@ function AppContent() {
         mode: newRuntime?.mode ?? mode,
         selectedModelName: useSessionStore.getState().getEffectiveModelName(NEW_CONVERSATION_ID),
         projectDir: newRuntime?.projectDirectory ?? null,
+        persistSession: newRuntime?.persistSession ?? false,
       };
       const baseWorkContext = getWorkContextForSession(NEW_CONVERSATION_ID);
       const preservedProject = newConversationProjectRef.current;
@@ -1840,6 +1929,8 @@ function AppContent() {
           is_swarm: runtimeSettings.mode === 'team',
           title: createConversationTitle(content).slice(0, 100),
           work_mode: workContext.work_mode,
+          view_id: kvcViewIdRef.current,
+          persist_session: runtimeSettings.persistSession,
         };
         const previousSession = newConversationPreviousSessionRef.current;
         if (previousSession) {
@@ -1859,13 +1950,14 @@ function AppContent() {
         const newSid = created.session_id;
         const createdSession = registerCreatedConversation(
           created.session_id,
-          runtimeSettings,
+          { ...runtimeSettings, persistSession: created.persist_session },
           Date.now(),
           content,
           {
             project_id: created.project_id || workContext.project_id,
             project_dir: created.project_dir || workContext.project_dir,
             work_mode: created.work_mode || workContext.work_mode,
+            persist_session: created.persist_session,
           },
         );
         // 迁移 'new' 会话的已选技能到新会话
@@ -2093,6 +2185,7 @@ function AppContent() {
             previous_session_id: previousSessionId,
             previous_mode: previousMode,
             mode: resolvedMode,
+            view_id: kvcViewIdRef.current,
           });
         } catch (error) {
           if (isTeamMode(resolvedMode)) {
@@ -2262,11 +2355,13 @@ function AppContent() {
         }
       }
       if (deletingCurrent) {
-        enterNewConversation();
+        // session.delete already owns B's KVC eviction. Do not carry the
+        // deleted Session into C's session.create as previous_session_id.
+        enterNewConversation(mode, {}, { clearPreviousSession: true });
       }
     } catch { setDialogError(t('multiSession.errors.delete')); }
     finally { setDialogBusy(false); }
-  }, [deleteTarget, enterNewConversation, request, t]);
+  }, [deleteTarget, enterNewConversation, mode, request, t]);
 
   const handleNavigate = useCallback((nav: MainNavKey) => {
     setActiveNav(nav);
@@ -2277,8 +2372,39 @@ function AppContent() {
     if (nav === 'channels') setHasVisitedChannels(true);
   }, [modelSetupGuideStep]);
 
-  const dismissModelSetupGuide = useCallback(() => {
+  const skipModelSetupGuide = useCallback(() => {
     setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
+
+    void request('config.set', { setup_guide_enabled: 'false' })
+      .then(() => {
+        setServerConfig((current) => ({
+          ...(current ?? {}),
+          setup_guide_enabled: 'false',
+        }));
+      })
+      .catch((error) => {
+        console.error('Failed to disable setup guide:', error);
+      });
+  }, [request]);
+
+  const quickSetupModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
+    // 显式指定使用 huawei-cloud-maas-setup skill，避免 agent 自行上网搜索
+    void handleSendMessage(
+      '请使用 huawei-cloud-maas-setup 技能帮我配置华为云 MaaS 服务。'
+      + '严格按照其中的步骤引导我完成购买、获取 API Key 和配置写入。'
+    );
+  }, [handleSendMessage]);
+
+  const manualSetupModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(1);
+  }, []);
+
+  const acknowledgeModelSetupGuide = useCallback(() => {
+    setModelSetupGuideStep(null);
+    setModelSetupGuideManual(false);
 
     void request('config.set', { setup_guide_enabled: 'false' })
       .then(() => {
@@ -2399,15 +2525,18 @@ function AppContent() {
         isConnected={isConnected}
         onNewSession={handleNewSession}
         showNewSession={false}
-        hiddenNavItems={['sessions']}
+        hiddenNavItems={hiddenNavItems}
         onMorePanelOpenChange={setSidebarMorePanelOpen}
       />
 
-      {modelSetupGuideStep ? (
+      {modelSetupGuideStep !== null ? (
         <ModelSetupGuide
           step={modelSetupGuideStep}
-          onAcknowledge={dismissModelSetupGuide}
-          onSkip={dismissModelSetupGuide}
+          manual={modelSetupGuideManual}
+          onAcknowledge={acknowledgeModelSetupGuide}
+          onSkip={skipModelSetupGuide}
+          onQuickSetup={quickSetupModelSetupGuide}
+          onManualSetup={manualSetupModelSetupGuide}
         />
       ) : null}
 
@@ -2456,6 +2585,7 @@ function AppContent() {
                   <div className={`flex-1 min-h-0`}>
                     <ChatPanel
                       onSendMessage={handleSendMessage}
+                      onInputIntent={kvCacheAffinityEnabled ? handleKVCInputIntent : undefined}
                       onPersistMedia={handlePersistMedia}
                       onPersistDocuments={handlePersistDocuments}
                       onInterrupt={handleInterrupt}
