@@ -66,7 +66,7 @@ from jiuwenswarm.common.config import (
 )
 from jiuwenswarm.common.mode_matrix import (
     TEAM_PLAN_CODE_MODE,
-    TEAM_PLAN_NORMAL_MODE,
+    is_team_plan_mode,
 )
 from jiuwenswarm.common.utils import get_agent_skills_dir
 
@@ -626,7 +626,7 @@ def _build_team_capability_specs(
     ]
     if role == "leader":
         rails_specs.append(RailSpec(type=registry.STRUCTURED_ASK_USER))
-        if mode == TEAM_PLAN_NORMAL_MODE:
+        if is_team_plan_mode(mode):
             rails_specs.extend(
                 [
                     RailSpec(type=registry.CODE_AGENT_MODE),
