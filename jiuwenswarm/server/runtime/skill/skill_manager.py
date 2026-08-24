@@ -3327,7 +3327,7 @@ class SkillManager:
                     ERROR_SKILL_INVALID_PACKAGE,
                     f"无法解包 Skill 文件: {exc}",
                 ) from exc
-            return self._install_imported_skill_dir(
+            return await self._install_imported_skill_dir(
                 skill_dir,
                 force=force,
                 origin=f"download_token:{src.name}",
@@ -3412,7 +3412,7 @@ class SkillManager:
             )
         return meta
 
-    def _install_imported_skill_dir(
+    async def _install_imported_skill_dir(
         self,
         src: Path,
         *,
@@ -3451,10 +3451,10 @@ class SkillManager:
             except SkillArchiveError:
                 preserved_version = None
             try:
-                self._overwrite_skill_workspace_preserving_archive(dest, src)
+                await self._overwrite_skill_workspace_preserving_archive(dest, src)
             except OSError as exc:
                 # 覆盖失败时绝不能删除原 Skill；shutil.Error 继承 OSError
-                return _handle_copy_error(
+                return await _handle_copy_error(
                     exc,
                     dest,
                     "local import overwrite",
@@ -3469,7 +3469,7 @@ class SkillManager:
                     ignore=shutil.ignore_patterns(ARCHIVE_DIRNAME),
                 )
             except OSError as exc:
-                return _handle_copy_error(exc, dest, "local import dir", src)
+                return await _handle_copy_error(exc, dest, "local import dir", src)
 
         # 新建时不把包内 version 当作产品版本；覆盖时保留原 current_version
         if not existing:
@@ -3529,7 +3529,7 @@ class SkillManager:
         resolved = self._resolve_skill_source(skill_name)
         return resolved if resolved else "local"
 
-    def _overwrite_skill_workspace_preserving_archive(
+    async def _overwrite_skill_workspace_preserving_archive(
         self, dest: Path, src: Path
     ) -> None:
         """用新内容覆盖 workspace，保留 ``.archive``；若有默认版本则同步该版本副本.
@@ -3545,7 +3545,7 @@ class SkillManager:
 
         staged = dest.with_name(f".{dest.name}.new_import_{uuid.uuid4().hex[:8]}")
         if staged.exists():
-            _safe_rmtree(staged)
+            await _safe_rmtree(staged)
 
         try:
             # 旁路准备新内容，不动原目录
@@ -3559,10 +3559,10 @@ class SkillManager:
                 shutil.copytree(archive_dir, staged / ARCHIVE_DIRNAME)
 
             # 原子替换；内部失败会把 backup 恢复为 dest
-            self.atomic_replace_dir(dest, staged)
+            await self.atomic_replace_dir(dest, staged)
         except Exception:
             if staged.exists():
-                _safe_rmtree(staged)
+                await _safe_rmtree(staged)
             raise
 
         if default_version:
@@ -3571,7 +3571,7 @@ class SkillManager:
             except SkillArchiveError:
                 content_root = None
             if content_root is not None:
-                self.copy_workspace_business_to_version(dest, content_root)
+                await self.copy_workspace_business_to_version(dest, content_root)
                 touch_version_metadata(dest, default_version)
 
     async def _import_local_from_path(
@@ -3611,7 +3611,7 @@ class SkillManager:
                     skill_dir = self._extract_skill_package_file(src, Path(tmpdir))
                 except SkillRpcError as exc:
                     return {"success": False, "detail": str(exc), "code": exc.code}
-                return self._install_imported_skill_dir(
+                return await self._install_imported_skill_dir(
                     skill_dir, force=force, origin=origin
                 )
 
@@ -3670,7 +3670,7 @@ class SkillManager:
                 try:
                     shutil.copy2(src, dest / src.name)
                 except OSError as exc:
-                    return _handle_copy_error(
+                    return await _handle_copy_error(
                         exc, dest, "local import file", src, cleanup_dest=False
                     )
                 self._add_local_skill(
@@ -3696,7 +3696,7 @@ class SkillManager:
                 dest.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest / src.name)
             except OSError as exc:
-                return _handle_copy_error(exc, dest, "local import file", src)
+                return await _handle_copy_error(exc, dest, "local import file", src)
             self._add_local_skill(
                 {
                     "name": skill_name,
@@ -3724,7 +3724,7 @@ class SkillManager:
             # 统一走安装路径（保留 .archive / skill_type 等）；
             # source_trusted 时放宽 description，兼容远端归档。
             try:
-                return self._install_imported_skill_dir(
+                return await self._install_imported_skill_dir(
                     src,
                     force=force,
                     origin=origin,
@@ -4460,7 +4460,7 @@ class SkillManager:
             staging_skills.mkdir(parents=True, exist_ok=True)
             staged = staging_skills / name
             if staged.exists():
-                _safe_rmtree(staged)
+                await _safe_rmtree(staged)
             shutil.move(str(work_copy), str(staged))
 
             staging_store = EvolutionStore(str(staging_skills))
@@ -4483,10 +4483,10 @@ class SkillManager:
 
             # prepare 后 mid-state 可能仍留空 evolutions.json；写回前去掉，避免 has_evolutions 误判
             _clear_evolutions_file(staged)
-            self.atomic_replace_dir(content_root, staged)
+            await self.atomic_replace_dir(content_root, staged)
 
             if is_default:
-                self.sync_workspace_from_version_content(skill_dir, content_root)
+                await self.sync_workspace_from_version_content(skill_dir, content_root)
 
         touch_version_metadata(skill_dir, version)
         # workspace 侧经验已用于本次 rebuild，统一清除，列表/详情 has_evolutions=false
@@ -4546,7 +4546,7 @@ class SkillManager:
         kind = "swarm-skill" if skill_type == SKILL_TYPE_SWARM else "skill"
         return {"kind": kind, "name": name}
 
-    def copy_workspace_business_to_version(self, skill_dir: Path, content_root: Path) -> None:
+    async def copy_workspace_business_to_version(self, skill_dir: Path, content_root: Path) -> None:
         """把 workspace 业务内容覆盖到版本副本."""
         content_root.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="skill-ver-sync-", dir=str(content_root.parent)) as tmp:
@@ -4556,25 +4556,25 @@ class SkillManager:
                 staged,
                 ignore=shutil.ignore_patterns(ARCHIVE_DIRNAME),
             )
-            self.atomic_replace_dir(content_root, staged)
+            await self.atomic_replace_dir(content_root, staged)
 
     @staticmethod
-    def atomic_replace_dir(dest: Path, src: Path) -> None:
+    async def atomic_replace_dir(dest: Path, src: Path) -> None:
         """用 src 目录内容替换 dest；优先同父目录 rename，失败则 copy+清理."""
         dest.parent.mkdir(parents=True, exist_ok=True)
         backup = dest.with_name(dest.name + ".bak_rebuild")
         staged = dest.with_name(dest.name + ".new_rebuild")
         if backup.exists():
-            _safe_rmtree(backup)
+            await _safe_rmtree(backup)
         if staged.exists():
-            _safe_rmtree(staged)
+            await _safe_rmtree(staged)
 
         # 先落到 dest 同父目录，避免跨盘 rename 失败
         try:
             src.rename(staged)
         except OSError:
             shutil.copytree(src, staged)
-            _safe_rmtree(src)
+            await _safe_rmtree(src)
 
         replaced = False
         try:
@@ -4583,16 +4583,16 @@ class SkillManager:
                 replaced = True
             staged.rename(dest)
             if backup.exists():
-                _safe_rmtree(backup)
+                await _safe_rmtree(backup)
         except Exception:
             if replaced and backup.exists() and not dest.exists():
                 backup.rename(dest)
             if staged.exists():
-                _safe_rmtree(staged)
+                await _safe_rmtree(staged)
             raise
 
     @staticmethod
-    def sync_workspace_from_version_content(skill_dir: Path, content_root: Path) -> None:
+    async def sync_workspace_from_version_content(skill_dir: Path, content_root: Path) -> None:
         """将版本副本业务内容同步到 workspace，保留根级 ``.archive``."""
         archive_dir = skill_dir / ARCHIVE_DIRNAME
         archive_backup: Path | None = None
@@ -4613,7 +4613,7 @@ class SkillManager:
                 if child.name == ARCHIVE_DIRNAME:
                     continue
                 if child.is_dir() and not child.is_symlink():
-                    _safe_rmtree(child)
+                    await _safe_rmtree(child)
                 else:
                     child.unlink(missing_ok=True)
 
@@ -4623,7 +4623,7 @@ class SkillManager:
 
             if archive_backup is not None and archive_backup.exists():
                 if archive_dir.exists():
-                    _safe_rmtree(archive_dir)
+                    await _safe_rmtree(archive_dir)
                 shutil.move(str(archive_backup), str(archive_dir))
 
     def _locate_skill_for_get(self, name: str) -> tuple[Path | None, dict | None]:
