@@ -10,38 +10,43 @@
 
 ## 1. TL;DR
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| **Language** | TypeScript / Node.js 22+ | Python 3.11+ |
-| **Architecture** | Plugin framework (Cordis) — everything swappable | Facade + Adapter pattern |
-| **Loop design** | Reactive event-driven (turn/step state machine) | ReAct (Reason → Act → Observe) |
-| **Maturity** | 0.1.1-rc.2 — production-grade engineering, pre-release | Stable — actively deployed |
-| **Primary audience** | Developers embedding agents into products | Teams deploying full agent platforms |
-| **Key strength** | Auditability, composability, replay | Multi-channel reach, skill evolution, team agents |
+| **Language** | Python 3.11+ | TypeScript / Node.js 22+ |
+| **Architecture** | Facade + Adapter pattern | Plugin framework (Cordis) — everything swappable |
+| **Loop design** | ReAct (Reason → Act → Observe) | Reactive event-driven (turn/step state machine) |
+| **Maturity** | Stable — actively deployed | 0.1.1-rc.2 — production-grade engineering, pre-release |
+| **Primary audience** | Teams deploying full agent platforms | Developers embedding agents into products |
+| **Key strength** | Multi-channel reach, skill evolution, team agents | Auditability, composability, replay |
+
+### 1.1 How to read this — start from what you know
+
+If you already know **jiuwenswarm**, read each section's **jiuwenswarm** half first as your baseline, then the **deepseek-harness** half, comparing against it. To make that concrete, the table below maps each jiuwenswarm concept you already use to the deepseek-harness concept that plays the same role, so a deepseek section is readable as "here is jiuwen's X, and deepseek does it this way."
+
+| jiuwenswarm concept | deepseek-harness equivalent |
+|---|---|
+| `JiuWenSwarm` facade / `process_message_stream` | `ctx.agents` + the `ReactLoopAgent` driver (each agent/session has its own driver) |
+| `DeepAgent` SDK ReAct loop | Turn/step state machine (`turn()` → `preStep()` → `step()` → `runGroup()`) |
+| Rails middleware (a large, priority-ordered set: Memory, Security, SkillUse, `PermissionInterrupt`, TaskPlanning, …) | `tools/*` waterfalls (`tools/pre-execute`, `tools/execute`, `tools/post-execute`) + monotonic `ToolGuard`s |
+| SecurityRail / `PermissionInterruptRail` | `ctx.sandbox` (process confinement) + `tools/pre-execute` approval (`ask`/`deny`) + permission presets |
+| `PersistenceCheckpointer` (JSONL history) | `SessionPersistence` — an **append-only session log** with JSONL (default) or SQLite backend |
+| SQLite-vec + FTS5 semantic memory | No equivalent — deepseek has no vector store; context is the session log + on-demand skills |
+| Context compression (LLM summarization) | Compaction (turn archival) + a tool-result pruner + spill policy |
+| SkillNet skill hub | `dsh-skill` — provider-based markdown instruction documents injected on demand |
+| Channels (Feishu/Slack/web/…) | Web UI + ACP server + Python SDK (far fewer entry points) |
+| A2A / A2X / ACP protocols (distributed agents) | ACP (automation server) + in-process subagent delegation |
+| `task_tool` / team orchestration | `subagent` / `subagent_fork` / `list_agents` / `send_message` |
+| `JiuwenBox` sandbox server | `dsh-sandbox` — native OS sandbox (macOS `sandbox-exec`, Linux `bwrap`/Landlock, Windows ACL) |
+| `max_iterations` step cap | No per-agent step-count cap; bounded by `maxTokens` output cap + compaction |
+| `json-repair` for malformed args | None — tool arguments stream as raw JSON and are preserved verbatim |
+
+Reading tip: deepseek-harness's defining trait is that **the durable session log is the source of truth** — model history, the request the model sees, replay, forking, and persistence all derive from one append-only log. Nearly every architectural difference from jiuwenswarm traces back to that one choice.
 
 ---
 
 ## 2. Core Architecture
 
-### 2.1 deepseek-harness
-
-The central idea is the **Cordis plugin framework**: every component — LLM adapter, tool registry, sandbox, subprocess runner, filesystem, session log — is a plugin that conforms to a capability seam interface. Nothing is hardcoded.
-
-```
-Capability Seam = Definition (interface) + Provider (implementation) + Consumer (caller)
-```
-
-The agent loop is a **reactive state machine**:
-
-```
-Inbox (priority queue) → preStep() → step() → LLM stream → BlockAssembler → tool-calls → runGroup() → results → next step
-```
-
-Every event (turn/start, step/start, assistant/chunk, assistant/message, tool/call, tool/result, turn/end) is appended to a **durable append-only session log** (SQLite). The invariant: "model-visible ⟺ logged." This enables full replay, forking at any turn boundary, and auditing exactly what the model saw.
-
-Tool calls are extracted from the assembled `ContentBlock[]` stream and dispatched to a **parallel scheduler** (`runGroup`) that respects `isConcurrencySafe()` per tool. Results are committed in **model-declared order** regardless of completion order.
-
-### 2.2 jiuwenswarm
+### 2.1 jiuwenswarm
 
 The central idea is the **JiuWenSwarm facade**: a single async entry point (`process_message_stream`) that routes to one of two adapters (Deep or Code) based on session mode. Adapters wrap the openjiuwen `DeepAgent` SDK which runs the ReAct loop internally.
 
@@ -49,19 +54,58 @@ The central idea is the **JiuWenSwarm facade**: a single async entry point (`pro
 JiuWenSwarm → JiuWenSwarmDeepAdapter → openjiuwen DeepAgent SDK → ReAct loop → tools
 ```
 
-The **Rails system** intercepts every tool call before and after execution. Rails are composable middleware:
+The **Rails system** intercepts every tool call and prompt before and after execution. Rails are composable, priority-ordered middleware that lives mostly in the `openjiuwen` SDK (a large set: `MemoryRail`, `SecurityRail`, `SkillUseRail`, `PermissionInterruptRail`, `TaskPlanningRail`, `SubagentRail`, `HeartbeatRail`, …) plus jiuwenswarm-side rails (project memory, avatar, response/runtime prompt, multimodal image, stream events, iteration budget, …). There is no `PermissionsRail` — the permission role is `PermissionInterruptRail`.
 
 ```python
-MemoryRail → SecurityRail → PermissionsRail → SkillUseRail → [tool executes] → result
+[rails around each tool call and prompt] → [tool executes] → result
 ```
 
 History is recorded as JSONL files on disk per session. There is no equivalent of the deepseek-harness append-only event log with replay capability.
+
+### 2.2 deepseek-harness
+
+The central idea is the **Cordis plugin framework**: every component — LLM adapter, tool registry, sandbox, subprocess runner, filesystem, session log, and the agent loop itself — is a plugin that conforms to a capability seam interface. Nothing is hardcoded.
+
+```
+Capability Seam = Definition (interface) + Provider (implementation) + Consumer (caller)
+```
+
+The consequence of "everything is a plugin" is that the whole product is **composable and embeddable**: you mount the plugins you want, swap implementations behind a seam (a different model provider, a different sandbox, a different filesystem), give different sessions different capability sets, and embed the harness inside your own application. The running system is a plugin tree declared in config, not a fixed program.
+
+The agent loop is a **reactive state machine**:
+
+```
+Inbox (two ordered lists: `next-turn` and `next-step`) → preStep() → step() → LLM stream → BlockAssembler → tool-calls → runGroup() → results → next step
+```
+
+Every event (turn/start, step/start, assistant/chunk, assistant/message, tool/call, tool/result, turn/end) is appended to a **durable append-only session log** — the single source of truth. This enables full replay, forking at any between-turn boundary, and auditing exactly what the model saw, under the invariant **"model-visible ⟺ logged"**: the model sees exactly what is in the log, nothing else. Persistence is a swappable backend seam (JSONL by default, SQLite as an alternative). Tool calls are dispatched to a **parallel scheduler** (`runGroup`) that respects `isConcurrencySafe()` per tool and commits results in **model-declared order**.
+
+Each agent runs **isolated** — its own session log and its own scoped set of capabilities — so one process can host many independent agents, and agents can compose (delegate to sub-agents, inherit a parent's toolset, or coordinate in a team). This isolation and composition are what make the "everything is a plugin" design usable for more than a single chatbot.
+
+For the deeper internals — how the plugin tree boots, how requests are reconstructed from the log, the event taxonomy, per-agent scoping and the initiator, capability seams and the extension points, and the plan/goal/workflow/compaction seams — see [Appendix A](#appendix-a-deepseek-harness-internals-deep-dive).
 
 ---
 
 ## 3. Agent Loop Mechanics
 
-### 3.1 deepseek-harness — Turn/Step State Machine
+### 3.1 jiuwenswarm — ReAct Loop
+
+The loop runs inside the openjiuwen DeepAgent SDK. jiuwenswarm wraps it with a streaming adapter:
+
+```
+for each event from agent.run(query):
+  "tool_call"   → stream chat.tool_call chunk → (SDK auto-executes tool)
+  "tool_result" → stream chat.tool_result chunk
+  "message"     → stream chat.partial / chat.final chunk
+  error         → stream chat.error chunk with error_type classification
+```
+
+Key design decisions:
+- **Checkpointing after each turn** — disk-persisted `PersistenceCheckpointerProvider`
+- **Context compression** when token count exceeds threshold: LLM-based summarization of old turns, keep recent N turns verbatim
+- **`max_iterations` guard** in React config (default: 10 steps per query)
+
+### 3.2 deepseek-harness — Turn/Step State Machine
 
 ```
 For each inbox batch:
@@ -82,104 +126,99 @@ For each inbox batch:
 ```
 
 Key design decisions:
+- **A turn runs one or more steps** — it continues while a tool call requests another model turn or new steering arrives, and ends only when nothing is owed (no tool calls, no pending steering).
+- **`max-tokens` is sticky** — if any step hits the output-token ceiling, the whole turn records `max-tokens` rather than `completed`, so a truncation is never misread as a clean stop.
 - **AbortController per turn** — clean cancellation at any step
 - **Inbox target** (`next-turn` vs `next-step`) — controls whether new inbox messages are consumed within the current turn
 - **`agent/turn-stopping` waterfall** — plugins can veto or delay turn termination
 - **Error quarantine** — errors are logged and rethrown; the session log always knows the cause
 
-### 3.2 jiuwenswarm — ReAct Loop
-
-The loop runs inside the openjiuwen DeepAgent SDK. jiuwenswarm wraps it with a streaming adapter:
-
-```
-for each event from agent.run(query):
-  "tool_call"   → stream chat.tool_call chunk → (SDK auto-executes tool)
-  "tool_result" → stream chat.tool_result chunk
-  "message"     → stream chat.partial / chat.final chunk
-  error         → stream chat.error chunk with error_type classification
-```
-
-Key design decisions:
-- **Checkpointing after each turn** — disk-persisted `PersistenceCheckpointerProvider`
-- **Context compression** when token count exceeds threshold: LLM-based summarization of old turns, keep recent N turns verbatim
-- **`max_iterations` guard** in React config (default: 10 steps per query)
-
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Loop driver | Custom reactive engine | openjiuwen SDK (internal) |
-| Cancellation | AbortController per turn | No explicit per-turn abort |
-| Parallel tool calls | Yes — `maxParallelToolCalls`, order-preserving | No — sequential execution |
-| Turn vs step distinction | Explicit (turn = one inbox batch, step = one LLM call) | Opaque (inside SDK) |
-| Replay | Full — reconstruct any past session from log | No — JSONL history only |
-| Fork at turn boundary | Yes | No |
-| Max steps guard | Configurable per agent | `max_iterations` in config |
+| Loop driver | openjiuwen SDK (internal) | Custom reactive engine |
+| Cancellation | No explicit per-turn abort | AbortController per turn |
+| Parallel tool calls | No — sequential execution | Yes — `maxParallelToolCalls`, order-preserving |
+| Turn vs step distinction | Opaque (inside SDK) | Explicit (turn = one inbox batch, step = one LLM call) |
+| Replay | No — JSONL history only | Full — reconstruct any past session from log |
+| Fork at turn boundary | No | Yes |
+| Max steps guard | `max_iterations` in config | No per-agent step-count cap (loop runs to quiescence; `maxTokens` output cap + compaction bound it) |
 
 ---
 
 ## 4. Parsing Model Output
 
-### 4.1 deepseek-harness
-
-The **BlockAssembler** processes streaming chunks token-by-token:
-
-- Supports two tool modes: **`native`** (model emits structured `tool-call` blocks per provider protocol) and **`code`** (model emits tool calls inside markdown code fences, parsed by regex)
-- Handles interrupted streams (partial blocks from aborted calls are preserved in the session log with `interrupted: true`)
-- Content block types: `text`, `tool-call`, `thinking` (for reasoning models)
-- **Suppresses `onChange`-equivalent** — when programmatic `setValue` is called during a replay, the change event is not fed back to the loop
-
-In code mode, the harness parses patterns like:
-
-```
-```python
-tool_name(arg1=value1, arg2=value2)
-```
-```
-
-and extracts them into structured `ToolCallBlock` objects.
-
-### 4.2 jiuwenswarm
+### 4.1 jiuwenswarm
 
 Parsing is delegated entirely to the openjiuwen SDK. jiuwenswarm consumes already-parsed `event.type == "tool_call"` events with structured `event.tool_name` and `event.tool_input`. The harness has no direct visibility into raw model output.
 
 One Rail (`json-repair` dependency) patches malformed JSON in tool arguments before passing them to executors.
 
+### 4.2 deepseek-harness
+
+The **BlockAssembler** processes streaming chunks incrementally (`text-delta`, `reasoning-delta`, `tool-call-delta` → `block-end`), folding them into `ContentBlock[]`:
+
+- Supports two tool-presentation modes: **`native`** (every visible tool schema is sent; the model emits structured `tool-call` blocks per provider protocol) and **`code`** (the model is shown a single `run_code` tool plus a generated TypeScript/Python SDK prompt; it calls other tools from *inside* the program via `await tools.name(args)` bindings). There is **no regex parsing of fenced tool-call syntax**.
+- Handles interrupted streams: an aborted/cancelled stream finalizes its delivered text/reasoning prefix as an `assistant/message` with `interrupted: true`; undispatched tool calls are dropped.
+- Content block types: `text`, `reasoning` (thinking, distinct from visible text), `image`, `tool-call`, `tool-result`.
+- Replay is not a re-execution: rebuilding a session from the log re-derives history and re-renders tool results via the pure `presentCall`/`presentResult` projections. There is no "setValue/onChange" replay-feedback mechanism in the harness.
+
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Raw chunk access | Yes — every chunk logged | No — SDK-internal |
-| Native function calling | Yes | Yes (via SDK) |
-| Code-fence fallback mode | Yes — full regex parser | No |
-| Malformed JSON repair | Via `json-repair` package | `json-repair>=0.30.0` dep |
-| Streaming parse | Yes — incremental BlockAssembler | SDK-internal |
-| Interrupted stream handling | Logged, preserved | Not exposed |
+| Raw chunk access | No — SDK-internal | Yes — every chunk logged |
+| Native function calling | Yes (via SDK) | Yes |
+| SDK-execution mode (`code`) | No | Yes — `run_code` + generated SDK prompt |
+| Malformed JSON repair | `json-repair>=0.30.0` dep | No — tool arguments stream as raw JSON and are preserved verbatim |
+| Streaming parse | SDK-internal | Yes — incremental BlockAssembler |
+| Interrupted stream handling | Not exposed | Logged, preserved |
 
 ---
 
 ## 5. Tool / Action Surface
 
-### 5.1 deepseek-harness built-in tools (17)
+### 5.1 jiuwenswarm built-in tools (40+, approximate)
+
+The tool set is large and lives mostly in the `openjiuwen` SDK plus jiuwenswarm-registered tools. Representative verified names:
+
+| Category | Tools |
+|---|---|
+| File ops | `read_file`, `write_file` (plus edit, mkdir, move, copy, delete, patch) |
+| Execution | `bash` / `code` (program execution) |
+| Web | `web_fetch` / `web_search` (free/paid search providers: Jina, Serper, Perplexity, Bocha) |
+| Browser | `browser_run_task` (Playwright via MCP) |
+| Memory | `write_memory`, `read_memory`, `memory_search`, `memory_get`, `edit_memory` |
+| Skills | `skill_index_build`, `skill_branch_explore`, `skill_branch_peek` |
+| Multi-agent / team | `task_tool` (dispatch sub-agents: research, browser, coding), team orchestration, A2A/A2X |
+| LSP / editor / terminal | `lsp`, `create_terminal`, `read_terminal_output`, `wait_for_terminal_exit`, `release_terminal`, `read_text_file`, `write_text_file` |
+| Multimodal | `audio_question_answering`, `audio_metadata`, `generate_image`, `visual_question_answering`, `video_understanding` |
+| Files-to-user | `send_file_to_user` |
+| MCP / ACP passthrough | Dynamic from any configured MCP server; `acp_chat` drives external ACP agents |
+| Cron | `cron_list_jobs`, `cron_create_job`, … |
+
+Notable: `send_file_to_user` handles multi-turn dedup, workspace materialization, and cross-channel targeting (Feishu, web, etc.).
+
+### 5.2 deepseek-harness built-in tools (composition-dependent)
+
+The tool set is defined by the profile composition (the `dsh-base` bundle, platform-gated), not a fixed hardcoded list — the base profile mounts **20+ tool plugins** exposing a comparable number of model-facing names. Exact names/count vary by platform and overlay. Representative tools:
 
 | Tool | What it does |
 |---|---|
-| `read_file` | Read file content with hash, encoding detection |
-| `write_file` | Write/overwrite file; git-aware diff |
-| `list_directory` | Directory listing with metadata |
-| `bash` | Shell command via subprocess (platform-adaptive) |
-| `run_code` | In-process TS/Python execution |
-| `search_files` | Regex search with context lines |
-| `fetch_web` | HTTP GET with caching |
-| `search_web` | Web search (provider-based) |
-| `create_todo` | Task tracking |
-| `search_skills` | Dynamic skill discovery |
-| `invoke_skill` | Execute loaded skills |
-| `ask_user` | Human-in-the-loop input |
-| `job_*` | Background task control |
-| `mcp` | Model Context Protocol passthrough |
-| LSP tools | Code intelligence (go-to-def, hover, etc.) |
-| Workspace tools | Multi-root project handling |
+| `read` | Read a file window (line-numbered, syntax-highlightable) |
+| `write` / `edit` | Create/overwrite / search-replace edit a file |
+| `list` / `grep` / `glob` | Directory listing / regex search / path glob |
+| `bash` / `pwsh` | Shell command (POSIX vs Windows selection) |
+| `run_code` | Code Mode transport: run a TS/Python program that calls tools via `tools.name(args)` (only presented under `code` mode) |
+| `web_search` / `web_fetch` | Web search / fetch (fetch is provider-gated; disabled in the base profile) |
+| `todo_write` | Todo-list snapshot |
+| `skill` | Load a skill's instruction content into context |
+| `ask_user_question` | Human-in-the-loop question |
+| `subagent` / `subagent_fork` / `list_agents` / `send_message` | Child-agent delegation and continuable background agents |
+| `job_start` / `job_poll` / `job_cancel` | Background task control |
+| `workflow` / `goal` / `ralph` | Workflow runs, same-session goals, fresh-agent iteration |
+| LSP / `terminal` / `session_query` / `str_replace_editor` | Code intelligence, persistent terminals, session history, atomic edits |
 
 Tool output rendering:
 ```typescript
@@ -190,67 +229,27 @@ interface ToolOutputDefinition {
 }
 ```
 
-Render modes: `generic`, `terminal`, `diff`, `locations`.
-
-### 5.2 jiuwenswarm built-in tools (40+)
-
-| Category | Tools |
-|---|---|
-| File ops | `read_file`, `write_file`, `list_files`, `create_directory`, `move_file`, `copy_file`, `delete_file`, `patch_file`, `send_file_to_user` |
-| Execution | `bash`, `code` |
-| Web | `web_fetch`, `web_free_search`, `web_paid_search` (Jina/Serper/Perplexity/Bocha) |
-| Browser | `browser_run_task` (Playwright via MCP) |
-| Memory | `memory.write`, `memory.read`, `memory.delete` |
-| Skills | `skill_index_build`, `skill_branch_explore` |
-| Multi-agent | `task_tool`, `invoke_agent` |
-| Session | `todo_modify`, `send_to_channel` |
-| Multimodal | `audio_transcribe`, `image_generate`, `video_understand` |
-| MCP passthrough | Dynamic from any configured MCP server |
-
-Notable: `send_file_to_user` handles multi-turn dedup, workspace materialization, and cross-channel targeting (Feishu, web, etc.).
+Render intents are a `card`-tagged union. **Call-time** cards: `generic`, `terminal`, `diff`. **Result-time** cards additionally: `search` (grep/glob), `read` (line-numbered file), `web` (search/fetch). `locations` is a field on generic/diff cards (files for editor follow-along), not a card type.
 
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Total built-in tools | ~17 | ~40+ |
-| Multimodal tools | No | Yes (audio, image, video) |
-| Browser automation | No (MCP plug-in point) | Yes (Playwright via MCP) |
-| Multi-agent dispatch | Via `ask_user` / ACP | `task_tool`, `invoke_agent` |
-| Memory tools | No built-in | Yes (write/read/delete) |
-| MCP support | Yes | Yes |
-| LSP integration | Yes | No |
-| File diff rendering | Yes (UI) | No |
-| Tool result render modes | 4 (generic/terminal/diff/locations) | None (SDK-internal) |
+| Total built-in tools | ~40+ | 20+ (composition-dependent) |
+| Multimodal tools | Yes (audio, image, video) | No |
+| Browser automation | Yes (Playwright via MCP) | No (MCP plug-in point) |
+| Multi-agent dispatch | `task_tool`, team orchestration, A2A/A2X | `subagent`/`subagent_fork`/`list_agents`/`send_message` + ACP |
+| Memory tools | Yes (`write_memory`, `read_memory`, `memory_search`, …) | No built-in |
+| MCP support | Yes | Yes (client, via plugins) |
+| LSP integration | No | Yes |
+| File diff rendering | No | Yes (UI) |
+| Tool render intents | None (SDK-internal) | Call: generic/terminal/diff; result: +search/read/web (6 card types) |
 
 ---
 
 ## 6. Execution & Sandboxing
 
-### 6.1 deepseek-harness
-
-Subprocess execution uses a layered abstraction:
-
-```typescript
-abstract class SubprocessRuntime extends Service {
-  abstract resolveExecutable(command, env?, signal?): Promise<string>
-  abstract spawn(spec: SubprocessSpawnSpec): SubprocessHandle
-  abstract spawnTerminal(spec): Promise<SubprocessTerminalHandle>
-}
-```
-
-Environment scrubbing: removes `KEY|PASSWORD|SECRET|TOKEN` patterns and all `DSH_*` names from inherited env.
-
-Sandbox backends:
-- **macOS**: `sandbox-exec` with DSL profile
-- **Linux**: Landlock LSM (native addon) or seccomp
-- **Windows**: ACL-based file access control
-- **Fail-closed**: violations deny access, not warn
-- **Docker/Remote**: capability seam allows swapping `ctx.subprocess` → container executor
-
-No built-in Docker support, but it's a clean plug-in point. E2B sandbox adapter exists as a POC.
-
-### 6.2 jiuwenswarm
+### 6.1 jiuwenswarm
 
 Execution modes:
 
@@ -274,32 +273,47 @@ class SecurityRail:
 
 A separate `bash_tool_safety.py` installs hooks to block dangerous operations.
 
+### 6.2 deepseek-harness
+
+Subprocess execution uses a layered abstraction:
+
+```typescript
+abstract class SubprocessRuntime extends Service {
+  abstract resolveExecutable(command, env?, signal?): Promise<string>
+  abstract spawn(spec: SubprocessSpawnSpec): SubprocessHandle
+  abstract spawnTerminal(spec): Promise<SubprocessTerminalHandle>
+}
+```
+
+Environment scrubbing: removes `KEY|PASSWORD|SECRET|TOKEN` patterns and all `DSH_*` names from inherited env.
+
+Sandbox backends:
+- **macOS**: `sandbox-exec` / Seatbelt with a DSL profile (write-deny default + write allow-lists)
+- **Linux**: bubblewrap (`bwrap`) or Landlock LSM via the `@deepseek-ai/node-addon-landlock-run` native addon
+- **Windows**: ACL-based restricted-token runner (`dsh-sandbox-windows-acl`)
+- **Fail-closed**: violations deny access, not warn
+- **Docker/Remote**: capability seam allows swapping the backend → container executor (E2B sandbox adapter exists as a POC)
+
+No built-in Docker support, but it's a clean plug-in point. E2B sandbox adapter exists as a POC.
+
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Native OS sandbox | Yes (macOS/Linux/Windows) | Via JiuwenBox (separate server) |
-| Docker support | Plug-in point (E2B POC) | JiuwenBox (custom) |
-| Env scrubbing | Yes (secrets stripped) | Not explicit |
-| Resource limits | Via sandbox profiles | rlimit (CPU/RAM) |
-| Network egress control | Via sandbox policy | JiuwenBox (disallow_network) |
-| Safety rails | Capability seam / policy | SecurityRail middleware |
-| Fail-closed | Yes | Yes (SecurityRail blocks) |
-| Remote execution | Via subprocess swap | A2A protocol |
+| Native OS sandbox | Via JiuwenBox (separate server) | Yes (macOS/Linux/Windows) |
+| Docker support | JiuwenBox (custom) | Plug-in point (E2B POC) |
+| Env scrubbing | Not explicit | Yes (secrets stripped) |
+| Resource limits | rlimit (CPU/RAM) | Via sandbox profiles |
+| Network egress control | JiuwenBox (disallow_network) | Via sandbox policy |
+| Safety rails | SecurityRail middleware | Capability seam / policy |
+| Fail-closed | Yes (SecurityRail blocks) | Yes |
+| Remote execution | A2A protocol | Via subprocess swap |
 
 ---
 
 ## 7. Observation / Feedback Loop
 
-### 7.1 deepseek-harness
-
-Every tool result is rendered into `ContentBlock[]` via the tool's `render()` function and appended to the session log as a `tool/result` event. The model then sees it as a `tool-result` message in the next step.
-
-**Critical invariant**: the model sees **exactly** what is logged. This is enforced architecturally — `session.deriveMessages()` reconstructs the full conversation from the log, and this reconstructed form is what goes into the LLM request. There is no separate "prompt construction" that could diverge from the log.
-
-Output size management: each tool defines its own render function and can truncate internally. No global truncation policy is enforced at the harness level.
-
-### 7.2 jiuwenswarm
+### 7.1 jiuwenswarm
 
 Tool results flow through the SDK as structured events. jiuwenswarm streams them to clients as chunks:
 
@@ -321,32 +335,30 @@ system_prompt += f"\n\nPast insights:\n{memory_context}"
 
 Context compression kicks in when tokens exceed a threshold — LLM-based summarization of old turns.
 
+### 7.2 deepseek-harness
+
+Every tool result is rendered into `ContentBlock[]` via the tool's `render()` function and appended to the session log as a `tool/result` event. The model then sees it as a `tool-result` message in the next step.
+
+**Critical invariant**: the model sees **exactly** what is logged. This is enforced architecturally — `session.deriveMessages()` reconstructs the full conversation from the log, and this reconstructed form is what goes into the LLM request. There is no separate "prompt construction" that could diverge from the log.
+
+Output size management is layered: each tool's own `render()` projects the model-facing content, and the harness adds composition-level policies — a spill policy (large results spill to a locator) and a tool-result pruner (compacts oversized tool results into the configured budget).
+
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Model-visible = logged | Hard invariant | Not enforced |
-| Result rendering | Per-tool render functions | SDK-internal |
-| Memory injection | No (skill system instead) | Yes (ChromaDB, proactive extraction) |
-| Context compression | Compaction (archive turns) | LLM-based summarization |
-| Observation format control | Full (ContentBlock[]) | Opaque to harness |
-| Streaming to clients | Via ACP / web | WebSocket chunks (event_type + payload) |
+| Model-visible = logged | Not enforced | Hard invariant |
+| Result rendering | SDK-internal | Per-tool render functions |
+| Memory injection | Yes (SQLite-vec/FTS5, proactive extraction) | No (skill system instead) |
+| Context compression | LLM-based summarization | Compaction (archive turns) |
+| Observation format control | Opaque to harness | Full (ContentBlock[]) |
+| Streaming to clients | WebSocket chunks (event_type + payload) | Via ACP / web |
 
 ---
 
 ## 8. Context / Memory Management
 
-### 8.1 deepseek-harness
-
-Memory model is **scope-based**, not conversation-level:
-- Each agent has its own **scope** (plugin layer) that disposes cleanly when the agent disposes
-- Session log is the durable store; `deriveMessages()` reconstructs conversation
-- **Skills** inject dynamic instruction context (markdown documents loaded on-demand)
-- No separate vector store or cross-session memory
-- **Compaction**: old turns can be archived; restored as summaries
-- **Fork**: branch a session at any turn — creates independent conversation from that point
-
-### 8.2 jiuwenswarm
+### 8.1 jiuwenswarm
 
 Three explicit memory layers:
 
@@ -354,32 +366,57 @@ Three explicit memory layers:
 Layer 1: Short-term (PersistenceCheckpointer)
   → Disk-based JSONL, per-session, survives restarts
 
-Layer 2: Long-term (ChromaDB)
-  → Cross-session embeddings, proactive extraction, "dreaming" pruning
+Layer 2: Long-term (SQLite-vec + FTS5 + markdown memory)
+  → Cross-session semantic search (hybrid vector + full-text), proactive extraction, "dreaming" pruning
 
 Layer 3: Working memory (context window)
   → LLM-managed, compressed on overflow
 ```
 
-Proactive memory extraction: after each turn, the system runs an async extraction job that identifies learnings and upserts them into ChromaDB. A "dreaming" sweep prunes stale entries.
+Proactive memory extraction: after each turn, the system runs an async extraction job that identifies learnings and persists them (markdown memory indexed into the local SQLite-vec + FTS5 store). A "dreaming" sweep prunes stale entries. Note: long-term memory is **not** ChromaDB — it uses a local **SQLite + `sqlite-vec` + FTS5** store (with optional PostgreSQL vectors / Redis for scale).
+
+### 8.2 deepseek-harness
+
+Memory model is **scope-based**, not conversation-level:
+- Each agent has its own **scope** (plugin layer) that disposes cleanly when the agent disposes
+- Session log is the durable store; `deriveMessages()` reconstructs conversation
+- **Skills** inject dynamic instruction context (markdown documents loaded on-demand)
+- No separate vector store or cross-session memory
+- **Compaction**: old turns can be archived; restored as summaries
+- **Fork**: branch a session from a between-turn boundary (it rejects a prefix that ends inside an open turn) — creates an independent conversation from that point
 
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Session persistence | SQLite event log | JSONL files + ChromaDB |
-| Cross-session memory | No | Yes (ChromaDB) |
-| Memory extraction | No | Yes (proactive, auto) |
-| Memory retrieval in prompt | No | Yes (top-k semantic) |
-| Context compression | Compaction (turn archival) | LLM summarization |
-| Fork / replay | Yes | No |
-| Skill-as-context injection | Yes (dynamic markdown) | Yes (SkillNet) |
+| Session persistence | JSONL history + SQLite-vec/FTS5 memory | Append-only event log (JSONL or SQLite) |
+| Cross-session memory | Yes (SQLite-vec + FTS5) | No |
+| Memory extraction | Yes (proactive, auto) | No |
+| Memory retrieval in prompt | Yes (top-k semantic) | No |
+| Context compression | LLM summarization | Compaction (turn archival) |
+| Fork / replay | No | Yes |
+| Skill-as-context injection | Yes (SkillNet) | Yes (dynamic markdown) |
 
 ---
 
 ## 9. Configuration Systems
 
-### 9.1 deepseek-harness — Cordis YAML with layered patches
+### 9.1 jiuwenswarm — YAML + env vars with recursive resolution
+
+```yaml
+model_name: deepseek-v4-flash
+memory:
+  mode: long_term
+sandbox:
+  runtime: jiuwenbox
+  endpoint: http://127.0.0.1:5000
+```
+
+Resolution: `${VAR:-default}` syntax, recursive through entire YAML tree. API keys are decrypted if a crypto provider is registered. Priority: env vars > config.yaml > defaults.
+
+A single `get_config()` call handles everything — no layered patch system.
+
+### 9.2 deepseek-harness — Cordis YAML with layered patches
 
 Configuration is a declarative plugin tree:
 
@@ -406,46 +443,22 @@ Patches are applied in this order:
 
 Config schema is TypeScript interface → auto-validated at boot. Environment variables: `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DSH_HOME`, `DSH_TELEMETRY_DISABLED`.
 
-### 9.2 jiuwenswarm — YAML + env vars with recursive resolution
-
-```yaml
-model_name: deepseek-v4-flash
-memory:
-  mode: long_term
-sandbox:
-  runtime: jiuwenbox
-  endpoint: http://127.0.0.1:5000
-```
-
-Resolution: `${VAR:-default}` syntax, recursive through entire YAML tree. API keys are decrypted if a crypto provider is registered. Priority: env vars > config.yaml > defaults.
-
-A single `get_config()` call handles everything — no layered patch system.
-
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Config format | Cordis YAML (plugin tree) | config.yaml + .env |
-| Layered overrides | Yes (6-layer patch chain) | No (single config + env) |
-| Schema validation | TypeScript interface → auto | Pydantic (partial) |
-| Secret handling | Env var scrubbing | Crypto provider decryption |
-| Runtime reconfiguration | Via `installSettingsSection` | No |
-| Multi-profile support | Yes (`$DSH_HOME/profiles/<name>/`) | Via multiple config files |
+| Config format | config.yaml + .env | Cordis YAML (plugin tree) |
+| Layered overrides | No (single config + env) | Yes (6-layer patch chain) |
+| Schema validation | Pydantic (partial) | TypeScript interface → auto |
+| Secret handling | Crypto provider decryption | Env var scrubbing |
+| Runtime reconfiguration | No | Via `installSettingsSection` |
+| Multi-profile support | Via multiple config files | Yes (`$DSH_HOME/profiles/<name>/`) |
 
 ---
 
 ## 10. Multi-Agent Support
 
-### 10.1 deepseek-harness
-
-Multi-agent is a capability seam. The `AgentLoopSettings` supports multiple configured agents that boot at startup. Agents communicate via:
-- **ACP (Agent Client Protocol)**: automation server protocol for structured agent-to-automation integration
-- **`ask_user`** tool used as inter-agent communication in some patterns
-- Each agent has its own scope, session log, and inbox — full isolation
-
-The Cordis plugin layer allows a supervisor agent to register child agents and route tool calls to them.
-
-### 10.2 jiuwenswarm
+### 10.1 jiuwenswarm
 
 Multi-agent is first-class and deeply integrated:
 
@@ -460,27 +473,46 @@ Remote Teams (A2A protocol):
 ```
 
 - **`task_tool`**: dispatch sub-agents (research, browser, coding)
-- **`invoke_agent`**: call team members directly
-- **SwarmFlow**: token-budget-limited autonomous team operation
-- **A2A (Agent-to-Agent) protocol**: standardized inter-agent communication over gRPC/HTTP for distributed teams
-- **Channel routing**: `send_to_channel` routes output to specific channels (web, Feishu, Slack, etc.)
+- **Team orchestration**: a `TeamManager` coordinates member agents, with a token-budget-limited **SwarmFlow** team mode
+- **A2A / A2X protocols**: standardized inter-agent communication (A2A over gRPC/HTTP for distributed teams; A2X agent registry) — jiuwenswarm also supports **ACP** as a channel/protocol and an `acp_chat` tool to drive external ACP agents
+- **Channel routing**: output is routed to specific channels (web, Feishu, Slack, …) via channel adapters and `send_file_to_user` cross-channel targeting
+
+### 10.2 deepseek-harness
+
+Multi-agent is a capability seam. The `AgentLoopSettings` supports multiple configured agents that boot at startup. Agents communicate and compose via:
+- **Subagent delegation** — `subagent` / `subagent_fork` tools spawn child agents; a `send_message` channel reaches continuable background children; the in-process driver composes a child from its parent's capability set (`agentPresets.composeFrom`)
+- **ACP (Agent Client Protocol)**: automation server protocol for structured agent-to-automation integration (not an inter-agent channel)
+- Each agent has its own scope, session log, and inbox — full isolation
+
+The Cordis plugin layer allows a supervisor agent to register child agents and route tool calls to them.
+
+Capabilities are also **per-session composable** via agent presets — a reusable composition that gives one session a different tool/capability set, and lets a child agent inherit its parent's exact capabilities. An experimental **Agent Teams** seam layers durable teams (a roster, task board, and peer mailbox) over continuable subagents.
 
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Multi-agent support | Capability seam (pluggable) | First-class, built-in |
-| Predefined sub-agent types | No | Research, Browser, Coding |
-| Inter-agent protocol | ACP | A2A (gRPC/HTTP) |
-| Distributed teams | Via ACP server | Yes (A2A) |
-| Token budget control | `maxParallelToolCalls` | `swarmflow_budget` |
-| Agent isolation | Scope + session per agent | Process/network boundary |
+| Multi-agent support | First-class, built-in | Capability seam (pluggable) |
+| Predefined sub-agent types | Research, Browser, Coding | No |
+| Inter-agent protocol | A2A / A2X (also ACP channel + `acp_chat`) | ACP (automation server) + in-process subagent delegation |
+| Distributed teams | Yes (A2A/A2X) | Via ACP server |
+| Token budget control | `swarmflow_budget` | `maxParallelToolCalls` |
+| Agent isolation | Process/network boundary | Scope + session per agent |
 
 ---
 
 ## 11. Skill Systems
 
-### 11.1 deepseek-harness — Dynamic Skill Registry
+### 11.1 jiuwenswarm — SkillNet + Self-Evolution
+
+Skills are managed via `skillnet-ai` (an external skill hub). The system supports:
+- `skill_index_build` / `skill_branch_explore` — discovery and navigation
+- **Self-evolution**: skills can be automatically improved based on usage patterns (`EVOLUTION_AUTO_SCAN`)
+- Skills can be invoked directly as tools
+
+The "dreaming" mechanism prunes stale memory/skills and reinforces effective ones, making the agent improve over time.
+
+### 11.2 deepseek-harness — Dynamic Skill Registry
 
 Skills are **markdown instruction documents** loaded on-demand:
 
@@ -489,7 +521,7 @@ interface SkillDefinition {
   name: string
   description: string
   whenToUse?: string
-  source: 'project-dsh' | 'runtime' | 'user-dsh' | 'bundled'
+  source: 'project-dsh' | 'project-agents' | 'runtime' | 'user-dsh' | 'user-agents' | 'custom' | 'bundled' | (string & {})
   content: string              // Markdown body injected into prompt
   invocation: SkillInvocationPolicy
   resourceBase?: SkillResourceBase
@@ -499,40 +531,21 @@ interface SkillDefinition {
 
 Skills are discovered via providers, ranked, and injected into the model's context when relevant. Plugins can register skill providers. Layering: global → per-scope (agent-specific).
 
-### 11.2 jiuwenswarm — SkillNet + Self-Evolution
-
-Skills are managed via `skillnet-ai` (an external skill hub). The system supports:
-- `skill_index_build` / `skill_branch_explore` — discovery and navigation
-- **Self-evolution**: skills can be automatically improved based on usage patterns (`EVOLUTION_AUTO_SCAN`)
-- Skills can be invoked directly as tools
-
-The "dreaming" mechanism prunes stale memory/skills and reinforces effective ones, making the agent improve over time.
-
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Skill format | Markdown + YAML frontmatter | SkillNet (external hub) |
-| Skill discovery | Provider-based (layered) | `skillnet-ai` API |
-| Self-improvement | No | Yes (auto-evolution, dreaming) |
-| Skill injection | Prompt context injection | Tool invocation |
-| User-defined skills | Yes (user-dsh source) | Yes |
+| Skill format | SkillNet (external hub) | Markdown + YAML frontmatter |
+| Skill discovery | `skillnet-ai` API | Provider-based (layered) |
+| Self-improvement | Yes (auto-evolution, dreaming) | No |
+| Skill injection | Tool invocation | Prompt context injection |
+| User-defined skills | Yes | Yes (user-dsh source) |
 
 ---
 
 ## 12. Observability & Testing
 
-### 12.1 deepseek-harness
-
-- **Full OpenTelemetry** trace per run
-- Every LLM chunk, every tool call, every state transition is durably logged
-- **Snapshot testing**: record a real session, replay it in CI without API key
-- **100% unit test coverage gate** on all packages
-- **Vitest** with `tsx` for TypeScript
-- E2E tests skipped automatically without `DEEPSEEK_API_KEY`
-- Test types: unit, e2e, snapshot (replay)
-
-### 12.2 jiuwenswarm
+### 12.1 jiuwenswarm
 
 - `opentelemetry-api/sdk` in dependencies but integration depth unclear
 - JSONL history files per session (not structured traces)
@@ -541,31 +554,32 @@ The "dreaming" mechanism prunes stale memory/skills and reinforces effective one
 - No snapshot/replay testing
 - No coverage gate mentioned
 
+### 12.2 deepseek-harness
+
+- **OpenTelemetry** export is available but **opt-in and disabled by default**: `dsh-session-telemetry-otel` mirrors session-log records onto OTLP/HTTP **logs** (gated by `DSH_TELEMETRY_MODE`). It is log/session-record export, not span-level tracing, and the durable in-process log is the authoritative observability record.
+- Every LLM chunk, every tool call, every state transition is durably logged
+- **Snapshot testing**: record a real session, replay it in CI without API key
+- **100% unit test coverage gate** on all packages
+- **Vitest** with `tsx` for TypeScript
+- E2E tests skipped automatically without `DEEPSEEK_API_KEY`
+- Test types: unit, e2e, snapshot (replay)
+
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Full OTel tracing | Yes | Partial (dep present) |
-| Structured span-level logs | Yes | No (JSONL history only) |
-| Session replay | Yes (snapshot tests) | No |
-| Coverage gate | 100% (unit packages) | None mentioned |
-| Test framework | Vitest | pytest |
-| E2E without API key | Snapshot replay | Manual integration test |
+| OTel export | Partial (dep present) | Opt-in OTLP **logs** of session records (default-off) |
+| Structured durable session log | No (JSONL history only) | Yes (append-only, source of truth) |
+| Session replay | No | Yes (snapshot tests) |
+| Coverage gate | None mentioned | 100% (unit packages) |
+| Test framework | pytest | Vitest |
+| E2E without API key | Manual integration test | Snapshot replay |
 
 ---
 
 ## 13. Deployment & Channels
 
-### 13.1 deepseek-harness
-
-- **CLI** (`dsh web` / `dsh headless`) — web UI or batch mode
-- **Python SDK** — JSON-RPC over stdio to bundled Node runtime; `pip install deepseek-harness`
-- **ACP server** — Agent Client Protocol for automation integrations
-- **Headless + plugins** — embedded deployment
-
-Single-machine. No built-in multi-process or distributed deployment.
-
-### 13.2 jiuwenswarm
+### 13.1 jiuwenswarm
 
 Channels (10+):
 - Web (WebSocket), TUI, Desktop (PyWebView)
@@ -576,51 +590,37 @@ Deployment:
 - **Multi-process** (ZMQ + PostgreSQL, optional `distribute` extra)
 - **Distributed** (A2A protocol, remote agents)
 
+### 13.2 deepseek-harness
+
+- **CLI** (`dsh web` / `dsh headless`) — web UI or batch mode
+- **Python SDK** — JSON-RPC over stdio to bundled Node runtime; `pip install deepseek-harness`
+- **ACP server** — Agent Client Protocol for automation integrations
+- **Headless + plugins** — embedded deployment
+
+Single-machine. No built-in multi-process or distributed deployment.
+
 ### Comparison
 
-| | deepseek-harness | jiuwenswarm |
+| | jiuwenswarm | deepseek-harness |
 |---|---|---|
-| Web UI | Yes (built-in) | Yes (WebSocket) |
+| Web UI | Yes (WebSocket) | Yes (built-in) |
 | CLI/TUI | Yes | Yes |
-| Desktop app | No | Yes (PyWebView) |
-| IM channels (Feishu/Slack/etc.) | No | Yes (10+ channels) |
-| Python SDK | Yes | No (is the Python service) |
-| Distributed deployment | No | Yes (A2A + ZMQ) |
-| Multi-process | No | Yes (optional) |
+| Desktop app | Yes (PyWebView) | No |
+| IM channels (Feishu/Slack/etc.) | Yes (10+ channels) | No |
+| Python SDK | No (is the Python service) | Yes |
+| Distributed deployment | Yes (A2A + ZMQ) | No |
+| Multi-process | Yes (optional) | No |
 
 ---
 
 ## 14. Dependencies & Ecosystem
 
-### 14.1 deepseek-harness
-
-```
-Runtime: Node.js ^22.19.0 || >=24.0.0
-Package manager: pnpm 11.7.0
-TypeScript: ^6.0.3
-Test: Vitest ^4.1.8
-Build: tsdown ^0.22.2
-Lint: oxlint 1.76.0
-
-Key internal packages (all @deepseek-ai/*):
-  dsh-cordis, dsh-llm, dsh-session, dsh-scope,
-  dsh-tools, dsh-agent, dsh-agent-loop, dsh-subprocess,
-  dsh-sandbox, dsh-sandbox-local, dsh-skill
-
-External:
-  @agentclientprotocol/sdk (ACP)
-  @deepseek-ai/node-addon-landlock-run (Linux sandbox)
-```
-
-Monorepo with strict package boundaries. ESM-only.
-
-### 14.2 jiuwenswarm
+### 14.1 jiuwenswarm
 
 ```
 Runtime: Python 3.11+
 Key dependencies:
   openjiuwen (git+gitcode.com/openJiuwen/agent-core, develop branch)
-  chromadb>=1.5.0       (vector store)
   fastapi>=0.115        (HTTP)
   uvicorn>=0.30         (ASGI)
   pydantic>=2.0
@@ -647,35 +647,71 @@ Security floors enforced:
 
 Heavy dependency footprint. Core agent-core is a git dependency on `develop` branch (no pinned version).
 
+### 14.2 deepseek-harness
+
+```
+Runtime: Node.js ^22.19.0 || >=24.0.0
+Package manager: pnpm 11.7.0
+TypeScript: ^6.0.3
+Test: Vitest ^4.1.8
+Build: tsdown ^0.22.2
+Lint: oxlint 1.76.0
+
+Key internal packages (all @deepseek-ai/*):
+  cordis (vendored framework), dsh-llm, dsh-session, dsh-scope,
+  dsh-tools, dsh-agent, dsh-agent-loop, dsh-subprocess,
+  dsh-sandbox, dsh-sandbox-local, dsh-skill
+
+External:
+  @agentclientprotocol/sdk (ACP)
+  @deepseek-ai/node-addon-landlock-run (Linux sandbox)
+```
+
+Monorepo with strict package boundaries. ESM-only.
+
 ---
 
 ## 15. Head-to-Head Scorecard
 
 Rated 1–5 per dimension, from the perspective of building the best possible runtime harness.
 
-| Dimension | deepseek-harness | jiuwenswarm |
+| Dimension | jiuwenswarm | deepseek-harness |
 |---|:---:|:---:|
-| **Architecture cleanliness** | 5 | 3 |
-| **Auditability / replay** | 5 | 1 |
-| **Parallel tool execution** | 5 | 1 |
-| **Sandboxing depth** | 4 | 3 |
-| **Tool surface breadth** | 3 | 5 |
-| **Multi-agent coordination** | 3 | 5 |
-| **Cross-session memory** | 1 | 5 |
-| **Channel reach** | 1 | 5 |
-| **Skill self-evolution** | 2 | 4 |
-| **Observability (tracing)** | 5 | 2 |
-| **Test quality / coverage** | 5 | 3 |
-| **Config flexibility** | 4 | 3 |
-| **Deployment options** | 2 | 5 |
-| **Dependency hygiene** | 4 | 2 |
+| **Architecture cleanliness** | 3 | 5 |
+| **Auditability / replay** | 1 | 5 |
+| **Parallel tool execution** | 1 | 5 |
+| **Sandboxing depth** | 3 | 4 |
+| **Tool surface breadth** | 5 | 3 |
+| **Multi-agent coordination** | 5 | 3 |
+| **Cross-session memory** | 5 | 1 |
+| **Channel reach** | 5 | 1 |
+| **Skill self-evolution** | 4 | 2 |
+| **Observability (durable log + tracing)** | 2 | 4 |
+| **Test quality / coverage** | 3 | 5 |
+| **Config flexibility** | 3 | 4 |
+| **Deployment options** | 5 | 2 |
+| **Dependency hygiene** | 2 | 4 |
 | **Model provider agnosticism** | 4 | 4 |
-| **Streaming / low latency** | 5 | 3 |
-| **TOTAL** | **58** | **54** |
+| **Streaming / low latency** | 3 | 5 |
+| **TOTAL** | **54** | **57** |
 
 ---
 
 ## 16. What Each Does Better
+
+### jiuwenswarm does better:
+
+1. **Tool breadth** — 40+ built-in tools including multimodal (audio, image, video), browser automation, multi-agent dispatch. deepseek-harness has ~20+ (composition-dependent).
+
+2. **Multi-agent as product** — Research, Browser, and Coding sub-agents are production-ready specializations. deepseek-harness has the seam but no built-in specializations.
+
+3. **Cross-session memory** — SQLite-vec + FTS5 semantic memory with proactive extraction and dreaming-based pruning. deepseek-harness has no cross-session memory.
+
+4. **Channel reach** — 10+ channels (Feishu, DingTalk, Slack, Discord, Telegram, WeChat, WhatsApp, web, TUI, desktop). deepseek-harness is CLI + web only.
+
+5. **Deployment** — Distributed multi-process with A2A protocol, ZMQ, PostgreSQL. deepseek-harness is single-machine.
+
+6. **Skill evolution** — SkillNet + auto-evolution + dreaming makes the agent system improve over time. deepseek-harness skills are static markdown documents.
 
 ### deepseek-harness does better:
 
@@ -685,7 +721,7 @@ Rated 1–5 per dimension, from the perspective of building the best possible ru
 
 3. **Parallel tool execution** — `runGroup()` with `maxParallelToolCalls` and order-preserving result commit. jiuwenswarm executes tools sequentially.
 
-4. **Streaming** — BlockAssembler processes chunks incrementally, enabling action before the full response is received. jiuwenswarm streams results to clients but acts after completion.
+4. **Streaming** — BlockAssembler assembles token deltas incrementally and every raw chunk is logged, giving low-latency token-level streaming to clients and full replay fidelity. (Tool execution still waits for the complete assembled message.) jiuwenswarm streams results to clients but its internals are SDK-opaque.
 
 5. **Testing discipline** — 100% unit coverage gate, snapshot replay tests that run without an API key. jiuwenswarm has no coverage gate and no replay.
 
@@ -693,33 +729,19 @@ Rated 1–5 per dimension, from the perspective of building the best possible ru
 
 7. **Sandbox on native OS** — macOS sandbox-exec, Linux Landlock (fail-closed). jiuwenswarm requires a separate JiuwenBox server.
 
-### jiuwenswarm does better:
-
-1. **Tool breadth** — 40+ built-in tools including multimodal (audio, image, video), browser automation, multi-agent dispatch. deepseek-harness has 17.
-
-2. **Multi-agent as product** — Research, Browser, and Coding sub-agents are production-ready specializations. deepseek-harness has the seam but no built-in specializations.
-
-3. **Cross-session memory** — ChromaDB-backed semantic memory with proactive extraction and dreaming-based pruning. deepseek-harness has no cross-session memory.
-
-4. **Channel reach** — 10+ channels (Feishu, DingTalk, Slack, Discord, Telegram, WeChat, WhatsApp, web, TUI, desktop). deepseek-harness is CLI + web only.
-
-5. **Deployment** — Distributed multi-process with A2A protocol, ZMQ, PostgreSQL. deepseek-harness is single-machine.
-
-6. **Skill evolution** — SkillNet + auto-evolution + dreaming makes the agent system improve over time. deepseek-harness skills are static markdown documents.
-
 ---
 
 ## 17. Key Gaps in Both (for "best harness" target)
 
-| Gap | deepseek-harness status | jiuwenswarm status |
+| Gap | jiuwenswarm status | deepseek-harness status |
 |---|---|---|
-| Stream-native parallel tool execution | ✅ Done | ❌ Missing |
-| Semantic context truncation | Compaction (turn-level) | LLM summarization (blunt) |
-| Prompt injection in tool outputs | Not addressed | SecurityRail (partial) |
+| Stream-native parallel tool execution | ❌ Missing | ✅ Done |
+| Semantic context truncation | LLM summarization (blunt) | Compaction (turn-level) |
+| Prompt injection in tool outputs | SecurityRail (partial) | Not addressed |
 | Snapshot/restore mid-trajectory | Not built | Not built |
-| Structured pre-execution safety policy | Waterfall (pluggable) | Rails (per-type) |
-| Cross-agent shared memory | Not built | ChromaDB (per-agent) |
-| Tool output size management | Per-tool render | Not explicit |
+| Structured pre-execution safety policy | Rails (per-type) | Waterfall (pluggable) |
+| Cross-agent shared memory | SQLite-vec + FTS5 (per-agent) | Not built |
+| Tool output size management | Not explicit | Per-tool render + spill + tool-result pruner |
 | Contamination-resistant eval | Out of scope | Out of scope |
 
 ---
@@ -734,3 +756,64 @@ For building the **best runtime harness**, the synthesis is:
 - Take deepseek-harness's **architectural model** (plugin seams, durable event log, parallel tool scheduler, streaming parser, OS-native sandbox)
 - Take jiuwenswarm's **feature surface** (tool breadth, multi-agent specializations, cross-session memory, channel connectors)
 - Add what both are missing: stream-native parallel action, semantic truncation, mid-trajectory snapshot/restore, structured pre-execution policy engine
+
+---
+
+## Appendix A: deepseek-harness internals deep-dive
+
+Reference for the deepseek-harness internals referenced from [§2.2](#22-deepseek-harness). Facts are checked against the repository source.
+
+### A.1 Boot and composition: profiles, bundles, patches
+
+A running `dsh` is a **plugin tree** composed at boot, not a fixed program. `boot()` (in `app-boot`) creates a root `Context`, installs the Loader, mounts a root `cordis:include` entry pointing at a `cordis.yml`, and waits for every entry to reach the ACTIVE fiber state (`assertEntriesActivated`); a failing entry fails the boot loudly.
+
+Composition is **layered and patchable**:
+- A **profile** (`$DSH_HOME/profiles/<name>/`) is a directory with a `package.json` (`dsh.profile.bundles` list) and a user `cordis.patch.yml`.
+- A **bundle** is a package declaring `dsh.bundle.patch` (e.g. `dsh-base`, `dsh-web-app`, `dsh-headless`). `dsh-base` is the shared core of every profile.
+- Layers apply in order over an empty entry list: each bundle in the profile's list, then the profile patch, then the home-level patch, then any `--patch` overlay. A patch targets a row by `id` and replaces its whole `config`, or inserts new rows. The composition is visible via `dsh --profile <name> --dump-config`.
+
+Every component — LLM adapter, tool registry, sandbox, persistence backend, session, and the agent loop itself — is a row in this tree, so each is replaceable or patchable from configuration. Loading is **service-availability driven**, not row order: a plugin (fiber) stays PENDING until all its declared `inject` services exist, then activates.
+
+### A.2 Request reconstructability
+
+Beyond "model-visible ⟺ logged", the harness makes every model request a **pure function of the session log**. Each step appends a `request/header` event recording the frozen call config (provider/model/effort/sampling), the rendered system prompt, and the assembled tool schemas; `foldRequestHeader` reconstructs the current header from the latest snapshot. `deriveMessages()` projects model history from the surface, so the assembled `GenerateOptions` for any step can be rebuilt purely from the log. This is the basis of the snapshot/replay tests and the "no separate prompt construction that could diverge" claim.
+
+### A.3 Event taxonomy
+
+Events are typed via declaration-merging and split into three domains with distinct guarantees:
+- **Session events** (durable, append-only): `turn/start`, `turn/end`, `step/start`, `step/end`, `user/message`, `assistant/chunk`, `assistant/message`, `tool/call`, `tool/result`, plus log-only records. These survive reload and are the source of truth.
+- **Agent events** (`agent/*`, live): `agent/created`, `agent/disposed`, `agent/pre-step`, `agent/request`, `agent/request-error`, `agent/turn-stopping`, inbox notifications — carry a live `Agent`, for observing/intercepting work in flight.
+- **Capability events** (`tools/*`, `llm/*`, `fs/*`, `session/*`, ...): attach policy and adapters to a seam without importing the loop.
+
+**Model-visible ⟺ logged** is structural: `SessionEventMap` is merge-extensible, so a new model-visible input requires a new session event, rendered from the log.
+
+### A.4 Scope and initiator machinery
+
+Per-agent isolation is not just a session: each `Agent` owns a **scope** (`agent.ctx`) — a scoped registration layer such that tools, prompt sections, variables, restrictions, and listeners registered through it are visible only to that agent and unwind when it disposes. Registrations are **effects**: every contribution returns a disposer, and unloading a fiber tears its contributions down in reverse order.
+
+The **initiating agent** is carried through a process-local asynchronous driver chain via two `AsyncLocalStorage`s. `ctx.agents.withInitiator(agent, op)` runs `op` with that agent inherited; `requireInitiator()` recovers it. This is how tool execution knows which agent it runs on behalf of (`ToolExecutionInput.agent`) without passing it explicitly through every call. Ambient presence is attribution, never authorization — identity stays explicit at worker/process/wire boundaries.
+
+### A.5 Capability seams and extension points
+
+A **capability seam** is complete only when it has all three roles: Service Definition (the `ctx.<key>` class), one or more Providers, and one or more Consumers. The `shell` group is canonical: `dsh-shell` (definition), `dsh-bash-local`/`dsh-bash-sandbox` (providers), `dsh-tool-bash` (consumer).
+
+New behavior attaches to documented seams rather than editing the loop:
+- Add a model provider → register an adapter on `ctx.llm`.
+- Add a model-facing capability → register on `ctx.tools`; its schema joins prompt assembly.
+- Add shell execution → register a `ctx.shell` backend (the local one spawns through `ctx.subprocess`).
+- Add persistent terminals → register a `ctx.terminals` backend plus `dsh-tool-terminal`.
+- Add filesystem access/policy → register a `ctx.fs` provider or listen to `fs/*`.
+- Confine processes → use a `ctx.sandbox` backend; consumers wrap argv before spawning.
+- Add human commands → register on `ctx.commands` (dispatch without a model turn).
+- Add background work → register on `ctx.jobs`.
+- Intercept a request/tool/turn → its `agent/*` or `tools/*` event.
+
+Composed seams that sit on these primitives:
+- **Agent presets** — a per-session composition (a reusable cordis.yml fragment) giving one session a different capability set; `composeFrom` joins a child agent to the *same standing composition* its parent already runs on, so a child inherits the parent's exact plugins, tools, and prompt sections.
+- **Subagents** — a named-provider seam, from a fresh in-process child agent (`spawn`) to a fork of the parent's history (`fork`). The `subagent` / `subagent_fork` tools delegate; a continuable background child exposes `send_message` and `list_agents`. Delegation records a durable `delegationDepth` and parent lineage in the session header. The experimental **Agent Teams** seam layers a durable roster, task board, and mailbox over continuable subagents.
+- **Hook bridges** — `dsh-hooks` bridges the **Claude Code** and **Codex** hook wire protocols (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop) onto the harness's typed `agent/*` extension points; a `hooks/` wire-protocol library shares the parsing.
+- **Plan / goal / workflow / compaction / spill** — plan mode as logged `plan/mode` state; persisted same-session goals with `active/paused/blocked/complete` phases driven by `goal-round-driver`; runnable scripts on a worker-thread provider; turn-archival compaction with a tool-result pruner that preserves the model-visible result within a budget; and spill-to-locator for large text results.
+
+### A.6 Persistence durability contract
+
+A persistence backend stores every event losslessly — including `assistant/chunk`, because `seq` must stay contiguous (chunks cannot be filtered from the canonical log). The base profile uses the JSONL backend under `$DSH_HOME/sessions`; SQLite is an alternative backend. `Session.append` validates every event as lossless JSON at the append site, so a bad event never enters the log and cannot silently diverge from disk. Crash recovery closes an orphaned open turn with synthetic closers; a torn physical tail is discarded.
