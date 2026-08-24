@@ -808,6 +808,32 @@ class SkillManager:
 
         skill_dir, base_meta = self._locate_skill_for_get(name)
         if skill_dir is None or base_meta is None:
+            # 外部技能目录回退：skills.get 需能读取 config 外部技能（source=external）
+            for ext_dir in self._external_skill_dirs:
+                if not ext_dir.exists():
+                    continue
+                for child in ext_dir.iterdir():
+                    if child.name.startswith("_") or not child.is_dir():
+                        continue
+                    md = self._try_find_skill_file(child)
+                    if md is None:
+                        continue
+                    meta = self._parse_skill_md(md)
+                    if meta is None:
+                        continue
+                    if meta.get("name") == md.stem:
+                        meta["name"] = child.name
+                    if meta.get("name") != name:
+                        continue
+                    meta["content"] = meta.pop("body", "")
+                    meta["file_path"] = meta.pop("path", "")
+                    meta["source"] = "external"
+                    meta["is_builtin"] = False
+                    meta["is_builtin_source"] = False
+                    meta["has_evolutions"] = (child / _EVOLUTION_FILENAME).is_file()
+                    meta["external_dir"] = str(ext_dir)
+                    self._apply_enabled_config(meta, name)
+                    return meta
             raise SkillRpcError(ERROR_SKILL_NOT_FOUND, f"未找到 skill: {name}")
 
         read_root = skill_dir
@@ -882,33 +908,6 @@ class SkillManager:
             )
         return meta
 
-        # 在外部技能目录中查找
-        for ext_dir in self._external_skill_dirs:
-            if not ext_dir.exists():
-                continue
-            for child in ext_dir.iterdir():
-                if child.name.startswith("_") or not child.is_dir():
-                    continue
-                md = self._try_find_skill_file(child)
-                if md is None:
-                    continue
-                meta = self._parse_skill_md(md)
-                if meta is None:
-                    continue
-                if meta.get("name") == md.stem:
-                    meta["name"] = child.name
-                if meta.get("name") == name:
-                    meta["content"] = meta.pop("body", "")
-                    meta["file_path"] = meta.pop("path", "")
-                    meta["source"] = "external"
-                    meta["is_builtin"] = False
-                    meta["is_builtin_source"] = False
-                    meta["has_evolutions"] = (child / _EVOLUTION_FILENAME).is_file()
-                    meta["external_dir"] = str(ext_dir)
-                    self._apply_enabled_config(meta, meta.get("name", ""))
-                    return meta
-
-        raise ValueError(f"未找到 skill: {name}")
     async def handle_skills_versions_list(self, params: dict) -> dict:
         """列出指定 Skill 的本地产品版本（只读 ``.archive``，不访问 SkillHub）."""
         name = str((params or {}).get("name") or "").strip()
