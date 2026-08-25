@@ -108,8 +108,8 @@ Fires on every failed tool call, classifies the failure, and makes a small isola
 repair call so the agent can retry instead of failing.
 
 **Autonomous execution mode.**
-Injects a high-priority directive for unattended environments telling the agent to act
-decisively and finish without waiting for confirmation.
+Injects a high-priority directive for unattended environments (mainly CI and benchmark
+runs) telling the agent to act decisively and finish without waiting for confirmation.
 
 ---
 
@@ -138,6 +138,7 @@ produces a clean partial result instead of being cut off.
 ## Choose: The best attempt
 
 Run the same task several times with different strategies, then select the best result.
+Both items here are optional — a new option, not turned on by default.
 
 **Multi-rollout.**
 Runs several copies of the same general-purpose subagent in parallel, each given a
@@ -168,15 +169,3 @@ LLM call in the hot path.
 **Autonomous Topology Mutation — memory guard.**
 Classifies memory into privacy levels and redacts content above a model's ceiling before
 every call, as a code gate.
-
----
-
-## Notes
-
-- **Pairings:** same-fix-across-repos issue pairs (event-loop, team verification,
-  swarmflow activity) are each written as one bullet.
-- **Deduplication:** anything also described in the cortex is listed from the issues
-  only (e.g. Team Verification, swarmflow activity, step-back, circuit breaker, failure
-  memory, dedup). The cortex is only mentioned for items that have no corresponding issue.
-- **Coverage:** lists the tasks relevant (or partially relevant) to TeamPulse, ordered
-  most-relevant-first for a reviewer who built TeamPulse; non-relevant tasks are omitted.
