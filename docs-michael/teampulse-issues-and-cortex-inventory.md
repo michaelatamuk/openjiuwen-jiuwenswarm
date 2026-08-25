@@ -15,8 +15,9 @@ Instruments team agents with OpenTelemetry, exporting live execution traces
 (team → iteration → LLM call / tool) and per-task multi-agent contribution aggregation.
 
 **TraceHound.**
-Analyzes finished session-history files and reports diagnostics across eleven dimensions
-including session flow, tool success rates, and error categorisation.
+Analyzes finished session files and reports diagnostics across eleven areas, including
+session flow, tool success rates, and error types. It also comes with a graphical app that
+lets you open a session and click through it to debug problems interactively.
 
 **Standalone DeepAgent observability.**
 Adds tracing and observability for standalone DeepAgents, separate from the team-mode
