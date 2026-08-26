@@ -2,7 +2,7 @@
  * TraceHoundPanel — TraceHound / Trajectory Viewer
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
 
@@ -1773,7 +1773,7 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
   'chat.error':         { icon: '🚨', label: 'Error',            color: '#ef4444' },
 };
 
-function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[] }) {
+function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAll = false }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[]; expandAll?: boolean }) {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
   const icon  = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : meta.icon;
@@ -1800,18 +1800,15 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
   const um = key === 'chat.usage_metadata' ? rec.metadata?.usage_metadata : null;
   const hasUsageError = um && (um.code !== 0 || um.err_msg);
 
-  // Collapse only when content is actually long (>1200 chars) or for data-heavy event types
-  const COLLAPSE_THRESHOLD = 1200;
-  const needsExpand =
-    (key === 'chat.reasoning' && bodyText.length > COLLAPSE_THRESHOLD)
-    || (key === 'chat.tool_call' && fmtArgs.length > COLLAPSE_THRESHOLD)
-    || (key === 'chat.tool_update' && ((rec.arguments ?? '').length > COLLAPSE_THRESHOLD || (rec.result ?? '').length > COLLAPSE_THRESHOLD))
-    || (key === 'chat.tool_result' && (!!rec.error_type || resultText.length > COLLAPSE_THRESHOLD))
-    || (key === 'chat.file' && bodyText.length > COLLAPSE_THRESHOLD)
-    || (key === 'chat.error' && bodyText.length > COLLAPSE_THRESHOLD)
-    || key === 'chat.usage_summary';
-
-  const [expanded, setExpanded] = useState(false);
+  // Cards collapse to their header by default so a long trajectory fits on one
+  // screen. The user message is always visible; every other card (final
+  // response, tool calls/results, reasoning, usage) starts collapsed.
+  // `expandAll` (turn-level toggle) overrides; a manual header click pins a
+  // per-card override until the toggle is flipped (parent remounts via key).
+  const isUser = key === 'user';
+  const collapsible = !isUser;
+  const [local, setLocal] = useState<boolean | null>(null);
+  const shown = local ?? (expandAll ? true : false);
 
   // displayDelta is computed by TurnDetailView and tracks time within the current attempt,
   // resetting to 0 at the start of each attempt (after a gap separator). This avoids showing
@@ -1821,8 +1818,8 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
     <div style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
       {/* Header */}
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: needsExpand ? 'pointer' : 'default', background: danger ? '#fef2f2' : color + '08' }}
-        onClick={() => needsExpand && setExpanded(x => !x)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: collapsible ? 'pointer' : 'default', background: danger ? '#fef2f2' : color + '08' }}
+        onClick={() => collapsible && setLocal(!shown)}
       >
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headerLabel}</span>
@@ -1850,48 +1847,41 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
             </Tooltip>
           )}
         </span>
-        {needsExpand && <span style={{ fontSize: 12, color: '#9ca3af' }}>{expanded ? '▲' : '▼'}</span>}
+        {collapsible && <span style={{ fontSize: 12, color: '#9ca3af' }}>{shown ? '▲' : '▼'}</span>}
         {rec.id && <span style={{ fontSize: 9, color: '#d1d5db', fontFamily: 'monospace', flexShrink: 0 }} title={`Record ID: ${rec.id}`}>{rec.id.slice(-12)}</span>}
       </div>
 
-      {/* Always-visible body for user + response */}
-      {(key === 'user' || key === 'chat.final') && bodyText && (
+      {/* User message — always visible */}
+      {key === 'user' && bodyText && (
+        <div style={{ padding: '8px 12px', fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${color}22` }}>
+          {bodyText}
+        </div>
+      )}
+      {/* Final response — collapsed by default, expand on click */}
+      {key === 'chat.final' && shown && bodyText && (
         <div style={{ padding: '8px 12px', fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${color}22` }}>
           {bodyText}
         </div>
       )}
 
-      {/* Tool call: show formatted args inline when short, expanded when long */}
-      {key === 'chat.tool_call' && !needsExpand && fmtArgs && (
-        <pre style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', borderTop: `1px solid ${color}22` }}>
-          {fmtArgs}
-        </pre>
-      )}
-      {key === 'chat.tool_call' && needsExpand && expanded && (
+      {/* Tool call arguments (shown when expanded) */}
+      {key === 'chat.tool_call' && shown && fmtArgs && (
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
           <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {fmtArgs}
           </pre>
         </div>
       )}
-      {key === 'chat.tool_call' && needsExpand && !expanded && (
-        <div style={{ padding: '4px 12px 8px', fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderTop: `1px solid ${color}22` }}>
-          {fmtArgs.slice(0, 200)}…
-        </div>
-      )}
 
-      {/* Tool result: show inline when short */}
-      {key === 'chat.tool_result' && !needsExpand && resultText && (
-        <pre style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: isFailedToolResult(rec) ? '#b91c1c' : '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', borderTop: `1px solid ${color}22`, maxHeight: 200, overflowY: 'auto' }}>
-          {resultText}
-        </pre>
-      )}
-      {key === 'chat.tool_result' && needsExpand && expanded && (
+      {/* Tool result (shown when expanded) */}
+      {key === 'chat.tool_result' && shown && (resultText || isFailedToolResult(rec)) && (
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
           {isFailedToolResult(rec) && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}><strong>{rec.error_type ? `❌ ${rec.error_type}` : '❌ Tool call failed'}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}</div>}
-          <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
-            {resultText}
-          </pre>
+          {resultText && (
+            <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: isFailedToolResult(rec) ? '#b91c1c' : '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
+              {resultText}
+            </pre>
+          )}
           {rec.raw_output && (
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Raw Output</div>
@@ -1905,24 +1895,9 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
           )}
         </div>
       )}
-      {key === 'chat.tool_result' && needsExpand && !expanded && (
-        <div style={{ padding: '4px 12px 8px', fontSize: 12, color: isFailedToolResult(rec) ? '#dc2626' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderTop: `1px solid ${color}22` }}>
-          {isFailedToolResult(rec) ? '❌ ' : ''}{rec.error_type ? `${rec.error_type}: ` : ''}{resultText.slice(0, 200)}…
-        </div>
-      )}
 
-      {/* Other types: short content inline, long content collapsible */}
-      {(key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') && !needsExpand && bodyText && (
-        <div style={{ padding: '6px 12px 8px', fontSize: 12, color: key === 'chat.error' ? '#dc2626' : '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${color}22`, fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal' }}>
-          {bodyText}
-        </div>
-      )}
-      {(key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') && needsExpand && !expanded && (
-        <div style={{ padding: '4px 12px 8px', fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderTop: `1px solid ${color}22` }}>
-          {bodyText.slice(0, 200)}…
-        </div>
-      )}
-      {(key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') && needsExpand && expanded && (
+      {/* Other types (reasoning / file / error) — shown when expanded */}
+      {(key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') && shown && bodyText && (
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
           <div style={{ fontSize: 13, color: key === 'chat.error' ? '#dc2626' : '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal' }}>
             {bodyText}
@@ -1930,9 +1905,10 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
         </div>
       )}
 
-      {/* Usage metadata: LLM call details */}
+      {/* Usage metadata: LLM call details (collapsed with the card; hidden via
+          display so the prompt/response sub-components keep stable hooks) */}
       {key === 'chat.usage_metadata' && um && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22`, display: shown ? 'block' : 'none' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
             {um.model_name && <span style={chipStyle}>{um.model_name}</span>}
             {um.input_tokens != null && um.output_tokens != null && (
@@ -1940,7 +1916,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
             )}
             {um.cache_tokens != null && um.cache_tokens > 0 && <span style={chipStyle}>🔄 {um.cache_tokens.toLocaleString()} cache</span>}
           </div>
-          {expanded && (
+          {shown && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
               {rec.metadata?.total_latency_ms != null && (
                 <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.metadata.total_latency_ms / 1000).toFixed(2)}s total</span></Tooltip>
@@ -2127,6 +2103,15 @@ function TurnDetailView() {
   const turn = turns.find(t => t.turn_id === selectedTurnId);
   const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
 
+  // Collapse-by-default: every card shows only its header until expanded.
+  // "Expand all" overrides; toggling it remounts the cards (key) to reset
+  // any per-card manual overrides.
+  const [expandAll, setExpandAll] = useState(false);
+
+  // Floating "back to top" button — the panel div is the scroll container.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [showTop, setShowTop] = useState(false);
+
   // Build display list: inject idle gap separators between records that are far apart.
   // Also compute displayDelta per record = elapsed time within the current attempt,
   // resetting to 0 whenever a new attempt starts (right after a separator).
@@ -2245,7 +2230,7 @@ function TurnDetailView() {
   };
 
   return (
-    <div style={panelStyle}>
+    <div style={panelStyle} ref={panelRef} onScroll={e => setShowTop((e.target as HTMLDivElement).scrollTop > 400)}>
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <button style={btnStyle} onClick={back}>← Back</button>
@@ -2294,6 +2279,11 @@ function TurnDetailView() {
               </span>
             </Tooltip>
           )}
+          <button style={{ ...btnStyle, fontSize: 12 }} title={expandAll ? 'Collapse all cards back to their headers' : 'Expand all cards to show their full content'}
+            onClick={() => setExpandAll(x => !x)}
+            disabled={turnRecords.length === 0}>
+            {expandAll ? '⏫ Collapse all' : '⏬ Expand all'}
+          </button>
           <button style={{ ...btnStyle, fontSize: 12 }} title="Download this turn's trajectory as JSON"
             onClick={() => downloadJson(turnRecords, `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}.json`)}
             disabled={turnRecords.length === 0}>
@@ -2329,8 +2319,19 @@ function TurnDetailView() {
           );
         }
         const rec = item.rec;
-        return <RecordCard key={rec.id ?? `${rec.event_type}-${i}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} />;
+        return <RecordCard key={`${expandAll}:${rec.id ?? `${rec.event_type}-${i}`}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} expandAll={expandAll} />;
       })}
+
+      {/* Floating scroll-to-top button (appears once scrolled down) */}
+      {showTop && (
+        <button
+          onClick={() => panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{ position: 'fixed', bottom: 28, right: 28, width: 40, height: 40, borderRadius: '50%', border: '1px solid #d1d5db', background: '#ffffff', color: '#374151', fontSize: 18, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title="Scroll to top"
+        >
+          ↑
+        </button>
+      )}
     </div>
   );
 }
