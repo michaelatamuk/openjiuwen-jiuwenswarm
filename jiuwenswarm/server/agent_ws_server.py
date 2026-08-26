@@ -10561,6 +10561,291 @@ class AgentWebSocketServer:
         return "general"
 
     @staticmethod
+    def _tool_result_failed(rec: dict) -> bool:
+        """Return True when a chat.tool_result record represents a failed tool call.
+
+        Failure signals: a top-level ``error_type`` field (solo-mode run-level
+        failures) or a ``result`` repr string containing ``success=False``
+        (team-mode tool errors are serialized into the result string without
+        structured error fields).
+        """
+        if rec.get("error_type"):
+            return True
+        result = rec.get("result")
+        return isinstance(result, str) and "success=False" in result
+
+    @staticmethod
+    def _tool_result_error_text(rec: dict) -> str:
+        """Best-effort extraction of the error message from a chat.tool_result record.
+
+        Team-mode tool failures serialize ``result`` as a Python-repr string such as
+        ``success=False data=None error="Tool execution error: ..."`` with no
+        top-level ``error``/``error_type`` fields. This helper recovers the error
+        text from the repr so TraceHound can surface it.
+        """
+        for field in ("error", "error_detail"):
+            val = rec.get(field)
+            if val is None:
+                continue
+            s = str(val)
+            if s:
+                return s
+        result = rec.get("result")
+        if isinstance(result, str):
+            import ast
+            import re
+            match = re.search(r"\berror\s*=\s*", result)
+            if match:
+                tail = result[match.end():]
+                try:
+                    val = ast.literal_eval(tail)
+                except (SyntaxError, ValueError):
+                    val = None
+                if isinstance(val, str):
+                    return val
+                if val is not None:
+                    return str(val)
+                # Truncated / malformed repr: try to strip a quoted value.
+                if tail[:1] in ("'", '"'):
+                    q = tail[0]
+                    close = tail[1:].rfind(q)
+                    if close >= 0:
+                        return tail[1 : 1 + close]
+        return ""
+
+    def _replay_build_turns(self, records: list[dict]) -> list[dict]:
+        """Group history records into turn summaries (TraceHound turns_list).
+
+        Turns are keyed by ``request_id``; each turn aggregates tool calls,
+        failures, errors, usage and final responses. Failed team-mode tool
+        results (``result`` string containing ``success=False``) increment
+        ``tool_failures`` and set ``error_category``; ``chat.tracer_agent``
+        error events enrich ``error_category`` without double-counting.
+        """
+        turns: dict[str, dict] = {}
+        for rec in records:
+            rid: str = rec.get("request_id") or rec.get("id", "")
+            if not rid:
+                continue
+            # Skip pure noise records from creating their own turn slot
+            et = rec.get("event_type", "")
+            if et in self._REPLAY_NOISE_EVENTS and rid not in turns:
+                continue
+            if rid not in turns:
+                turns[rid] = {
+                    "turn_id": rid,
+                    "turn_index": 0,
+                    "user_content": "",
+                    "user_message_full": "",
+                    "timestamp": rec.get("timestamp", 0),
+                    "tool_names": [],
+                    "skill_names": [],
+                    "has_final": False,
+                    "has_error": False,
+                    "error_category": None,
+                    "total_tokens": 0,
+                    "tool_failures": 0,
+                    "file_count": 0,
+                    "final_length": 0,
+                    "duration_seconds": 0.0,
+                    "retry_count": 0,
+                    "was_deferred": False,
+                    "query_type": "general",
+                    "mode": rec.get("mode"),
+                    "llm_call_count": 0,
+                    "event_count": 0,
+                    "llm_calls_detail": [],
+                    "tool_calls_detail": [],
+                    "tool_updates_detail": [],
+                    "tool_results_detail": [],
+                    "assistant_responses": [],
+                    "context_usage_percent": 0.0,
+                    "context_window_tokens": 0,
+                    "cache_tokens": 0,
+                    "input_cost": 0.0,
+                    "output_cost": 0.0,
+                    "total_cost": 0.0,
+                    "total_latency_ms": 0.0,
+                    "ttft_ms": 0.0,
+                    "tpot_ms": 0.0,
+                    "models_used": set(),
+                    "_first_ts": None,
+                    "_last_ts": None,
+                }
+            role = rec.get("role", "")
+            ts: float = rec.get("timestamp") or 0.0
+
+            # Duration tracking + event counting (ignore noise events)
+            if et not in self._REPLAY_NOISE_EVENTS:
+                turns[rid]["event_count"] += 1
+                if ts:
+                    if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
+                        turns[rid]["_first_ts"] = ts
+                    if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
+                        turns[rid]["_last_ts"] = ts
+
+            if role == "user":
+                raw_q = (rec.get("content") or "")
+                if not turns[rid]["user_content"]:
+                    turns[rid]["user_content"] = raw_q[:120]
+                    turns[rid]["query_type"] = self._replay_classify_query(raw_q)
+                if not turns[rid]["user_message_full"]:
+                    turns[rid]["user_message_full"] = raw_q
+            elif et == "chat.processing_status_deferred":
+                turns[rid]["was_deferred"] = True
+            elif et == "chat.tool_call":
+                tc = rec.get("tool_call") or {}
+                tn = rec.get("tool_name") or tc.get("name", "")
+                if tn:
+                    turns[rid]["tool_names"].append(tn)
+                turns[rid]["tool_calls_detail"].append({
+                    "name": tc.get("name", ""),
+                    "arguments": tc.get("arguments", ""),
+                    "tool_call_id": tc.get("tool_call_id", "") or tc.get("id", ""),
+                })
+            elif et == "chat.tool_update":
+                turns[rid]["tool_updates_detail"].append({
+                    "tool_name": rec.get("tool_name", ""),
+                    "tool_call_id": rec.get("tool_call_id", ""),
+                    "arguments": rec.get("arguments", ""),
+                    "status": rec.get("status", ""),
+                })
+            elif et == "chat.tool_result":
+                failed = self._tool_result_failed(rec)
+                if failed:
+                    turns[rid]["tool_failures"] += 1
+                    if not turns[rid]["error_category"]:
+                        err_text = self._tool_result_error_text(rec)
+                        if err_text:
+                            turns[rid]["error_category"] = self._replay_classify_error(err_text)
+                tname = rec.get("tool_name", "")
+                if tname == "recommend_skill":
+                    result_str = rec.get("result") or ""
+                    for sk in self._extract_skill_names_from_result(result_str):
+                        if sk not in turns[rid]["skill_names"]:
+                            turns[rid]["skill_names"].append(sk)
+                parsed_error = self._tool_result_error_text(rec)
+                turns[rid]["tool_results_detail"].append({
+                    "tool_name": tname,
+                    "tool_call_id": rec.get("tool_call_id", ""),
+                    "result": rec.get("result", ""),
+                    "failed": failed,
+                    "error_type": rec.get("error_type"),
+                    "error_detail": rec.get("error_detail") or (parsed_error or None),
+                    "error": rec.get("error"),
+                })
+            elif et == "chat.tracer_agent":
+                # Structured agent-trace events mirror the surrounding tool_result;
+                # only use them to enrich error_category, never to double-count
+                # tool_failures or escalate the turn to a hard error.
+                if rec.get("status") == "error" and not turns[rid]["error_category"]:
+                    err = rec.get("error")
+                    if isinstance(err, dict):
+                        err_text = err.get("message") or err.get("error") or json.dumps(err)
+                    elif err is not None:
+                        err_text = str(err)
+                    else:
+                        err_text = ""
+                    if err_text:
+                        turns[rid]["error_category"] = self._replay_classify_error(err_text)
+            elif et == "chat.final":
+                turns[rid]["retry_count"] = turns[rid].get("retry_count", 0) + 1
+                content = rec.get("content") or ""
+                content_len = len(content)
+                if content_len > 0:
+                    turns[rid]["has_final"] = True
+                    turns[rid]["final_length"] = content_len
+                    turns[rid]["assistant_responses"].append(content)
+            elif et == "chat.usage_metadata":
+                turns[rid]["llm_call_count"] += 1
+                md = rec.get("metadata", {}) or {}
+                um = md.get("usage_metadata", {}) or {}
+                turns[rid]["llm_calls_detail"].append({
+                    "model_name": um.get("model_name", ""),
+                    "input_tokens": um.get("input_tokens", 0),
+                    "output_tokens": um.get("output_tokens", 0),
+                    "total_tokens": um.get("total_tokens", 0),
+                    "cache_tokens": um.get("cache_tokens", 0),
+                    "input_cost": um.get("input_cost", 0.0),
+                    "output_cost": um.get("output_cost", 0.0),
+                    "total_cost": um.get("total_cost", 0.0),
+                    "total_latency_ms": md.get("total_latency_ms", 0.0),
+                    "ttft_ms": md.get("ttft_ms", 0.0),
+                    "tpot_ms": md.get("tpot_ms", 0.0),
+                    "result_type": md.get("result_type", ""),
+                    "code": um.get("code", 0),
+                    "err_msg": um.get("err_msg", ""),
+                })
+                turns[rid]["cache_tokens"] += um.get("cache_tokens", 0) or 0
+                turns[rid]["input_cost"] += um.get("input_cost", 0.0) or 0.0
+                turns[rid]["output_cost"] += um.get("output_cost", 0.0) or 0.0
+                turns[rid]["total_cost"] += um.get("total_cost", 0.0) or 0.0
+                turns[rid]["total_latency_ms"] += md.get("total_latency_ms", 0.0) or 0.0
+                turns[rid]["ttft_ms"] += md.get("ttft_ms", 0.0) or 0.0
+                turns[rid]["tpot_ms"] += md.get("tpot_ms", 0.0) or 0.0
+                model = um.get("model_name")
+                if model:
+                    turns[rid]["models_used"].add(model)
+            elif et == "chat.usage_summary":
+                usage = rec.get("usage") or {}
+                tokens = rec.get("total_tokens") or usage.get("total_tokens") or 0
+                turns[rid]["total_tokens"] += tokens
+                turns[rid]["context_usage_percent"] = rec.get("usage_percent", 0.0) or 0.0
+                turns[rid]["context_window_tokens"] = rec.get("context_window_tokens", 0) or 0
+            elif et == "chat.file":
+                turns[rid]["file_count"] += 1
+            elif et == "chat.error" or (role == "assistant" and rec.get("error")):
+                if not turns[rid]["has_error"]:
+                    error_text = (
+                        rec.get("error")
+                        or rec.get("error_detail")
+                        or rec.get("content")
+                        or ""
+                    )
+                    turns[rid]["has_error"] = True
+                    turns[rid]["error_category"] = self._replay_classify_error(error_text)
+
+        # Filter ghost turns (no user message, no error, no content — pure noise)
+        def _is_real_turn(t: dict) -> bool:
+            return bool(
+                t.get("user_content")
+                or t.get("has_error")
+                or t.get("has_final")
+                or t.get("tool_names")
+            )
+
+        real_turns = [t for t in turns.values() if _is_real_turn(t)]
+
+        # Post-process: assign sequential index, compute duration + outcome, strip temp keys
+        for idx, turn in enumerate(real_turns):
+            turn["turn_index"] = idx
+            first = turn.pop("_first_ts", None)
+            last = turn.pop("_last_ts", None)
+            if first and last and last > first:
+                turn["duration_seconds"] = round(last - first, 1)
+            turn["outcome"] = self._replay_outcome(turn)
+            turn["issues"] = self._replay_issues(turn)
+            # Convert sets to lists for JSON serialization
+            turn["models_used"] = sorted(turn.get("models_used", set()))
+            # Compute average latencies per turn
+            llm_count = turn.get("llm_call_count", 0)
+            if llm_count > 0:
+                turn["avg_total_latency_ms"] = round(turn.get("total_latency_ms", 0.0) / llm_count, 1)
+                turn["avg_ttft_ms"] = round(turn.get("ttft_ms", 0.0) / llm_count, 1)
+                turn["avg_tpot_ms"] = round(turn.get("tpot_ms", 0.0) / llm_count, 1)
+            else:
+                turn["avg_total_latency_ms"] = 0.0
+                turn["avg_ttft_ms"] = 0.0
+                turn["avg_tpot_ms"] = 0.0
+            # Backward-compat: keep quality_* if any downstream code references it,
+            # but they are no longer the primary fields.
+            turn.pop("quality_score", None)
+            turn.pop("quality_label", None)
+            turn.pop("quality_breakdown", None)
+
+        return real_turns
+
+    @staticmethod
     def _replay_outcome(turn: dict) -> str:
         """Return an explicit, human-readable outcome for this turn.
 
@@ -10640,205 +10925,7 @@ class AgentWebSocketServer:
         try:
             if action == "turns_list":
                 records = read_session_history_records(session_id)
-                turns: dict[str, dict] = {}
-                for rec in records:
-                    rid: str = rec.get("request_id") or rec.get("id", "")
-                    if not rid:
-                        continue
-                    # Skip pure noise records from creating their own turn slot
-                    et = rec.get("event_type", "")
-                    if et in self._REPLAY_NOISE_EVENTS and rid not in turns:
-                        continue
-                    if rid not in turns:
-                        turns[rid] = {
-                            "turn_id": rid,
-                            "turn_index": 0,
-                            "user_content": "",
-                            "user_message_full": "",
-                            "timestamp": rec.get("timestamp", 0),
-                            "tool_names": [],
-                            "skill_names": [],
-                            "has_final": False,
-                            "has_error": False,
-                            "error_category": None,
-                            "total_tokens": 0,
-                            "tool_failures": 0,
-                            "file_count": 0,
-                            "final_length": 0,
-                            "duration_seconds": 0.0,
-                            "retry_count": 0,
-                            "was_deferred": False,
-                            "query_type": "general",
-                            "mode": rec.get("mode"),
-                            "llm_call_count": 0,
-                            "event_count": 0,
-                            "llm_calls_detail": [],
-                            "tool_calls_detail": [],
-                            "tool_updates_detail": [],
-                            "tool_results_detail": [],
-                            "assistant_responses": [],
-                            "context_usage_percent": 0.0,
-                            "context_window_tokens": 0,
-                            "cache_tokens": 0,
-                            "input_cost": 0.0,
-                            "output_cost": 0.0,
-                            "total_cost": 0.0,
-                            "total_latency_ms": 0.0,
-                            "ttft_ms": 0.0,
-                            "tpot_ms": 0.0,
-                            "models_used": set(),
-                            "_first_ts": None,
-                            "_last_ts": None,
-                        }
-                    role = rec.get("role", "")
-                    ts: float = rec.get("timestamp") or 0.0
-
-                    # Duration tracking + event counting (ignore noise events)
-                    if et not in self._REPLAY_NOISE_EVENTS:
-                        turns[rid]["event_count"] += 1
-                        if ts:
-                            if turns[rid]["_first_ts"] is None or ts < turns[rid]["_first_ts"]:
-                                turns[rid]["_first_ts"] = ts
-                            if turns[rid]["_last_ts"] is None or ts > turns[rid]["_last_ts"]:
-                                turns[rid]["_last_ts"] = ts
-
-                    if role == "user":
-                        raw_q = (rec.get("content") or "")
-                        if not turns[rid]["user_content"]:
-                            turns[rid]["user_content"] = raw_q[:120]
-                            turns[rid]["query_type"] = self._replay_classify_query(raw_q)
-                        if not turns[rid]["user_message_full"]:
-                            turns[rid]["user_message_full"] = raw_q
-                    elif et == "chat.processing_status_deferred":
-                        turns[rid]["was_deferred"] = True
-                    elif et == "chat.tool_call":
-                        tc = rec.get("tool_call") or {}
-                        tn = rec.get("tool_name") or tc.get("name", "")
-                        if tn:
-                            turns[rid]["tool_names"].append(tn)
-                        turns[rid]["tool_calls_detail"].append({
-                            "name": tc.get("name", ""),
-                            "arguments": tc.get("arguments", ""),
-                            "tool_call_id": tc.get("tool_call_id", "") or tc.get("id", ""),
-                        })
-                    elif et == "chat.tool_update":
-                        turns[rid]["tool_updates_detail"].append({
-                            "tool_name": rec.get("tool_name", ""),
-                            "tool_call_id": rec.get("tool_call_id", ""),
-                            "arguments": rec.get("arguments", ""),
-                            "status": rec.get("status", ""),
-                        })
-                    elif et == "chat.tool_result":
-                        if rec.get("error_type"):
-                            turns[rid]["tool_failures"] += 1
-                        tname = rec.get("tool_name", "")
-                        if tname == "recommend_skill":
-                            result_str = rec.get("result") or ""
-                            for sk in self._extract_skill_names_from_result(result_str):
-                                if sk not in turns[rid]["skill_names"]:
-                                    turns[rid]["skill_names"].append(sk)
-                        turns[rid]["tool_results_detail"].append({
-                            "tool_name": tname,
-                            "tool_call_id": rec.get("tool_call_id", ""),
-                            "result": rec.get("result", ""),
-                            "error_type": rec.get("error_type"),
-                            "error_detail": rec.get("error_detail"),
-                            "error": rec.get("error"),
-                        })
-                    elif et == "chat.final":
-                        turns[rid]["retry_count"] = turns[rid].get("retry_count", 0) + 1
-                        content = rec.get("content") or ""
-                        content_len = len(content)
-                        if content_len > 0:
-                            turns[rid]["has_final"] = True
-                            turns[rid]["final_length"] = content_len
-                            turns[rid]["assistant_responses"].append(content)
-                    elif et == "chat.usage_metadata":
-                        turns[rid]["llm_call_count"] += 1
-                        md = rec.get("metadata", {}) or {}
-                        um = md.get("usage_metadata", {}) or {}
-                        turns[rid]["llm_calls_detail"].append({
-                            "model_name": um.get("model_name", ""),
-                            "input_tokens": um.get("input_tokens", 0),
-                            "output_tokens": um.get("output_tokens", 0),
-                            "total_tokens": um.get("total_tokens", 0),
-                            "cache_tokens": um.get("cache_tokens", 0),
-                            "input_cost": um.get("input_cost", 0.0),
-                            "output_cost": um.get("output_cost", 0.0),
-                            "total_cost": um.get("total_cost", 0.0),
-                            "total_latency_ms": md.get("total_latency_ms", 0.0),
-                            "ttft_ms": md.get("ttft_ms", 0.0),
-                            "tpot_ms": md.get("tpot_ms", 0.0),
-                            "result_type": md.get("result_type", ""),
-                            "code": um.get("code", 0),
-                            "err_msg": um.get("err_msg", ""),
-                        })
-                        turns[rid]["cache_tokens"] += um.get("cache_tokens", 0) or 0
-                        turns[rid]["input_cost"] += um.get("input_cost", 0.0) or 0.0
-                        turns[rid]["output_cost"] += um.get("output_cost", 0.0) or 0.0
-                        turns[rid]["total_cost"] += um.get("total_cost", 0.0) or 0.0
-                        turns[rid]["total_latency_ms"] += md.get("total_latency_ms", 0.0) or 0.0
-                        turns[rid]["ttft_ms"] += md.get("ttft_ms", 0.0) or 0.0
-                        turns[rid]["tpot_ms"] += md.get("tpot_ms", 0.0) or 0.0
-                        model = um.get("model_name")
-                        if model:
-                            turns[rid]["models_used"].add(model)
-                    elif et == "chat.usage_summary":
-                        usage = rec.get("usage") or {}
-                        tokens = rec.get("total_tokens") or usage.get("total_tokens") or 0
-                        turns[rid]["total_tokens"] += tokens
-                        turns[rid]["context_usage_percent"] = rec.get("usage_percent", 0.0) or 0.0
-                        turns[rid]["context_window_tokens"] = rec.get("context_window_tokens", 0) or 0
-                    elif et == "chat.file":
-                        turns[rid]["file_count"] += 1
-                    elif et == "chat.error" or (role == "assistant" and rec.get("error")):
-                        if not turns[rid]["has_error"]:
-                            error_text = (
-                                rec.get("error")
-                                or rec.get("error_detail")
-                                or rec.get("content")
-                                or ""
-                            )
-                            turns[rid]["has_error"] = True
-                            turns[rid]["error_category"] = self._replay_classify_error(error_text)
-
-                # Filter ghost turns (no user message, no error, no content — pure noise)
-                def _is_real_turn(t: dict) -> bool:
-                    return bool(
-                        t.get("user_content")
-                        or t.get("has_error")
-                        or t.get("has_final")
-                        or t.get("tool_names")
-                    )
-
-                real_turns = [t for t in turns.values() if _is_real_turn(t)]
-
-                # Post-process: assign sequential index, compute duration + outcome, strip temp keys
-                for idx, turn in enumerate(real_turns):
-                    turn["turn_index"] = idx
-                    first = turn.pop("_first_ts", None)
-                    last = turn.pop("_last_ts", None)
-                    if first and last and last > first:
-                        turn["duration_seconds"] = round(last - first, 1)
-                    turn["outcome"] = self._replay_outcome(turn)
-                    turn["issues"] = self._replay_issues(turn)
-                    # Convert sets to lists for JSON serialization
-                    turn["models_used"] = sorted(turn.get("models_used", set()))
-                    # Compute average latencies per turn
-                    llm_count = turn.get("llm_call_count", 0)
-                    if llm_count > 0:
-                        turn["avg_total_latency_ms"] = round(turn.get("total_latency_ms", 0.0) / llm_count, 1)
-                        turn["avg_ttft_ms"] = round(turn.get("ttft_ms", 0.0) / llm_count, 1)
-                        turn["avg_tpot_ms"] = round(turn.get("tpot_ms", 0.0) / llm_count, 1)
-                    else:
-                        turn["avg_total_latency_ms"] = 0.0
-                        turn["avg_ttft_ms"] = 0.0
-                        turn["avg_tpot_ms"] = 0.0
-                    # Backward-compat: keep quality_* if any downstream code references it,
-                    # but they are no longer the primary fields.
-                    turn.pop("quality_score", None)
-                    turn.pop("quality_label", None)
-                    turn.pop("quality_breakdown", None)
+                real_turns = self._replay_build_turns(records)
 
                 # Session-level aggregate stats
                 all_tokens = sum(t.get("total_tokens", 0) for t in real_turns)
@@ -11053,6 +11140,13 @@ class AgentWebSocketServer:
                 err = (rec.get("error") or rec.get("content") or "")[:300]
                 if err:
                     t["errors"].append(err)
+            elif et == "chat.tool_result" and AgentWebSocketServer._tool_result_failed(rec):
+                who = (
+                    rec.get("member_name")
+                    or ("team_leader" if rec.get("role") == "leader" else rec.get("role") or "agent")
+                )
+                err = AgentWebSocketServer._tool_result_error_text(rec) or "(tool failed)"
+                t["errors"].append(f"[{who}] {rec.get('tool_name') or 'tool'} failed: {err}"[:300])
             elif et == "chat.tool_call":
                 tool = rec.get("tool_name") or ""
                 if tool:

@@ -112,6 +112,7 @@ export interface ToolResultDetail {
   tool_name: string;
   tool_call_id: string;
   result: string;
+  failed?: boolean;
   error_type?: string | null;
   error_detail?: string | null;
   error?: string | null;

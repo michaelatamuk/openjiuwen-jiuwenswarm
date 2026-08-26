@@ -245,6 +245,13 @@ function downloadText(content: string, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function isFailedToolResult(rec: HistoryRecord): boolean {
+  if (rec.error_type) return true;
+  // Team-mode tool errors serialize into the result string with no structured
+  // error fields (e.g. `success=False data=None error='...'`).
+  return typeof rec.result === 'string' && rec.result.includes('success=False');
+}
+
 function recordHeaderLabel(rec: HistoryRecord): string {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
@@ -262,7 +269,7 @@ function recordHeaderLabel(rec: HistoryRecord): string {
 function recordToText(rec: HistoryRecord, allRecords?: HistoryRecord[]): string {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
-  const icon = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
+  const icon = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : meta.icon;
   const header = `${icon} ${recordHeaderLabel(rec)}`;
   const lines: string[] = [header];
 
@@ -279,6 +286,7 @@ function recordToText(rec: HistoryRecord, allRecords?: HistoryRecord[]): string 
   } else if (key === 'chat.tool_result') {
     const resultText = rec.result ?? rec.content ?? '';
     if (rec.error_type) lines.push('', `Error type: ${rec.error_type}${rec.error_detail ? ` — ${rec.error_detail}` : ''}`);
+    else if (isFailedToolResult(rec)) lines.push('', 'Error: tool call failed (success=False)');
     if (resultText) lines.push('', 'Result:', resultText);
     if (rec.raw_output) {
       try { lines.push('', 'Raw Output:', JSON.stringify(rec.raw_output, null, 2)); }
@@ -702,16 +710,36 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   turns.forEach(t => { const o = t.outcome; if (o && o in outcomes) (outcomes as Record<string, number>)[o]++; });
 
   const errCats: Record<string, number> = {};
-  turns.filter(t => t.has_error && t.error_category).forEach(t => {
+  // Includes turns whose error_category was set from a failed tool result, not
+  // only hard chat.error turns — so tool failures surface in the stats pane.
+  turns.filter(t => t.error_category).forEach(t => {
     errCats[t.error_category!] = (errCats[t.error_category!] ?? 0) + 1;
   });
 
   const qtCounts: Record<string, number> = {};
   turns.forEach(t => { if (t.query_type) qtCounts[t.query_type] = (qtCounts[t.query_type] ?? 0) + 1; });
 
-  const toolCounts: Record<string, number> = {};
-  turns.forEach(t => t.tool_names.forEach(n => { toolCounts[n] = (toolCounts[n] ?? 0) + 1; }));
-  const topTools = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  // Tool usage: merge tool_call names with tool results so failure counts are
+  // visible per tool, and never hide a tool that had failures.
+  interface ToolUsage { calls: number; results: number; failed: number; }
+  const toolUsage: Record<string, ToolUsage> = {};
+  turns.forEach(t => {
+    t.tool_names.forEach(n => {
+      const u = (toolUsage[n] ??= { calls: 0, results: 0, failed: 0 });
+      u.calls += 1;
+    });
+    (t.tool_results_detail ?? []).forEach(r => {
+      const key = r.tool_name || '(unknown)';
+      const u = (toolUsage[key] ??= { calls: 0, results: 0, failed: 0 });
+      u.results += 1;
+      if (r.failed || (typeof r.result === 'string' && r.result.includes('success=False'))) u.failed += 1;
+    });
+  });
+  const topTools = Object.entries(toolUsage).sort((a, b) => b[1].calls - a[1].calls).slice(0, 8);
+  const extraFailedTools = Object.entries(toolUsage)
+    .filter(([n, u]) => u.failed > 0 && !topTools.some(([tn]) => tn === n))
+    .sort((a, b) => b[1].failed - a[1].failed);
+  const displayTools = [...topTools, ...extraFailedTools];
 
   const skillCounts: Record<string, number> = {};
   turns.forEach(t => t.skill_names.forEach(n => { skillCounts[n] = (skillCounts[n] ?? 0) + 1; }));
@@ -729,6 +757,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   });
 
   const totalRetries = turns.reduce((s, t) => s + Math.max(0, t.retry_count - 1), 0);
+  const totalToolFailures = turns.reduce((s, t) => s + (t.tool_failures ?? 0), 0);
 
   return (
     <div style={{ marginBottom: 20, padding: '14px 16px', background: '#fafafa', borderRadius: 8, border: '1px solid #e5e7eb' }}>
@@ -742,6 +771,7 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
           { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'User messages that ended in a hard error' },
           { label: 'Deferred', value: String(outcomes.deferred), color: outcomes.deferred > 0 ? '#6366f1' : '#9ca3af', tip: 'Messages sent while agent was busy — never processed' },
           { label: 'Total retries', value: String(totalRetries), color: totalRetries > 0 ? '#f59e0b' : '#9ca3af', tip: 'How many times the agent retried a failed request' },
+          { label: 'Tool failures', value: String(totalToolFailures), color: totalToolFailures > 0 ? '#dc2626' : '#9ca3af', tip: 'Tool calls that returned success=False or an error' },
           ...(longestCascade >= 2 ? [{ label: 'Longest error streak', value: `${longestCascade} user msgs`, color: '#ef4444', tip: 'Consecutive user messages all with errors' }] : []),
         ].map((s, i) => (
           <Tooltip key={i} text={s.tip ?? ''}>
@@ -770,9 +800,11 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
                 const color = OUTCOME_COLORS[outcome] ?? '#9ca3af';
                 const pct = outcomeScore(t);
                 const h = Math.max(4, pct * 28);
+                const failedCount = t.tool_failures ?? 0;
+                const failedTip = failedCount > 0 ? `\n${failedCount} tool call${failedCount !== 1 ? 's' : ''} failed` : '';
                 return (
-                  <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}\n${t.user_content || '(no message)'}`}>
-                    <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1 }} />
+                  <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}${failedTip}\n${t.user_content || '(no message)'}`}>
+                    <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1, boxShadow: failedCount > 0 ? 'inset 0 0 0 1px #dc2626' : undefined }} />
                   </Tooltip>
                 );
               })}
@@ -996,17 +1028,19 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
         )}
 
         {/* Tool frequency */}
-        {topTools.length > 0 && (
+        {displayTools.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Tool usage</div>
-            {topTools.map(([tool, count]) => (
+            {displayTools.map(([tool, u]) => (
               <div key={tool} style={{ marginBottom: 5 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '78%' }}>🔧 {tool}</span>
-                  <span style={{ color: '#6b7280', flexShrink: 0 }}>×{count}</span>
+                  <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>🔧 {tool}</span>
+                  <span style={{ color: u.failed > 0 ? '#dc2626' : '#6b7280', flexShrink: 0 }}>
+                    {u.failed > 0 ? `×${u.calls} (${u.failed} failed)` : `×${u.calls}`}
+                  </span>
                 </div>
                 <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
-                  <div style={{ height: 3, width: `${(count / topTools[0][1]) * 100}%`, background: '#f59e0b', borderRadius: 2 }} />
+                  <div style={{ height: 3, width: `${(u.calls / displayTools[0][1].calls) * 100}%`, background: u.failed > 0 ? '#ef4444' : '#f59e0b', borderRadius: 2 }} />
                 </div>
               </div>
             ))}
@@ -1686,8 +1720,8 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
 function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[] }) {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
-  const icon  = key === 'chat.tool_result' ? (rec.error_type ? '❌' : '✅') : meta.icon;
-  const color = (key === 'chat.tool_result' && rec.error_type) ? '#ef4444' : meta.color;
+  const icon  = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : meta.icon;
+  const color = (key === 'chat.tool_result' && isFailedToolResult(rec)) ? '#ef4444' : meta.color;
   const danger = isDangerous(rec);
 
   const headerLabel = recordHeaderLabel(rec);
@@ -1791,13 +1825,13 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
 
       {/* Tool result: show inline when short */}
       {key === 'chat.tool_result' && !needsExpand && resultText && (
-        <pre style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', borderTop: `1px solid ${color}22`, maxHeight: 200, overflowY: 'auto' }}>
+        <pre style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: isFailedToolResult(rec) ? '#b91c1c' : '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', borderTop: `1px solid ${color}22`, maxHeight: 200, overflowY: 'auto' }}>
           {resultText}
         </pre>
       )}
       {key === 'chat.tool_result' && needsExpand && expanded && (
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
-          {rec.error_type && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}><strong>{rec.error_type}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}</div>}
+          {isFailedToolResult(rec) && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}><strong>{rec.error_type ? `❌ ${rec.error_type}` : '❌ Tool call failed'}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}</div>}
           <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
             {resultText}
           </pre>
@@ -1815,8 +1849,8 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
         </div>
       )}
       {key === 'chat.tool_result' && needsExpand && !expanded && (
-        <div style={{ padding: '4px 12px 8px', fontSize: 12, color: rec.error_type ? '#dc2626' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderTop: `1px solid ${color}22` }}>
-          {rec.error_type ? `${rec.error_type}: ` : ''}{resultText.slice(0, 200)}…
+        <div style={{ padding: '4px 12px 8px', fontSize: 12, color: isFailedToolResult(rec) ? '#dc2626' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderTop: `1px solid ${color}22` }}>
+          {isFailedToolResult(rec) ? '❌ ' : ''}{rec.error_type ? `${rec.error_type}: ` : ''}{resultText.slice(0, 200)}…
         </div>
       )}
 
