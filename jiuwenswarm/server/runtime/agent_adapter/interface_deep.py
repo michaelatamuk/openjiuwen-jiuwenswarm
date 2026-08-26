@@ -4404,6 +4404,22 @@ class JiuWenSwarmDeepAdapter:
             )
             return []
 
+    def _skill_retrieval_scan_dirs(self) -> list[str]:
+        """SkillRetrievalToolkit scan roots: the centralized ``_skill_scan_dirs``
+        plus any configured external skill dirs.
+
+        The shared taxonomy index stays stable (``index_skill_directories`` is
+        still the agent skills dir only); external dirs are task-provided and
+        join the live session scan so external skills remain discoverable.
+        """
+        roots = self._skill_scan_dirs()
+        if self._skill_manager is not None:
+            for p in self._skill_manager.get_external_skill_dirs():
+                d = str(p)
+                if d and d not in roots:
+                    roots.append(d)
+        return roots
+
     def _get_or_create_skill_retrieval_toolkit(self) -> SkillRetrievalToolkit:
         toolkit = self._skill_retrieval_toolkit
         if toolkit is not None:
@@ -4411,7 +4427,7 @@ class JiuWenSwarmDeepAdapter:
         toolkit = SkillRetrievalToolkit(
             # Match SkillUseRail exactly: selected MCP-bundled Skills are part
             # of this session's directory, while unselected MCPs stay hidden.
-            skill_directories=self._skill_scan_dirs,
+            skill_directories=self._skill_retrieval_scan_dirs,
             # Shared taxonomy generations are built only from JiuwenSwarm's
             # stable installed inventory. Session-selected MCP Skills remain
             # visible through the live provider above and appear in a stale
@@ -5313,31 +5329,6 @@ class JiuWenSwarmDeepAdapter:
             SkillUseRail.SKILL_MODE_ALL,
         )
         return SkillUseRail.SKILL_MODE_ALL
-
-    def _visible_skill_names_for_list_skill(self) -> set[str]:
-        """Return the skill names exposed by the matching SkillUseRail setup."""
-        disabled_skills = set(
-            self._skill_manager.list_execution_disabled_skills()
-            if self._skill_manager is not None
-            else []
-        )
-        # Include main skills dir plus any configured external dirs.
-        all_dirs = [get_agent_skills_dir()]
-        if self._skill_manager is not None:
-            all_dirs.extend(self._skill_manager.get_external_skill_dirs())
-        visible: set[str] = set()
-        for skills_dir in all_dirs:
-            try:
-                for child in sorted(skills_dir.iterdir(), key=lambda path: path.name.lower()):
-                    if not child.is_dir() or child.name.startswith("_") or child.name.startswith("."):
-                        continue
-                    if child.name in disabled_skills:
-                        continue
-                    if (child / "SKILL.md").is_file():
-                        visible.add(child.name)
-            except OSError as exc:
-                logger.warning("[JiuWenSwarmDeepAdapter] failed to scan visible skills in %s: %s", skills_dir, exc)
-        return visible
 
     @staticmethod
     def _build_response_prompt_rail() -> ResponsePromptRail | None:

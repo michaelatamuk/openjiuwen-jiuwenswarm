@@ -85,7 +85,6 @@ from jiuwenswarm.agents.harness.common.rails.skill_retrieval_prompt_rail import 
 )
 from jiuwenswarm.agents.harness.common.memory.config import is_memory_enabled
 from jiuwenswarm.agents.harness.common.tools import (
-    SkillRetrievalToolkit,
     SkillToolkit,
 )
 from jiuwenswarm.agents.harness.common.tools.acp_chat import acp_chat
@@ -2311,9 +2310,11 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         if not self._skill_retrieval_tools_enabled_for_runtime():
             return None
         try:
+            toolkit = self._get_or_create_skill_retrieval_toolkit()
             return SkillRetrievalPromptRail(
-                manager=self._skill_manager,
-                visible_skill_names=self._visible_skill_names_for_list_skill,
+                toolkit=toolkit,
+                session_scope=self._skill_retrieval_session_scope(),
+                config_base=self._config_base_cache,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -2328,10 +2329,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             logger.info("[JiuwenSwarmCodeAdapter] SkillRetrievalToolkit skipped: disabled")
             return None
         try:
-            toolkit = SkillRetrievalToolkit(
-                manager=self._skill_manager,
-                visible_skill_names=self._visible_skill_names_for_list_skill,
-            )
+            toolkit = self._get_or_create_skill_retrieval_toolkit()
             tools = mark_stateless(toolkit.get_tools())
             self._skill_retrieval_tools = tools
             self._skill_retrieval_tools_registered = bool(tools)
