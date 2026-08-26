@@ -15,7 +15,6 @@ from typing import Any
 from openjiuwen.core.foundation.tool import ToolCard
 from openjiuwen.harness.rails import (
     SysOperationRail,
-    HeartbeatRail,
     SecurityRail,
     TaskPlanningRail,
 )
@@ -92,7 +91,6 @@ RAIL_WHITELIST = frozenset({
     "JiuSwarmStreamEventRail",
     "TaskPlanningRail",
     "SecurityRail",
-    "HeartbeatRail",
     "AvatarPromptRail",
     "StructuredAskUserRail",
     "FileSystemRail",
@@ -122,9 +120,7 @@ TOOL_WHITELIST = frozenset({
     "search_skill",
     "install_skill",
     "uninstall_skill",
-    "skill_index_build",
-    "skill_branch_explore",
-    "skill_branch_peek",
+    "skill_index",
     "user_todos",
     "get_user_location",
     "create_note",
@@ -248,13 +244,6 @@ def build_member_rails(
         logger.info("[TeamRuntime] SecurityRail created")
     except Exception as exc:
         logger.warning("[TeamRuntime] SecurityRail failed: %s", exc)
-
-    try:
-        rail = HeartbeatRail()
-        rails_list.append(rail)
-        logger.info("[TeamRuntime] HeartbeatRail created")
-    except Exception as exc:
-        logger.warning("[TeamRuntime] HeartbeatRail failed: %s", exc)
 
     try:
         rail = AvatarPromptRail()

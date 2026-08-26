@@ -85,7 +85,6 @@ from jiuwenswarm.agents.harness.common.rails.skill_retrieval_prompt_rail import 
 )
 from jiuwenswarm.agents.harness.common.memory.config import is_memory_enabled
 from jiuwenswarm.agents.harness.common.tools import (
-    SkillRetrievalToolkit,
     SkillToolkit,
 )
 from jiuwenswarm.agents.harness.common.tools.acp_chat import acp_chat
@@ -188,11 +187,8 @@ class CodingMemoryRail(_BaseCodingMemoryRail):
     @staticmethod
     def _is_read_only(inputs: Any) -> bool:
         """Support callback inputs and lightweight test doubles."""
-        values = []
-        for name in ("is_cron", "is_heartbeat"):
-            value = getattr(inputs, name, False)
-            values.append(value() if callable(value) else value)
-        return any(values)
+        value = getattr(inputs, "is_cron", False)
+        return bool(value() if callable(value) else value)
 
     def uninit(self, agent: Any) -> None:
         """Cancel pending initialization before the rail is torn down."""
@@ -384,7 +380,6 @@ _RAIL_BUILD_NAMES: dict[str, str] = {
     "SysOperationRail": "_build_filesystem_rail",
     "FileSystemRail": "_build_filesystem_rail",     # 别名映射
     "SkillUseRail": "_build_skill_rail_via_config",
-    "HeartbeatRail": "_build_heartbeat_rail",
     "AvatarPromptRail": "_build_avatar_rail",
     "TaskPlanningRail": "_build_task_planning_rail",
     "SubagentRail": "_build_subagent_rail",
@@ -513,6 +508,10 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         "AgentModeRail", "StructuredAskUserRail", "ConfirmInterruptRail",
         "FileSystemRail",  # 别名
         "SubagentRail",
+        # The AgentServer-owned Job Heartbeat Rail is always mounted above.
+        # Treat a same-named resource entry as fixed so it cannot be mounted a
+        # second time (or resolve to agent-core's deprecated RunKind rail).
+        "HeartbeatRail",
     })
 
     def __init__(self) -> None:
@@ -1408,6 +1407,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             _RailBuildInfo("_skill_retrieval_prompt_rail", self._build_skill_retrieval_prompt_rail),
             _RailBuildInfo("_stream_event_rail", self._build_stream_event_rail),
             _RailBuildInfo("_security_rail", self._build_security_rail),
+            _RailBuildInfo("_heartbeat_rail", self._build_heartbeat_rail),
             _RailBuildInfo("_lsp_rail", self._build_lsp_rail_via_config),
             _RailBuildInfo("_project_memory_rail", self._build_project_memory_rail),
             _RailBuildInfo(
@@ -2288,7 +2288,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             logger.warning("[JiuwenSwarmCodeAdapter] skill_toolkit build failed: %s", exc)
             return None
 
-    def _skill_retrieval_tools_enabled_for_runtime(
+    def _resolve_skill_retrieval_session_enabled(
         self,
         config_base: dict[str, Any] | None = None,
     ) -> bool:
@@ -2298,23 +2298,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             if isinstance(config_base, dict)
             else self._active_code_config()
         )
-        retrieval_config = config.get("symphony", {}).get("skill_retrieval", {})
-        enabled_value = (
-            retrieval_config.get("enabled", False)
-            if isinstance(retrieval_config, dict)
-            else False
-        )
-        if isinstance(enabled_value, str):
-            enabled = enabled_value.strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-                "enabled",
-            }
-        else:
-            enabled = bool(enabled_value)
-        if not enabled:
+        if not super()._resolve_skill_retrieval_session_enabled(config):
             return False
         configured_tools = config.get("modes", {}).get("code", {}).get("tools") or []
         return "skill_retrieval" in configured_tools
@@ -2326,9 +2310,11 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         if not self._skill_retrieval_tools_enabled_for_runtime():
             return None
         try:
+            toolkit = self._get_or_create_skill_retrieval_toolkit()
             return SkillRetrievalPromptRail(
-                manager=self._skill_manager,
-                visible_skill_names=self._visible_skill_names_for_list_skill,
+                toolkit=toolkit,
+                session_scope=self._skill_retrieval_session_scope(),
+                config_base=self._config_base_cache,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -2343,10 +2329,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             logger.info("[JiuwenSwarmCodeAdapter] SkillRetrievalToolkit skipped: disabled")
             return None
         try:
-            toolkit = SkillRetrievalToolkit(
-                manager=self._skill_manager,
-                visible_skill_names=self._visible_skill_names_for_list_skill,
-            )
+            toolkit = self._get_or_create_skill_retrieval_toolkit()
             tools = mark_stateless(toolkit.get_tools())
             self._skill_retrieval_tools = tools
             self._skill_retrieval_tools_registered = bool(tools)

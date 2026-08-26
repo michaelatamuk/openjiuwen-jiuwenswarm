@@ -77,6 +77,23 @@ ERROR_SKILL_IMPORT_OVERWRITE_REQUIRED = "SKILL_IMPORT_OVERWRITE_REQUIRED"
 ERROR_SKILL_BUILTIN_READ_ONLY = "SKILL_BUILTIN_READ_ONLY"
 ERROR_SKILL_ALREADY_EXISTS = "SKILL_ALREADY_EXISTS"
 ERROR_SKILL_UNSAFE_PATH = "SKILL_UNSAFE_PATH"
+ERROR_SKILL_FILE_TOO_LARGE = "SKILL_FILE_TOO_LARGE"
+ERROR_SKILL_KNOWLEDGE_INPUT_CONFLICT = "SKILL_KNOWLEDGE_INPUT_CONFLICT"
+ERROR_SKILL_PUBLISH_VERSION_CONFLICT = "SKILL_PUBLISH_VERSION_CONFLICT"
+ERROR_SKILLHUB_INSTALL_FAILED = "SKILLHUB_INSTALL_FAILED"
+ERROR_SKILLHUB_PUBLISH_FAILED = "SKILLHUB_PUBLISH_FAILED"
+ERROR_SKILLHUB_DETAIL_NOT_FOUND = "SKILLHUB_DETAIL_NOT_FOUND"
+ERROR_SKILLHUB_DETAIL_FAILED = "SKILLHUB_DETAIL_FAILED"
+
+_DETAIL_KEY_SKILLHUB_DETAIL_NOT_FOUND = "skills.swarmskillshub.errors.detailNotFound"
+_DETAIL_KEY_SKILLHUB_DETAIL_FAILED = "skills.swarmskillshub.errors.detailFailed"
+
+# ZIP 解包配额（防 zip bomb）
+_SKILL_ZIP_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+_SKILL_ZIP_MAX_TOTAL_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+_SKILL_ZIP_MAX_FILE_COUNT = 5000
+_SKILL_ZIP_MAX_SINGLE_FILE_BYTES = 32 * 1024 * 1024
+_SKILL_ZIP_MAX_PATH_DEPTH = 20
 
 
 class SkillRpcError(Exception):
@@ -1331,40 +1348,384 @@ class SkillManager:
             "disabled_skills": sorted(disabled),
         }
 
-    async def handle_skills_retrieval_status(self, params: dict) -> dict:
-        """返回本地 skill retrieval 索引状态."""
-        from jiuwenswarm.symphony.skill_retrieval import get_skill_retrieval_status
+    def _skill_retrieval_records(self):
+        """Return the same live enabled inventory used by Agent discovery."""
 
-        return await asyncio.to_thread(get_skill_retrieval_status, self)
+        from openjiuwen.symphony.discovery import scan_skill_directories
+        from jiuwenswarm.agents.harness.common.tools.skill_retrieval_toolkits import (
+            skill_sources_from_manager,
+        )
+
+        return scan_skill_directories(
+            [str(self._skills_dir)],
+            disabled_skills=self.list_execution_disabled_skills(),
+            source_by_name=skill_sources_from_manager(self),
+        ).items
+
+    def _skill_taxonomy_runtime(self, records_provider=None):
+        from jiuwenswarm.agents.harness.common.tools.skill_retrieval_toolkits import (
+            skill_retrieval_artifact_root,
+        )
+        from jiuwenswarm.symphony.skill_retrieval import SkillTaxonomyRuntime
+
+        return SkillTaxonomyRuntime(
+            records_provider=records_provider or self._skill_retrieval_records,
+            index_root=skill_retrieval_artifact_root(),
+        )
+
+    @staticmethod
+    def _skill_retrieval_mode() -> str:
+        from jiuwenswarm.common.config import get_config
+
+        config = get_config() or {}
+        symphony = config.get("symphony") if isinstance(config, dict) else {}
+        retrieval = (
+            symphony.get("skill_retrieval") if isinstance(symphony, dict) else {}
+        )
+        raw = (
+            str(retrieval.get("mode") or "auto").strip().lower()
+            if isinstance(retrieval, dict)
+            else "auto"
+        )
+        return "flat" if raw == "flat" else "auto"
+
+    async def handle_skills_retrieval_status(self, params: dict) -> dict:
+        """Return the live flat/indexed directory and optional build status."""
+
+        params = params if isinstance(params, dict) else {}
+        session_profile = params.get("_session_profile")
+        session_profile = session_profile if isinstance(session_profile, dict) else None
+        from dataclasses import replace
+
+        from jiuwenswarm.common.config import get_config
+        from jiuwenswarm.agents.harness.common.tools.skill_retrieval_toolkits import (
+            build_discovery_settings,
+            is_skill_retrieval_enabled,
+            is_skill_retrieval_index_enabled,
+            resolve_skill_retrieval_strategy,
+            skill_retrieval_artifact_root,
+            skill_sources_from_manager,
+        )
+        from openjiuwen.symphony.discovery import SkillFS, scan_skill_directories
+
+        disabled = {str(name) for name in self.list_execution_disabled_skills()}
+        all_documents = await asyncio.to_thread(
+            scan_skill_directories,
+            [str(self._skills_dir)],
+            source_by_name=skill_sources_from_manager(self),
+        )
+        visible_documents = tuple(
+            record
+            for record in all_documents.items
+            if record.worker_id not in disabled
+        )
+        config = get_config() or {}
+        configured_enabled = is_skill_retrieval_enabled(config)
+        configured_index_enabled = is_skill_retrieval_index_enabled(config)
+        enabled = configured_enabled
+        index_enabled = configured_index_enabled
+        artifact_root = skill_retrieval_artifact_root()
+        settings = build_discovery_settings(config)
+        flat_directory = SkillFS(
+            lambda: visible_documents,
+            settings=replace(settings, use_existing_index=False),
+            artifact_root=artifact_root,
+            index_root=artifact_root,
+        )
+        snapshot = flat_directory.prompt_snapshot()
+        candidate_scale = "small" if snapshot.all_candidates_included else "large"
+        directory = flat_directory
+        if enabled and index_enabled and candidate_scale == "large":
+            directory = SkillFS(
+                lambda: visible_documents,
+                settings=replace(settings, use_existing_index=True),
+                artifact_root=artifact_root,
+                index_root=artifact_root,
+            )
+        build = await asyncio.to_thread(
+            self._skill_taxonomy_runtime(lambda: visible_documents).status,
+        )
+        artifact = directory.artifact
+        profile_scope = "default"
+        profile_session_id = ""
+        profile_model_name = ""
+        pinned_index_revision = ""
+        estimated_candidate_tokens = snapshot.estimated_candidate_tokens
+        candidate_budget_tokens = snapshot.candidate_budget_tokens
+        layout = artifact.layout
+        index_state = artifact.index_state
+        searchable_count = len(visible_documents)
+        profile_recovery_error = ""
+        if session_profile is not None:
+            profile_scope = "session"
+            profile_session_id = str(session_profile.get("session_id") or "")
+            profile_model_name = str(session_profile.get("model_name") or "")
+            pinned_index_revision = str(
+                session_profile.get("pinned_index_revision") or ""
+            )
+            enabled = configured_enabled and bool(session_profile.get("enabled"))
+            index_enabled = bool(session_profile.get("index_enabled"))
+            if session_profile.get("candidate_scale") in {"small", "large"}:
+                candidate_scale = str(session_profile["candidate_scale"])
+            estimated_candidate_tokens = max(
+                0,
+                int(
+                    session_profile.get("estimated_candidate_tokens")
+                    or estimated_candidate_tokens
+                ),
+            )
+            candidate_budget_tokens = max(
+                1,
+                int(
+                    session_profile.get("candidate_budget_tokens")
+                    or candidate_budget_tokens
+                ),
+            )
+            if session_profile.get("layout") in {"flat", "tree"}:
+                layout = str(session_profile["layout"])
+            if session_profile.get("index_state") in {
+                "missing",
+                "fresh",
+                "stale",
+                "not-required",
+            }:
+                index_state = str(session_profile["index_state"])
+            searchable_count = max(
+                0,
+                int(session_profile.get("searchable_count") or searchable_count),
+            )
+            profile_recovery_error = str(
+                session_profile.get("profile_recovery_error") or ""
+            )
+        else:
+            models = config.get("models") if isinstance(config, dict) else {}
+            defaults = models.get("defaults") if isinstance(models, dict) else None
+            if isinstance(defaults, list):
+                entry = next(
+                    (
+                        item
+                        for item in defaults
+                        if isinstance(item, dict) and item.get("is_default") is True
+                    ),
+                    next((item for item in defaults if isinstance(item, dict)), {}),
+                )
+                client = entry.get("model_client_config") or {}
+                if isinstance(client, dict):
+                    profile_model_name = str(client.get("model_name") or "")
+        public_index_state = (
+            "not-required" if enabled and candidate_scale == "small" else index_state
+        )
+        requested_strategy = (
+            str(session_profile.get("effective_strategy") or "")
+            if session_profile is not None
+            else ""
+        )
+        effective_strategy = "legacy"
+        if enabled:
+            effective_strategy = (
+                requested_strategy
+                if requested_strategy
+                in {"small_full", "large_flat", "indexed", "indexed_stale"}
+                else resolve_skill_retrieval_strategy(
+                    enabled=True,
+                    candidate_scale=candidate_scale,
+                    layout=layout,
+                    index_state=public_index_state,
+                )
+            )
+        index_recommended = (
+            enabled and candidate_scale == "large" and not index_enabled
+        )
+        build_supported = (
+            configured_enabled
+            and configured_index_enabled
+            and candidate_scale == "large"
+        )
+        logs = build.get("logs") if isinstance(build.get("logs"), list) else []
+        return {
+            "enabled": enabled,
+            "index_enabled": index_enabled,
+            "mode": self._skill_retrieval_mode(),
+            "candidate_scale": candidate_scale,
+            "estimated_candidate_tokens": estimated_candidate_tokens,
+            "candidate_budget_tokens": candidate_budget_tokens,
+            "effective_strategy": effective_strategy,
+            "layout": layout,
+            "index_state": public_index_state,
+            "index_required": index_recommended,
+            "index_recommended": index_recommended,
+            "build_supported": build_supported,
+            "build_status": str(build.get("status") or "idle"),
+            "build_stage": str(build.get("stage") or ""),
+            "build_progress": float(build.get("progress") or 0.0),
+            "build_message": str(build.get("message") or ""),
+            "build_error": str(build.get("error") or ""),
+            "build_id": str(build.get("build_id") or ""),
+            "build_logs": logs[-50:],
+            "index_exists": bool(build.get("index_exists")),
+            "fresh": bool(build.get("fresh")),
+            "indexed_count": int(build.get("indexed_count") or 0),
+            "installed_count": all_documents.count,
+            "installed_enabled_count": len(visible_documents),
+            "searchable_count": searchable_count,
+            "tool_name": "skill_index",
+            "profile_scope": profile_scope,
+            "profile_session_id": profile_session_id,
+            "profile_model_name": profile_model_name,
+            "pinned_index_revision": pinned_index_revision,
+            "profile_recovery_error": profile_recovery_error,
+        }
 
     async def handle_skills_retrieval_index_build(self, params: dict) -> dict:
-        """构建或复用本地 skill retrieval 索引."""
-        from jiuwenswarm.symphony.skill_retrieval.build_coordinator import start_skill_index_build
+        """Explicitly start Symphony's background taxonomy builder."""
 
-        params = params or {}
-        force = bool(params.get("force", False))
-        source = str(params.get("source") or "web").strip() or "web"
-        return await asyncio.to_thread(start_skill_index_build, self, force=force, source=source)
+        status = await self.handle_skills_retrieval_status(params)
+        from jiuwenswarm.common.config import get_config
+        from jiuwenswarm.agents.harness.common.tools.skill_retrieval_toolkits import (
+            is_skill_retrieval_enabled,
+            is_skill_retrieval_index_enabled,
+        )
+
+        config = get_config() or {}
+        if not is_skill_retrieval_enabled(config):
+            return {
+                "success": False,
+                "error_code": "skill_retrieval_disabled",
+                "effective_strategy": "legacy",
+                "build_status": status["build_status"],
+                "detail": "Enable Skill retrieval before building its taxonomy.",
+            }
+        if not is_skill_retrieval_index_enabled(config):
+            return {
+                "success": False,
+                "error_code": "skill_index_disabled",
+                "effective_strategy": status["effective_strategy"],
+                "build_status": status["build_status"],
+                "detail": "Enable the Skill taxonomy switch before building it.",
+            }
+        if status["candidate_scale"] == "small":
+            return {
+                "success": False,
+                "error_code": "skill_index_not_needed",
+                "effective_strategy": "small_full",
+                "build_status": status["build_status"],
+                "detail": (
+                    "The complete Skill metadata snapshot fits below the configured "
+                    "threshold; no taxonomy build is needed."
+                ),
+            }
+
+        raw_force = (params or {}).get("force", False)
+        force = (
+            raw_force.strip().lower() in {"1", "true", "yes", "on"}
+            if isinstance(raw_force, str)
+            else bool(raw_force)
+        )
+        try:
+            payload = await asyncio.to_thread(
+                self._skill_taxonomy_runtime().start_build,
+                force=force,
+            )
+        except Exception as exc:
+            logger.exception("Unable to start Skill taxonomy build")
+            return {
+                "success": False,
+                "mode": self._skill_retrieval_mode(),
+                "effective_strategy": status["effective_strategy"],
+                "build_status": "failed",
+                "detail": str(exc),
+            }
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        return {
+            "success": bool(payload.get("success")),
+            "background": bool(payload.get("success")),
+            "mode": self._skill_retrieval_mode(),
+            "effective_strategy": status["effective_strategy"],
+            "build_status": str(data.get("state") or "running"),
+            "build_id": str(data.get("build_id") or ""),
+            "detail": str(payload.get("result") or ""),
+        }
 
     async def handle_skills_retrieval_index_cancel(self, params: dict) -> dict:
-        """请求取消本地 skill retrieval 索引构建."""
-        from jiuwenswarm.symphony.skill_retrieval import cancel_skill_index_build
+        """Cancel the taxonomy builder without touching its previous index.
 
-        return await asyncio.to_thread(cancel_skill_index_build, self)
+        Cancellation remains available after either switch is disabled because
+        it is cleanup, not taxonomy construction or consumption.
+        """
+
+        build_id = str((params or {}).get("build_id") or "").strip() or None
+        try:
+            payload = await asyncio.to_thread(
+                self._skill_taxonomy_runtime().cancel,
+                build_id=build_id,
+            )
+        except Exception as exc:
+            logger.exception("Unable to cancel Skill taxonomy build")
+            return {
+                "success": False,
+                "mode": self._skill_retrieval_mode(),
+                "build_status": "failed",
+                "build_id": build_id or "",
+                "detail": str(exc),
+            }
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        return {
+            "success": bool(payload.get("success")),
+            "mode": self._skill_retrieval_mode(),
+            "build_status": str(data.get("state") or "idle"),
+            "build_id": str(data.get("build_id") or ""),
+            "detail": str(payload.get("result") or ""),
+        }
 
     async def handle_skills_retrieval_search(self, params: dict) -> dict:
-        """基于本地索引检索已安装 skills."""
-        from jiuwenswarm.symphony.skill_retrieval import retrieve_skills
+        """Search installed Skills through the same directory Tool used by Agents."""
+        from jiuwenswarm.agents.harness.common.tools.skill_retrieval_toolkits import (
+            SkillRetrievalToolkit,
+            skill_sources_from_manager,
+        )
 
         query = str((params or {}).get("query") or "").strip()
-        return await asyncio.to_thread(retrieve_skills, query, self)
+        if not query:
+            return {
+                "success": False,
+                "mode": self._skill_retrieval_mode(),
+                "detail": "query must not be empty",
+                "matches": [],
+            }
+        toolkit = SkillRetrievalToolkit(
+            skill_directories=[str(self._skills_dir)],
+            disabled_skills=self.list_execution_disabled_skills,
+            source_by_name=lambda: skill_sources_from_manager(self),
+        )
+        result = await toolkit.skill_index(
+            operation="search",
+            query=query,
+            paths=["/"],
+            match="content",
+            result="files",
+            pipeline=[{"operation": "limit", "lines": 10}],
+        )
+        diagnostics = dict(result.detailed_output)
+        return {
+            "success": not bool(diagnostics.get("error")),
+            "mode": self._skill_retrieval_mode(),
+            "query": query,
+            "result": str(result),
+            "detailed_output": diagnostics,
+        }
 
     async def handle_skills_retrieval_tree(self, params: dict) -> dict:
-        """返回本地 skill retrieval 树索引概览."""
-        from jiuwenswarm.symphony.skill_retrieval import get_skill_retrieval_tree
+        """Keep the legacy tree-view RPC closed; Agents browse with list."""
 
-        language = str((params or {}).get("language") or "cn").strip() or "cn"
-        return await asyncio.to_thread(get_skill_retrieval_tree, self, language=language)
+        del params
+        return {
+            "success": False,
+            "mode": self._skill_retrieval_mode(),
+            "unsupported": True,
+            "tree_supported": False,
+            "nodes": [],
+            "detail": "Browse the Skill taxonomy through skill_index list operations.",
+        }
 
     async def handle_skills_graph_build(self, params: dict) -> dict:
         """Start a background Skill Graph build."""
@@ -2637,7 +2998,7 @@ class SkillManager:
         }
 
     async def handle_skills_team_skills_hub_pack(self, params: dict) -> dict:
-        """将 TeamSkills 目录打包为 zip。"""
+        """将 TeamSkills 目录打包为 zip（含 plugin.yaml，排除根级 ``.archive/``）."""
         path_raw = str(params.get("path") or "").strip()
         if not path_raw:
             return {"success": False, "detail": "缺少参数: path"}
@@ -2657,6 +3018,41 @@ class SkillManager:
         skill_md = self._try_find_skill_file(skill_root)
         if skill_md is None:
             return {"success": False, "detail": f"目录中未找到 SKILL.md: {skill_root}"}
+        meta = self._parse_skill_md(skill_md)
+        if meta is None:
+            return {"success": False, "detail": "无法解析 SKILL.md"}
+        skill_name = str(params.get("skill_name") or meta.get("name") or "").strip()
+        description = str(meta.get("description") or "").strip()
+        if not skill_name or not description:
+            return {
+                "success": False,
+                "detail": "SKILL.md YAML 须包含非空 name 与 description",
+                "code": ERROR_SKILL_INVALID_METADATA,
+            }
+        # 前端可传 version/display_name 覆盖 SKILL.md 值
+        plugin_version = str(params.get("version") or "").strip() or "1.0.0"
+        display_name = str(params.get("display_name") or meta.get("display_name") or "").strip() or skill_name
+        author = str(meta.get("author") or "").strip() or "unknown"
+        tags = meta.get("tags")
+        if isinstance(tags, list):
+            normalized_tags = [str(t).strip() for t in tags if str(t).strip()]
+        elif isinstance(tags, str) and tags.strip():
+            normalized_tags = [tags.strip()]
+        else:
+            normalized_tags = ["teamskills"]
+
+        # 生成 plugin.yaml（与 _build_teamskills_publish_zip_from_root 对齐）
+        plugin_yaml_payload = {
+            "name": skill_name,
+            "version": plugin_version,
+            "display_name": display_name,
+            "description": description,
+            "runtime": {"type": "skill"},
+            "metadata": {
+                "author": author,
+                "tags": normalized_tags,
+            },
+        }
 
         output_raw = str(params.get("output") or "out").strip() or "out"
         output_path = Path(output_raw).expanduser()
@@ -2669,12 +3065,23 @@ class SkillManager:
         zip_path = out_dir / f"{skill_root.name}.zip"
         try:
             with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                # plugin.yaml 放在 {skill_name}/plugin.yaml
+                zf.writestr(
+                    f"{skill_name}/plugin.yaml",
+                    yaml.safe_dump(plugin_yaml_payload, sort_keys=False, allow_unicode=True),
+                )
+                # README.md
+                readme = skill_root / "README.md"
+                if readme.is_file():
+                    zf.write(readme, arcname=f"{skill_name}/README.md")
+                # 技能文件
                 for child in skill_root.rglob("*"):
                     if not child.is_file():
                         continue
                     rel = child.relative_to(skill_root).as_posix()
-                    zf.write(child, arcname=rel)
-            return {"success": True, "path": str(zip_path)}
+                    zf.write(child, arcname=f"{skill_name}/{skill_name}/{rel}")
+            checksum = hashlib.sha256(zip_path.read_bytes()).hexdigest().lower()
+            return {"success": True, "path": str(zip_path), "checksum_sha256": checksum}
         except Exception as exc:
             logger.error("Team Skills Hub pack 失败: %s", exc)
             return {"success": False, "detail": str(exc)[:500]}
@@ -2782,6 +3189,135 @@ class SkillManager:
                 "success": False,
                 "detail": str(exc)[:500],
                 "detail_key": "skills.teamskillshub.errors.searchFailed",
+            }
+
+    async def handle_skills_swarm_skills_hub_recommend(self, params: dict) -> dict:
+        """转发 Swarm Skills Hub 个性化推荐（POST /api/v1/recommend）。
+
+        有效 token / system_token（含环境变量）时带鉴权头，走个性化召回。
+        缺凭证时仍 POST、不带鉴权头：SkillHub 按空 user_id 走 Redis 下载量 TopK。
+        无效 Bearer 同样由 SkillHub 视为匿名冷启动，不再 401。
+
+        Hub 推荐本身不带 plugin_type；若传入 plugin_type/skill_type，则在 enrich
+        后按 plugins 元数据过滤（对齐 SkillHub 市场 list + order_by=recommend）。
+        enrich 时 plugins 查不到的项（下架/不可见）会丢掉；HTTP 失败则保留原项。
+        """
+        top_k_raw = params.get("top_k", params.get("limit", 10))
+        try:
+            top_k = max(1, min(int(top_k_raw), 500))
+        except Exception:
+            return {
+                "success": False,
+                "detail": "参数 top_k 必须是整数",
+                "detail_key": "skills.swarmskillshub.errors.recommendFailed",
+            }
+
+        user_id = str(params.get("user_id") or "").strip()
+        request_id = str(params.get("request_id") or "").strip()
+        category_id = str(params.get("category_id") or "").strip()
+        timestamp = params.get("timestamp")
+        plugin_type_raw = str(params.get("plugin_type") or params.get("skill_type") or "").strip()
+        plugin_types = self._parse_hub_plugin_types(plugin_type_raw)
+        enrich_raw = params.get("enrich", True)
+        if isinstance(enrich_raw, bool):
+            enrich = enrich_raw
+        else:
+            enrich = str(enrich_raw).strip().lower() not in {"0", "false", "no", "off"}
+        # 按类型过滤依赖 plugins 元数据，必须 enrich。
+        if plugin_types:
+            enrich = True
+        base_url = self._get_team_skills_hub_base_url(str(params.get("market_url") or "").strip() or None)
+
+        # 有类型过滤时多拉一些再筛，避免 top_k 滤完不够。
+        fetch_k = top_k
+        if plugin_types:
+            fetch_k = min(500, max(top_k * 5, top_k))
+
+        auth = self._resolve_teamskills_hub_auth_with_env(params)
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if not auth.get("error"):
+            if auth.get("system_token"):
+                headers["X-System-Token"] = str(auth["system_token"])
+            elif auth.get("token"):
+                headers["Authorization"] = f"Bearer {auth['token']}"
+        # No auth header: SkillHub cold-starts with source=topk_install (Redis), not MySQL install_count.
+
+        body: dict[str, Any] = {
+            "user_id": user_id,
+            "request_id": request_id,
+            "top_k": fetch_k,
+            "category_id": category_id,
+        }
+        if timestamp is not None:
+            body["timestamp"] = timestamp
+
+        try:
+            data = await self._team_skills_hub_http_post_data(
+                "/api/v1/recommend",
+                json_body=body,
+                headers=headers,
+                timeout=_TEAM_SKILLS_HUB_MARKET_TIMEOUT,
+                base_url=base_url,
+            )
+            raw_items = data.get("items", []) if isinstance(data, dict) else []
+            skills: list[dict[str, Any]] = []
+            for item in raw_items:
+                if not isinstance(item, dict):
+                    continue
+                asset_id = str(item.get("asset_id", "")).strip()
+                if not asset_id:
+                    continue
+                try:
+                    score = float(item.get("score", 0.0))
+                except Exception:
+                    score = 0.0
+                skills.append(
+                    {
+                        "asset_id": asset_id,
+                        "score": score,
+                        "name": asset_id,
+                        "display_name": asset_id,
+                        "summary": "",
+                        "version": "",
+                        "updated_at": 0,
+                        "plugin_type": "",
+                        "tags": [],
+                    }
+                )
+
+            # Hub cold-start may ignore top_k and return the full snapshot; cap before enrich
+            # so we do not N+1 storm /plugins for hundreds of ids.
+            skills = skills[:fetch_k]
+
+            if enrich and skills:
+                skills = await self._enrich_swarmskills_recommend_skills(skills, base_url=base_url)
+                if plugin_types:
+                    allowed = set(plugin_types)
+                    skills = [
+                        s
+                        for s in skills
+                        if self._normalize_hub_plugin_type(str(s.get("plugin_type") or "")) in allowed
+                    ]
+            skills = skills[:top_k]
+
+            hub_user_id = "" if not isinstance(data, dict) else str(data.get("user_id") or "")
+            return {
+                "success": True,
+                "request_id": str((data or {}).get("request_id") or request_id),
+                "user_id": hub_user_id,
+                "source": str((data or {}).get("source") or ""),
+                "category_id": str((data or {}).get("category_id") or category_id),
+                "plugin_type": ",".join(plugin_types) if plugin_types else "",
+                "count": len(skills),
+                "skills": skills,
+                "items": skills,
+            }
+        except Exception as exc:
+            logger.error("Swarm Skills Hub 推荐失败: %s", exc)
+            return {
+                "success": False,
+                "detail": str(exc)[:500],
+                "detail_key": "skills.swarmskillshub.errors.recommendFailed",
             }
 
     async def handle_skills_team_skills_hub_install(self, params: dict) -> dict:
@@ -2980,6 +3516,83 @@ class SkillManager:
                 "success": False,
                 "detail": str(exc)[:500],
                 "detail_key": "skills.teamskillshub.errors.deleteFailed",
+            }
+
+    async def handle_skills_swarm_skills_hub_detail(self, params: dict) -> dict:
+        """按 asset_id 查询 SkillHub 最新公开版本详情（skills.swarmskillshub.detail）."""
+        try:
+            asset_id = _safe_path_name(str(params.get("asset_id") or ""), "asset_id")
+        except ValueError as exc:
+            _log_rejected_name("skills.swarmskillshub.detail", "asset_id", params.get("asset_id"), exc)
+            return {
+                "success": False,
+                "detail": "asset_id 无效",
+                "detail_key": _DETAIL_KEY_SKILLHUB_DETAIL_FAILED,
+                "code": ERROR_SKILLHUB_DETAIL_FAILED,
+            }
+
+        # 普通页面不得覆盖 market_url / token；统一使用后端 Team Skills Hub 配置。
+        base_url = self._get_team_skills_hub_base_url()
+        auth = self._resolve_teamskills_hub_server_auth()
+        try:
+            plugin_item = await self._team_skills_hub_get_public_plugin_item(
+                asset_id,
+                base_url=base_url,
+                token=auth.get("token"),
+                system_token=auth.get("system_token"),
+            )
+            public_latest_version = str(plugin_item.get("public_latest_version") or "").strip()
+            if not public_latest_version:
+                return {
+                    "success": False,
+                    "detail": "SkillHub 资产无公开版本",
+                    "detail_key": _DETAIL_KEY_SKILLHUB_DETAIL_NOT_FOUND,
+                    "code": ERROR_SKILLHUB_DETAIL_NOT_FOUND,
+                }
+
+            version_detail = await self._team_skills_hub_get_version_detail(
+                asset_id,
+                public_latest_version,
+                base_url=base_url,
+                token=auth.get("token"),
+                system_token=auth.get("system_token"),
+            )
+            resp_asset_id = str(version_detail.get("asset_id") or "").strip()
+            resp_version = str(version_detail.get("version") or "").strip()
+            if resp_asset_id != asset_id or resp_version != public_latest_version:
+                return {
+                    "success": False,
+                    "detail": "SkillHub 版本详情与解析结果不一致",
+                    "detail_key": _DETAIL_KEY_SKILLHUB_DETAIL_FAILED,
+                    "code": ERROR_SKILLHUB_DETAIL_FAILED,
+                }
+
+            data = self._merge_skillhub_public_detail(plugin_item, version_detail)
+            return {
+                "success": True,
+                "asset_id": asset_id,
+                "version": public_latest_version,
+                "data": data,
+            }
+        except SkillRpcError as exc:
+            detail_key = (
+                _DETAIL_KEY_SKILLHUB_DETAIL_NOT_FOUND
+                if exc.code == ERROR_SKILLHUB_DETAIL_NOT_FOUND
+                else _DETAIL_KEY_SKILLHUB_DETAIL_FAILED
+            )
+            return {
+                "success": False,
+                "detail": str(exc.message)[:300],
+                "detail_key": detail_key,
+                "code": exc.code,
+            }
+        except Exception as exc:
+            logger.error("SkillHub 详情查询失败: %s", exc)
+            return {
+                "success": False,
+                "detail": "SkillHub 详情请求失败",
+                "detail_key": _DETAIL_KEY_SKILLHUB_DETAIL_FAILED,
+                "code": ERROR_SKILLHUB_DETAIL_FAILED,
             }
 
     async def _skillnet_install_background(
@@ -5102,6 +5715,207 @@ class SkillManager:
             return {"system_token": system_token}
         return {"token": token}
 
+    @staticmethod
+    def _resolve_teamskills_hub_auth_with_env(params: dict[str, Any]) -> dict[str, str]:
+        """推荐等需鉴权接口：params 优先；否则回落环境变量（优先 system token）。"""
+        token = str(params.get("token") or "").strip()
+        system_token = str(params.get("system_token") or "").strip()
+        if token or system_token:
+            return SkillManager._resolve_teamskills_hub_auth(params)
+
+        env_system = str(os.getenv("TEAM_SKILLS_HUB_SYSTEM_TOKEN") or "").strip()
+        if env_system:
+            return {"system_token": env_system}
+        env_user = str(os.getenv("TEAM_SKILLS_HUB_USER_TOKEN") or "").strip()
+        if env_user:
+            return {"token": env_user}
+        return {
+            "error": (
+                "未配置 Team Skills Hub 鉴权：请提供 token 或 system_token，"
+                "或设置 TEAM_SKILLS_HUB_SYSTEM_TOKEN / TEAM_SKILLS_HUB_USER_TOKEN"
+            )
+        }
+
+    @staticmethod
+    def _resolve_teamskills_hub_server_auth() -> dict[str, str]:
+        """从后端环境读取 Team Skills Hub 认证；不接受前端覆盖."""
+        system_token = (os.getenv("TEAM_SKILLS_HUB_SYSTEM_TOKEN") or "").strip()
+        if system_token:
+            return {"system_token": system_token}
+        user_token = (os.getenv("TEAM_SKILLS_HUB_USER_TOKEN") or "").strip()
+        if user_token:
+            return {"token": user_token}
+        return {}
+
+    @staticmethod
+    def _teamskills_hub_auth_headers(
+        *,
+        token: str | None = None,
+        system_token: str | None = None,
+    ) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        system = str(system_token or "").strip()
+        user = str(token or "").strip()
+        if system:
+            headers["X-System-Token"] = system
+        elif user:
+            headers["Authorization"] = f"Bearer {user}"
+        return headers
+
+    @staticmethod
+    def _skillhub_nullable_str(raw: Any) -> str | None:
+        if raw is None:
+            return None
+        return str(raw)
+
+    @staticmethod
+    def _skillhub_required_str(raw: Any) -> str:
+        if raw is None:
+            return ""
+        return str(raw)
+
+    @staticmethod
+    def _skillhub_count(raw: Any) -> int:
+        if raw is None or raw == "":
+            return 0
+        try:
+            return int(raw)
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _skillhub_str_list(raw: Any) -> list[str]:
+        if raw is None:
+            return []
+        if not isinstance(raw, list):
+            return []
+        return [str(item) for item in raw]
+
+    @staticmethod
+    def _skillhub_review_summary(raw: Any) -> dict[str, Any] | None:
+        if isinstance(raw, dict):
+            return raw
+        return None
+
+    @staticmethod
+    def _skillhub_review_sections(raw: Any) -> list[Any]:
+        if raw is None:
+            return []
+        if isinstance(raw, list):
+            return raw
+        return []
+
+    @staticmethod
+    def _skillhub_average_rating(raw: Any) -> float | int | None:
+        if raw is None or raw == "":
+            return None
+        if isinstance(raw, bool):
+            return None
+        if isinstance(raw, (int, float)):
+            return raw
+        try:
+            return float(raw)
+        except Exception:
+            return None
+
+    @classmethod
+    def _merge_skillhub_public_detail(
+        cls,
+        plugin_item: dict[str, Any],
+        version_detail: dict[str, Any],
+    ) -> dict[str, Any]:
+        """按设计白名单合并资产列表字段与版本详情字段，禁止整体透传."""
+        return {
+            "asset_id": cls._skillhub_required_str(version_detail.get("asset_id")),
+            "version": cls._skillhub_required_str(version_detail.get("version")),
+            "asset_type": cls._skillhub_nullable_str(version_detail.get("asset_type")),
+            "plugin_type": cls._skillhub_nullable_str(version_detail.get("plugin_type")),
+            "name": cls._skillhub_required_str(version_detail.get("name")),
+            "display_name": cls._skillhub_required_str(version_detail.get("display_name")),
+            "short_desc": cls._skillhub_required_str(version_detail.get("short_desc")),
+            "detail_desc": cls._skillhub_required_str(version_detail.get("detail_desc")),
+            "icon_uri": cls._skillhub_nullable_str(version_detail.get("icon_uri")),
+            "publisher_id": cls._skillhub_nullable_str(version_detail.get("publisher_id")),
+            "publisher_name": cls._skillhub_nullable_str(version_detail.get("publisher_name")),
+            "tags": cls._skillhub_str_list(version_detail.get("tags")),
+            "category_id": cls._skillhub_nullable_str(version_detail.get("category_id")),
+            "category_name": cls._skillhub_nullable_str(version_detail.get("category_name")),
+            "certification": cls._skillhub_nullable_str(version_detail.get("certification")),
+            "changelog": cls._skillhub_nullable_str(version_detail.get("changelog")),
+            "install_count": cls._skillhub_count(version_detail.get("install_count")),
+            "view_count": cls._skillhub_count(version_detail.get("view_count")),
+            # 交互计数与创建时间来自资产列表接口
+            "like_count": cls._skillhub_count(plugin_item.get("like_count")),
+            "star_count": cls._skillhub_count(plugin_item.get("star_count")),
+            "review_count": cls._skillhub_count(plugin_item.get("review_count")),
+            "average_rating": cls._skillhub_average_rating(plugin_item.get("average_rating")),
+            "create_time": plugin_item.get("create_time")
+            if plugin_item.get("create_time") is not None
+            else None,
+            "update_time": version_detail.get("update_time")
+            if version_detail.get("update_time") is not None
+            else None,
+            "review_summary": cls._skillhub_review_summary(version_detail.get("review_summary")),
+            "review_sections": cls._skillhub_review_sections(version_detail.get("review_sections")),
+        }
+
+    async def _team_skills_hub_get_public_plugin_item(
+        self,
+        asset_id: str,
+        *,
+        base_url: str | None = None,
+        token: str | None = None,
+        system_token: str | None = None,
+    ) -> dict[str, Any]:
+        """按 asset_id 精确查询资产列表项，用于解析 public_latest_version."""
+        data = await self._team_skills_hub_http_get_data(
+            "/api/v1/plugins",
+            params={"asset_id": asset_id, "page": 1, "page_size": 1},
+            timeout=_TEAM_SKILLS_HUB_MARKET_TIMEOUT,
+            base_url=base_url,
+            token=token,
+            system_token=system_token,
+        )
+        items = data.get("items") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            raise SkillRpcError(ERROR_SKILLHUB_DETAIL_FAILED, "SkillHub 资产列表响应格式错误")
+        matched: dict[str, Any] | None = None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("asset_id") or "").strip() == asset_id:
+                matched = item
+                break
+        if matched is None:
+            raise SkillRpcError(ERROR_SKILLHUB_DETAIL_NOT_FOUND, "SkillHub 资产不存在")
+        return matched
+
+    async def _team_skills_hub_get_version_detail(
+        self,
+        asset_id: str,
+        version: str,
+        *,
+        base_url: str | None = None,
+        token: str | None = None,
+        system_token: str | None = None,
+    ) -> dict[str, Any]:
+        """查询指定公开版本详情（原生 /plugins/{asset_id}/versions/{version}）."""
+        path = (
+            f"/api/v1/plugins/{quote(asset_id, safe='')}"
+            f"/versions/{quote(version, safe='')}"
+        )
+        data = await self._team_skills_hub_http_get_data(
+            path,
+            timeout=_TEAM_SKILLS_HUB_MARKET_TIMEOUT,
+            base_url=base_url,
+            token=token,
+            system_token=system_token,
+            not_found_code=ERROR_SKILLHUB_DETAIL_NOT_FOUND,
+        )
+        if not isinstance(data, dict):
+            raise SkillRpcError(ERROR_SKILLHUB_DETAIL_FAILED, "SkillHub 版本详情响应格式错误")
+        return data
+
     def _prepare_teamskills_publish_zip(
         self,
         *,
@@ -5540,13 +6354,63 @@ class SkillManager:
         params: dict[str, Any] | None = None,
         timeout: float = _TEAM_SKILLS_HUB_MARKET_TIMEOUT,
         base_url: str | None = None,
+        token: str | None = None,
+        system_token: str | None = None,
+        not_found_code: str | None = None,
+    ) -> Any:
+        base_url = (base_url or self._get_team_skills_hub_base_url()).rstrip("/")
+        rel_path = path if path.startswith("/") else f"/{path}"
+        req_url = f"{base_url}{rel_path}"
+        headers = self._teamskills_hub_auth_headers(token=token, system_token=system_token)
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+                resp = await client.get(req_url, params=params, headers=headers or None)
+        except Exception as exc:
+            raise RuntimeError(f"无法连接 Team Skills Hub: {exc}") from exc
+
+        if resp.status_code == 404:
+            if not_found_code:
+                raise SkillRpcError(not_found_code, "SkillHub 资源不存在")
+            raise RuntimeError("Team Skills Hub API 错误 HTTP 404")
+
+        if not resp.is_success:
+            # 不向调用方透传上游响应体，避免泄露敏感信息。
+            raise RuntimeError(f"Team Skills Hub API 错误 HTTP {resp.status_code}")
+        try:
+            payload = resp.json()
+        except Exception as exc:
+            raise RuntimeError(f"Team Skills Hub API 响应不是合法 JSON: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Team Skills Hub API 响应格式错误")
+
+        code = payload.get("code", 200)
+        try:
+            code_int = int(code)
+        except Exception as exc:
+            raise RuntimeError("Team Skills Hub API 响应 code 格式错误") from exc
+        if code_int != 200:
+            raise RuntimeError("Team Skills Hub API 返回失败")
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise RuntimeError("Team Skills Hub API 响应 data 格式错误")
+        return data
+
+    async def _team_skills_hub_http_post_data(
+        self,
+        path: str,
+        *,
+        json_body: dict[str, Any],
+        headers: dict[str, str] | None = None,
+        timeout: float = _TEAM_SKILLS_HUB_MARKET_TIMEOUT,
+        base_url: str | None = None,
     ) -> Any:
         base_url = (base_url or self._get_team_skills_hub_base_url()).rstrip("/")
         rel_path = path if path.startswith("/") else f"/{path}"
         req_url = f"{base_url}{rel_path}"
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-                resp = await client.get(req_url, params=params)
+                resp = await client.post(req_url, json=json_body, headers=headers or {})
         except Exception as exc:
             raise RuntimeError(f"无法连接 Team Skills Hub: {exc}") from exc
 
@@ -5569,6 +6433,69 @@ class SkillManager:
         if not isinstance(data, dict):
             raise RuntimeError("Team Skills Hub API 响应 data 格式错误")
         return data
+
+    @staticmethod
+    def _normalize_hub_plugin_type(raw: str) -> str:
+        """Align with SkillHub: teamskills is an alias of swarmskill."""
+        normalized = (raw or "").strip().lower()
+        return "swarmskill" if normalized == "teamskills" else normalized
+
+    @classmethod
+    def _parse_hub_plugin_types(cls, raw: str) -> list[str]:
+        """Parse plugin_type / skill_type (comma-separated) into normalized list."""
+        out: list[str] = []
+        for part in str(raw or "").split(","):
+            normalized = cls._normalize_hub_plugin_type(part)
+            if normalized and normalized not in out:
+                out.append(normalized)
+        return out
+
+    async def _enrich_swarmskills_recommend_skills(
+        self,
+        skills: list[dict[str, Any]],
+        *,
+        base_url: str,
+    ) -> list[dict[str, Any]]:
+        """用 /api/v1/plugins?asset_id= 补齐推荐结果的展示字段。
+
+        plugins 列表默认排除 OFFLINE：查不到则视为下架/不可见并丢掉。
+        HTTP 失败时保留原项，避免瞬时故障把整页推荐滤空。
+        """
+
+        async def _one(item: dict[str, Any]) -> dict[str, Any] | None:
+            asset_id = str(item.get("asset_id") or "").strip()
+            if not asset_id:
+                return None
+            try:
+                data = await self._team_skills_hub_http_get_data(
+                    "/api/v1/plugins",
+                    params={"asset_id": asset_id, "page": 1, "page_size": 1},
+                    timeout=_TEAM_SKILLS_HUB_MARKET_TIMEOUT,
+                    base_url=base_url,
+                )
+                rows = data.get("items", []) if isinstance(data, dict) else []
+                row = rows[0] if rows and isinstance(rows[0], dict) else None
+                if not row:
+                    logger.info("推荐结果不可见，已过滤 asset_id=%s", asset_id)
+                    return None
+                name = str(row.get("name", "")).strip() or asset_id
+                plugin_type = self._normalize_hub_plugin_type(str(row.get("plugin_type") or ""))
+                return {
+                    **item,
+                    "name": name,
+                    "display_name": str(row.get("display_name", "")).strip() or name,
+                    "summary": str(row.get("short_desc", "")).strip(),
+                    "version": str(row.get("latest_version", "")).strip(),
+                    "updated_at": int(row.get("update_time") or 0),
+                    "plugin_type": plugin_type,
+                    "tags": self._coerce_str_list(row.get("tags")),
+                }
+            except Exception as exc:
+                logger.warning("推荐结果补齐失败 asset_id=%s: %s", asset_id, exc)
+                return item
+
+        enriched = await asyncio.gather(*[_one(s) for s in skills])
+        return [item for item in enriched if item is not None]
 
     @staticmethod
     def _safe_extract_zip_members_into(zf: zipfile.ZipFile, dest_root: Path) -> None:
