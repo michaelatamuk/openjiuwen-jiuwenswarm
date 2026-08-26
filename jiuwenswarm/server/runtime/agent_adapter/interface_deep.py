@@ -4425,17 +4425,18 @@ class JiuWenSwarmDeepAdapter:
             )
             return []
 
-    def _skill_retrieval_scan_dirs(self) -> list[str]:
-        """SkillRetrievalToolkit scan roots: the centralized ``_skill_scan_dirs``
-        plus any configured external skill dirs.
+    def _skill_scan_dirs_with_external(self) -> list[str]:
+        """Skill scan roots for the live SkillRetrievalToolkit: the centralized
+        ``_skill_scan_dirs`` plus any configured external skill dirs.
 
         The shared taxonomy index stays stable (``index_skill_directories`` is
         still the agent skills dir only); external dirs are task-provided and
         join the live session scan so external skills remain discoverable.
         """
         roots = self._skill_scan_dirs()
-        if self._skill_manager is not None:
-            for p in self._skill_manager.get_external_skill_dirs():
+        get_external = getattr(self._skill_manager, "get_external_skill_dirs", None)
+        if callable(get_external):
+            for p in get_external():
                 d = str(p)
                 if d and d not in roots:
                     roots.append(d)
@@ -4448,7 +4449,7 @@ class JiuWenSwarmDeepAdapter:
         toolkit = SkillRetrievalToolkit(
             # Match SkillUseRail exactly: selected MCP-bundled Skills are part
             # of this session's directory, while unselected MCPs stay hidden.
-            skill_directories=self._skill_retrieval_scan_dirs,
+            skill_directories=self._skill_scan_dirs_with_external,
             # Shared taxonomy generations are built only from JiuwenSwarm's
             # stable installed inventory. Session-selected MCP Skills remain
             # visible through the live provider above and appear in a stale
@@ -5988,10 +5989,9 @@ class JiuWenSwarmDeepAdapter:
             # the agent (prevents unrelated installed skills acting as distractors).
             scan_dirs = self._skill_scan_dirs()
             external_dirs: list[str] = []
-            if self._skill_manager is not None:
-                external_dirs = [
-                    str(p) for p in self._skill_manager.get_external_skill_dirs()
-                ]
+            get_external = getattr(self._skill_manager, "get_external_skill_dirs", None)
+            if callable(get_external):
+                external_dirs = [str(p) for p in get_external()]
 
             _skills_cfg = (config.get("skills") or {})
             _external_only = bool(_skills_cfg.get("external_only", False))
