@@ -10561,6 +10561,24 @@ class AgentWebSocketServer:
         return "general"
 
     @staticmethod
+    def _replay_agent_of(rec: dict) -> tuple[str, str]:
+        """Resolve (agent_name, agent_role) for a team-mode event record.
+
+        Teammate events carry ``member_name`` (e.g. ``prague-foodie``); leader
+        events have ``role == "leader"`` and no member_name. Single-agent
+        (non-team) events resolve to ``("", "")`` so attribution stays empty.
+        """
+        role = rec.get("role", "") or ""
+        if role == "user":
+            return "", ""
+        member = (rec.get("member_name") or "").strip()
+        if member:
+            return member, "member"
+        if role == "leader":
+            return "leader", "leader"
+        return "", ""
+
+    @staticmethod
     def _tool_result_failed(rec: dict) -> bool:
         """Return True when a chat.tool_result record represents a failed tool call.
 
@@ -10669,11 +10687,45 @@ class AgentWebSocketServer:
                     "ttft_ms": 0.0,
                     "tpot_ms": 0.0,
                     "models_used": set(),
+                    "agents": [],
+                    "_agent_activity": {},
                     "_first_ts": None,
                     "_last_ts": None,
                 }
             role = rec.get("role", "")
             ts: float = rec.get("timestamp") or 0.0
+
+            def _record_agent(
+                turn: dict,
+                name: str,
+                agent_role: str,
+                *,
+                tool_call: bool = False,
+                tool_result: bool = False,
+                tool_fail: bool = False,
+                response: bool = False,
+            ) -> None:
+                if not name:
+                    return
+                acts = turn["_agent_activity"]
+                entry = acts.get(name)
+                if entry is None:
+                    entry = acts[name] = {
+                        "name": name,
+                        "role": agent_role,
+                        "tool_calls": 0,
+                        "tool_results": 0,
+                        "tool_failures": 0,
+                        "responses": 0,
+                    }
+                if tool_call:
+                    entry["tool_calls"] += 1
+                if tool_result:
+                    entry["tool_results"] += 1
+                if tool_fail:
+                    entry["tool_failures"] += 1
+                if response:
+                    entry["responses"] += 1
 
             # Duration tracking + event counting (ignore noise events)
             if et not in self._REPLAY_NOISE_EVENTS:
@@ -10698,17 +10750,22 @@ class AgentWebSocketServer:
                 tn = rec.get("tool_name") or tc.get("name", "")
                 if tn:
                     turns[rid]["tool_names"].append(tn)
+                agent_name, agent_role = self._replay_agent_of(rec)
                 turns[rid]["tool_calls_detail"].append({
                     "name": tc.get("name", ""),
                     "arguments": tc.get("arguments", ""),
                     "tool_call_id": tc.get("tool_call_id", "") or tc.get("id", ""),
+                    "agent": agent_name or None,
                 })
+                _record_agent(turns[rid], agent_name, agent_role, tool_call=True)
             elif et == "chat.tool_update":
+                agent_name, agent_role = self._replay_agent_of(rec)
                 turns[rid]["tool_updates_detail"].append({
                     "tool_name": rec.get("tool_name", ""),
                     "tool_call_id": rec.get("tool_call_id", ""),
                     "arguments": rec.get("arguments", ""),
                     "status": rec.get("status", ""),
+                    "agent": agent_name or None,
                 })
             elif et == "chat.tool_result":
                 failed = self._tool_result_failed(rec)
@@ -10725,6 +10782,7 @@ class AgentWebSocketServer:
                         if sk not in turns[rid]["skill_names"]:
                             turns[rid]["skill_names"].append(sk)
                 parsed_error = self._tool_result_error_text(rec)
+                agent_name, agent_role = self._replay_agent_of(rec)
                 turns[rid]["tool_results_detail"].append({
                     "tool_name": tname,
                     "tool_call_id": rec.get("tool_call_id", ""),
@@ -10733,7 +10791,12 @@ class AgentWebSocketServer:
                     "error_type": rec.get("error_type"),
                     "error_detail": rec.get("error_detail") or (parsed_error or None),
                     "error": rec.get("error"),
+                    "agent": agent_name or None,
                 })
+                _record_agent(
+                    turns[rid], agent_name, agent_role,
+                    tool_result=True, tool_fail=failed,
+                )
             elif et == "chat.tracer_agent":
                 # Structured agent-trace events mirror the surrounding tool_result;
                 # only use them to enrich error_category, never to double-count
@@ -10756,6 +10819,8 @@ class AgentWebSocketServer:
                     turns[rid]["has_final"] = True
                     turns[rid]["final_length"] = content_len
                     turns[rid]["assistant_responses"].append(content)
+                agent_name, agent_role = self._replay_agent_of(rec)
+                _record_agent(turns[rid], agent_name, agent_role, response=content_len > 0)
             elif et == "chat.usage_metadata":
                 turns[rid]["llm_call_count"] += 1
                 md = rec.get("metadata", {}) or {}
@@ -10825,6 +10890,15 @@ class AgentWebSocketServer:
                 turn["duration_seconds"] = round(last - first, 1)
             turn["outcome"] = self._replay_outcome(turn)
             turn["issues"] = self._replay_issues(turn)
+            # Convert per-agent activity dict to an ordered list (leader first,
+            # then members by tool-call count). Single-agent sessions yield [].
+            acts = turn.pop("_agent_activity", {})
+            agent_list = sorted(
+                acts.values(),
+                key=lambda a: (a["role"] != "leader", -a["tool_calls"]),
+            )
+            turn["agents"] = [a["name"] for a in agent_list]
+            turn["agent_activity"] = agent_list
             # Convert sets to lists for JSON serialization
             turn["models_used"] = sorted(turn.get("models_used", set()))
             # Compute average latencies per turn

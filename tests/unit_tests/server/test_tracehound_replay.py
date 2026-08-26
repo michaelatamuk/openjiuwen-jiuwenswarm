@@ -28,7 +28,7 @@ def _user(rid: str, content: str = "find me what to do in Prague", ts: float = 1
     }
 
 
-def _tool_call(rid: str, name: str, call_id: str, role: str = "leader", ts: float = 1001.0) -> dict:
+def _tool_call(rid: str, name: str, call_id: str, role: str = "leader", ts: float = 1001.0, **extra: object) -> dict:
     return {
         "role": role,
         "event_type": "chat.tool_call",
@@ -37,6 +37,7 @@ def _tool_call(rid: str, name: str, call_id: str, role: str = "leader", ts: floa
         "tool_call": {"name": name, "arguments": "{}", "tool_call_id": call_id},
         "mode": "team",
         "timestamp": ts,
+        **extra,
     }
 
 
@@ -242,6 +243,91 @@ def test_build_turns_failed_team_tool_result_is_kept_as_real_turn() -> None:
     turns = _server()._replay_build_turns(records)
     assert len(turns) == 1
     assert turns[0]["tool_failures"] == 1
+
+
+# ── _replay_agent_of ─────────────────────────────────────────────────────────
+
+
+def test_replay_agent_of_member_via_member_name() -> None:
+    rec = _tool_call("req_1", "write_file", "call_1", role="teammate", member_name="prague-foodie")
+    assert AgentWebSocketServer._replay_agent_of(rec) == ("prague-foodie", "member")
+
+
+def test_replay_agent_of_leader_has_no_member_name() -> None:
+    rec = _tool_call("req_1", "send_file_to_user", "call_1", role="leader")
+    assert AgentWebSocketServer._replay_agent_of(rec) == ("leader", "leader")
+
+
+def test_replay_agent_of_single_agent_and_user_are_ignored() -> None:
+    assistant = _tool_call("req_1", "write_file", "call_1", role="assistant")
+    assert AgentWebSocketServer._replay_agent_of(assistant) == ("", "")
+    user_rec = {"role": "user", "member_name": "prague-foodie"}
+    assert AgentWebSocketServer._replay_agent_of(user_rec) == ("", "")
+
+
+# ── _replay_build_turns: agent attribution ───────────────────────────────────
+
+
+def test_build_turns_attributes_tool_details_to_agent() -> None:
+    records = [
+        _user("req_1"),
+        _tool_call("req_1", "write_file", "call_1", role="teammate", member_name="prague-foodie"),
+        _tool_result("req_1", "write_file", "call_1", _FAILED_RESULT, role="teammate", member_name="prague-foodie"),
+        _tool_call("req_1", "send_file_to_user", "call_2", role="leader"),
+        _tool_result("req_1", "send_file_to_user", "call_2", _FAILED_RESULT, role="leader"),
+        _final("req_1", role="leader"),
+    ]
+    turn = _server()._replay_build_turns(records)[0]
+    assert turn["tool_calls_detail"][0]["agent"] == "prague-foodie"
+    assert turn["tool_calls_detail"][1]["agent"] == "leader"
+    assert turn["tool_results_detail"][0]["agent"] == "prague-foodie"
+    assert turn["tool_results_detail"][1]["agent"] == "leader"
+
+
+def test_build_turns_agent_activity_counts_calls_results_failures() -> None:
+    records = [
+        _user("req_1"),
+        _tool_call("req_1", "write_file", "call_1", role="teammate", member_name="prague-foodie"),
+        _tool_result("req_1", "write_file", "call_1", _FAILED_RESULT, role="teammate", member_name="prague-foodie"),
+        _tool_call("req_1", "send_file_to_user", "call_2", role="leader"),
+        _tool_result("req_1", "send_file_to_user", "call_2", _FAILED_RESULT, role="leader"),
+        _final("req_1", role="leader"),
+    ]
+    turn = _server()._replay_build_turns(records)[0]
+    by_name = {a["name"]: a for a in turn["agent_activity"]}
+    assert by_name["prague-foodie"]["tool_calls"] == 1
+    assert by_name["prague-foodie"]["tool_results"] == 1
+    assert by_name["prague-foodie"]["tool_failures"] == 1
+    assert by_name["leader"]["tool_calls"] == 1
+    assert by_name["leader"]["tool_failures"] == 1
+    assert by_name["leader"]["responses"] == 1
+
+
+def test_build_turns_agents_list_leader_first() -> None:
+    records = [
+        _user("req_1"),
+        _tool_call("req_1", "view_task", "call_1", role="teammate", member_name="prague-sightseer"),
+        _tool_result("req_1", "view_task", "call_1", _SUCCESS_RESULT, role="teammate", member_name="prague-sightseer"),
+        _tool_call("req_1", "build_team", "call_2", role="leader"),
+        _tool_result("req_1", "build_team", "call_2", _SUCCESS_RESULT, role="leader"),
+        _final("req_1", role="leader"),
+    ]
+    turn = _server()._replay_build_turns(records)[0]
+    assert turn["agents"] == ["leader", "prague-sightseer"]
+
+
+def test_build_turns_agent_activity_empty_for_single_agent_session() -> None:
+    records = [
+        _user("req_1"),
+        _tool_call("req_1", "write_file", "call_1", role="assistant"),
+        _tool_result("req_1", "write_file", "call_1", _SUCCESS_RESULT, role="assistant"),
+        _final("req_1", role="assistant"),
+    ]
+    turn = _server()._replay_build_turns(records)[0]
+    assert turn["agents"] == []
+    assert turn["agent_activity"] == []
+    assert all(d["agent"] is None for d in turn["tool_calls_detail"])
+    assert all(d["agent"] is None for d in turn["tool_results_detail"])
 
 
 # ── _build_analysis_summary ──────────────────────────────────────────────────

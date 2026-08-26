@@ -84,6 +84,34 @@ function modeBadge(mode?: string | null): React.ReactNode {
   );
 }
 
+// ── Team agent attribution ───────────────────────────────────────────────────
+
+const AGENT_PALETTE = ['#0ea5e9', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#6366f1', '#f43f5e'];
+
+function agentColor(name: string): string {
+  if (name === 'leader') return '#475569';
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AGENT_PALETTE[h % AGENT_PALETTE.length];
+}
+
+/** Resolve the acting agent (member_name, else 'leader') for a team record. */
+function recordAgent(rec: HistoryRecord): string {
+  if (rec.member_name) return rec.member_name;
+  if (rec.role === 'leader') return 'leader';
+  return '';
+}
+
+/** Small colored tag for a team agent (leader gets a neutral slate tag). */
+function agentTag(name: string, withDot = true): React.ReactNode {
+  const color = agentColor(name);
+  return (
+    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: color + '14', color, border: `1px solid ${color}33`, flexShrink: 0, whiteSpace: 'nowrap' }}>
+      {name === 'leader' ? '⛨ leader' : (withDot ? `◈ ${name}` : name)}
+    </span>
+  );
+}
+
 // ── Custom tooltip (browser title= is unreliable/slow) ────────────────────────
 
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -256,11 +284,13 @@ function recordHeaderLabel(rec: HistoryRecord): string {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
   const subLabel = rec.subagent_type ? ` · subagent: ${rec.subagent_type}` : '';
-  if (key === 'chat.tool_call') return `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}`;
-  if (key === 'chat.tool_result') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`;
-  if (key === 'chat.tool_update') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}`;
-  if (key === 'chat.usage_metadata') return `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}`;
-  return meta.label;
+  const agentName = recordAgent(rec);
+  const agentLabel = agentName ? ` · ${agentName}` : '';
+  if (key === 'chat.tool_call') return `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}${agentLabel}`;
+  if (key === 'chat.tool_result') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}${agentLabel}`;
+  if (key === 'chat.tool_update') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}${agentLabel}`;
+  if (key === 'chat.usage_metadata') return `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}${agentLabel}`;
+  return `${meta.label}${subLabel}${agentLabel}`;
 }
 
 // Serialize a history record as plain text, mirroring exactly what its on-screen
@@ -720,19 +750,26 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
   turns.forEach(t => { if (t.query_type) qtCounts[t.query_type] = (qtCounts[t.query_type] ?? 0) + 1; });
 
   // Tool usage: merge tool_call names with tool results so failure counts are
-  // visible per tool, and never hide a tool that had failures.
-  interface ToolUsage { calls: number; results: number; failed: number; }
+  // visible per tool, and never hide a tool that had failures. Failures are
+  // attributed to the acting agent (member_name / leader) when available.
+  interface ToolUsage { calls: number; results: number; failed: number; byAgent: Record<string, { calls: number; failed: number }>; }
   const toolUsage: Record<string, ToolUsage> = {};
   turns.forEach(t => {
     t.tool_names.forEach(n => {
-      const u = (toolUsage[n] ??= { calls: 0, results: 0, failed: 0 });
+      const u = (toolUsage[n] ??= { calls: 0, results: 0, failed: 0, byAgent: {} });
       u.calls += 1;
     });
     (t.tool_results_detail ?? []).forEach(r => {
       const key = r.tool_name || '(unknown)';
-      const u = (toolUsage[key] ??= { calls: 0, results: 0, failed: 0 });
+      const u = (toolUsage[key] ??= { calls: 0, results: 0, failed: 0, byAgent: {} });
       u.results += 1;
-      if (r.failed || (typeof r.result === 'string' && r.result.includes('success=False'))) u.failed += 1;
+      const isFail = r.failed || (typeof r.result === 'string' && r.result.includes('success=False'));
+      if (isFail) u.failed += 1;
+      if (r.agent) {
+        const a = (u.byAgent[r.agent] ??= { calls: 0, failed: 0 });
+        a.calls += 1;
+        if (isFail) a.failed += 1;
+      }
     });
   });
   const topTools = Object.entries(toolUsage).sort((a, b) => b[1].calls - a[1].calls).slice(0, 8);
@@ -1031,19 +1068,27 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
         {displayTools.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Tool usage</div>
-            {displayTools.map(([tool, u]) => (
-              <div key={tool} style={{ marginBottom: 5 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>🔧 {tool}</span>
-                  <span style={{ color: u.failed > 0 ? '#dc2626' : '#6b7280', flexShrink: 0 }}>
-                    {u.failed > 0 ? `×${u.calls} (${u.failed} failed)` : `×${u.calls}`}
-                  </span>
+            {displayTools.map(([tool, u]) => {
+              const failedAgents = Object.entries(u.byAgent).filter(([, a]) => a.failed > 0);
+              return (
+                <div key={tool} style={{ marginBottom: 5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                    <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '52%' }}>🔧 {tool}</span>
+                    <span style={{ color: u.failed > 0 ? '#dc2626' : '#6b7280', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {u.failed > 0 ? `×${u.calls} (${u.failed} failed)` : `×${u.calls}`}
+                    </span>
+                  </div>
+                  <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2, marginBottom: 2 }}>
+                    <div style={{ height: 3, width: `${(u.calls / displayTools[0][1].calls) * 100}%`, background: u.failed > 0 ? '#ef4444' : '#f59e0b', borderRadius: 2 }} />
+                  </div>
+                  {failedAgents.length > 0 && (
+                    <div style={{ fontSize: 10, color: '#dc2626', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      ✗ failed by {failedAgents.map(([name]) => name === 'leader' ? 'leader' : name).join(' · ')}
+                    </div>
+                  )}
                 </div>
-                <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
-                  <div style={{ height: 3, width: `${(u.calls / displayTools[0][1].calls) * 100}%`, background: u.failed > 0 ? '#ef4444' : '#f59e0b', borderRadius: 2 }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1611,6 +1656,17 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
                           {modeBadge(turn.mode)}
+                          {turn.agents && turn.agents.length > 0 && turn.agents.map(name => {
+                            const act = turn.agent_activity?.find(a => a.name === name);
+                            const tip = act
+                              ? `${name}${act.role === 'leader' ? ' (leader)' : ''}\n${act.tool_calls} tool calls · ${act.tool_failures} failed · ${act.responses} responses`
+                              : name;
+                            return (
+                              <Tooltip key={name} text={tip}>
+                                {agentTag(name, false)}
+                              </Tooltip>
+                            );
+                          })}
                           <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />
                           {queryTypeBadge(turn.query_type)}
                           {turn.has_error && !isDeferred && (
@@ -1769,7 +1825,8 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords }: { rec:
         onClick={() => needsExpand && setExpanded(x => !x)}
       >
         <span style={{ fontSize: 14 }}>{icon}</span>
-        <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1 }}>{headerLabel}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headerLabel}</span>
+        {recordAgent(rec) && agentTag(recordAgent(rec))}
         {rec.mode && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f3f4f6', color: '#6b7280', flexShrink: 0 }}>{rec.mode}</span>}
         {(key === 'chat.tool_call' || key === 'chat.tool_update' || key === 'chat.tool_result') && rec.tool_call_id && (
           <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', flexShrink: 0 }}>#{String(rec.tool_call_id).slice(-8)}</span>

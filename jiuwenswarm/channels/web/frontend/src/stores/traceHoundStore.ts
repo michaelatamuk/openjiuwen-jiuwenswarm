@@ -34,6 +34,15 @@ export interface TraceHoundSessionItem {
   mode?: string;
 }
 
+export interface AgentActivity {
+  name: string;
+  role: 'leader' | 'member';
+  tool_calls: number;
+  tool_results: number;
+  tool_failures: number;
+  responses: number;
+}
+
 export interface TurnSummary {
   turn_id: string;
   turn_index: number;
@@ -60,6 +69,9 @@ export interface TurnSummary {
   mode: string | null;
   llm_call_count: number;
   event_count: number;
+  // Team attribution: which agents acted in this turn (leader first)
+  agents?: string[];
+  agent_activity?: AgentActivity[];
   // Detailed per-turn data
   assistant_responses?: string[];
   models_used?: string[];
@@ -99,6 +111,7 @@ export interface ToolCallDetail {
   name: string;
   arguments: string;
   tool_call_id: string;
+  agent?: string | null;
 }
 
 export interface ToolUpdateDetail {
@@ -106,6 +119,7 @@ export interface ToolUpdateDetail {
   tool_call_id: string;
   arguments: string;
   status: string;
+  agent?: string | null;
 }
 
 export interface ToolResultDetail {
@@ -116,6 +130,7 @@ export interface ToolResultDetail {
   error_type?: string | null;
   error_detail?: string | null;
   error?: string | null;
+  agent?: string | null;
 }
 
 export interface SessionStats {
@@ -159,12 +174,14 @@ export interface SessionAnalysis {
 
 export interface HistoryRecord {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'leader' | 'teammate';
   request_id: string;
   event_type: string | null;
   content: string;
   timestamp: number;
   mode: string | null;
+  /** Team-mode: which member produced this event (leader events carry none) */
+  member_name?: string;
   subagent_type?: string;
   sub_session_id?: string;
   tool_name?: string;
