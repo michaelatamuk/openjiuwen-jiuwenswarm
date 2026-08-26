@@ -1436,7 +1436,7 @@ def test_deep_adapter_visible_skill_names_match_list_skill(monkeypatch, tmp_path
     class FakeManager:
         def __init__(self):
             self.disabled: list[str] = []
-            self.persisted_disabled: list[str] = []
+            self.persisted_disabled: list[str] = ["beta"]
             self.reload_count = 0
 
         def reload_state(self):
