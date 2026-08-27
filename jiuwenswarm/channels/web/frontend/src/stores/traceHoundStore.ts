@@ -41,6 +41,9 @@ export interface AgentActivity {
   tool_results: number;
   tool_failures: number;
   responses: number;
+  llm_calls: number;
+  tokens: number;
+  cost: number;
 }
 
 export interface TurnSummary {

@@ -10704,6 +10704,9 @@ class AgentWebSocketServer:
                 tool_result: bool = False,
                 tool_fail: bool = False,
                 response: bool = False,
+                llm: bool = False,
+                llm_tokens: int = 0,
+                llm_cost: float = 0.0,
             ) -> None:
                 if not name:
                     return
@@ -10717,6 +10720,9 @@ class AgentWebSocketServer:
                         "tool_results": 0,
                         "tool_failures": 0,
                         "responses": 0,
+                        "llm_calls": 0,
+                        "tokens": 0,
+                        "cost": 0.0,
                     }
                 if tool_call:
                     entry["tool_calls"] += 1
@@ -10726,6 +10732,10 @@ class AgentWebSocketServer:
                     entry["tool_failures"] += 1
                 if response:
                     entry["responses"] += 1
+                if llm:
+                    entry["llm_calls"] += 1
+                    entry["tokens"] += llm_tokens
+                    entry["cost"] += llm_cost
 
             # Duration tracking + event counting (ignore noise events)
             if et not in self._REPLAY_NOISE_EVENTS:
@@ -10851,12 +10861,29 @@ class AgentWebSocketServer:
                 model = um.get("model_name")
                 if model:
                     turns[rid]["models_used"].add(model)
+                agent_name, agent_role = self._replay_agent_of(rec)
+                _record_agent(
+                    turns[rid], agent_name, agent_role,
+                    llm=True,
+                    llm_tokens=um.get("total_tokens", 0) or 0,
+                    llm_cost=um.get("total_cost", 0.0) or 0.0,
+                )
             elif et == "chat.usage_summary":
                 usage = rec.get("usage") or {}
                 tokens = rec.get("total_tokens") or usage.get("total_tokens") or 0
                 turns[rid]["total_tokens"] += tokens
                 turns[rid]["context_usage_percent"] = rec.get("usage_percent", 0.0) or 0.0
                 turns[rid]["context_window_tokens"] = rec.get("context_window_tokens", 0) or 0
+                agent_name, agent_role = self._replay_agent_of(rec)
+                if agent_name and tokens:
+                    acts = turns[rid]["_agent_activity"]
+                    entry = acts.get(agent_name)
+                    if entry is not None:
+                        # usage_summary is cumulative-ish per call; credit deltas are
+                        # not reliably derivable — attribute to tokens total once per
+                        # summary only when no metadata-based credit happened.
+                        if entry["llm_calls"] == 0:
+                            entry["tokens"] += tokens
             elif et == "chat.file":
                 turns[rid]["file_count"] += 1
             elif et == "chat.error" or (role == "assistant" and rec.get("error")):
