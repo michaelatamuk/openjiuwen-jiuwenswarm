@@ -137,6 +137,13 @@ def _has_persistable_assistant_payload(
         return True
     if et == "chat.subagent_activity" and isinstance(payload.get("subagent_activity"), dict):
         return True
+    # Per-call/per-member LLM usage events carry their structured payload in
+    # extra ("metadata" / "usage") and must be persisted so usage tracking
+    # (TraceHound replay) can read them back.
+    if et in ("chat.usage_metadata", "chat.usage_summary") and (
+        payload.get("metadata") or payload.get("usage")
+    ):
+        return True
     # Empty chat.final / chat.* status shells and other blank assistants: skip.
     if et.startswith("chat.") or et in {"", "chat.final"}:
         return False
