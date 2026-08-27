@@ -142,3 +142,13 @@ def test_history_filter_allows_usage_events_but_skips_other_empty_chat() -> None
         event_type="chat.final",
         extra={},
     )
+    assert not _has_persistable_assistant_payload(
+        content_text="",
+        event_type="chat.processing_status",
+        extra={},
+    )
+    assert not _has_persistable_assistant_payload(
+        content_text="",
+        event_type="chat.tool_update",
+        extra={},
+    )
