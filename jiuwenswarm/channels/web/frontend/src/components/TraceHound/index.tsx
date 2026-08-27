@@ -2268,7 +2268,7 @@ export function TurnDetailView() {
     chunks.push('');
     for (const item of displayItems) {
       if (item.type === 'gap') {
-        chunks.push('', `⏸ ${fmtDuration(item.seconds)} idle — retry triggered by next incoming message`, '');
+        chunks.push('', t('traceHound.turnDetail.gapIdle', { duration: fmtDuration(item.seconds) }), '');
       } else {
         chunks.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         chunks.push(recordToText(item.rec, turnRecords, t));

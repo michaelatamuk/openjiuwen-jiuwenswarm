@@ -284,6 +284,14 @@
       "expanded": "展开",
       "runs": "次运行",
       "failed": "（失败）"
+    },
+    "highlights": {
+      "title": "亮点",
+      "toolFailures": "{{count}} 次工具失败",
+      "retries": "#{{index}} — 尝试 {{count}} 次",
+      "slowest": "#{{index}} 耗时 {{seconds}} 秒",
+      "context": "上下文 {{percent}}%",
+      "problems": "{{count}} / {{total}} 有问题"
     }
   },
   "team": {

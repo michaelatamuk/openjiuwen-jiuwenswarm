@@ -284,6 +284,14 @@
       "expanded": "Expanded",
       "runs": "runs",
       "failed": "(failed)"
+    },
+    "highlights": {
+      "title": "Highlights",
+      "toolFailures": "{{count}} tool failures",
+      "retries": "#{{index}} — {{count}} attempts",
+      "slowest": "#{{index}} took {{seconds}}s",
+      "context": "context {{percent}}%",
+      "problems": "{{count}} of {{total}} with problems"
     }
   },
   "team": {
