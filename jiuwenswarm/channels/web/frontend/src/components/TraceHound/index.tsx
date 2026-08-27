@@ -4,6 +4,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue, type AgentActivity } from '../../stores/traceHoundStore';
 import { webRequest } from '../../services/webClient';
 import { C } from './traceTokens';
@@ -23,23 +25,23 @@ const headerStyle: React.CSSProperties = {
   marginBottom: 20, gap: 12, flexWrap: 'wrap',
 };
 const titleStyle: React.CSSProperties = {
-  fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #111)', margin: 0,
+  fontSize: 18, fontWeight: 700, color: C.text, margin: 0,
 };
 const btnStyle: React.CSSProperties = {
-  padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db',
-  background: '#f9fafb', cursor: 'pointer', fontSize: 13, color: '#374151',
+  padding: '5px 12px', borderRadius: 6, border: `1px solid ${C.borderStrong}`,
+  background: C.surfaceMuted, cursor: 'pointer', fontSize: 13, color: C.text,
   whiteSpace: 'nowrap',
 };
 const cardStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 16px',
-  marginBottom: 10, cursor: 'pointer', background: '#fff', transition: 'border-color 0.15s',
+  border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 16px',
+  marginBottom: 10, cursor: 'pointer', background: C.surface, transition: 'border-color 0.15s',
 };
 const emptyStyle: React.CSSProperties = {
-  padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14,
+  padding: 40, textAlign: 'center', color: C.textFaint, fontSize: 14,
 };
 const chipStyle: React.CSSProperties = {
   fontSize: 12, padding: '2px 8px', borderRadius: 4,
-  background: '#f3f4f6', color: '#374151',
+  background: C.surfaceMuted, color: C.text,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,12 +70,16 @@ function fmtDelta(s: number): string {
   return `+${fmtDuration(s)}`;
 }
 
-function modeBadge(mode?: string | null): React.ReactNode {
+function modeBadge(mode: string | null | undefined): React.ReactNode {
   if (!mode || mode === 'unknown') return null;
-  const colors: Record<string, string> = { 'agent.plan': '#3b82f6', 'code.plan': '#8b5cf6', team: '#10b981' };
-  const color = colors[mode] ?? '#6b7280';
+  const colors: Record<string, { color: string; subtle: string }> = {
+    'agent.plan': { color: C.info, subtle: C.infoSubtle },
+    'code.plan': { color: C.violet, subtle: C.violetSubtle },
+    team: { color: C.ok, subtle: C.okSubtle },
+  };
+  const mb = colors[mode] ?? { color: C.textMuted, subtle: C.surfaceMuted };
   return (
-    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44`, marginRight: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: mb.subtle, color: mb.color, border: `1px solid ${mb.subtle}`, marginRight: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
       {mode}
     </span>
   );
@@ -81,10 +87,10 @@ function modeBadge(mode?: string | null): React.ReactNode {
 
 // ── Team agent attribution ───────────────────────────────────────────────────
 
-const AGENT_PALETTE = ['#0ea5e9', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#eab308', '#6366f1', '#f43f5e'];
+const AGENT_PALETTE = [C.info, C.warn, C.violet, C.danger, C.teal, C.ok];
 
 function agentColor(name: string): string {
-  if (name === 'leader') return '#475569';
+  if (name === 'leader') return C.textMuted;
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return AGENT_PALETTE[h % AGENT_PALETTE.length];
@@ -98,11 +104,11 @@ function recordAgent(rec: HistoryRecord): string {
 }
 
 /** Small colored tag for a team agent (leader gets a neutral slate tag). */
-function agentTag(name: string, withDot = true): React.ReactNode {
+function agentTag(name: string, t: TFunction, withDot = true): React.ReactNode {
   const color = agentColor(name);
   return (
-    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: color + '14', color, border: `1px solid ${color}33`, flexShrink: 0, whiteSpace: 'nowrap' }}>
-      {name === 'leader' ? '⛨ leader' : (withDot ? `◈ ${name}` : name)}
+    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: C.surfaceMuted, color, border: `1px solid ${C.border}`, flexShrink: 0, whiteSpace: 'nowrap' }}>
+      {name === 'leader' ? `⛨ ${t('traceHound.perAgent.leader')}` : (withDot ? `◈ ${name}` : name)}
     </span>
   );
 }
@@ -131,12 +137,12 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
         {show && text && createPortal(
           <div style={{
             position: 'fixed', top: pos.y - 8, left: pos.x, transform: 'translate(-50%, -100%)',
-            background: '#1f2937', color: '#f9fafb', fontSize: 11, padding: '8px 10px',
+            background: C.text, color: C.surface, fontSize: 11, padding: '8px 10px',
             borderRadius: 6, whiteSpace: 'pre-wrap', zIndex: 2147483647, minWidth: 180, maxWidth: 300,
             boxShadow: '0 4px 16px rgba(0,0,0,0.35)', pointerEvents: 'none', lineHeight: 1.5,
           }}>
             {text}
-            <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1f2937' }} />
+            <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid ${C.text}` }} />
           </div>,
           document.body
         )}
@@ -157,12 +163,12 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
       {show && text && createPortal(
         <div style={{
           position: 'fixed', top: pos.y - 8, left: pos.x, transform: 'translate(-50%, -100%)',
-          background: '#1f2937', color: '#f9fafb', fontSize: 11, padding: '8px 10px',
+          background: C.text, color: C.surface, fontSize: 11, padding: '8px 10px',
           borderRadius: 6, whiteSpace: 'pre-wrap', zIndex: 2147483647, minWidth: 180, maxWidth: 300,
           boxShadow: '0 4px 16px rgba(0,0,0,0.35)', pointerEvents: 'none', lineHeight: 1.5,
         }}>
           {text}
-          <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1f2937' }} />
+          <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid ${C.text}` }} />
         </div>,
         document.body
       )}
@@ -172,21 +178,35 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 
 /** Color for each outcome type — used in charts, badges, timeline bars */
 const OUTCOME_COLORS: Record<string, string> = {
-  completed: '#2563eb',
-  completed_with_issues: '#f59e0b',
-  no_response: '#9333ea',
-  error: '#ef4444',
-  deferred: '#059669',
+  completed: C.info,
+  completed_with_issues: C.warn,
+  no_response: C.violet,
+  error: C.danger,
+  deferred: C.ok,
 };
 
-/** Human-readable display name for each outcome */
-const OUTCOME_LABELS: Record<string, string> = {
-  completed: 'Completed',
-  completed_with_issues: 'With problems',
-  no_response: 'No response',
-  error: 'Error',
-  deferred: 'Deferred',
+/** Tinted background for each outcome type (for badges/chips). */
+const OUTCOME_SUBTLE: Record<string, string> = {
+  completed: C.infoSubtle,
+  completed_with_issues: C.warnSubtle,
+  no_response: C.violetSubtle,
+  error: C.dangerSubtle,
+  deferred: C.okSubtle,
 };
+
+/** i18n key (under `traceHound.outcomes`) for each outcome name. */
+const OUTCOME_LABEL_KEYS: Record<string, string> = {
+  completed: 'completed',
+  completed_with_issues: 'withProblems',
+  no_response: 'noResponse',
+  error: 'error',
+  deferred: 'deferred',
+};
+
+function outcomeLabel(outcome: string, t: TFunction): string {
+  const key = OUTCOME_LABEL_KEYS[outcome];
+  return key ? t(`traceHound.outcomes.${key}`) : outcome.replace(/_/g, ' ');
+}
 
 /** Approximate bar height score for visual charts */
 function outcomeScore(t: TurnSummary): number {
@@ -200,18 +220,18 @@ function outcomeScore(t: TurnSummary): number {
 }
 
 /** Outcome badge — shows the actual outcome name (completed / with problems / no response / error / deferred) */
-function OutcomeBadge({ outcome, issues }: { outcome: string; issues: string[] }) {
-  const color = OUTCOME_COLORS[outcome] ?? '#6b7280';
-  const label = OUTCOME_LABELS[outcome] ?? outcome.replace(/_/g, ' ');
+function OutcomeBadge({ outcome, issues, t }: { outcome: string; issues: string[]; t: TFunction }) {
+  const color = OUTCOME_COLORS[outcome] ?? C.textMuted;
+  const label = outcomeLabel(outcome, t);
   const tip = issues.length > 0 ? issues.join('\n') : '';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}44`, textTransform: 'capitalize' }}>
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: OUTCOME_SUBTLE[outcome] ?? C.surfaceMuted, color, border: `1px solid ${OUTCOME_SUBTLE[outcome] ?? C.border}`, textTransform: 'capitalize' }}>
         {label}
       </span>
       {tip && (
         <Tooltip text={tip}>
-          <span style={{ fontSize: 11, color: '#9ca3af', cursor: 'help', fontWeight: 700, lineHeight: 1 }}>?</span>
+          <span style={{ fontSize: 11, color: C.textFaint, cursor: 'help', fontWeight: 700, lineHeight: 1 }}>?</span>
         </Tooltip>
       )}
     </span>
@@ -222,7 +242,7 @@ function queryTypeBadge(qt: string | null | undefined): React.ReactNode {
   if (!qt || qt === 'general') return null;
   const map: Record<string, string> = { coding: '💻', debug: '🐛', file_op: '📁', analysis: '🔍', question: '❓' };
   return (
-    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: C.surfaceMuted, color: C.textMuted, border: `1px solid ${C.border}` }}>
       {map[qt] ?? ''} {qt}
     </span>
   );
@@ -275,27 +295,31 @@ function isFailedToolResult(rec: HistoryRecord): boolean {
   return typeof rec.result === 'string' && rec.result.includes('success=False');
 }
 
-function recordHeaderLabel(rec: HistoryRecord): string {
+function recordHeaderLabel(rec: HistoryRecord, t: TFunction): string {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
-  const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
-  const subLabel = rec.subagent_type ? ` · subagent: ${rec.subagent_type}` : '';
+  const meta = EVENT_META[key];
+  const label = meta
+    ? t(`traceHound.records.events.${meta.labelKey}`)
+    : (rec.event_type ?? rec.role);
+  const subLabel = rec.subagent_type ? t('traceHound.records.subagent', { type: rec.subagent_type }) : '';
   const agentName = recordAgent(rec);
-  const agentLabel = agentName ? ` · ${agentName}` : '';
-  if (key === 'chat.tool_call') return `${meta.label}: ${rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? ''}${subLabel}${agentLabel}`;
-  if (key === 'chat.tool_result') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}${agentLabel}`;
-  if (key === 'chat.tool_update') return `${meta.label}: ${rec.tool_name ?? ''}${subLabel}${agentLabel}`;
-  if (key === 'chat.usage_metadata') return `${meta.label}: ${rec.metadata?.usage_metadata?.model_name ?? ''}${subLabel}${agentLabel}`;
-  return `${meta.label}${subLabel}${agentLabel}`;
+  const agentLabel = agentName ? t('traceHound.records.byAgent', { name: agentName }) : '';
+  const toolName = rec.tool_name ?? (rec.tool_call as Record<string, unknown>)?.name ?? '';
+  if (key === 'chat.tool_call') return `${t('traceHound.records.labeled', { label, name: toolName })}${subLabel}${agentLabel}`;
+  if (key === 'chat.tool_result') return `${t('traceHound.records.labeled', { label, name: rec.tool_name ?? '' })}${subLabel}${agentLabel}`;
+  if (key === 'chat.tool_update') return `${t('traceHound.records.labeled', { label, name: rec.tool_name ?? '' })}${subLabel}${agentLabel}`;
+  if (key === 'chat.usage_metadata') return `${t('traceHound.records.labeled', { label, name: rec.metadata?.usage_metadata?.model_name ?? '' })}${subLabel}${agentLabel}`;
+  return `${label}${subLabel}${agentLabel}`;
 }
 
 // Serialize a history record as plain text, mirroring exactly what its on-screen
 // card shows (header label, body, tool arguments/result, LLM usage + prompt +
 // response, session id) so a downloaded page has the same boxes, order and data.
-function recordToText(rec: HistoryRecord, allRecords?: HistoryRecord[]): string {
+function recordToText(rec: HistoryRecord, allRecords: HistoryRecord[], t: TFunction): string {
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
-  const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
-  const icon = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : meta.icon;
-  const header = `${icon} ${recordHeaderLabel(rec)}`;
+  const meta = EVENT_META[key];
+  const icon = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : (meta?.icon ?? '•');
+  const header = `${icon} ${recordHeaderLabel(rec, t)}`;
   const lines: string[] = [header];
 
   const bodyText = key === 'chat.error' ? (rec.error ?? rec.error_detail ?? rec.content ?? '') : (rec.content ?? '');
@@ -660,22 +684,23 @@ function turnToStepByStepMarkdown(records: HistoryRecord[]): string {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   return (
     <button
       title={text}
       style={{ ...btnStyle, fontSize: 11, padding: '2px 8px' }}
       onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
-      {copied ? '✓ copied' : '⎘ copy'}
+      {copied ? t('traceHound.copied') : t('traceHound.copy')}
     </button>
   );
 }
 
 function ErrorBanner({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#991b1b' }}>
+    <div style={{ background: C.dangerSubtle, border: `1px solid ${C.dangerSubtle}`, borderRadius: 6, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.danger }}>
       <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#991b1b' }}>×</button>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: C.danger }}>×</button>
     </div>
   );
 }
@@ -728,7 +753,8 @@ function findLLMResponseForUsage(
 
 // ── Analytics Panel ───────────────────────────────────────────────────────────
 
-function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnected: boolean }) {
+function AnalyticsPanel({ turns, isConnected, hasUsage }: { turns: TurnSummary[]; isConnected: boolean; hasUsage: boolean }) {
+  const { t } = useTranslation();
   const jumpToTurn = useTraceHoundStore(s => s.jumpToTurn);
   if (turns.length === 0) return null;
 
@@ -793,23 +819,23 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
   const totalToolFailures = turns.reduce((s, t) => s + (t.tool_failures ?? 0), 0);
 
   return (
-    <div style={{ marginBottom: 20, padding: '14px 16px', background: '#fafafa', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+    <div style={{ marginBottom: 20, padding: '14px 16px', background: C.surfaceMuted, borderRadius: 8, border: `1px solid ${C.border}` }}>
 
       {/* Summary stats */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         {[
-          { label: 'Completed', value: String(outcomes.completed), color: '#3b82f6', tip: 'User messages that finished successfully with no problems' },
-          { label: 'With problems', value: String(outcomes.completed_with_issues), color: outcomes.completed_with_issues > 0 ? '#f59e0b' : '#9ca3af', tip: 'User messages that completed but had tool failures, retries, or were slow' },
-          { label: 'No response', value: String(outcomes.no_response), color: outcomes.no_response > 0 ? '#8b5cf6' : '#9ca3af', tip: 'User messages where the agent produced no output at all' },
-          { label: 'Errors', value: String(outcomes.error), color: outcomes.error > 0 ? '#ef4444' : '#9ca3af', tip: 'User messages that ended in a hard error' },
-          { label: 'Deferred', value: String(outcomes.deferred), color: outcomes.deferred > 0 ? '#6366f1' : '#9ca3af', tip: 'Messages sent while agent was busy — never processed' },
-          { label: 'Total retries', value: String(totalRetries), color: totalRetries > 0 ? '#f59e0b' : '#9ca3af', tip: 'How many times the agent retried a failed request' },
-          { label: 'Tool failures', value: String(totalToolFailures), color: totalToolFailures > 0 ? '#dc2626' : '#9ca3af', tip: 'Tool calls that returned success=False or an error' },
-          ...(longestCascade >= 2 ? [{ label: 'Longest error streak', value: `${longestCascade} user msgs`, color: '#ef4444', tip: 'Consecutive user messages all with errors' }] : []),
+          { label: t('traceHound.stats.completed'), value: String(outcomes.completed), color: C.info, tip: t('traceHound.stats.completedTip') },
+          { label: t('traceHound.stats.withProblems'), value: String(outcomes.completed_with_issues), color: outcomes.completed_with_issues > 0 ? C.warn : C.textFaint, tip: t('traceHound.stats.withProblemsTip') },
+          { label: t('traceHound.stats.noResponse'), value: String(outcomes.no_response), color: outcomes.no_response > 0 ? C.violet : C.textFaint, tip: t('traceHound.stats.noResponseTip') },
+          { label: t('traceHound.stats.errors'), value: String(outcomes.error), color: outcomes.error > 0 ? C.danger : C.textFaint, tip: t('traceHound.stats.errorsTip') },
+          { label: t('traceHound.stats.deferred'), value: String(outcomes.deferred), color: outcomes.deferred > 0 ? C.violet : C.textFaint, tip: t('traceHound.stats.deferredTip') },
+          { label: t('traceHound.stats.retries'), value: String(totalRetries), color: totalRetries > 0 ? C.warn : C.textFaint, tip: t('traceHound.stats.retriesTip') },
+          { label: t('traceHound.stats.toolFailures'), value: String(totalToolFailures), color: totalToolFailures > 0 ? C.danger : C.textFaint, tip: t('traceHound.stats.toolFailuresTip') },
+          ...(longestCascade >= 2 ? [{ label: t('traceHound.stats.longestStreak'), value: `${longestCascade} ${t('traceHound.stats.userMsgs')}`, color: C.danger, tip: t('traceHound.stats.longestStreakTip') }] : []),
         ].map((s, i) => (
           <Tooltip key={i} text={s.tip ?? ''}>
-            <div style={{ background: '#fff', borderRadius: 6, padding: '8px 12px', border: '1px solid #e5e7eb', minWidth: 90, cursor: s.tip ? 'help' : 'default' }}>
-              <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>{s.label}</div>
+            <div style={{ background: C.surface, borderRadius: 6, padding: '8px 12px', border: `1px solid ${C.border}`, minWidth: 90, cursor: s.tip ? 'help' : 'default' }}>
+              <div style={{ fontSize: 10, color: C.textFaint, marginBottom: 3 }}>{s.label}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
             </div>
           </Tooltip>
@@ -819,118 +845,127 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
 
         {/* Per user message — combined quality, tokens, duration in one card */}
-        <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Per user message</div>
+        <div style={{ background: C.surface, borderRadius: 6, padding: 12, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>{t('traceHound.stats.perUserMessage')}</div>
 
           {/* Outcome row */}
           <div>
-            <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Outcome</span><span>{turns.length} user msgs</span>
+            <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+              <span>{t('traceHound.stats.outcome')}</span><span>{turns.length} {t('traceHound.stats.userMsgs')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-              {turns.map(t => {
-                const outcome = t.outcome;
-                const color = OUTCOME_COLORS[outcome] ?? '#9ca3af';
-                const pct = outcomeScore(t);
+              {turns.map(tr => {
+                const outcome = tr.outcome;
+                const color = OUTCOME_COLORS[outcome] ?? C.textFaint;
+                const pct = outcomeScore(tr);
                 const h = Math.max(4, pct * 28);
-                const failedCount = t.tool_failures ?? 0;
-                const failedTip = failedCount > 0 ? `\n${failedCount} tool call${failedCount !== 1 ? 's' : ''} failed` : '';
+                const failedCount = tr.tool_failures ?? 0;
+                const failedTip = failedCount > 0 ? `\n${t('traceHound.stats.failedToolCalls', { count: failedCount })}` : '';
                 return (
-                  <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${OUTCOME_LABELS[outcome] ?? outcome}${failedTip}\n${t.user_content || '(no message)'}`}>
-                    <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default', opacity: t.outcome === 'deferred' ? 0.4 : 1, boxShadow: failedCount > 0 ? 'inset 0 0 0 1px #dc2626' : undefined }} />
+                  <Tooltip key={tr.turn_id} text={`${t('traceHound.stats.msgTooltip', { index: tr.turn_index + 1, text: outcomeLabel(outcome, t) })}${failedTip}\n${tr.user_content || t('traceHound.stats.noMessage')}`}>
+                    <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default', opacity: tr.outcome === 'deferred' ? 0.4 : 1, boxShadow: failedCount > 0 ? `inset 0 0 0 1px ${C.danger}` : undefined }} />
                   </Tooltip>
                 );
               })}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-              {Object.entries(OUTCOME_COLORS).map(([k, c]) => (
-                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280', textTransform: 'capitalize' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{OUTCOME_LABELS[k] ?? k.replace(/_/g, ' ')}
+              {Object.keys(OUTCOME_COLORS).map((k) => (
+                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: C.textMuted, textTransform: 'capitalize' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 1, background: OUTCOME_COLORS[k], display: 'inline-block' }} />{outcomeLabel(k, t)}
                 </span>
               ))}
             </div>
           </div>
 
           {/* Tokens row */}
-          {maxTok > 0 && (
+          {turns.length > 0 && (
             <div>
-              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Tokens</span><span>{turns.reduce((s, t) => s + t.total_tokens, 0).toLocaleString()} total</span>
+              <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('traceHound.stats.tokens')}</span>
+                <span>{hasUsage ? t('traceHound.stats.countTotal', { count: turns.reduce((s, t) => s + t.total_tokens, 0).toLocaleString() }) : t('traceHound.stats.noData')}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-                {turns.map(t => {
-                  const h = Math.max(1, (t.total_tokens / maxTok) * 28);
-                  return (
-                    <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${t.total_tokens.toLocaleString()} tokens`}>
-                      <div style={{ flex: 1, minWidth: 0, height: h, background: t.total_tokens > 0 ? '#6366f1' : '#9ca3af', borderRadius: 1, opacity: t.total_tokens > 0 ? 0.65 : 0.5, cursor: 'default' }} />
-                    </Tooltip>
-                  );
-                })}
-              </div>
+              {hasUsage && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+                  {turns.map(tr => {
+                    const h = Math.max(1, (tr.total_tokens / maxTok) * 28);
+                    return (
+                      <Tooltip key={tr.turn_id} text={t('traceHound.stats.tokensTooltip', { index: tr.turn_index + 1, count: tr.total_tokens.toLocaleString() })}>
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: tr.total_tokens > 0 ? C.violet : C.textFaint, borderRadius: 1, opacity: tr.total_tokens > 0 ? 0.65 : 0.5, cursor: 'default' }} />
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* LLM calls row */}
-          {(() => {
+          {hasUsage ? (() => {
             const maxLlm = Math.max(...turns.map(t => t.llm_call_count ?? 0), 1);
             const totalLlm = turns.reduce((s, t) => s + (t.llm_call_count ?? 0), 0);
             if (totalLlm === 0) return null;
             return (
               <div>
-                <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>LLM calls</span><span>{totalLlm} total</span>
+                <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t('traceHound.stats.llmCalls')}</span><span>{t('traceHound.stats.countTotal', { count: totalLlm })}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-                  {turns.map(t => {
-                    const n = t.llm_call_count ?? 0;
+                  {turns.map(tr => {
+                    const n = tr.llm_call_count ?? 0;
                     const h = Math.max(1, (n / maxLlm) * 28);
-                    const color = n === 0 ? '#9ca3af' : n > 10 ? '#ef4444' : n > 4 ? '#f59e0b' : '#10b981';
+                    const color = n === 0 ? C.textFaint : n > 10 ? C.danger : n > 4 ? C.warn : C.ok;
                     return (
-                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} LLM call${n !== 1 ? 's' : ''}`}>
+                      <Tooltip key={tr.turn_id} text={t('traceHound.stats.llmCallsTooltip', { index: tr.turn_index + 1, count: n })}>
                         <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, opacity: n === 0 ? 0.5 : 1, cursor: 'default' }} />
                       </Tooltip>
                     );
                   })}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                  {([['#10b981', '1–4'], ['#f59e0b', '5–10'], ['#ef4444', '11+']] as const).map(([c, l]) => (
-                    <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                  {([[C.ok, t('traceHound.stats.llmLegendLow')], [C.warn, t('traceHound.stats.llmLegendMid')], [C.danger, t('traceHound.stats.llmLegendHigh')]] as const).map(([c, l]) => (
+                    <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: C.textMuted }}>
                       <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
                     </span>
                   ))}
                 </div>
               </div>
             );
-          })()}
+          })() : (
+            <div>
+              <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('traceHound.stats.llmCalls')}</span><span>{t('traceHound.stats.noData')}</span>
+              </div>
+            </div>
+          )}
 
           {/* Duration row */}
           {maxDur > 0 && (
             <div>
-              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Duration <span style={{ fontSize: 8 }}>(single-attempt)</span></span><span>slowest {fmtDuration(maxDur)}</span>
+              <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('traceHound.stats.duration')} <span style={{ fontSize: 8 }}>{t('traceHound.stats.durationSingle')}</span></span><span>{t('traceHound.stats.slowestDuration', { duration: fmtDuration(maxDur) })}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-                {turns.map(t => {
-                  if (t.retry_count > 1) {
+                {turns.map(tr => {
+                  if (tr.retry_count > 1) {
                     return (
-                        <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${t.retry_count} retries — wall time excluded`}>
-                          <div style={{ flex: 1, minWidth: 0, height: 4, background: '#bfdbfe', borderRadius: 1, cursor: 'default', opacity: 0.7 }} />
+                        <Tooltip key={tr.turn_id} text={t('traceHound.stats.retriesExcludedTooltip', { index: tr.turn_index + 1, count: tr.retry_count })}>
+                          <div style={{ flex: 1, minWidth: 0, height: 4, background: C.violetSubtle, borderRadius: 1, cursor: 'default', opacity: 0.7 }} />
                         </Tooltip>
                     );
                   }
-                  const pct = t.duration_seconds / maxDur;
-                  const color = t.duration_seconds === 0 ? '#9ca3af' : pct > 0.75 ? '#ef4444' : pct > 0.4 ? '#f59e0b' : '#10b981';
+                  const pct = tr.duration_seconds / maxDur;
+                  const color = tr.duration_seconds === 0 ? C.textFaint : pct > 0.75 ? C.danger : pct > 0.4 ? C.warn : C.ok;
                   const h = Math.max(1, pct * 28);
                   return (
-                    <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${fmtDuration(t.duration_seconds)}`}>
-                      <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, opacity: t.duration_seconds === 0 ? 0.5 : 1, cursor: 'default' }} />
+                    <Tooltip key={tr.turn_id} text={t('traceHound.stats.durationTooltip', { index: tr.turn_index + 1, duration: fmtDuration(tr.duration_seconds) })}>
+                      <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, opacity: tr.duration_seconds === 0 ? 0.5 : 1, cursor: 'default' }} />
                     </Tooltip>
                   );
                 })}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                {([['#10b981', 'fast'], ['#f59e0b', 'moderate'], ['#ef4444', 'slow']] as const).map(([c, l]) => (
-                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                {([[C.ok, t('traceHound.stats.speedFast')], [C.warn, t('traceHound.stats.speedModerate')], [C.danger, t('traceHound.stats.speedSlow')]] as const).map(([c, l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: C.textMuted }}>
                     <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
                   </span>
                 ))}
@@ -941,19 +976,19 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
           {/* Retries row */}
           {totalRetries > 0 && (
             <div>
-              <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                <span>Retries</span><span>{totalRetries} total</span>
+              <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('traceHound.stats.retriesRow')}</span><span>{t('traceHound.stats.countTotal', { count: totalRetries })}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
                 {(() => {
                   const maxRetry = Math.max(...turns.map(t => t.retry_count), 1);
-                  return turns.map(t => {
-                    const rc = t.retry_count;
+                  return turns.map(tr => {
+                    const rc = tr.retry_count;
                     const pct = rc / maxRetry;
-                    const color = rc === 0 ? '#cbd5e1' : rc === 1 ? '#94a3b8' : '#7c3aed';
+                    const color = rc === 0 ? C.borderStrong : rc === 1 ? C.textFaint : C.violet;
                     const h = Math.max(rc > 0 ? 3 : 1, pct * 28);
                     return (
-                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${rc} attempt${rc !== 1 ? 's' : ''}`}>
+                      <Tooltip key={tr.turn_id} text={t('traceHound.stats.attemptsTooltip', { index: tr.turn_index + 1, count: rc })}>
                         <div style={{ flex: 1, minWidth: 0, height: h, background: color, borderRadius: 1, cursor: 'default' }} />
                       </Tooltip>
                     );
@@ -961,8 +996,8 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
                 })()}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                {([['#cbd5e1', '0 retries'], ['#94a3b8', '1 retry'], ['#7c3aed', '2+ retries']] as const).map(([c, l]) => (
-                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+                {([[C.borderStrong, t('traceHound.stats.retryLegendZero')], [C.textFaint, t('traceHound.stats.retryLegendOne')], [C.violet, t('traceHound.stats.retryLegendMany')]] as const).map(([c, l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: C.textMuted }}>
                     <span style={{ width: 6, height: 6, borderRadius: 1, background: c, display: 'inline-block' }} />{l}
                   </span>
                 ))}
@@ -977,16 +1012,17 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
             if (maxTools === 0) return null;
             return (
               <div>
-                <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Tools per msg</span><span>{totalTools} total</span>
+                <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t('traceHound.stats.toolsPerMsg')}</span><span>{t('traceHound.stats.countTotal', { count: totalTools })}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-                  {turns.map(t => {
-                    const n = t.tool_names.length;
+                  {turns.map(tr => {
+                    const n = tr.tool_names.length;
                     const h = Math.max(1, (n / maxTools) * 28);
+                    const names = n > 0 ? `\n${tr.tool_names.slice(0, 5).join(', ')}${tr.tool_names.length > 5 ? '…' : ''}` : '';
                     return (
-                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} tool${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.tool_names.slice(0, 5).join(', ') + (t.tool_names.length > 5 ? '…' : '') : ''}`}>
-                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? '#9ca3af' : '#f59e0b', borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.5 : 0.8 }} />
+                      <Tooltip key={tr.turn_id} text={`${t('traceHound.stats.toolsTooltip', { index: tr.turn_index + 1, count: n })}${names}`}>
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? C.textFaint : C.warn, borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.5 : 0.8 }} />
                       </Tooltip>
                     );
                   })}
@@ -1002,16 +1038,17 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
             if (maxSkills === 0) return null;
             return (
               <div>
-                <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Skills per msg</span><span>{totalSkills} total</span>
+                <div style={{ fontSize: 9, color: C.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t('traceHound.stats.skillsPerMsg')}</span><span>{t('traceHound.stats.countTotal', { count: totalSkills })}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
-                  {turns.map(t => {
-                    const n = t.skill_names.length;
+                  {turns.map(tr => {
+                    const n = tr.skill_names.length;
                     const h = Math.max(1, (n / maxSkills) * 28);
+                    const names = n > 0 ? `\n${tr.skill_names.join(', ')}` : '';
                     return (
-                      <Tooltip key={t.turn_id} text={`Msg ${t.turn_index + 1}: ${n} skill${n !== 1 ? 's' : ''}${n > 0 ? '\n' + t.skill_names.join(', ') : ''}`}>
-                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? '#9ca3af' : '#8b5cf6', borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.5 : 0.8 }} />
+                      <Tooltip key={tr.turn_id} text={`${t('traceHound.stats.skillsTooltip', { index: tr.turn_index + 1, count: n })}${names}`}>
+                        <div style={{ flex: 1, minWidth: 0, height: h, background: n === 0 ? C.textFaint : C.violet, borderRadius: 1, cursor: 'default', opacity: n === 0 ? 0.5 : 0.8 }} />
                       </Tooltip>
                     );
                   })}
@@ -1023,16 +1060,16 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
 
         {/* Error categories */}
         {Object.keys(errCats).length > 0 && (
-          <div style={{ background: '#fff5f5', borderRadius: 6, padding: 12, border: '1px solid #fecaca' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>Error categories</div>
+          <div style={{ background: C.dangerSubtle, borderRadius: 6, padding: 12, border: `1px solid ${C.dangerSubtle}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.danger, marginBottom: 8 }}>{t('traceHound.stats.errorCategories')}</div>
             {Object.entries(errCats).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
               <div key={cat} style={{ marginBottom: 5 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: '#374151' }}>{cat}</span>
-                  <span style={{ fontWeight: 600, color: '#dc2626' }}>×{count}</span>
+                  <span style={{ color: C.text }}>{cat}</span>
+                  <span style={{ fontWeight: 600, color: C.danger }}>{t('traceHound.stats.errCount', { count })}</span>
                 </div>
-                <div style={{ height: 3, background: '#fee2e2', borderRadius: 2 }}>
-                  <div style={{ height: 3, width: `${(count / Object.values(errCats).reduce((a, b) => a + b, 0)) * 100}%`, background: '#ef4444', borderRadius: 2 }} />
+                <div style={{ height: 3, background: C.dangerSubtle, borderRadius: 2 }}>
+                  <div style={{ height: 3, width: `${(count / Object.values(errCats).reduce((a, b) => a + b, 0)) * 100}%`, background: C.danger, borderRadius: 2 }} />
                 </div>
               </div>
             ))}
@@ -1041,18 +1078,18 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
 
         {/* Query types */}
         {Object.keys(qtCounts).length > 1 && (
-          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Query types</div>
+          <div style={{ background: C.surface, borderRadius: 6, padding: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>{t('traceHound.stats.queryTypes')}</div>
             {Object.entries(qtCounts).sort((a, b) => b[1] - a[1]).map(([qt, count]) => {
               const icons: Record<string, string> = { coding: '💻', debug: '🐛', file_op: '📁', analysis: '🔍', question: '❓', general: '💬' };
               return (
                 <div key={qt} style={{ marginBottom: 5 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                    <span style={{ color: '#374151' }}>{icons[qt] ?? ''} {qt}</span>
-                    <span style={{ color: '#6b7280' }}>{count}</span>
+                    <span style={{ color: C.text }}>{icons[qt] ?? ''} {qt}</span>
+                    <span style={{ color: C.textMuted }}>{count}</span>
                   </div>
-                  <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
-                    <div style={{ height: 3, width: `${(count / turns.length) * 100}%`, background: '#6366f1', borderRadius: 2 }} />
+                  <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
+                    <div style={{ height: 3, width: `${(count / turns.length) * 100}%`, background: C.violet, borderRadius: 2 }} />
                   </div>
                 </div>
               );
@@ -1062,8 +1099,8 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
 
         {/* Tool frequency */}
         {displayTools.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Tool usage</div>
+          <div style={{ background: C.surface, borderRadius: 6, padding: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>{t('traceHound.stats.toolUsage')}</div>
             {displayTools.map(([tool, u]) => {
               const failedAgents = Object.entries(u.byAgent).filter(([, a]) => a.failed > 0);
               const firstFail = turns
@@ -1073,7 +1110,7 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
                 <div
                   key={tool}
                   style={{ marginBottom: 5, cursor: u.failed > 0 ? 'pointer' : 'default' }}
-                  title={u.failed > 0 ? 'Jump to first failure' : undefined}
+                  title={u.failed > 0 ? t('traceHound.stats.jumpToFailure') : undefined}
                   onClick={() => {
                     if (u.failed > 0 && firstFail && isConnected) {
                       jumpToTurn(firstFail.turnId, firstFail.r.tool_call_id);
@@ -1081,17 +1118,17 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                    <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '52%' }}>🔧 {tool}</span>
-                    <span style={{ color: u.failed > 0 ? '#dc2626' : '#6b7280', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      {u.failed > 0 ? `×${u.calls} (${u.failed} failed)` : `×${u.calls}`}
+                    <span style={{ color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '52%' }}>🔧 {tool}</span>
+                    <span style={{ color: u.failed > 0 ? C.danger : C.textMuted, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {u.failed > 0 ? t('traceHound.stats.callCountFailed', { count: u.calls, failed: u.failed }) : t('traceHound.stats.callCount', { count: u.calls })}
                     </span>
                   </div>
-                  <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2, marginBottom: 2 }}>
-                    <div style={{ height: 3, width: `${(u.calls / displayTools[0][1].calls) * 100}%`, background: u.failed > 0 ? '#ef4444' : '#f59e0b', borderRadius: 2 }} />
+                  <div style={{ height: 3, background: C.border, borderRadius: 2, marginBottom: 2 }}>
+                    <div style={{ height: 3, width: `${(u.calls / displayTools[0][1].calls) * 100}%`, background: u.failed > 0 ? C.danger : C.warn, borderRadius: 2 }} />
                   </div>
                   {failedAgents.length > 0 && (
-                    <div style={{ fontSize: 10, color: '#dc2626', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      ✗ failed by {failedAgents.map(([name]) => name === 'leader' ? 'leader' : name).join(' · ')}
+                    <div style={{ fontSize: 10, color: C.danger, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t('traceHound.stats.failedBy', { agents: failedAgents.map(([name]) => name === 'leader' ? t('traceHound.perAgent.leader') : name).join(' · ') })}
                     </div>
                   )}
                 </div>
@@ -1129,16 +1166,16 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
 
         {/* Skill frequency */}
         {topSkills.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Skill usage</div>
+          <div style={{ background: C.surface, borderRadius: 6, padding: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>{t('traceHound.stats.skillUsage')}</div>
             {topSkills.map(([skill, count]) => (
               <div key={skill} style={{ marginBottom: 5 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '78%' }}>🎯 {skill}</span>
-                  <span style={{ color: '#6b7280', flexShrink: 0 }}>×{count}</span>
+                  <span style={{ color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '78%' }}>🎯 {skill}</span>
+                  <span style={{ color: C.textMuted, flexShrink: 0 }}>{t('traceHound.stats.errCount', { count })}</span>
                 </div>
-                <div style={{ height: 3, background: '#e5e7eb', borderRadius: 2 }}>
-                  <div style={{ height: 3, width: `${(count / topSkills[0][1]) * 100}%`, background: '#8b5cf6', borderRadius: 2 }} />
+                <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
+                  <div style={{ height: 3, width: `${(count / topSkills[0][1]) * 100}%`, background: C.violet, borderRadius: 2 }} />
                 </div>
               </div>
             ))}
@@ -1153,11 +1190,11 @@ function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnec
 // ── LLM Analysis Panel ────────────────────────────────────────────────────────
 
 const PRIORITY_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
-  1: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', label: 'P1' },
-  2: { bg: '#ffedd5', border: '#fdba74', text: '#ea580c', label: 'P2' },
-  3: { bg: '#fef9c3', border: '#fde047', text: '#ca8a04', label: 'P3' },
-  4: { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8', label: 'P4' },
-  5: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', label: 'P5' },
+  1: { bg: C.dangerSubtle, border: C.dangerSubtle, text: C.danger, label: 'P1' },
+  2: { bg: C.warnSubtle, border: C.warnSubtle, text: C.warn, label: 'P2' },
+  3: { bg: C.warnSubtle, border: C.warnSubtle, text: C.warn, label: 'P3' },
+  4: { bg: C.infoSubtle, border: C.infoSubtle, text: C.info, label: 'P4' },
+  5: { bg: C.surfaceMuted, border: C.borderStrong, text: C.textMuted, label: 'P5' },
 };
 
 /** Splits "1) ... 2) ..." recommendation text into styled numbered rows.
@@ -1204,7 +1241,7 @@ function RecommendationList({ text }: { text: string }) {
   // Fallback: if no numbered items found, render as plain prose
   if (items.length === 0 || (items.length === 1 && items[0].num === 0)) {
     return (
-      <div style={{ fontSize: 13, color: '#14532d', padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+      <div style={{ fontSize: 13, color: C.ok, padding: '9px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
         {text}
       </div>
     );
@@ -1216,14 +1253,14 @@ function RecommendationList({ text }: { text: string }) {
         <div key={item.num} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{
             flexShrink: 0,
-            fontSize: 11, fontWeight: 700, color: '#15803d',
-            background: '#bbf7d0', borderRadius: '50%',
+            fontSize: 11, fontWeight: 700, color: C.ok,
+            background: C.okSubtle, borderRadius: '50%',
             width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
             marginTop: 1,
           }}>
             {item.num}
           </span>
-          <span style={{ fontSize: 13, color: '#14532d', lineHeight: 1.55, paddingTop: 2 }}>
+          <span style={{ fontSize: 13, color: C.ok, lineHeight: 1.55, paddingTop: 2 }}>
             {item.body}
           </span>
         </div>
@@ -1233,38 +1270,39 @@ function RecommendationList({ text }: { text: string }) {
 }
 
 function IssueCard({ issue }: { issue: AnalysisIssue }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const p = Math.min(5, Math.max(1, issue.priority ?? 5));
   const pc = PRIORITY_COLORS[p];
 
   return (
-    <div style={{ border: `1px solid ${pc.border}`, borderLeft: `3px solid ${pc.text}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+    <div style={{ border: `1px solid ${pc.border}`, borderLeft: `3px solid ${pc.text}`, borderRadius: 6, marginBottom: 8, background: C.surface, overflow: 'hidden' }}>
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', background: pc.bg + '88' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', background: pc.bg }}
         onClick={() => setExpanded(x => !x)}
       >
         <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: pc.bg, color: pc.text, border: `1px solid ${pc.border}`, flexShrink: 0 }}>
           {pc.label}
         </span>
-        <span style={{ fontWeight: 600, fontSize: 13, color: '#111827', flex: 1 }}>{issue.title}</span>
-        <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: C.text, flex: 1 }}>{issue.title}</span>
+        <span style={{ fontSize: 12, color: C.textFaint, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div style={{ padding: '14px 16px', borderTop: `1px solid ${pc.border}55`, display: 'flex', flexDirection: 'column', gap: 14, background: '#fff' }}>
+        <div style={{ padding: '14px 16px', borderTop: `1px solid ${pc.border}`, display: 'flex', flexDirection: 'column', gap: 14, background: C.surface }}>
           {/* Description — most prominent narrative block */}
           {issue.description && (
-            <div style={{ color: '#1f2937', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+            <div style={{ color: C.text, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
               {issue.description}
             </div>
           )}
 
           {/* Evidence — visually distinct raw-data / log card */}
           {issue.evidence && (
-            <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#e2e8f0', fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                <span>🧾</span> Evidence
+            <div style={{ background: C.surfaceMuted, border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: C.border, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span>🧾</span> {t('traceHound.diagnosis.evidence')}
               </div>
-              <div style={{ fontSize: 12, color: '#334155', padding: '8px 10px', whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', lineHeight: 1.45 }}>
+              <div style={{ fontSize: 12, color: C.text, padding: '8px 10px', whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', lineHeight: 1.45 }}>
                 {issue.evidence}
               </div>
             </div>
@@ -1276,9 +1314,9 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
               <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
                   <span style={{ fontSize: 12 }}>⚠️</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Impact</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.warn, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('traceHound.diagnosis.impact')}</span>
                 </div>
-                <div style={{ fontSize: 12.5, color: '#78350f', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 12.5, color: C.warn, background: C.warnSubtle, border: `1px solid ${C.warnSubtle}`, borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
                   {issue.impact}
                 </div>
               </div>
@@ -1287,9 +1325,9 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
               <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
                   <span style={{ fontSize: 12 }}>🔍</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Root Cause</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.violet, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('traceHound.diagnosis.rootCause')}</span>
                 </div>
-                <div style={{ fontSize: 12.5, color: '#312e81', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 12.5, color: C.violet, background: C.violetSubtle, border: `1px solid ${C.violetSubtle}`, borderRadius: 5, padding: '7px 9px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
                   {issue.root_cause}
                 </div>
               </div>
@@ -1298,9 +1336,9 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
 
           {/* Recommendation — most visually prominent, actionable */}
           {issue.recommendation && (
-            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#dcfce7', fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                <span>💡</span> Recommendation
+            <div style={{ background: C.okSubtle, border: `1px solid ${C.okSubtle}`, borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: C.okSubtle, fontSize: 10, fontWeight: 700, color: C.ok, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span>💡</span> {t('traceHound.diagnosis.recommendation')}
               </div>
               <RecommendationList text={issue.recommendation} />
             </div>
@@ -1314,6 +1352,7 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
 // ── Turn List ─────────────────────────────────────────────────────────────────
 
 export function TurnListView({ isConnected, embedded = false }: { isConnected: boolean; embedded?: boolean }) {
+  const { t } = useTranslation();
   const {
     selectedSession, turns, sessionStats, loading, error, selectTurn, back, clearError,
     analysis, analyzing, analyzeError, analyzeSession, clearAnalyzeError,
@@ -1321,6 +1360,10 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
   const [outcomeFilters, setOutcomeFilters] = useState<Set<string>>(new Set());
   const [filterRetries, setFilterRetries] = useState(false);
   const [filterSlow, setFilterSlow] = useState(false);
+
+  // A legacy session with no persisted usage shows "—" for LLM/token figures
+  // rather than a misleading "0".
+  const hasUsage = turns.some(t => (t.llm_call_count ?? 0) > 0 || t.total_tokens > 0);
 
   // p90 threshold for slow user messages (only from non-retry — wall time is misleading)
   const p90dur = useMemo(() => {
@@ -1362,7 +1405,7 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
       <div style={headerStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            {!embedded && <button style={btnStyle} onClick={back}>← Back</button>}
+            {!embedded && <button style={btnStyle} onClick={back}>{t('traceHound.back')}</button>}
             <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {modeBadge(selectedSession?.mode)}{selectedSession?.title ?? selectedSession?.session_id}
             </h2>
@@ -1370,7 +1413,7 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end', flexShrink: 0 }}>
           {/* Row 1: session id, date, copy button */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#9ca3af' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: C.textFaint }}>
             <span>{selectedSession?.session_id}</span>
             {sessionStats?.date_range && <span>{sessionStats.date_range}</span>}
             {sessionStats?.history_file_path && (
@@ -1384,39 +1427,39 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
           </div>
           {/* Row 2: user msgs · llm calls · events · tokens · costs · latencies · models · context */}
           {sessionStats && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#6b7280', marginTop: 6 }}>
-              <span><strong style={{ color: '#374151' }}>{sessionStats.total_turns}</strong> user msgs</span>
-              <span><strong style={{ color: '#374151' }}>{sessionStats.total_llm_calls ?? 0}</strong> LLM calls</span>
-              <span><strong style={{ color: '#374151' }}>{sessionStats.total_events ?? selectedSession?.message_count ?? 0}</strong> events</span>
-              <span><strong style={{ color: '#374151' }}>{(sessionStats.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 12, color: C.textMuted, marginTop: 6 }}>
+              <span><strong style={{ color: C.text }}>{sessionStats.total_turns}</strong> {t('traceHound.header.userMsgs')}</span>
+              <span><strong style={{ color: C.text }}>{hasUsage ? (sessionStats.total_llm_calls ?? 0) : t('traceHound.stats.noData')}</strong> {t('traceHound.header.llmCalls')}</span>
+              <span><strong style={{ color: C.text }}>{sessionStats.total_events ?? selectedSession?.message_count ?? 0}</strong> {t('traceHound.header.events')}</span>
+              <span><strong style={{ color: C.text }}>{hasUsage ? (sessionStats.total_tokens ?? 0).toLocaleString() : t('traceHound.stats.noData')}</strong> {t('traceHound.header.tokens')}</span>
               {(sessionStats.total_cache_tokens ?? 0) > 0 && (
-                <span>🔄 <strong style={{ color: '#374151' }}>{sessionStats.total_cache_tokens?.toLocaleString()}</strong> cache</span>
+                <span>🔄 <strong style={{ color: C.text }}>{sessionStats.total_cache_tokens?.toLocaleString()}</strong> {t('traceHound.header.cache')}</span>
               )}
               {sessionStats.error_count > 0 && (
-                <span style={{ color: '#dc2626' }}><strong>{sessionStats.error_count}</strong> with errors</span>
+                <span style={{ color: C.danger }}><strong>{sessionStats.error_count}</strong> {t('traceHound.header.withErrors')}</span>
               )}
               {(sessionStats.total_cost ?? 0) > 0 && (
-                <span>💰 <strong style={{ color: '#374151' }}>${sessionStats.total_cost?.toFixed(4)}</strong></span>
+                <span>💰 <strong style={{ color: C.text }}>${sessionStats.total_cost?.toFixed(4)}</strong></span>
               )}
               {(sessionStats.avg_total_latency_ms ?? 0) > 0 && (
-                <Tooltip text={`Avg TTFT ${(sessionStats.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(sessionStats.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
-                  <span style={{ cursor: 'help' }}>⏱️ <strong style={{ color: '#374151' }}>{((sessionStats.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s</strong> avg latency</span>
+                <Tooltip text={t('traceHound.header.avgLatencyTooltip', { ttft: (sessionStats.avg_ttft_ms ?? 0).toFixed(0), tpot: (sessionStats.avg_tpot_ms ?? 0).toFixed(1) })}>
+                  <span style={{ cursor: 'help' }}>⏱️ <strong style={{ color: C.text }}>{((sessionStats.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s</strong> {t('traceHound.header.avgLatency')}</span>
                 </Tooltip>
               )}
               {(sessionStats.max_context_usage_percent ?? 0) > 0 && (
-                <Tooltip text="Max context window usage across all turns">
-                  <span style={{ cursor: 'help', color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#6b7280' }}>
-                    📏 <strong style={{ color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#374151' }}>{sessionStats.max_context_usage_percent?.toFixed(1)}%</strong> context
+                <Tooltip text={t('traceHound.header.maxContextTooltip')}>
+                  <span style={{ cursor: 'help', color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? C.danger : C.textMuted }}>
+                    📏 <strong style={{ color: (sessionStats.max_context_usage_percent ?? 0) > 80 ? C.danger : C.text }}>{sessionStats.max_context_usage_percent?.toFixed(1)}%</strong> {t('traceHound.header.context')}
                   </span>
                 </Tooltip>
               )}
               {sessionStats.channel_id && (
-                <span>📡 <strong style={{ color: '#374151' }}>{sessionStats.channel_id}</strong></span>
+                <span>📡 <strong style={{ color: C.text }}>{sessionStats.channel_id}</strong></span>
               )}
               {sessionStats.models_used && sessionStats.models_used.length > 0 && (
                 <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   🧠 {sessionStats.models_used.map(m => (
-                    <span key={m} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f3f4f6', color: '#374151' }}>{m}</span>
+                    <span key={m} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: C.surfaceMuted, color: C.text }}>{m}</span>
                   ))}
                 </span>
               )}
@@ -1426,87 +1469,90 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
       </div>
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
-      {analyzeError && <ErrorBanner message={`Analysis failed: ${analyzeError}`} onClose={clearAnalyzeError} />}
+      {analyzeError && <ErrorBanner message={`${t('traceHound.diagnosis.title')}: ${analyzeError}`} onClose={clearAnalyzeError} />}
 
       {/* Highlights strip — deterministic signals from session data (no LLM) */}
       {!loading && (() => { const hs = buildHighlights(turns); return hs.length > 0 ? (
         <div data-testid="tracehound-highlights" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {hs.map(h => (
-            <button key={h.id} style={{
-              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer',
-              padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
-              background: C.surface, color: C.textMuted,
-            }} onClick={() => isConnected && selectTurn(h.turnIds[0])} title={h.label}>
-              <span>{h.icon}</span><span>{h.label}</span>
-            </button>
-          ))}
+          {hs.map(h => {
+            const label = t(`traceHound.highlights.${h.labelKey}`, h.labelParams);
+            return (
+              <button key={h.id} style={{
+                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer',
+                padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
+                background: C.surface, color: C.textMuted,
+              }} onClick={() => isConnected && selectTurn(h.turnIds[0])} title={label}>
+                <span>{h.icon}</span><span>{label}</span>
+              </button>
+            );
+          })}
         </div>
       ) : null; })()}
 
       {/* 2. Diagnosis — LLM-powered analysis */}
-      <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
+      <div style={{ marginBottom: 20, border: `1px solid ${C.violetSubtle}`, borderRadius: 8, background: C.violetSubtle, overflow: 'hidden' }}>
         <div
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f5f3ff', borderBottom: analysisOpen ? '1px solid #e0e7ff' : 'none', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.violetSubtle, borderBottom: analysisOpen ? `1px solid ${C.violetSubtle}` : 'none', cursor: 'pointer' }}
           onClick={() => setAnalysisOpen(x => !x)}
         >
           <span style={{ fontSize: 15 }}>🔬</span>
-          <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95' }}>
-            Diagnosis
+          <span style={{ fontWeight: 700, fontSize: 13, color: C.violet }}>
+            {t('traceHound.diagnosis.title')}
             {analysis && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
-                {analysis.issues.length} issue{analysis.issues.length !== 1 ? 's' : ''}
+              <span style={{ fontSize: 11, fontWeight: 400, color: C.violet, marginLeft: 8 }}>
+                {t('traceHound.diagnosis.issueCount', { count: analysis.issues.length })}
                 {' · '}
                 {new Date(analysis.analyzed_at * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
             {!analysis && !analyzing && (
               <span style={{ fontSize: 11, fontWeight: 400, color: C.textFaint, marginLeft: 8 }}>
-                No diagnosis yet
+                {t('traceHound.diagnosis.none')}
               </span>
             )}
             {analyzing && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#7c3aed', marginLeft: 8 }}>
-                Running LLM diagnosis…
+              <span style={{ fontSize: 11, fontWeight: 400, color: C.violet, marginLeft: 8 }}>
+                {t('traceHound.diagnosis.running')}
               </span>
             )}
           </span>
           {/* Right side: LLM disclaimer only */}
           <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>
-            uses LLM (costs tokens, takes time)
+            {t('traceHound.diagnosis.disclaimer')}
           </span>
           {analysis && sessionStats?.session_fingerprint && analysis.fingerprint !== sessionStats.session_fingerprint && (
-            <Tooltip text="The session history has changed since this diagnosis was run. Re-run to get fresh results.">
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', cursor: 'help' }}>stale</span>
+            <Tooltip text={t('traceHound.diagnosis.staleTooltip')}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: C.warnSubtle, color: C.warn, border: `1px solid ${C.warnSubtle}`, cursor: 'help' }}>{t('traceHound.diagnosis.stale')}</span>
             </Tooltip>
           )}
-          <Tooltip text={analysis ? 'Re-run LLM diagnosis on this session (~30-120s, uses tokens)' : 'Run LLM diagnosis to identify issues, root causes and recommendations (~30-120s, uses tokens)'}>
+          <Tooltip text={analysis ? t('traceHound.diagnosis.rerunTooltip') : t('traceHound.diagnosis.runTooltip')}>
             <button
-              style={{ ...btnStyle, fontSize: 11, background: analyzing ? '#f5f3ff' : '#7c3aed', color: analyzing ? '#7c3aed' : '#fff', border: '1px solid #7c3aed', padding: '3px 10px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
+              style={{ ...btnStyle, fontSize: 11, background: analyzing ? C.violetSubtle : C.violet, color: analyzing ? C.violet : C.surface, border: `1px solid ${C.violet}`, padding: '3px 10px', cursor: analyzing ? 'not-allowed' : 'pointer' }}
               onClick={e => { e.stopPropagation(); analyzeSession(); }}
               disabled={analyzing || !isConnected}
             >
-              {analyzing ? '…' : analysis ? '↻ Re-run' : '🔬 Diagnose'}
+              {analyzing ? '…' : analysis ? t('traceHound.diagnosis.rerun') : t('traceHound.diagnosis.diagnose')}
             </button>
           </Tooltip>
-          <span style={{ fontSize: 12, color: '#7c3aed' }}>{analysisOpen ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 12, color: C.violet }}>{analysisOpen ? '▲' : '▼'}</span>
         </div>
         {analysisOpen && (
           <div style={{ padding: '12px 14px' }}>
             {analyzing && (
-              <div style={{ padding: '10px 0', fontSize: 13, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ padding: '10px 0', fontSize: 13, color: C.violet, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 18 }}>🔬</span>
-                <span>Sending session history to LLM for diagnosis… this may take up to 2 minutes for slow models.</span>
+                <span>{t('traceHound.diagnosis.sending')}</span>
               </div>
             )}
             {!analyzing && !analysis && (
-              <div style={{ color: '#9ca3af', fontSize: 12, padding: '4px 0' }}>
-                Nothing to show yet. Click <strong style={{ color: '#6b7280' }}>Diagnose</strong> above to start.
+              <div style={{ color: C.textFaint, fontSize: 12, padding: '4px 0' }}>
+                {t('traceHound.diagnosis.empty', { diagnose: t('traceHound.diagnosis.diagnose') })}
               </div>
             )}
             {!analyzing && analysis && (
               <>
                 {analysis.issues.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, padding: '20px 0' }}>No issues found. Session looks healthy!</div>
+                  <div style={{ textAlign: 'center', color: C.textMuted, fontSize: 13, padding: '20px 0' }}>{t('traceHound.diagnosis.healthy')}</div>
                 ) : (
                   [...analysis.issues]
                     .sort((a, b) => (a.priority ?? 5) - (b.priority ?? 5))
@@ -1520,38 +1566,46 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
 
       {/* 3. Stats — local data summary (charts, counts, distributions) */}
       {!loading && turns.length > 0 && (
-        <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ marginBottom: 20, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.surfaceMuted, borderBottom: analyticsOpen ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
             onClick={() => setAnalyticsOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>📊</span>
             <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>
-              Stats
+              {t('traceHound.stats.title')}
               <span style={{ fontSize: 11, fontWeight: 400, color: C.textMuted, marginLeft: 8 }}>
-                {statsSummary.completed} completed · {statsSummary.withIssues} with problems · {statsSummary.noResp} no response · {statsSummary.errors} errors{statsSummary.deferred > 0 ? ` · ${statsSummary.deferred} deferred` : ''} · {statsSummary.totalTools} tool calls{statsSummary.totalSkills > 0 ? ` · ${statsSummary.totalSkills} skills` : ''}
+                {[
+                  t('traceHound.stats.summaryCompleted', { count: statsSummary.completed }),
+                  t('traceHound.stats.summaryWithProblems', { count: statsSummary.withIssues }),
+                  t('traceHound.stats.summaryNoResponse', { count: statsSummary.noResp }),
+                  t('traceHound.stats.summaryErrors', { count: statsSummary.errors }),
+                  ...(statsSummary.deferred > 0 ? [t('traceHound.stats.summaryDeferred', { count: statsSummary.deferred })] : []),
+                  t('traceHound.stats.summaryToolCalls', { count: statsSummary.totalTools }),
+                  ...(statsSummary.totalSkills > 0 ? [t('traceHound.stats.summarySkills', { count: statsSummary.totalSkills })] : []),
+                ].join(' · ')}
               </span>
             </span>
-            <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>from session data</span>
+            <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>{t('traceHound.stats.fromData')}</span>
             <span style={{ fontSize: 11, color: C.textFaint }}>{analyticsOpen ? '▲' : '▼'}</span>
           </div>
-          {analyticsOpen && <AnalyticsPanel turns={turns} isConnected={isConnected} />}
+          {analyticsOpen && <AnalyticsPanel turns={turns} isConnected={isConnected} hasUsage={hasUsage} />}
         </div>
       )}
 
       {/* 4. User messages — turn-by-turn list */}
       {turns.length > 0 && (
-        <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ marginBottom: 20, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.surfaceMuted, borderBottom: messagesOpen ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
             onClick={() => setMessagesOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>💬</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>User messages</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{t('traceHound.messages.title')}</span>
             <span style={{ flex: 1, fontSize: 11, color: C.textMuted, textAlign: 'right', paddingRight: 4 }}>
-              {visibleTurns.length} shown · {turns.length} total{anyFilter ? ` (filtered)` : ''}
+              {t('traceHound.messages.shown', { shown: visibleTurns.length, total: turns.length })}{anyFilter ? ` ${t('traceHound.messages.filtered')}` : ''}
             </span>
-            <span style={{ fontSize: 11, color: C.textFaint, paddingRight: 4 }}>one-by-one log</span>
+            <span style={{ fontSize: 11, color: C.textFaint, paddingRight: 4 }}>{t('traceHound.messages.log')}</span>
             <span style={{ fontSize: 11, color: C.textFaint }}>{messagesOpen ? '▲' : '▼'}</span>
           </div>
           {messagesOpen && (
@@ -1560,10 +1614,10 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
                 {/* Outcome filters */}
                 {([
-                  { key: 'completed_with_issues', label: '⚠ With Problems', count: statsSummary.withIssues, color: '#f59e0b' },
-                  { key: 'no_response', label: '❓ No Response', count: statsSummary.noResp, color: '#8b5cf6' },
-                  { key: 'error', label: '❌ Errors', count: statsSummary.errors, color: '#ef4444' },
-                  { key: 'deferred', label: '⏸ Deferred', count: statsSummary.deferred, color: '#6366f1' },
+                  { key: 'completed_with_issues', label: t('traceHound.messages.withProblems'), icon: '⚠', count: statsSummary.withIssues, color: C.warn },
+                  { key: 'no_response', label: t('traceHound.messages.noResponse'), icon: '❓', count: statsSummary.noResp, color: C.violet },
+                  { key: 'error', label: t('traceHound.messages.errors'), icon: '❌', count: statsSummary.errors, color: C.danger },
+                  { key: 'deferred', label: t('traceHound.messages.deferred'), icon: '⏸', count: statsSummary.deferred, color: C.violet },
                 ] as const).map((f) => {
                   const active = outcomeFilters.has(f.key);
                   return (
@@ -1577,148 +1631,154 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
                       });
                     }} style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 12,
-                      border: `1px solid ${active ? f.color : '#e5e7eb'}`,
-                      background: active ? f.color + '18' : '#f9fafb',
-                      color: active ? f.color : '#6b7280',
+                      border: `1px solid ${active ? f.color : C.border}`,
+                      background: C.surfaceMuted,
+                      color: active ? f.color : C.textMuted,
                       cursor: 'pointer', fontWeight: active ? 600 : 400,
-                    }}>{f.label}{f.count > 0 ? ` ${f.count}` : ''}</button>
+                    }}>{f.icon} {f.label}{f.count > 0 ? ` ${f.count}` : ''}</button>
                   );
                 })}
                 {/* Separator */}
-                <span style={{ color: '#e5e7eb', fontSize: 14, userSelect: 'none' }}>|</span>
+                <span style={{ color: C.border, fontSize: 14, userSelect: 'none' }}>|</span>
                 {/* Behavioral filters */}
                 <button onClick={(e) => { e.stopPropagation(); setFilterRetries(x => !x); }} style={{
                   fontSize: 11, padding: '3px 10px', borderRadius: 12,
-                  border: `1px solid ${filterRetries ? '#0369a1' : '#e5e7eb'}`,
-                  background: filterRetries ? '#e0f2fe' : '#f9fafb',
-                  color: filterRetries ? '#0369a1' : '#6b7280',
+                  border: `1px solid ${filterRetries ? C.info : C.border}`,
+                  background: filterRetries ? C.infoSubtle : C.surfaceMuted,
+                  color: filterRetries ? C.info : C.textMuted,
                   cursor: 'pointer', fontWeight: filterRetries ? 600 : 400,
-                }}>🔁 With Retries{statsSummary.retryCount > 0 ? ` ${statsSummary.retryCount}` : ''}</button>
-                <Tooltip text={`Show slow user messages${p90dur > 0 ? ` (threshold: ${fmtDuration(p90dur)})` : ''}`}>
+                }}>🔁 {t('traceHound.messages.withRetries')}{statsSummary.retryCount > 0 ? ` ${statsSummary.retryCount}` : ''}</button>
+                <Tooltip text={`${t('traceHound.messages.slowTooltip')}${p90dur > 0 ? ` ${t('traceHound.messages.slowThreshold', { duration: fmtDuration(p90dur) })}` : ''}`}>
                   <button onClick={(e) => { e.stopPropagation(); setFilterSlow(x => !x); }} style={{
                     fontSize: 11, padding: '3px 10px', borderRadius: 12,
-                    border: `1px solid ${filterSlow ? '#6366f1' : '#e5e7eb'}`,
-                    background: filterSlow ? '#eef2ff' : '#f9fafb',
-                    color: filterSlow ? '#6366f1' : '#6b7280',
+                    border: `1px solid ${filterSlow ? C.violet : C.border}`,
+                    background: filterSlow ? C.violetSubtle : C.surfaceMuted,
+                    color: filterSlow ? C.violet : C.textMuted,
                     cursor: 'pointer', fontWeight: filterSlow ? 600 : 400,
-                  }}>⏱ Slow</button>
+                  }}>⏱ {t('traceHound.messages.slow')}</button>
                 </Tooltip>
                 {anyFilter && (
                   <button onClick={(e) => { e.stopPropagation(); setOutcomeFilters(new Set()); setFilterRetries(false); setFilterSlow(false); }}
-                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer' }}
-                  >Reset</button>
+                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, cursor: 'pointer' }}
+                  >{t('traceHound.messages.reset')}</button>
                 )}
-                {anyFilter && <span style={{ fontSize: 11, color: '#9ca3af' }}>{visibleTurns.length}/{turns.length}</span>}
+                {anyFilter && <span style={{ fontSize: 11, color: C.textFaint }}>{visibleTurns.length}/{turns.length}</span>}
               </div>
 
-              {loading && <div style={emptyStyle}>Loading user messages…</div>}
-              {!loading && turns.length === 0 && <div style={emptyStyle}>No user messages found for this session.</div>}
-              {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>No user messages match the active filters.</div>}
+              {loading && <div style={emptyStyle}>{t('traceHound.messages.loading')}</div>}
+              {!loading && turns.length === 0 && <div style={emptyStyle}>{t('traceHound.messages.noMessages')}</div>}
+              {!loading && visibleTurns.length === 0 && <div style={emptyStyle}>{t('traceHound.messages.noMatch')}</div>}
 
               {visibleTurns.map((turn) => {
                 const isSlow = p90dur > 0 && turn.retry_count <= 1 && turn.duration_seconds > p90dur;
                 const isDeferred = turn.was_deferred;
                 return (
                   <div key={turn.turn_id}
-                    style={{ ...cardStyle, borderLeftWidth: (turn.has_error || isDeferred) ? 3 : 1, borderLeftColor: isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb', opacity: isDeferred ? 0.75 : 1 }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = isDeferred ? '#a5b4fc' : turn.has_error ? '#fca5a5' : '#e5e7eb')}
+                    style={{ ...cardStyle, borderLeftWidth: (turn.has_error || isDeferred) ? 3 : 1, borderLeftColor: isDeferred ? C.violetSubtle : turn.has_error ? C.dangerSubtle : C.border, opacity: isDeferred ? 0.75 : 1 }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = C.violet)}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = isDeferred ? C.violetSubtle : turn.has_error ? C.dangerSubtle : C.border)}
                     onClick={() => isConnected && selectTurn(turn.turn_id)}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Row 1: badges */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', background: '#eef2ff', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: C.violet, background: C.violetSubtle, borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>#{turn.turn_index + 1}</span>
                           {modeBadge(turn.mode)}
                           {turn.agents && turn.agents.length > 0 && turn.agents.map(name => {
                             const act = turn.agent_activity?.find(a => a.name === name);
                             const tip = act
-                              ? `${name}${act.role === 'leader' ? ' (leader)' : ''}\n${act.tool_calls} tool calls · ${act.tool_failures} failed · ${act.responses} responses`
+                              ? t('traceHound.messages.agentTooltip', {
+                                  name,
+                                  leader: act.role === 'leader' ? ` (${t('traceHound.perAgent.leader')})` : '',
+                                  tools: act.tool_calls,
+                                  failed: act.tool_failures,
+                                  responses: act.responses,
+                                })
                               : name;
                             return (
                               <Tooltip key={name} text={tip}>
-                                {agentTag(name, false)}
+                                {agentTag(name, t, false)}
                               </Tooltip>
                             );
                           })}
-                          <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />
+                          <OutcomeBadge outcome={turn.outcome} issues={turn.issues} t={t} />
                           {queryTypeBadge(turn.query_type)}
                           {turn.has_error && !isDeferred && (
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>
-                              ⚠ {turn.error_category ?? 'error'}
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: C.dangerSubtle, color: C.danger, border: `1px solid ${C.dangerSubtle}` }}>
+                              ⚠ {turn.error_category ?? t('traceHound.messages.issueFallback')}
                             </span>
                           )}
                           {isDeferred && (
-                            <Tooltip text="This message was sent while the agent was busy with another request. It was queued but never actually processed.">
-                              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', border: '1px solid #c4b5fd', cursor: 'help' }}>
-                                ⏸ never processed
+                            <Tooltip text={t('traceHound.messages.neverProcessedTooltip')}>
+                              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: C.violetSubtle, color: C.violet, border: `1px solid ${C.violetSubtle}`, cursor: 'help' }}>
+                                ⏸ {t('traceHound.messages.neverProcessed')}
                               </span>
                             </Tooltip>
                           )}
                           {turn.retry_count > 1 && (
-                            <Tooltip text={`The agent attempted this request ${turn.retry_count} times. Each retry was triggered when a new message arrived while the original was still pending.`}>
-                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', cursor: 'help' }}>
-                                {turn.retry_count} attempts
+                            <Tooltip text={t('traceHound.messages.retriesTooltip', { count: turn.retry_count })}>
+                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: C.warnSubtle, color: C.warn, border: `1px solid ${C.warnSubtle}`, cursor: 'help' }}>
+                                {turn.retry_count} {t('traceHound.messages.attempts')}
                               </span>
                             </Tooltip>
                           )}
                         </div>
                         {/* Row 2: user message */}
-                        <div style={{ fontSize: 13, color: turn.user_content ? '#111827' : '#9ca3af', fontStyle: turn.user_content ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {turn.user_content || '(no user message)'}
+                        <div style={{ fontSize: 13, color: turn.user_content ? C.text : C.textFaint, fontStyle: turn.user_content ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {turn.user_content || t('traceHound.messages.noUserMessage')}
                         </div>
                         {/* Row 3: tool/file/skill badges */}
                         {(turn.tool_names.length > 0 || turn.skill_names.length > 0 || turn.tool_failures > 0 || turn.file_count > 0) && (
                           <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                             {turn.tool_names.slice(0, 3).map((t, i) => (
-                              <span key={i} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>🔧 {t}</span>
+                              <span key={i} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: C.surfaceMuted, color: C.text, border: `1px solid ${C.border}` }}>🔧 {t}</span>
                             ))}
-                            {turn.tool_names.length > 3 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.tool_names.length - 3} more</span>}
+                            {turn.tool_names.length > 3 && <span style={{ fontSize: 11, color: C.textMuted }}>{t('traceHound.messages.more', { count: turn.tool_names.length - 3 })}</span>}
                             {turn.skill_names.slice(0, 2).map((s, i) => (
-                              <span key={`sk-${i}`} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }}>🎯 {s}</span>
+                              <span key={`sk-${i}`} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: C.violetSubtle, color: C.violet, border: `1px solid ${C.violetSubtle}` }}>🎯 {s}</span>
                             ))}
-                            {turn.skill_names.length > 2 && <span style={{ fontSize: 11, color: '#6b7280' }}>+{turn.skill_names.length - 2} more</span>}
-                            {turn.tool_failures > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
-                            {turn.file_count > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
+                            {turn.skill_names.length > 2 && <span style={{ fontSize: 11, color: C.textMuted }}>{t('traceHound.messages.more', { count: turn.skill_names.length - 2 })}</span>}
+                            {turn.tool_failures > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: C.dangerSubtle, color: C.danger, border: `1px solid ${C.dangerSubtle}` }}>{turn.tool_failures} {t('traceHound.messages.failed')}</span>}
+                            {turn.file_count > 0 && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: C.okSubtle, color: C.ok, border: `1px solid ${C.okSubtle}` }}>{t('traceHound.messages.fileCount', { count: turn.file_count })}</span>}
                           </div>
                         )}
                       </div>
                       {/* Right: time / duration / tokens / models / latency / context / cost */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <Tooltip text={fmtDateTime(turn.timestamp)}>
-                          <div style={{ fontSize: 12, color: '#6b7280', cursor: 'default' }}>{fmtTime(turn.timestamp)}</div>
+                          <div style={{ fontSize: 12, color: C.textMuted, cursor: 'default' }}>{fmtTime(turn.timestamp)}</div>
                         </Tooltip>
                         {/* Duration: only show for non-retry turns — wall time is misleading for retried turns */}
                         {turn.duration_seconds > 0 && turn.retry_count <= 1 && (
-                          <div style={{ fontSize: 11, marginTop: 2, color: isSlow ? '#f59e0b' : '#9ca3af', fontWeight: isSlow ? 600 : 400 }}>
+                          <div style={{ fontSize: 11, marginTop: 2, color: isSlow ? C.warn : C.textFaint, fontWeight: isSlow ? 600 : 400 }}>
                             {fmtDuration(turn.duration_seconds)}
                           </div>
                         )}
                         {(turn.llm_call_count ?? 0) > 0 && (
-                          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.llm_call_count} LLM call{turn.llm_call_count !== 1 ? 's' : ''}</div>
+                          <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.llmCalls', { count: turn.llm_call_count })}</div>
                         )}
-                        {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.total_tokens.toLocaleString()} tok</div>}
+                        {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.tokens', { count: turn.total_tokens.toLocaleString() })}</div>}
                         {turn.final_length > 0 && (
-                          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{turn.final_length.toLocaleString()} chars</div>
+                          <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.chars', { count: turn.final_length.toLocaleString() })}</div>
                         )}
                         {(turn.avg_total_latency_ms ?? 0) > 0 && (
-                          <Tooltip text={`Avg TTFT ${(turn.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(turn.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
-                            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, cursor: 'help' }}>⏱️ {((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s avg</div>
+                          <Tooltip text={t('traceHound.messages.latencyTooltip', { ttft: (turn.avg_ttft_ms ?? 0).toFixed(0), tpot: (turn.avg_tpot_ms ?? 0).toFixed(1) })}>
+                            <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1, cursor: 'help' }}>⏱️ {t('traceHound.messages.latencyAvg', { seconds: ((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1) })}</div>
                           </Tooltip>
                         )}
                         {(turn.context_usage_percent ?? 0) > 0 && (
-                          <Tooltip text={`Context window: ${turn.context_window_tokens?.toLocaleString() ?? '?'}`}>
-                            <div style={{ fontSize: 11, color: (turn.context_usage_percent ?? 0) > 80 ? '#dc2626' : '#9ca3af', marginTop: 1, cursor: 'help' }}>
+                          <Tooltip text={t('traceHound.messages.contextTooltip', { tokens: turn.context_window_tokens?.toLocaleString() ?? '?' })}>
+                            <div style={{ fontSize: 11, color: (turn.context_usage_percent ?? 0) > 80 ? C.danger : C.textFaint, marginTop: 1, cursor: 'help' }}>
                               📏 {(turn.context_usage_percent ?? 0).toFixed(1)}%
                             </div>
                           </Tooltip>
                         )}
                         {(turn.total_cost ?? 0) > 0 && (
-                          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>💰 ${(turn.total_cost ?? 0).toFixed(4)}</div>
+                          <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>💰 ${(turn.total_cost ?? 0).toFixed(4)}</div>
                         )}
                         {turn.models_used && turn.models_used.length > 0 && (
-                          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{turn.models_used.join(', ')}</div>
+                          <div style={{ fontSize: 10, color: C.textFaint, marginTop: 1 }}>{turn.models_used.join(', ')}</div>
                         )}
                       </div>
                     </div>
@@ -1735,27 +1795,29 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
 
 // ── View 3: Turn Detail ───────────────────────────────────────────────────────
 
-const EVENT_META: Record<string, { icon: string; label: string; color: string }> = {
-  user:                 { icon: '🧑', label: 'User',             color: '#3b82f6' },
-  'chat.reasoning':     { icon: '🤔', label: 'Reasoning',        color: '#8b5cf6' },
-  'chat.tool_call':     { icon: '🔧', label: 'Tool Call',        color: '#f59e0b' },
-  'chat.tool_update':   { icon: '⏳', label: 'Tool Update',      color: '#d97706' },
-  'chat.tool_result':   { icon: '',   label: 'Tool Result',      color: '#10b981' },
-  'chat.final':         { icon: '💬', label: 'Response',         color: '#6366f1' },
-  'chat.file':          { icon: '📄', label: 'File',             color: '#06b6d4' },
-  'chat.usage_metadata':{ icon: '⚡', label: 'LLM Call',         color: '#ec4899' },
-  'chat.usage_summary': { icon: '📊', label: 'Usage Summary',    color: '#6b7280' },
-  'chat.error':         { icon: '🚨', label: 'Error',            color: '#ef4444' },
+const EVENT_META: Record<string, { icon: string; labelKey: string; color: string; subtle: string }> = {
+  user:                 { icon: '🧑', labelKey: 'user',             color: C.info,    subtle: C.infoSubtle },
+  'chat.reasoning':     { icon: '🤔', labelKey: 'reasoning',        color: C.violet,  subtle: C.violetSubtle },
+  'chat.tool_call':     { icon: '🔧', labelKey: 'toolCall',         color: C.warn,    subtle: C.warnSubtle },
+  'chat.tool_update':   { icon: '⏳', labelKey: 'toolUpdate',       color: C.warn,    subtle: C.warnSubtle },
+  'chat.tool_result':   { icon: '',   labelKey: 'toolResult',       color: C.ok,      subtle: C.okSubtle },
+  'chat.final':         { icon: '💬', labelKey: 'response',         color: C.violet,  subtle: C.violetSubtle },
+  'chat.file':          { icon: '📄', labelKey: 'file',             color: C.teal,    subtle: C.infoSubtle },
+  'chat.usage_metadata':{ icon: '⚡', labelKey: 'llmCall',          color: C.violet,  subtle: C.violetSubtle },
+  'chat.usage_summary': { icon: '📊', labelKey: 'usageSummary',     color: C.textMuted, subtle: C.surfaceMuted },
+  'chat.error':         { icon: '🚨', labelKey: 'error',            color: C.danger,  subtle: C.dangerSubtle },
 };
 
 function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAll = false }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[]; expandAll?: boolean }) {
+  const { t } = useTranslation();
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
-  const meta = EVENT_META[key] ?? { icon: '•', label: rec.event_type ?? rec.role, color: '#6b7280' };
-  const icon  = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : meta.icon;
-  const color = (key === 'chat.tool_result' && isFailedToolResult(rec)) ? '#ef4444' : meta.color;
+  const meta = EVENT_META[key];
+  const icon  = key === 'chat.tool_result' ? (isFailedToolResult(rec) ? '❌' : '✅') : (meta?.icon ?? '•');
+  const color = (key === 'chat.tool_result' && isFailedToolResult(rec)) ? C.danger : (meta?.color ?? C.textMuted);
+  const subtle = meta?.subtle ?? C.surfaceMuted;
   const danger = isDangerous(rec);
 
-  const headerLabel = recordHeaderLabel(rec);
+  const headerLabel = recordHeaderLabel(rec, t);
 
   // Body text
   const bodyText = key === 'chat.error'
@@ -1790,31 +1852,31 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
   // "+56s" when the actual attempt took ~1s (the 56s was idle time between retries).
 
   return (
-    <div id={`rec-${rec.id}`} data-event-type={rec.event_type} data-tool-call-id={rec.tool_call_id} style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+    <div id={`rec-${rec.id}`} data-event-type={rec.event_type} data-tool-call-id={rec.tool_call_id} style={{ border: `1px solid ${subtle}`, borderLeft: `3px solid ${danger ? C.danger : color}`, borderRadius: 6, marginBottom: 8, background: C.surface, overflow: 'hidden' }}>
       {/* Header */}
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: collapsible ? 'pointer' : 'default', background: danger ? '#fef2f2' : color + '08' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: collapsible ? 'pointer' : 'default', background: danger ? C.dangerSubtle : subtle }}
         onClick={() => collapsible && setLocal(!shown)}
       >
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontWeight: 600, fontSize: 13, color, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headerLabel}</span>
-        {recordAgent(rec) && agentTag(recordAgent(rec))}
-        {rec.mode && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f3f4f6', color: '#6b7280', flexShrink: 0 }}>{rec.mode}</span>}
+        {recordAgent(rec) && agentTag(recordAgent(rec), t)}
+        {rec.mode && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: C.surfaceMuted, color: C.textMuted, flexShrink: 0 }}>{rec.mode}</span>}
         {(key === 'chat.tool_call' || key === 'chat.tool_update' || key === 'chat.tool_result') && rec.tool_call_id && (
-          <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', flexShrink: 0 }}>#{String(rec.tool_call_id).slice(-8)}</span>
+          <span style={{ fontSize: 10, color: C.textFaint, fontFamily: 'monospace', flexShrink: 0 }}>#{String(rec.tool_call_id).slice(-8)}</span>
         )}
-        {danger && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}>⚠ DANGEROUS</span>}
-        {isRetry && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }}>↻ retry</span>}
+        {danger && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: C.dangerSubtle, color: C.danger, border: `1px solid ${C.dangerSubtle}` }}>{t('traceHound.records.dangerous')}</span>}
+        {isRetry && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: C.warnSubtle, color: C.warn, border: `1px solid ${C.warnSubtle}` }}>{t('traceHound.records.retry')}</span>}
         {/* Timing: absolute time + elapsed time within this attempt */}
-        <span style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: C.textFaint, textAlign: 'right', flexShrink: 0 }}>
           <span>{fmtTime(rec.timestamp)}</span>
           {displayDelta != null && displayDelta > 0 && (
             <Tooltip text={
               endDelta != null && endDelta > displayDelta
-                ? `LLM call ${fmtDelta(displayDelta)} → response ${fmtDelta(endDelta)}`
-                : `${fmtDelta(displayDelta)} since start of this attempt`
+                ? t('traceHound.records.llmCallToResponse', { start: fmtDelta(displayDelta), end: fmtDelta(endDelta) })
+                : t('traceHound.records.deltaSinceStart', { delta: fmtDelta(displayDelta) })
             }>
-              <span style={{ marginLeft: 5, color: displayDelta > 10 ? '#f59e0b' : '#d1d5db', cursor: 'help' }}>
+              <span style={{ marginLeft: 5, color: displayDelta > 10 ? C.warn : C.borderStrong, cursor: 'help' }}>
                 {endDelta != null && endDelta > displayDelta
                   ? `${fmtDelta(displayDelta)} → ${fmtDelta(endDelta)}`
                   : fmtDelta(displayDelta)}
@@ -1822,27 +1884,27 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
             </Tooltip>
           )}
         </span>
-        {collapsible && <span style={{ fontSize: 12, color: '#9ca3af' }}>{shown ? '▲' : '▼'}</span>}
-        {rec.id && <span style={{ fontSize: 9, color: '#d1d5db', fontFamily: 'monospace', flexShrink: 0 }} title={`Record ID: ${rec.id}`}>{rec.id.slice(-12)}</span>}
+        {collapsible && <span style={{ fontSize: 12, color: C.textFaint }}>{shown ? '▲' : '▼'}</span>}
+        {rec.id && <span style={{ fontSize: 9, color: C.borderStrong, fontFamily: 'monospace', flexShrink: 0 }} title={t('traceHound.records.recordId', { id: rec.id })}>{rec.id.slice(-12)}</span>}
       </div>
 
       {/* User message — always visible */}
       {key === 'user' && bodyText && (
-        <div style={{ padding: '8px 12px', fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${color}22` }}>
+        <div style={{ padding: '8px 12px', fontSize: 13, color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${subtle}` }}>
           {bodyText}
         </div>
       )}
       {/* Final response — collapsed by default, expand on click */}
       {key === 'chat.final' && shown && bodyText && (
-        <div style={{ padding: '8px 12px', fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${color}22` }}>
+        <div style={{ padding: '8px 12px', fontSize: 13, color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word', borderTop: `1px solid ${subtle}` }}>
           {bodyText}
         </div>
       )}
 
       {/* Tool call arguments (shown when expanded) */}
       {key === 'chat.tool_call' && shown && fmtArgs && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
-          <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${subtle}` }}>
+          <pre style={{ margin: 0, fontSize: 12, background: C.surfaceMuted, borderRadius: 4, padding: '8px', overflowX: 'auto', color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {fmtArgs}
           </pre>
         </div>
@@ -1850,17 +1912,17 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
 
       {/* Tool result (shown when expanded) */}
       {key === 'chat.tool_result' && shown && (resultText || isFailedToolResult(rec)) && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
-          {isFailedToolResult(rec) && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}><strong>{rec.error_type ? `❌ ${rec.error_type}` : '❌ Tool call failed'}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}</div>}
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${subtle}` }}>
+          {isFailedToolResult(rec) && <div style={{ fontSize: 12, color: C.danger, marginBottom: 6 }}><strong>{rec.error_type ? `❌ ${rec.error_type}` : t('traceHound.records.toolCallFailed')}</strong>{rec.error_detail ? `: ${rec.error_detail}` : ''}</div>}
           {resultText && (
-            <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: isFailedToolResult(rec) ? '#b91c1c' : '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
+            <pre style={{ margin: 0, fontSize: 12, background: C.surfaceMuted, borderRadius: 4, padding: '8px', overflowX: 'auto', color: isFailedToolResult(rec) ? C.danger : C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
               {resultText}
             </pre>
           )}
           {rec.raw_output && (
             <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Raw Output</div>
-              <pre style={{ margin: 0, fontSize: 11, background: '#f1f5f9', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#334155', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>{t('traceHound.records.rawOutput')}</div>
+              <pre style={{ margin: 0, fontSize: 11, background: C.surfaceMuted, borderRadius: 4, padding: '8px', overflowX: 'auto', color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
                 {(() => {
                   try { return JSON.stringify(rec.raw_output, null, 2); }
                   catch { return String(rec.raw_output); }
@@ -1873,8 +1935,8 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
 
       {/* Other types (reasoning / file / error) — shown when expanded */}
       {(key === 'chat.reasoning' || key === 'chat.file' || key === 'chat.error') && shown && bodyText && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
-          <div style={{ fontSize: 13, color: key === 'chat.error' ? '#dc2626' : '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal' }}>
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${subtle}` }}>
+          <div style={{ fontSize: 13, color: key === 'chat.error' ? C.danger : C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: key === 'chat.reasoning' ? 'italic' : 'normal' }}>
             {bodyText}
           </div>
         </div>
@@ -1883,33 +1945,33 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
       {/* Usage metadata: LLM call details (collapsed with the card; hidden via
           display so the prompt/response sub-components keep stable hooks) */}
       {key === 'chat.usage_metadata' && um && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22`, display: shown ? 'block' : 'none' }}>
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${subtle}`, display: shown ? 'block' : 'none' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
             {um.model_name && <span style={chipStyle}>{um.model_name}</span>}
             {um.input_tokens != null && um.output_tokens != null && (
-              <span style={chipStyle}>{um.input_tokens.toLocaleString()} in / {um.output_tokens.toLocaleString()} out = {um.total_tokens?.toLocaleString() ?? '?'} tot</span>
+              <span style={chipStyle}>{t('traceHound.records.inputOutputTotal', { input: um.input_tokens.toLocaleString(), output: um.output_tokens.toLocaleString(), total: um.total_tokens?.toLocaleString() ?? '?' })}</span>
             )}
-            {um.cache_tokens != null && um.cache_tokens > 0 && <span style={chipStyle}>🔄 {um.cache_tokens.toLocaleString()} cache</span>}
+            {um.cache_tokens != null && um.cache_tokens > 0 && <span style={chipStyle}>{t('traceHound.records.cache', { count: um.cache_tokens.toLocaleString() })}</span>}
           </div>
           {shown && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
               {rec.metadata?.total_latency_ms != null && (
-                <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.metadata.total_latency_ms / 1000).toFixed(2)}s total</span></Tooltip>
+                <Tooltip text={t('traceHound.records.latencyTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.latencyTotal', { seconds: (rec.metadata.total_latency_ms / 1000).toFixed(2) })}</span></Tooltip>
               )}
               {rec.metadata?.ttft_ms != null && (
-                <Tooltip text="Time to first token"><span style={{ ...chipStyle, cursor: 'help' }}>{rec.metadata.ttft_ms.toFixed(0)}ms TTFT</span></Tooltip>
+                <Tooltip text={t('traceHound.records.ttftTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.ttft', { ms: rec.metadata.ttft_ms.toFixed(0) })}</span></Tooltip>
               )}
               {rec.metadata?.tpot_ms != null && (
-                <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>{rec.metadata.tpot_ms.toFixed(1)}ms TPOT</span></Tooltip>
+                <Tooltip text={t('traceHound.records.tpotTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.tpot', { ms: rec.metadata.tpot_ms.toFixed(1) })}</span></Tooltip>
               )}
               {um.total_latency != null && um.total_latency > 0 && (
-                <Tooltip text="Raw total_latency value"><span style={{ ...chipStyle, cursor: 'help' }}>raw {um.total_latency.toFixed(2)}s</span></Tooltip>
+                <Tooltip text={t('traceHound.records.rawLatencyTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.rawLatency', { seconds: um.total_latency.toFixed(2) })}</span></Tooltip>
               )}
               {um.input_cost != null && um.input_cost > 0 && um.output_cost != null && um.output_cost > 0 && (
-                <span style={chipStyle}>💰 ${um.input_cost.toFixed(4)} in / ${um.output_cost.toFixed(4)} out</span>
+                <span style={chipStyle}>{t('traceHound.records.costInOut', { input: um.input_cost.toFixed(4), output: um.output_cost.toFixed(4) })}</span>
               )}
               {um.total_cost != null && um.total_cost > 0 && (
-                <span style={chipStyle}>💰 ${um.total_cost.toFixed(4)} total</span>
+                <span style={chipStyle}>{t('traceHound.records.costTotal', { count: um.total_cost.toFixed(4) })}</span>
               )}
               {rec.metadata?.result_type && <span style={chipStyle}>📋 {rec.metadata.result_type}</span>}
               {um.task_id && <span style={chipStyle}>🎯 {um.task_id}</span>}
@@ -1921,26 +1983,26 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
           {key === 'chat.usage_metadata' && um && (() => {
             const [showFullPrompt, setShowFullPrompt] = useState(false);
             return (
-              <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+              <div style={{ marginTop: 8, padding: '8px 10px', background: C.surfaceMuted, borderRadius: 4, border: `1px solid ${C.border}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <strong style={{ color: '#6b7280', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Prompt</strong>
+                  <strong style={{ color: C.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('traceHound.records.llmPrompt')}</strong>
                   {um.prompt ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <button
-                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid #d1d5db', background: '#fff', color: '#6b7280', cursor: 'pointer' }}
+                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: `1px solid ${C.borderStrong}`, background: C.surface, color: C.textMuted, cursor: 'pointer' }}
                         onClick={() => setShowFullPrompt(x => !x)}
                       >
-                        {showFullPrompt ? '▲ Collapse' : '▼ Show full'}
+                        {showFullPrompt ? t('traceHound.records.collapse') : t('traceHound.records.showFull')}
                       </button>
                       <CopyButton text={um.prompt} />
                     </div>
                   ) : null}
                 </div>
                 {um.prompt ? (
-                  <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#334155', maxHeight: showFullPrompt ? undefined : 240, overflowY: 'auto' }}>{um.prompt}</pre>
+                  <pre style={{ margin: '6px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: C.text, maxHeight: showFullPrompt ? undefined : 240, overflowY: 'auto' }}>{um.prompt}</pre>
                 ) : (
-                  <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                    Not recorded in history (backend `usage_metadata` events contain empty `prompt` field).
+                  <div style={{ marginTop: 6, fontSize: 11, color: C.textFaint, fontStyle: 'italic' }}>
+                    {t('traceHound.records.promptNotRecorded')}
                   </div>
                 )}
               </div>
@@ -1956,10 +2018,10 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
             const responseParts = responseRecs.map(r => {
               const et = r.event_type ?? '';
               if (et === 'chat.final') {
-                return { type: 'text' as const, label: 'Text', content: r.content ?? '' };
+                return { type: 'text' as const, label: t('traceHound.records.partText'), content: r.content ?? '' };
               }
               if (et === 'chat.llm_call_end') {
-                return { type: 'text' as const, label: 'Text', content: r.content ?? '' };
+                return { type: 'text' as const, label: t('traceHound.records.partText'), content: r.content ?? '' };
               }
               if (et === 'chat.tool_call') {
                 const tc = r.tool_call as Record<string, unknown> | undefined;
@@ -1968,16 +2030,16 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
                 let fmtArgs = '';
                 try { fmtArgs = JSON.stringify(typeof args === 'string' ? JSON.parse(args) : args, null, 2); }
                 catch { fmtArgs = String(args ?? ''); }
-                return { type: 'tool_call' as const, label: `Tool: ${name}`, content: fmtArgs };
+                return { type: 'tool_call' as const, label: t('traceHound.records.partTool', { name }), content: fmtArgs };
               }
               if (et === 'chat.reasoning') {
-                return { type: 'reasoning' as const, label: 'Reasoning', content: r.content ?? '' };
+                return { type: 'reasoning' as const, label: t('traceHound.records.partReasoning'), content: r.content ?? '' };
               }
               if (et === 'chat.delta') {
-                return { type: 'delta' as const, label: 'Stream delta', content: r.content ?? '' };
+                return { type: 'delta' as const, label: t('traceHound.records.partDelta'), content: r.content ?? '' };
               }
               if (et === 'chat.error') {
-                return { type: 'error' as const, label: 'Error', content: r.error ?? r.error_detail ?? r.content ?? '' };
+                return { type: 'error' as const, label: t('traceHound.records.partError'), content: r.error ?? r.error_detail ?? r.content ?? '' };
               }
               return null;
             }).filter(Boolean) as { type: string; label: string; content: string }[];
@@ -1986,16 +2048,16 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
             const combinedText = responseParts.map(p => `[${p.label}]\n${p.content}`).join('\n\n---\n\n');
 
             return (
-              <div style={{ marginTop: 8, padding: '8px 10px', background: '#f0fdf4', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+              <div style={{ marginTop: 8, padding: '8px 10px', background: C.okSubtle, borderRadius: 4, border: `1px solid ${C.okSubtle}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <strong style={{ color: '#166534', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>LLM Response</strong>
+                  <strong style={{ color: C.ok, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('traceHound.records.llmResponse')}</strong>
                   {hasResponse ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <button
-                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid #86efac', background: '#fff', color: '#166534', cursor: 'pointer' }}
+                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: `1px solid ${C.okSubtle}`, background: C.surface, color: C.ok, cursor: 'pointer' }}
                         onClick={() => setShowFullResponse(x => !x)}
                       >
-                        {showFullResponse ? '▲ Collapse' : '▼ Show full'}
+                        {showFullResponse ? t('traceHound.records.collapse') : t('traceHound.records.showFull')}
                       </button>
                       <CopyButton text={combinedText} />
                     </div>
@@ -2005,25 +2067,25 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
                   <div style={{ marginTop: 6, maxHeight: showFullResponse ? undefined : 240, overflowY: 'auto' }}>
                     {responseParts.map((part, i) => (
                       <div key={i} style={{ marginBottom: i < responseParts.length - 1 ? 8 : 0 }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#15803d', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{part.label}</div>
-                        <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#14532d', background: '#dcfce7', borderRadius: 3, padding: '6px 8px' }}>{part.content}</pre>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: C.ok, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{part.label}</div>
+                        <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: C.ok, background: C.okSubtle, borderRadius: 3, padding: '6px 8px' }}>{part.content}</pre>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                    No response events found after this LLM call in the trajectory. The response may have been dropped, not recorded, or this was a usage-only event.
+                  <div style={{ marginTop: 6, fontSize: 11, color: C.textFaint, fontStyle: 'italic' }}>
+                    {t('traceHound.records.noResponseEvents')}
                   </div>
                 )}
               </div>
             );
           })()}
           {rec.session_id && (
-            <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 4, fontFamily: 'monospace' }}>session: {rec.session_id}</div>
+            <div style={{ fontSize: 10, color: C.borderStrong, marginTop: 4, fontFamily: 'monospace' }}>{t('traceHound.records.sessionId', { id: rec.session_id })}</div>
           )}
           {hasUsageError && (
-            <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
-              ⚠ Code {um.code}: {um.err_msg}
+            <div style={{ fontSize: 12, color: C.danger, marginTop: 4 }}>
+              {t('traceHound.records.usageError', { code: um.code, message: um.err_msg })}
             </div>
           )}
         </div>
@@ -2031,16 +2093,16 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
 
       {/* Tool update: status + arguments */}
       {key === 'chat.tool_update' && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${color}22` }}>
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${subtle}` }}>
           {rec.status && (
             <div style={{ marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: rec.status === 'in_progress' ? '#dbeafe' : '#dcfce7', color: rec.status === 'in_progress' ? '#2563eb' : '#16a34a' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: rec.status === 'in_progress' ? C.infoSubtle : C.okSubtle, color: rec.status === 'in_progress' ? C.info : C.ok }}>
                 {rec.status}
               </span>
             </div>
           )}
           {rec.arguments && (
-            <pre style={{ margin: 0, fontSize: 12, background: '#f8fafc', borderRadius: 4, padding: '8px', overflowX: 'auto', color: '#1e293b', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <pre style={{ margin: 0, fontSize: 12, background: C.surfaceMuted, borderRadius: 4, padding: '8px', overflowX: 'auto', color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {(() => { try { return JSON.stringify(JSON.parse(rec.arguments), null, 2); } catch { return rec.arguments; } })()}
             </pre>
           )}
@@ -2051,19 +2113,19 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
       {key === 'chat.usage_summary' && (
         <div style={{ padding: '6px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {rec.model && <span style={chipStyle}>{rec.model}</span>}
-          {rec.total_tokens != null && <span style={chipStyle}>{rec.total_tokens.toLocaleString()} tokens</span>}
+          {rec.total_tokens != null && <span style={chipStyle}>{t('traceHound.records.tokens', { count: rec.total_tokens.toLocaleString() })}</span>}
           {rec.usage?.input_tokens != null && rec.usage?.output_tokens != null && (
-            <span style={chipStyle}>{rec.usage.input_tokens.toLocaleString()} in / {rec.usage.output_tokens.toLocaleString()} out</span>
+            <span style={chipStyle}>{t('traceHound.records.inputOutput', { input: rec.usage.input_tokens.toLocaleString(), output: rec.usage.output_tokens.toLocaleString() })}</span>
           )}
           {(rec.usage_percent ?? 0) > 0 && (
-            <Tooltip text={`Context window: ${rec.context_window_tokens?.toLocaleString() ?? '?'}`}>
-              <span style={{ ...chipStyle, cursor: 'help' }}>{rec.usage_percent?.toFixed(1) ?? '?'}% context</span>
+            <Tooltip text={t('traceHound.messages.contextTooltip', { tokens: rec.context_window_tokens?.toLocaleString() ?? '?' })}>
+              <span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.contextPercent', { percent: rec.usage_percent?.toFixed(1) ?? '?' })}</span>
             </Tooltip>
           )}
-          {rec.ttft_ms != null && <Tooltip text="Time to first token"><span style={{ ...chipStyle, cursor: 'help' }}>TTFT {rec.ttft_ms.toFixed(0)}ms</span></Tooltip>}
-          {rec.tpot_ms != null && <Tooltip text="Time per output token"><span style={{ ...chipStyle, cursor: 'help' }}>TPOT {rec.tpot_ms.toFixed(1)}ms</span></Tooltip>}
-          {rec.total_latency_ms != null && <Tooltip text="Total LLM latency"><span style={{ ...chipStyle, cursor: 'help' }}>{(rec.total_latency_ms / 1000).toFixed(1)}s latency</span></Tooltip>}
-          {rec.session_id && <span style={{ fontSize: 9, color: '#d1d5db', fontFamily: 'monospace', alignSelf: 'center' }}>{rec.session_id.slice(-12)}</span>}
+          {rec.ttft_ms != null && <Tooltip text={t('traceHound.records.ttftTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.ttft', { ms: rec.ttft_ms.toFixed(0) })}</span></Tooltip>}
+          {rec.tpot_ms != null && <Tooltip text={t('traceHound.records.tpotTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.tpot', { ms: rec.tpot_ms.toFixed(1) })}</span></Tooltip>}
+          {rec.total_latency_ms != null && <Tooltip text={t('traceHound.records.latencyTooltip')}><span style={{ ...chipStyle, cursor: 'help' }}>{t('traceHound.records.latencyChip', { seconds: (rec.total_latency_ms / 1000).toFixed(1) })}</span></Tooltip>}
+          {rec.session_id && <span style={{ fontSize: 9, color: C.borderStrong, fontFamily: 'monospace', alignSelf: 'center' }}>{rec.session_id.slice(-12)}</span>}
         </div>
       )}
     </div>
@@ -2074,6 +2136,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
 const IDLE_GAP_THRESHOLD_S = 30;
 
 export function TurnDetailView() {
+  const { t } = useTranslation();
   const { selectedSession, selectedTurnId, turns, turnRecords, loading, error, back, clearError } = useTraceHoundStore();
   const turn = turns.find(t => t.turn_id === selectedTurnId);
   const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
@@ -2208,7 +2271,7 @@ export function TurnDetailView() {
         chunks.push('', `⏸ ${fmtDuration(item.seconds)} idle — retry triggered by next incoming message`, '');
       } else {
         chunks.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        chunks.push(recordToText(item.rec, turnRecords));
+        chunks.push(recordToText(item.rec, turnRecords, t));
       }
     }
     downloadText(chunks.join('\n'), `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}-page.txt`);
@@ -2222,14 +2285,14 @@ export function TurnDetailView() {
     <div style={panelStyle} ref={panelRef} onScroll={e => setShowTop((e.target as HTMLDivElement).scrollTop > 400)}>
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <button style={btnStyle} onClick={back}>← Back</button>
+          <button style={btnStyle} onClick={back}>{t('traceHound.back')}</button>
           <div style={{ minWidth: 0 }}>
             <h2 style={{ ...titleStyle, marginBottom: 0, fontSize: 15 }}>
-              User Message #{(turn?.turn_index ?? 0) + 1}
-              {selectedSession?.title && <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 13, marginLeft: 8 }}>— {selectedSession.title}</span>}
+              {t('traceHound.turnDetail.title', { index: (turn?.turn_index ?? 0) + 1 })}
+              {selectedSession?.title && <span style={{ fontWeight: 400, color: C.textMuted, fontSize: 13, marginLeft: 8 }}>— {selectedSession.title}</span>}
             </h2>
             {turn?.timestamp && (
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>
                 {fmtDateTime(turn.timestamp)}
                 {/* Don't show total wall-time duration for retried turns — it includes idle gaps between retries */}
                 {turn.duration_seconds > 0 && turn.retry_count <= 1 && (
@@ -2240,21 +2303,21 @@ export function TurnDetailView() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-          {turn && <OutcomeBadge outcome={turn.outcome} issues={turn.issues} />}
-          {turn && turn.total_tokens > 0 && <span style={chipStyle}>{turn.total_tokens.toLocaleString()} tok</span>}
-          {turn && turn.llm_call_count > 0 && <span style={chipStyle}>{turn.llm_call_count} LLM call{turn.llm_call_count !== 1 ? 's' : ''}</span>}
-          {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a' }}>{turn.tool_names.length} tool{turn.tool_names.length !== 1 ? 's' : ''}</span>}
-          {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>🎯 {turn.skill_names.length} skill{turn.skill_names.length !== 1 ? 's' : ''}</span>}
-          {turn && turn.tool_failures > 0 && <span style={{ ...chipStyle, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5' }}>{turn.tool_failures} failed</span>}
-          {turn && turn.file_count > 0 && <span style={{ ...chipStyle, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0' }}>📄 {turn.file_count}</span>}
+          {turn && <OutcomeBadge outcome={turn.outcome} issues={turn.issues} t={t} />}
+          {turn && turn.total_tokens > 0 && <span style={chipStyle}>{t('traceHound.messages.tokens', { count: turn.total_tokens.toLocaleString() })}</span>}
+          {turn && turn.llm_call_count > 0 && <span style={chipStyle}>{t('traceHound.messages.llmCalls', { count: turn.llm_call_count })}</span>}
+          {turn && turn.tool_names.length > 0 && <span style={{ ...chipStyle, color: C.warn, background: C.warnSubtle, border: `1px solid ${C.warnSubtle}` }}>{t('traceHound.turnDetail.tools', { count: turn.tool_names.length })}</span>}
+          {turn && turn.skill_names.length > 0 && <span style={{ ...chipStyle, color: C.violet, background: C.violetSubtle, border: `1px solid ${C.violetSubtle}` }}>{t('traceHound.turnDetail.skills', { count: turn.skill_names.length })}</span>}
+          {turn && turn.tool_failures > 0 && <span style={{ ...chipStyle, color: C.danger, background: C.dangerSubtle, border: `1px solid ${C.dangerSubtle}` }}>{turn.tool_failures} {t('traceHound.messages.failed')}</span>}
+          {turn && turn.file_count > 0 && <span style={{ ...chipStyle, color: C.ok, background: C.okSubtle, border: `1px solid ${C.okSubtle}` }}>{t('traceHound.messages.fileCount', { count: turn.file_count })}</span>}
           {turn && (turn.avg_total_latency_ms ?? 0) > 0 && (
-            <Tooltip text={`Avg TTFT ${(turn.avg_ttft_ms ?? 0).toFixed(0)}ms · Avg TPOT ${(turn.avg_tpot_ms ?? 0).toFixed(1)}ms`}>
-              <span style={{ ...chipStyle, cursor: 'help' }}>⏱️ {((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s avg</span>
+            <Tooltip text={t('traceHound.messages.latencyTooltip', { ttft: (turn.avg_ttft_ms ?? 0).toFixed(0), tpot: (turn.avg_tpot_ms ?? 0).toFixed(1) })}>
+              <span style={{ ...chipStyle, cursor: 'help' }}>⏱️ {t('traceHound.messages.latencyAvg', { seconds: ((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1) })}</span>
             </Tooltip>
           )}
           {turn && (turn.context_usage_percent ?? 0) > 0 && (
-            <Tooltip text={`Context window: ${turn.context_window_tokens?.toLocaleString() ?? '?'}`}>
-              <span style={{ ...chipStyle, cursor: 'help', color: (turn.context_usage_percent ?? 0) > 80 ? '#dc2626' : '#374151' }}>📏 {(turn.context_usage_percent ?? 0).toFixed(1)}%</span>
+            <Tooltip text={t('traceHound.messages.contextTooltip', { tokens: turn.context_window_tokens?.toLocaleString() ?? '?' })}>
+              <span style={{ ...chipStyle, cursor: 'help', color: (turn.context_usage_percent ?? 0) > 80 ? C.danger : C.text }}>📏 {(turn.context_usage_percent ?? 0).toFixed(1)}%</span>
             </Tooltip>
           )}
           {turn && (turn.total_cost ?? 0) > 0 && <span style={chipStyle}>💰 ${(turn.total_cost ?? 0).toFixed(4)}</span>}
@@ -2262,31 +2325,31 @@ export function TurnDetailView() {
             <span style={{ ...chipStyle }}>🧠 {turn.models_used.join(', ')}</span>
           )}
           {turn && turn.retry_count > 1 && (
-            <Tooltip text={`This request was attempted ${turn.retry_count} times. Each retry was triggered when a new message arrived while the original was still pending. Idle time between attempts is shown as grey separators in the timeline below.`}>
-              <span style={{ ...chipStyle, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a', cursor: 'help' }}>
-                {turn.retry_count} attempts
+            <Tooltip text={t('traceHound.turnDetail.retriesTooltip', { count: turn.retry_count })}>
+              <span style={{ ...chipStyle, color: C.warn, background: C.warnSubtle, border: `1px solid ${C.warnSubtle}`, cursor: 'help' }}>
+                {turn.retry_count} {t('traceHound.messages.attempts')}
               </span>
             </Tooltip>
           )}
-          <button style={{ ...btnStyle, fontSize: 12 }} title={expandAll ? 'Collapse all cards back to their headers' : 'Expand all cards to show their full content'}
+          <button style={{ ...btnStyle, fontSize: 12 }} title={expandAll ? t('traceHound.turnDetail.collapseAllTooltip') : t('traceHound.turnDetail.expandAllTooltip')}
             onClick={() => setExpandAll(x => !x)}
             disabled={turnRecords.length === 0}>
-            {expandAll ? '⏫ Collapse all' : '⏬ Expand all'}
+            {expandAll ? t('traceHound.turnDetail.collapseAll') : t('traceHound.turnDetail.expandAll')}
           </button>
-          <button style={{ ...btnStyle, fontSize: 12 }} title="Download this turn's trajectory as JSON"
+          <button style={{ ...btnStyle, fontSize: 12 }} title={t('traceHound.turnDetail.downloadJsonTooltip')}
             onClick={() => downloadJson(turnRecords, `turn-${selectedTurnId?.slice(0, 8) ?? 'export'}.json`)}
             disabled={turnRecords.length === 0}>
-            ⬇ JSON
+            {t('traceHound.turnDetail.downloadJson')}
           </button>
-          <button style={{ ...btnStyle, fontSize: 12 }} title="Download this page's content as text — same boxes, order and data as on screen"
+          <button style={{ ...btnStyle, fontSize: 12 }} title={t('traceHound.turnDetail.downloadPageTooltip')}
             onClick={downloadPage}
             disabled={turnRecords.length === 0}>
-            ⬇ Page
+            {t('traceHound.turnDetail.downloadPage')}
           </button>
-          <button style={{ ...btnStyle, fontSize: 12 }} title="Download this turn as step-by-step markdown (sections + tables, like docs-michael/step-by-step.md)"
+          <button style={{ ...btnStyle, fontSize: 12 }} title={t('traceHound.turnDetail.downloadMdTooltip')}
             onClick={downloadMd}
             disabled={turnRecords.length === 0}>
-            ⬇ MD
+            {t('traceHound.turnDetail.downloadMd')}
           </button>
         </div>
       </div>
@@ -2298,18 +2361,18 @@ export function TurnDetailView() {
       />
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
-      {loading && <div style={emptyStyle}>Loading trajectory…</div>}
-      {!loading && turnRecords.length === 0 && <div style={emptyStyle}>No records found for this turn.</div>}
+      {loading && <div style={emptyStyle}>{t('traceHound.turnDetail.loading')}</div>}
+      {!loading && turnRecords.length === 0 && <div style={emptyStyle}>{t('traceHound.turnDetail.noRecords')}</div>}
 
       {displayItems.map((item, i) => {
         if (item.type === 'gap') {
           return (
-            <div key={`gap-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 8px', color: '#9ca3af', fontSize: 11 }}>
-              <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-              <span style={{ flexShrink: 0, background: '#f9fafb', border: '1px solid #e5e7eb', padding: '2px 10px', borderRadius: 10, color: '#9ca3af', fontSize: 11 }}>
-                ⏸ {fmtDuration(item.seconds)} idle — retry triggered by next incoming message
+            <div key={`gap-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 8px', color: C.textFaint, fontSize: 11 }}>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+              <span style={{ flexShrink: 0, background: C.surfaceMuted, border: `1px solid ${C.border}`, padding: '2px 10px', borderRadius: 10, color: C.textFaint, fontSize: 11 }}>
+                {t('traceHound.turnDetail.gapIdle', { duration: fmtDuration(item.seconds) })}
               </span>
-              <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              <div style={{ flex: 1, height: 1, background: C.border }} />
             </div>
           );
         }
@@ -2321,8 +2384,8 @@ export function TurnDetailView() {
       {showTop && (
         <button
           onClick={() => panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-          style={{ position: 'fixed', bottom: 28, right: 28, width: 40, height: 40, borderRadius: '50%', border: '1px solid #d1d5db', background: '#ffffff', color: '#374151', fontSize: 18, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          title="Scroll to top"
+          style={{ position: 'fixed', bottom: 28, right: 28, width: 40, height: 40, borderRadius: '50%', border: `1px solid ${C.borderStrong}`, background: C.surface, color: C.text, fontSize: 18, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title={t('traceHound.scrollToTop')}
         >
           ↑
         </button>
@@ -2351,6 +2414,7 @@ interface TrajectoryPanelProps {
  * user drills into a turn's detail from there.
  */
 export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnected, liveUpdatesEnabled = false, onClose }: TrajectoryPanelProps) {
+  const { t } = useTranslation();
   const selectedTurnId = useTraceHoundStore((s) => s.selectedTurnId);
   const openCurrentSession = useTraceHoundStore((s) => s.openCurrentSession);
   const refreshTurns = useTraceHoundStore((s) => s.refreshTurns);
@@ -2399,10 +2463,10 @@ export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnec
       data-testid="tracehound-trajectory-panel"
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Trajectory</span>
-        {live && <span style={{ fontSize: 10, color: C.ok }}>● LIVE</span>}
-        <button style={btnStyle} onClick={onClose} title="Close trajectory panel">
-          ✕ Close
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{t('traceHound.trajectoryPanel')}</span>
+        {live && <span style={{ fontSize: 10, color: C.ok }}>● {t('traceHound.live')}</span>}
+        <button style={btnStyle} onClick={onClose} title={t('traceHound.trajectoryClose')}>
+          ✕ {t('traceHound.close')}
         </button>
       </div>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
