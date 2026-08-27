@@ -286,6 +286,9 @@ interface TraceHoundState {
   /** Session-scoped entry for the chat's Trajectory panel — loads a session's
    *  turns directly by id (skips the global session browser). */
   openCurrentSession: (sessionId: string, title?: string, mode?: string | null) => Promise<void>;
+  /** Live-refresh the open session's turn list + stats, preserving the
+   *  selected turn (re-fetches its records only when its event_count grew). */
+  refreshTurns: (sessionId: string) => Promise<void>;
   selectTurn: (turnId: string) => Promise<void>;
   back: () => void;
   clearError: () => void;
@@ -430,6 +433,34 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       title: title?.trim() || undefined,
       mode: mode || undefined,
     });
+  },
+
+  refreshTurns: async (sessionId) => {
+    const prevEventCount = new Map(get().turns.map(t => [t.turn_id, t.event_count]));
+    try {
+      const res = await webRequest<{ ok: boolean; turns: TurnSummary[]; session_stats: SessionStats }>(
+        'tracehound.turns.list',
+        { session_id: sessionId }
+      );
+      const turns = Array.isArray(res?.turns) ? res.turns : [];
+      const selectedTurnId = get().selectedTurnId;
+      const selected = selectedTurnId ? turns.find(t => t.turn_id === selectedTurnId) : undefined;
+      const selectedGrew = Boolean(
+        selectedTurnId && (selected?.event_count ?? 0) > (prevEventCount.get(selectedTurnId) ?? 0)
+      );
+      set({
+        turns,
+        sessionStats: res?.session_stats ?? get().sessionStats,
+        ...(selectedGrew ? { turnRecords: [] } : {}),
+      });
+      // Keep the detail view honest only when the selected turn actually grew —
+      // reuses selectTurn's turn.get path to refresh its records.
+      if (selectedGrew && selectedTurnId) {
+        await get().selectTurn(selectedTurnId);
+      }
+    } catch {
+      /* transient — next poll tick retries */
+    }
   },
 
   selectTurn: async (turnId) => {

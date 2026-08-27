@@ -349,6 +349,7 @@ function AppContent() {
   const kvCacheAffinityEnabled = normalizeConfigBoolean(
     serverConfig?.kv_cache_affinity_enabled,
   );
+  const traceLiveUpdatesEnabled = String(serverConfig?.tracehound_live_updates_enabled) === 'true';
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -3126,6 +3127,7 @@ function AppContent() {
                     sessionTitle={sessionTitle}
                     sessionMode={mode}
                     isConnected={isConnected}
+                    liveUpdatesEnabled={traceLiveUpdatesEnabled}
                     onClose={handleCloseTrace}
                   />
                 )}

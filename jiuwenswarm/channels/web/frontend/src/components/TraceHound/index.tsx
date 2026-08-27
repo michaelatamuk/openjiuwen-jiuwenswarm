@@ -5,7 +5,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
+import { webRequest } from '../../services/webClient';
 import { C } from './traceTokens';
+import { shouldRefetch, POLL_INTERVAL_MS } from './traceLive';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2259,6 +2261,9 @@ interface TrajectoryPanelProps {
   sessionTitle: string;
   sessionMode?: string | null;
   isConnected: boolean;
+  /** When enabled (tracehound.live_updates_enabled), live-poll the session's
+   *  history file mtime and refresh the trajectory only when it changes. */
+  liveUpdatesEnabled?: boolean;
   onClose: () => void;
 }
 
@@ -2268,14 +2273,47 @@ interface TrajectoryPanelProps {
  * browser), scoped via openCurrentSession. Default view is the turn list; the
  * user drills into a turn's detail from there.
  */
-export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnected, onClose }: TrajectoryPanelProps) {
+export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnected, liveUpdatesEnabled = false, onClose }: TrajectoryPanelProps) {
   const selectedTurnId = useTraceHoundStore((s) => s.selectedTurnId);
   const openCurrentSession = useTraceHoundStore((s) => s.openCurrentSession);
+  const refreshTurns = useTraceHoundStore((s) => s.refreshTurns);
+  const analyzing = useTraceHoundStore((s) => s.analyzing);
+  const loading = useTraceHoundStore((s) => s.loading);
 
   useEffect(() => {
     void openCurrentSession(sessionId, sessionTitle, sessionMode ?? undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  const [live, setLive] = useState(false);
+  const mtimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!liveUpdatesEnabled || !isConnected || analyzing || loading) return;
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const r = await webRequest<{ mtime: number | null }>(
+          'tracehound.session.mtime',
+          { session_id: sessionId }
+        );
+        if (stopped) return;
+        const next = r?.mtime ?? null;
+        if (shouldRefetch(mtimeRef.current, next)) {
+          await refreshTurns(sessionId);
+        }
+        if (stopped) return;
+        mtimeRef.current = next;
+        setLive(true);
+      } catch {
+        if (!stopped) setLive(false);
+      }
+    };
+    mtimeRef.current = null;
+    void tick();
+    const id = window.setInterval(tick, POLL_INTERVAL_MS);
+    return () => { stopped = true; window.clearInterval(id); setLive(false); };
+  }, [sessionId, liveUpdatesEnabled, isConnected, analyzing, loading, refreshTurns]);
 
   return (
     <div
@@ -2285,6 +2323,7 @@ export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnec
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Trajectory</span>
+        {live && <span style={{ fontSize: 10, color: C.ok }}>● LIVE</span>}
         <button style={btnStyle} onClick={onClose} title="Close trajectory panel">
           ✕ Close
         </button>
