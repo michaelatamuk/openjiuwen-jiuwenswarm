@@ -91,3 +91,7 @@ In addition to the end-user chat platforms above, JiuwenSwarm also provides inte
 | Integration | Description |
 |-------------|-------------|
 | [ACP Plugin Usage](ACP_Client_Config.md) | Integrate with JiuwenSwarm via the ACP protocol, suitable for custom integrations |
+
+The **IDE Plugins** (`ide/jetbrains/JetBrains.md` and `ide/vscode/VSCode.md`) are WebSocket
+clients of the gateway (like the built-in Web UI) — they connect to `ws://<host>:19000/ws` with
+`channel_id: "ide"` and share sessions/history with the webview. See their docs for details.
