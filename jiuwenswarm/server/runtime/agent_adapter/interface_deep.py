@@ -211,6 +211,7 @@ from jiuwenswarm.agents.harness.common.rails.execution_guard import (
 )
 from jiuwenswarm.common.context_window import parse_positive_int, resolve_context_window_tokens
 
+from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.agents.harness.common.rails.iteration_budget_rail import (
     IterationBudgetRail,
 )
@@ -6843,6 +6844,28 @@ class JiuWenSwarmDeepAdapter:
             logger.warning(
                 "[JiuWenSwarmDeepAdapter] PlanApprovalInterruptRail create failed: %s", exc
             )
+            return None
+
+    @staticmethod
+    def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
+        """Build AutonomousModeRail: override interactive hedging when running unattended.
+
+        Reads ``autonomy.enabled`` from the config snapshot. When enabled, the
+        rail injects a high-priority system-prompt directive (no asking for
+        confirmation, no hedging, verify + finish end-to-end) for CI / scripted
+        / benchmark runs without a human in the loop. Attached unconditionally
+        with the resolved flag — the rail itself no-ops when disabled.
+        """
+        try:
+            _autonomy_enabled = bool((config_base.get("autonomy") or {}).get("enabled", False))
+            rail = AutonomousModeRail(_autonomy_enabled)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] AutonomousModeRail attached (enabled=%s)",
+                _autonomy_enabled,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach AutonomousModeRail: %s", exc)
             return None
 
     @staticmethod
