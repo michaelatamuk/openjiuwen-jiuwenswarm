@@ -4241,7 +4241,7 @@ class SkillManager:
 
         with tempfile.TemporaryDirectory(prefix="jiuwenswarm_import_upload_") as tmpdir:
             skill_dir = self._extract_skill_package_file(src, Path(tmpdir))
-            return self._install_imported_skill_dir(
+            return await self._install_imported_skill_dir(
                 skill_dir,
                 force=overwrite,
                 origin="file-api:upload",
@@ -4319,7 +4319,7 @@ class SkillManager:
             + ([str(Path(file_path).parent)] if has_file else []),
         }
 
-    def finalize_create_from_knowledge(self, output_dir: str | Path) -> dict[str, Any]:
+    async def finalize_create_from_knowledge(self, output_dir: str | Path) -> dict[str, Any]:
         """校验隔离目录中的生成结果并安装到 workspace（不覆盖已有同名 Skill）."""
         root = Path(output_dir)
         if not root.is_dir():
@@ -4334,7 +4334,7 @@ class SkillManager:
                 "未在输出目录找到有效 Skill（缺少 SKILL.md）",
             )
         self._assert_skill_package_safe(skill_dir)
-        installed = self._install_imported_skill_dir(
+        installed = await self._install_imported_skill_dir(
             skill_dir,
             force=False,
             origin="file-api:create-from-knowledge",

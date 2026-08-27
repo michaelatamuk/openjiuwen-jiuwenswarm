@@ -1918,7 +1918,7 @@ class JiuWenSwarm:
             async for _chunk in adapter.process_message_stream_impl(chat_request, inputs):
                 pass
 
-            result = self._skill_manager.finalize_create_from_knowledge(output_dir)
+            result = await self._skill_manager.finalize_create_from_knowledge(output_dir)
             await self._refresh_skill_rails_after_change()
             return result
         finally:
