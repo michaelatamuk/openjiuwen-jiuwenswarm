@@ -121,7 +121,8 @@ only receives mirrored tool/final events.
 build synthetic parent-history records (user msg, member tool_call/tool_result with
 `member_name` + parent request_id, forwarded usage events with `member_name`) and
 assert turn-level `llm_call_count`/`total_tokens` and per-agent credits. Instantiate
-via `AgentWSServer.__new__(AgentWSServer)` (skip `__init__`) or extract a pure helper
+via `AgentWebSocketServer.__new__(AgentWebSocketServer)` (skip `__init__`; the class lives in
+`server/agent_ws_server.py`, all replay helpers are class attrs/args) or extract a pure helper
 if cleaner.
 
 ## 4. Phase 2 — Features (built on correct data)
