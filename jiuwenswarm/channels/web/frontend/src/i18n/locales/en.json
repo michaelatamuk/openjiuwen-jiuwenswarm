@@ -210,7 +210,6 @@
       "subagent": " · subagent: {{type}}",
       "byAgent": " · {{name}}",
       "dangerous": "⚠ DANGEROUS",
-      "retry": "↻ retry",
       "deltaSinceStart": "{{delta}} since start of this attempt",
       "llmCallToResponse": "LLM call {{start}} → response {{end}}",
       "recordId": "Record ID: {{id}}",

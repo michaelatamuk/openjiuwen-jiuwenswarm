@@ -260,19 +260,6 @@ function isDangerous(rec: HistoryRecord): boolean {
   return DANGEROUS_PATTERNS.some(p => p.test(args));
 }
 
-function buildRetrySet(records: HistoryRecord[]): Set<string> {
-  const seen: Record<string, number> = {};
-  const retries = new Set<string>();
-  for (const r of records) {
-    if (r.event_type === 'chat.tool_call') {
-      const name = r.tool_name ?? (r.tool_call as Record<string, unknown>)?.name as string ?? '';
-      seen[name] = (seen[name] ?? 0) + 1;
-      if (seen[name] > 1) retries.add(r.id);
-    }
-  }
-  return retries;
-}
-
 function downloadJson(data: unknown, filename: string) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1757,7 +1744,7 @@ const EVENT_META: Record<string, { icon: string; labelKey: string; color: string
   'chat.error':         { icon: '🚨', labelKey: 'error',            color: C.danger,  subtle: C.dangerSubtle },
 };
 
-function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAll = false }: { rec: HistoryRecord; isRetry: boolean; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[]; expandAll?: boolean }) {
+function RecordCard({ rec, displayDelta, endDelta, allRecords, expandAll = false }: { rec: HistoryRecord; displayDelta: number | null; endDelta?: number | null; allRecords?: HistoryRecord[]; expandAll?: boolean }) {
   const { t } = useTranslation();
   const key = rec.role === 'user' ? 'user' : (rec.event_type ?? '');
   const meta = EVENT_META[key];
@@ -1815,7 +1802,6 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
           <span style={{ fontSize: 10, color: C.textFaint, fontFamily: 'monospace', flexShrink: 0 }}>#{String(rec.tool_call_id).slice(-8)}</span>
         )}
         {danger && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: C.dangerSubtle, color: C.danger, border: `1px solid ${C.dangerSubtle}` }}>{t('traceHound.records.dangerous')}</span>}
-        {isRetry && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: C.warnSubtle, color: C.warn, border: `1px solid ${C.warnSubtle}` }}>{t('traceHound.records.retry')}</span>}
         {/* Timing: absolute time + elapsed time within this attempt */}
         <span style={{ fontSize: 11, color: C.textFaint, textAlign: 'right', flexShrink: 0 }}>
           <span>{fmtTime(rec.timestamp)}</span>
@@ -1834,7 +1820,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
           )}
         </span>
         {collapsible && <span style={{ fontSize: 12, color: C.textFaint }}>{shown ? '▲' : '▼'}</span>}
-        {rec.id && <span style={{ fontSize: 9, color: C.borderStrong, fontFamily: 'monospace', flexShrink: 0 }} title={t('traceHound.records.recordId', { id: rec.id })}>{rec.id.slice(-12)}</span>}
+        {rec.id && <span style={{ fontSize: 9, color: C.borderStrong, fontFamily: 'monospace', flexShrink: 0 }} title={t('traceHound.records.recordId', { id: rec.id })}>{rec.id.replace(/:(assistant|user)$/, '').slice(-12)}</span>}
       </div>
 
       {/* User message — always visible */}
@@ -2088,7 +2074,6 @@ export function TurnDetailView() {
   const { t } = useTranslation();
   const { selectedSession, selectedTurnId, turns, turnRecords, loading, error, back, clearError } = useTraceHoundStore();
   const turn = turns.find(t => t.turn_id === selectedTurnId);
-  const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
 
   // When a cross-link (e.g. a failing tool row in the Stats panel) requested a
   // specific record, scroll its card into view once the records have loaded.
@@ -2355,7 +2340,7 @@ export function TurnDetailView() {
                 );
               }
               const rec = item.rec;
-              return <RecordCard key={`${expandAll}:${rec.id ?? `${rec.event_type}-${i}`}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} expandAll={expandAll} />;
+              return <RecordCard key={`${expandAll}:${rec.id ?? `${rec.event_type}-${i}`}`} rec={rec} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} expandAll={expandAll} />;
             })
           ) : (
             <TraceGraph

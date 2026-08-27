@@ -210,7 +210,6 @@
       "subagent": " · 子 agent：{{type}}",
       "byAgent": " · {{name}}",
       "dangerous": "⚠ 危险",
-      "retry": "↻ 重试",
       "deltaSinceStart": "距本次尝试开始 {{delta}}",
       "llmCallToResponse": "LLM 调用 {{start}} → 响应 {{end}}",
       "recordId": "记录 ID：{{id}}",
