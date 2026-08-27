@@ -4,11 +4,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
+import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue, type AgentActivity } from '../../stores/traceHoundStore';
 import { webRequest } from '../../services/webClient';
 import { C } from './traceTokens';
 import { shouldRefetch, POLL_INTERVAL_MS } from './traceLive';
 import { buildHighlights } from './highlights';
+import { TimelineBand, PerAgentCard } from './traceCharts';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1086,6 +1087,33 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
           </div>
         )}
 
+        {/* Per-agent activity (team mode) — merged across turns by agent name */}
+        {(() => {
+          const teamTurns = turns.filter(t => (t.agent_activity?.length ?? 0) > 0);
+          if (teamTurns.length === 0) return null;
+          if (teamTurns.length === 1) return <PerAgentCard turn={teamTurns[0]} />;
+          const merged = new Map<string, AgentActivity>();
+          for (const t of teamTurns) {
+            for (const a of t.agent_activity ?? []) {
+              const cur = merged.get(a.name);
+              if (cur) {
+                cur.tool_calls += a.tool_calls;
+                cur.tool_results += a.tool_results;
+                cur.tool_failures += a.tool_failures;
+                cur.responses += a.responses;
+                cur.llm_calls += a.llm_calls;
+                cur.tokens += a.tokens;
+                cur.cost += a.cost;
+                if (cur.role !== 'leader' && a.role === 'leader') cur.role = 'leader';
+              } else {
+                merged.set(a.name, { ...a });
+              }
+            }
+          }
+          const aggregated: TurnSummary = { ...teamTurns[0], agent_activity: [...merged.values()] };
+          return <PerAgentCard turn={aggregated} />;
+        })()}
+
         {/* Skill frequency */}
         {topSkills.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e5e7eb' }}>
@@ -1749,7 +1777,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
   // "+56s" when the actual attempt took ~1s (the 56s was idle time between retries).
 
   return (
-    <div style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+    <div id={`rec-${rec.id}`} style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
       {/* Header */}
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: collapsible ? 'pointer' : 'default', background: danger ? '#fef2f2' : color + '08' }}
@@ -2235,6 +2263,12 @@ export function TurnDetailView() {
           </button>
         </div>
       </div>
+
+      {/* Wall-clock strip of this turn's records — click a dot to jump to its card */}
+      <TimelineBand
+        records={turnRecords}
+        onClickRecord={r => document.getElementById(`rec-${r.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+      />
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
       {loading && <div style={emptyStyle}>Loading trajectory…</div>}
