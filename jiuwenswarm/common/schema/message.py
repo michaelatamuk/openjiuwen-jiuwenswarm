@@ -367,6 +367,7 @@ class ReqMethod(Enum):
     # TraceHound — Session Trajectory Viewer
     TRACEHOUND_TURNS_LIST = "tracehound.turns.list"
     TRACEHOUND_TURN_GET = "tracehound.turn.get"
+    TRACEHOUND_SESSION_MTIME = "tracehound.session.mtime"
     TRACEHOUND_ANALYZE = "tracehound.analyze"
 
 

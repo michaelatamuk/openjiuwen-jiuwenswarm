@@ -2005,6 +2005,9 @@ class AgentWebSocketServer:
             if request.req_method == ReqMethod.TRACEHOUND_TURN_GET:
                 await self._handle_replay_request(ws, request, send_lock, "turn_get")
                 return
+            if request.req_method == ReqMethod.TRACEHOUND_SESSION_MTIME:
+                await self._handle_replay_request(ws, request, send_lock, "session_mtime")
+                return
             if request.req_method == ReqMethod.TRACEHOUND_ANALYZE:
                 await self._handle_tracehound_analyze(ws, request, send_lock)
                 return
@@ -10522,6 +10525,14 @@ class AgentWebSocketServer:
 
     # ── TraceHound helpers ────────────────────────────────────────────────────
 
+    @staticmethod
+    def _tracehound_session_mtime(session_id: str) -> float | None:
+        from jiuwenswarm.server.runtime.session.session_history import get_history_mtime
+        try:
+            return get_history_mtime(session_id)
+        except Exception:
+            return None
+
     _REPLAY_NOISE_EVENTS: frozenset = frozenset({
         "chat.processing_status",
         "chat.processing_status_deferred",
@@ -11180,6 +11191,10 @@ class AgentWebSocketServer:
                     prev_ts = ts_r
 
                 payload = {"ok": True, "records": turn_records}
+
+            elif action == "session_mtime":
+                mtime = self._tracehound_session_mtime(session_id)
+                payload = {"ok": True, "mtime": mtime}
 
             else:
                 payload = {"ok": False, "error": f"unknown replay action: {action}"}
