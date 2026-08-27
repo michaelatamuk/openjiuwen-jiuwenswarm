@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
+import { C } from './traceTokens';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1400,7 +1401,7 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
               </span>
             )}
             {!analysis && !analyzing && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 400, color: C.textFaint, marginLeft: 8 }}>
                 No diagnosis yet
               </span>
             )}
@@ -1411,7 +1412,7 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
             )}
           </span>
           {/* Right side: LLM disclaimer only */}
-          <span style={{ flex: 1, fontSize: 11, color: '#9ca3af', textAlign: 'right', paddingRight: 4 }}>
+          <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>
             uses LLM (costs tokens, takes time)
           </span>
           {analysis && sessionStats?.session_fingerprint && analysis.fingerprint !== sessionStats.session_fingerprint && (
@@ -1462,18 +1463,18 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
       {!loading && turns.length > 0 && (
         <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f9fafb', borderBottom: analyticsOpen ? '1px solid #e5e7eb' : 'none', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.surfaceMuted, borderBottom: analyticsOpen ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
             onClick={() => setAnalyticsOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>📊</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>
               Stats
-              <span style={{ fontSize: 11, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 400, color: C.textMuted, marginLeft: 8 }}>
                 {statsSummary.completed} completed · {statsSummary.withIssues} with problems · {statsSummary.noResp} no response · {statsSummary.errors} errors{statsSummary.deferred > 0 ? ` · ${statsSummary.deferred} deferred` : ''} · {statsSummary.totalTools} tool calls{statsSummary.totalSkills > 0 ? ` · ${statsSummary.totalSkills} skills` : ''}
               </span>
             </span>
-            <span style={{ flex: 1, fontSize: 11, color: '#9ca3af', textAlign: 'right', paddingRight: 4 }}>from session data</span>
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>{analyticsOpen ? '▲' : '▼'}</span>
+            <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>from session data</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>{analyticsOpen ? '▲' : '▼'}</span>
           </div>
           {analyticsOpen && <AnalyticsPanel turns={turns} />}
         </div>
@@ -1483,16 +1484,16 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
       {turns.length > 0 && (
         <div style={{ marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f9fafb', borderBottom: messagesOpen ? '1px solid #e5e7eb' : 'none', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.surfaceMuted, borderBottom: messagesOpen ? `1px solid ${C.border}` : 'none', cursor: 'pointer' }}
             onClick={() => setMessagesOpen(x => !x)}
           >
             <span style={{ fontSize: 14 }}>💬</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>User messages</span>
-            <span style={{ flex: 1, fontSize: 11, color: '#6b7280', textAlign: 'right', paddingRight: 4 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>User messages</span>
+            <span style={{ flex: 1, fontSize: 11, color: C.textMuted, textAlign: 'right', paddingRight: 4 }}>
               {visibleTurns.length} shown · {turns.length} total{anyFilter ? ` (filtered)` : ''}
             </span>
-            <span style={{ fontSize: 11, color: '#9ca3af', paddingRight: 4 }}>one-by-one log</span>
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>{messagesOpen ? '▲' : '▼'}</span>
+            <span style={{ fontSize: 11, color: C.textFaint, paddingRight: 4 }}>one-by-one log</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>{messagesOpen ? '▲' : '▼'}</span>
           </div>
           {messagesOpen && (
             <div style={{ padding: '12px 14px' }}>
@@ -2282,8 +2283,8 @@ export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnec
       style={{ flex: '1 1 0', minWidth: 300, maxWidth: 720, height: '100%', display: 'flex', flexDirection: 'column' }}
       data-testid="tracehound-trajectory-panel"
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 16px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Trajectory</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Trajectory</span>
         <button style={btnStyle} onClick={onClose} title="Close trajectory panel">
           ✕ Close
         </button>
