@@ -8,14 +8,18 @@ JiuwenSwarm 的智能体位于 Web 应用中，但用户却是在浏览器里工
 
 ---
 
-# [Feature]: Add the JiuwenSwarm Browser Extension as a New Channel
-
 ## Executive Summary
 
 JiuwenSwarm's agent lives in a web app, but its users — researchers, financial analysts, journalists, legal professionals, and product managers — do their work in the browser, reading web pages and switching tabs. To use the agent on anything they are reading, users must copy-paste text out of the page, lose its context, and repeat this for every tab, and the agent can neither see the page nor act on it. This change adds the browser extension (Manifest V3) as a **new channel** in the JiuwenSwarm repository (`channels/browser`): it reads the active page automatically, holds a research session across pinned pages, and acts on the page (highlight, fill forms, scroll, screenshot), while keeping the same session in the full JiuwenSwarm UI for heavy follow-up.
 
 Issue #3841 https://github.com/openJiuwen-ai/jiuwenswarm/issues/3841<br>
 PR #4095 https://github.com/openJiuwen-ai/jiuwenswarm/pull/4095
+
+---
+
+## ISSUE
+
+# [Feature]: Bring the JiuwenSwarm Agent into the Browser
 
 ## Background Description
 
@@ -31,7 +35,7 @@ flowchart TD
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
     PAGE(["user reads a web page<br/>(arXiv, SEC, PubMed, GitHub)"]):::plain
     PAGE -->|"select + copy"| COPY["switch to web app, paste<br/>lose surrounding context"]:::fail
-    COPY -->|"per tab, repeatedly"| LOST["agent has no page context,<br/>cannot act on the page"]:::fail
+    COPY -->|"per tab, repeatedly "| UNHAPPY(["user is stuck copy-pasting,<br/>agent can't see or act on the page"]):::fail
 ```
 
 ## Design Ideas
@@ -63,11 +67,11 @@ flowchart TD
     classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    PAGE(["active tab"]):::plain
-    PAGE -->|"content script extracts"| BG["background service worker<br/>WebSocket to JiuwenSwarm"]:::ok
-    BG -->|"session context + agent reply"| PANEL["side panel chat"]:::ok
-    BG -->|"server sends tool_call"| TOOLS["browser-native tools<br/>(highlight, fill, scroll, ...)"]:::done
-    TOOLS -->|"acts on the page"| PAGE
+    PAGE(["user reads a web page<br/>(arXiv, SEC, PubMed, GitHub)"]):::plain
+    PAGE -->|"content script extracts,<br/>pins page context"| BG["background service worker<br/>WebSocket to JiuwenSwarm"]:::ok
+    BG -->|"agent sees the page, streams reply"| PANEL["side panel chat"]:::ok
+    PANEL -->|"agent highlights, fills, scrolls"| TOOLS["browser-native tools<br/>(highlight, fill, scroll, ...)"]:::done
+    TOOLS -->|"acts on the page "| HAPPY(["user stays focused on the page"]):::done
 ```
 
 ## Involved Public APIs
@@ -116,9 +120,9 @@ Performance/reliability:
 
 - **Extraction does not block rendering** — the content script runs at `document_idle`; large-page extraction stays bounded by the char cap.
 
-## Additional Information
+## PR
 
-## Solution
+# feat(browser): add browser extension as a new channel
 
 **What type of PR is this?**
 /kind feature
@@ -143,7 +147,7 @@ flowchart TD
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
     PAGE(["user reads a web page<br/>(arXiv, SEC, PubMed, GitHub)"]):::plain
     PAGE -->|"select + copy"| COPY["switch to web app, paste<br/>lose surrounding context"]:::fail
-    COPY -->|"per tab, repeatedly"| LOST["agent has no page context,<br/>cannot act on the page"]:::fail
+    COPY -->|"per tab, repeatedly"| UNHAPPY(["user is stuck copy-pasting,<br/>agent can't see or act on the page"]):::fail
 ```
 
 ---
@@ -168,11 +172,11 @@ flowchart TD
     classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    PAGE(["active tab"]):::plain
-    PAGE -->|"content script extracts"| BG["background service worker<br/>WebSocket to JiuwenSwarm"]:::ok
-    BG -->|"session context + agent reply"| PANEL["side panel chat"]:::ok
-    BG -->|"server sends tool_call"| TOOLS["browser-native tools<br/>(highlight, fill, scroll, ...)"]:::done
-    TOOLS -->|"acts on the page"| PAGE
+    PAGE(["user reads a web page<br/>(arXiv, SEC, PubMed, GitHub)"]):::plain
+    PAGE -->|"content script extracts,<br/>pins page context"| BG["background service worker<br/>WebSocket to JiuwenSwarm"]:::ok
+    BG -->|"agent sees the page, streams reply"| PANEL["side panel chat"]:::ok
+    PANEL -->|"agent highlights, fills, scrolls"| TOOLS["browser-native tools<br/>(highlight, fill, scroll, ...)"]:::done
+    TOOLS -->|"acts on the page"| HAPPY(["user stays focused on the page"]):::done
 ```
 
 The extension reuses the existing JiuwenSwarm WebSocket gateway protocol, so the agent runtime and server API are unchanged.
