@@ -2166,6 +2166,17 @@ export function TurnDetailView() {
   const scrollToRecord = (recordId: string) =>
     document.getElementById(`rec-${recordId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+  // A graph node click switches to the Records tab, but the records list only
+  // mounts once that tab renders. Stash the target and scroll from an effect
+  // keyed on the tab so the record is revealed after mount.
+  const [pendingRecordId, setPendingRecordId] = useState<string | null>(null);
+  useEffect(() => {
+    if (tab === 'records' && pendingRecordId) {
+      scrollToRecord(pendingRecordId);
+      setPendingRecordId(null);
+    }
+  }, [tab, pendingRecordId]);
+
   // Floating "back to top" button — the panel div is the scroll container.
   const panelRef = useRef<HTMLDivElement>(null);
   const [showTop, setShowTop] = useState(false);
@@ -2402,8 +2413,8 @@ export function TurnDetailView() {
             <TraceGraph
               records={turnRecords}
               onSelectRecord={id => {
+                setPendingRecordId(id);
                 setTab('records');
-                scrollToRecord(id);
               }}
             />
           )}

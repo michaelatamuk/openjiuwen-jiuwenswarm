@@ -83,6 +83,9 @@ export function TraceGraph({ records, onSelectRecord }: { records: HistoryRecord
     return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
   };
   const byId = new Map(g.nodes.map(n => [n.id, n]));
+  // A pair edge duplicates a seq edge whenever the pair's target equals the
+  // call's sequential successor (tool_result is never a node). Don't overpaint.
+  const seqKeys = new Set(g.edges.filter(e => e.kind === 'seq').map(e => `${e.from}->${e.to}`));
 
   return (
     <div style={{ overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface }}>
@@ -108,6 +111,7 @@ export function TraceGraph({ records, onSelectRecord }: { records: HistoryRecord
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', minWidth: W }} role="img">
         {g.edges.map((e, i) => {
+          if (e.kind === 'pair' && seqKeys.has(`${e.from}->${e.to}`)) return null;
           const from = byId.get(e.from);
           const to = byId.get(e.to);
           if (!from || !to) return null;
