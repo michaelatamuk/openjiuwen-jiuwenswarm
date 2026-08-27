@@ -12,6 +12,7 @@ import { C } from './traceTokens';
 import { shouldRefetch, POLL_INTERVAL_MS } from './traceLive';
 import { buildHighlights } from './highlights';
 import { TimelineBand, PerAgentCard } from './traceCharts';
+import { TraceGraph } from './TraceGraph';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2160,6 +2161,11 @@ export function TurnDetailView() {
   // any per-card manual overrides.
   const [expandAll, setExpandAll] = useState(false);
 
+  // Records | Graph switch (Langfuse-style per-turn graph view).
+  const [tab, setTab] = useState<'records' | 'graph'>('records');
+  const scrollToRecord = (recordId: string) =>
+    document.getElementById(`rec-${recordId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
   // Floating "back to top" button — the panel div is the scroll container.
   const panelRef = useRef<HTMLDivElement>(null);
   const [showTop, setShowTop] = useState(false);
@@ -2364,21 +2370,45 @@ export function TurnDetailView() {
       {loading && <div style={emptyStyle}>{t('traceHound.turnDetail.loading')}</div>}
       {!loading && turnRecords.length === 0 && <div style={emptyStyle}>{t('traceHound.turnDetail.noRecords')}</div>}
 
-      {displayItems.map((item, i) => {
-        if (item.type === 'gap') {
-          return (
-            <div key={`gap-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 8px', color: C.textFaint, fontSize: 11 }}>
-              <div style={{ flex: 1, height: 1, background: C.border }} />
-              <span style={{ flexShrink: 0, background: C.surfaceMuted, border: `1px solid ${C.border}`, padding: '2px 10px', borderRadius: 10, color: C.textFaint, fontSize: 11 }}>
-                {t('traceHound.turnDetail.gapIdle', { duration: fmtDuration(item.seconds) })}
-              </span>
-              <div style={{ flex: 1, height: 1, background: C.border }} />
-            </div>
-          );
-        }
-        const rec = item.rec;
-        return <RecordCard key={`${expandAll}:${rec.id ?? `${rec.event_type}-${i}`}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} expandAll={expandAll} />;
-      })}
+      {!loading && turnRecords.length > 0 && (
+        <>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {(['records', 'graph'] as const).map(k => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                fontSize: 12, padding: '4px 12px', borderRadius: 8, cursor: 'pointer',
+                border: `1px solid ${tab === k ? C.info : C.border}`,
+                background: tab === k ? C.infoSubtle : C.surface,
+                color: tab === k ? C.info : C.textMuted, fontWeight: tab === k ? 600 : 400,
+              }}>{t(`traceHound.graph.${k}`)}</button>
+            ))}
+          </div>
+          {tab === 'records' ? (
+            displayItems.map((item, i) => {
+              if (item.type === 'gap') {
+                return (
+                  <div key={`gap-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 8px', color: C.textFaint, fontSize: 11 }}>
+                    <div style={{ flex: 1, height: 1, background: C.border }} />
+                    <span style={{ flexShrink: 0, background: C.surfaceMuted, border: `1px solid ${C.border}`, padding: '2px 10px', borderRadius: 10, color: C.textFaint, fontSize: 11 }}>
+                      {t('traceHound.turnDetail.gapIdle', { duration: fmtDuration(item.seconds) })}
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: C.border }} />
+                  </div>
+                );
+              }
+              const rec = item.rec;
+              return <RecordCard key={`${expandAll}:${rec.id ?? `${rec.event_type}-${i}`}`} rec={rec} isRetry={retrySet.has(rec.id)} displayDelta={item.displayDelta} endDelta={item.endDelta} allRecords={turnRecords} expandAll={expandAll} />;
+            })
+          ) : (
+            <TraceGraph
+              records={turnRecords}
+              onSelectRecord={id => {
+                setTab('records');
+                scrollToRecord(id);
+              }}
+            />
+          )}
+        </>
+      )}
 
       {/* Floating scroll-to-top button (appears once scrolled down) */}
       {showTop && (
