@@ -46,6 +46,9 @@
     "logs": "Logs",
     "update": "Updates"
   },
+  "traceHound": {
+    "trajectoryPanel": "Trajectory"
+  },
   "team": {
     "members": "Team Members",
     "membersTab": "Team",

@@ -6,8 +6,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type AnalysisIssue } from '../../stores/traceHoundStore';
 
-interface TraceHoundPanelProps { isConnected: boolean; }
-
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const panelStyle: React.CSSProperties = {
@@ -51,14 +49,6 @@ function fmtDateTime(ts: number): string {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
-}
-function relativeTime(ts: number): string {
-  if (!ts) return '';
-  const diff = Date.now() / 1000 - ts;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return new Date(ts * 1000).toLocaleDateString();
 }
 function fmtDuration(s: number): string {
   if (s <= 0) return '';
@@ -1276,84 +1266,9 @@ function IssueCard({ issue }: { issue: AnalysisIssue }) {
   );
 }
 
-// ── View 1: Session List ──────────────────────────────────────────────────────
+// ── Turn List ─────────────────────────────────────────────────────────────────
 
-function SessionListView({ isConnected }: { isConnected: boolean }) {
-  const { sessions, loading, error, loadSessions, selectSession, clearError } = useTraceHoundStore();
-  const [showEmpty, setShowEmpty] = useState(false);
-  useEffect(() => { loadSessions(); }, []); // eslint-disable-line
-
-  const visibleSessions = useMemo(() => {
-    if (showEmpty) return sessions;
-    return sessions.filter(s => (s.message_count ?? 0) > 0);
-  }, [sessions, showEmpty]);
-
-  const emptyCount = sessions.filter(s => (s.message_count ?? 0) === 0).length;
-
-  return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>
-        <h2 style={titleStyle}>TraceHound</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showEmpty}
-              onChange={(e) => setShowEmpty(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            Show empty sessions{!showEmpty && emptyCount > 0 ? ` (${emptyCount} hidden)` : ''}
-          </label>
-          <button style={btnStyle} onClick={loadSessions} disabled={loading || !isConnected} title="Reload session list">
-            {loading ? 'Loading…' : '↻ Refresh'}
-          </button>
-        </div>
-      </div>
-      {error && <ErrorBanner message={error} onClose={clearError} />}
-
-      {visibleSessions.length === 0 && !loading && (
-        <div style={emptyStyle}>
-          {showEmpty ? 'No sessions found.' : 'No non-empty sessions found.'}
-        </div>
-      )}
-      {visibleSessions.map((s) => (
-        <div key={s.session_id} style={cardStyle}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
-          onClick={() => selectSession(s)}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {modeBadge(s.mode)}{s.title ?? s.session_id}
-            </span>
-            <span style={{ fontSize: 12, color: '#6b7280', flexShrink: 0 }}>{relativeTime(s.last_message_at ?? s.created_at ?? 0)}</span>
-          </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#9ca3af', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ display: 'flex', gap: 10 }}>
-              <span><strong style={{ color: '#6b7280' }}>{s.round_id ?? 0}</strong> user msgs</span>
-              <span><strong style={{ color: '#6b7280' }}>{s.llm_calls ?? 0}</strong> LLM calls</span>
-              <span><strong style={{ color: '#6b7280' }}>{s.total_events ?? s.message_count ?? 0}</strong> events</span>
-              <span><strong style={{ color: '#6b7280' }}>{(s.total_tokens ?? 0).toLocaleString()}</strong> tokens</span>
-              {(s.total_cache_tokens ?? 0) > 0 && <span>🔄 <strong style={{ color: '#6b7280' }}>{(s.total_cache_tokens ?? 0).toLocaleString()}</strong></span>}
-              {(s.total_cost ?? 0) > 0 && <span>💰 <strong style={{ color: '#6b7280' }}>${(s.total_cost ?? 0).toFixed(4)}</strong></span>}
-              {(s.avg_total_latency_ms ?? 0) > 0 && <span>⏱️ <strong style={{ color: '#6b7280' }}>{((s.avg_total_latency_ms ?? 0) / 1000).toFixed(1)}s</strong></span>}
-              {(s.max_context_usage_percent ?? 0) > 0 && (
-                <span style={{ color: (s.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#9ca3af' }}>
-                  📏 <strong style={{ color: (s.max_context_usage_percent ?? 0) > 80 ? '#dc2626' : '#6b7280' }}>{(s.max_context_usage_percent ?? 0).toFixed(1)}%</strong>
-                </span>
-              )}
-            </span>
-            <span style={{ fontSize: 11 }}>{s.session_id}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── View 2: Turn List ─────────────────────────────────────────────────────────
-
-function TurnListView({ isConnected }: { isConnected: boolean }) {
+export function TurnListView({ isConnected, embedded = false }: { isConnected: boolean; embedded?: boolean }) {
   const {
     selectedSession, turns, sessionStats, loading, error, selectTurn, back, clearError,
     analysis, analyzing, analyzeError, analyzeSession, clearAnalyzeError,
@@ -1402,7 +1317,7 @@ function TurnListView({ isConnected }: { isConnected: boolean }) {
       <div style={headerStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <button style={btnStyle} onClick={back}>← Back</button>
+            {!embedded && <button style={btnStyle} onClick={back}>← Back</button>}
             <h2 style={{ ...titleStyle, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {modeBadge(selectedSession?.mode)}{selectedSession?.title ?? selectedSession?.session_id}
             </h2>
@@ -2098,7 +2013,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
 /// Gap threshold: if two consecutive records are more than this apart, show an idle separator
 const IDLE_GAP_THRESHOLD_S = 30;
 
-function TurnDetailView() {
+export function TurnDetailView() {
   const { selectedSession, selectedTurnId, turns, turnRecords, loading, error, back, clearError } = useTraceHoundStore();
   const turn = turns.find(t => t.turn_id === selectedTurnId);
   const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
@@ -2336,11 +2251,50 @@ function TurnDetailView() {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Session-scoped Trajectory Panel (chat integration) ───────────────────────
 
-export function TraceHoundPanel({ isConnected }: TraceHoundPanelProps) {
-  const { selectedSessionId, selectedTurnId } = useTraceHoundStore();
-  if (selectedTurnId) return <TurnDetailView />;
-  if (selectedSessionId) return <TurnListView isConnected={isConnected} />;
-  return <SessionListView isConnected={isConnected} />;
+interface TrajectoryPanelProps {
+  sessionId: string;
+  sessionTitle: string;
+  sessionMode?: string | null;
+  isConnected: boolean;
+  onClose: () => void;
+}
+
+/**
+ * The Trajectory panel shown in the chat workspace's right slot. Opens the
+ * currently active session's turn list directly (skipping the global session
+ * browser), scoped via openCurrentSession. Default view is the turn list; the
+ * user drills into a turn's detail from there.
+ */
+export function TrajectoryPanel({ sessionId, sessionTitle, sessionMode, isConnected, onClose }: TrajectoryPanelProps) {
+  const selectedTurnId = useTraceHoundStore((s) => s.selectedTurnId);
+  const openCurrentSession = useTraceHoundStore((s) => s.openCurrentSession);
+
+  useEffect(() => {
+    void openCurrentSession(sessionId, sessionTitle, sessionMode ?? undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  return (
+    <div
+      className="bg-panel"
+      style={{ flex: '1 1 0', minWidth: 300, maxWidth: 720, height: '100%', display: 'flex', flexDirection: 'column' }}
+      data-testid="tracehound-trajectory-panel"
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 16px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Trajectory</span>
+        <button style={btnStyle} onClick={onClose} title="Close trajectory panel">
+          ✕ Close
+        </button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {selectedTurnId ? (
+          <TurnDetailView />
+        ) : (
+          <TurnListView isConnected={isConnected} embedded />
+        )}
+      </div>
+    </div>
+  );
 }

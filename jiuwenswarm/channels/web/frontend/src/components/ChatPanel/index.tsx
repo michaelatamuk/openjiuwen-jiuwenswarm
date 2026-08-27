@@ -33,6 +33,8 @@ import { isTeamLeaderMember, type TeamMemberIdentity } from '../../utils/teamMem
 import { TeamMemberAvatar } from '../TeamMemberAvatar';
 import welcomeBanner from '../../assets/home-banner-workswarm.png';
 import './ChatPanel.css';
+import TracehoundIcon from '../../assets/sidebar/tracehound.svg?react';
+import { NEW_CONVERSATION_ID } from '../../multi-session/state/newConversationLifecycle';
 import { CodeChangesCard } from '../../features/code-mode/CodeChangesCard';
 import { useCodeTurnDiffHistory } from '../../features/code-mode/useCodeTurnDiffHistory';
 import { turnDiffKey } from '../../features/code-mode/turnChangeState';
@@ -100,6 +102,8 @@ interface ChatPanelProps {
   onToggleTeamArea?: (expanded: boolean | null) => void;
   /** 打开右侧面板并切换到代码审核 Tab */
   onOpenCodeReview?: (target: CodeReviewTarget) => void;
+  /** 在右侧面板打开当前会话的 TraceHound Trajectory */
+  onOpenTrace?: () => void;
   permissionsEnabled: boolean;
   onSavePermission: (updates: Record<string, string>) => Promise<void>;
   /** Goal（持续目标）控制，见 GoalBar 组件 */
@@ -752,6 +756,7 @@ export function ChatPanel({
   onNavigateToSkills,
   onToggleTeamArea,
   onOpenCodeReview,
+  onOpenTrace,
   permissionsEnabled,
   onSavePermission,
   onSetGoal,
@@ -822,6 +827,7 @@ export function ChatPanel({
   const shareExportTitle = getShareExportTitle(t, isExportingShare, canExportShare);
   const shouldShowShareExport = Boolean(onExportShare);
   const shouldShowHumanShare = mode === 'team' && teamHumanShareCommands.length > 0;
+  const shouldShowTrace = Boolean(onOpenTrace) && Boolean(activeSessionId) && activeSessionId !== NEW_CONVERSATION_ID;
   const [humanShareOpen, setHumanShareOpen] = React.useState(false);
   const {
     turnsByMessageId: codeTurnsByMessageId,
@@ -1283,6 +1289,17 @@ export function ChatPanel({
                 title={t('humanShare.title')}
               >
                 <Sparkles size={16} strokeWidth={2} />
+              </button>
+            )}
+            {shouldShowTrace && (
+              <button
+                type="button"
+                className="chat-header-icon-btn"
+                data-testid="chat-panel-trace-trigger"
+                onClick={() => onOpenTrace?.()}
+                title={t('traceHound.trajectoryPanel')}
+              >
+                <TracehoundIcon width={14} height={14} style={{ display: 'block' }} aria-hidden />
               </button>
             )}
             <button

@@ -46,6 +46,9 @@
     "logs": "日志",
     "update": "更新"
   },
+  "traceHound": {
+    "trajectoryPanel": "轨迹"
+  },
   "team": {
     "members": "团队成员",
     "membersTab": "团队",

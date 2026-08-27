@@ -280,6 +280,9 @@ interface TraceHoundState {
 
   loadSessions: () => Promise<void>;
   selectSession: (session: TraceHoundSessionItem) => Promise<void>;
+  /** Session-scoped entry for the chat's Trajectory panel — loads a session's
+   *  turns directly by id (skips the global session browser). */
+  openCurrentSession: (sessionId: string, title?: string, mode?: string | null) => Promise<void>;
   selectTurn: (turnId: string) => Promise<void>;
   back: () => void;
   clearError: () => void;
@@ -414,6 +417,16 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
     } catch (e) {
       set({ error: String(e), loading: false });
     }
+  },
+
+  openCurrentSession: async (sessionId, title, mode) => {
+    // Same flow as selectSession but with a minimal item constructed from the
+    // currently open chat session — no need to go through the session browser.
+    await get().selectSession({
+      session_id: sessionId,
+      title: title?.trim() || undefined,
+      mode: mode || undefined,
+    });
   },
 
   selectTurn: async (turnId) => {

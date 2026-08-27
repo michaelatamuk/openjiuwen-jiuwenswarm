@@ -15,7 +15,6 @@ import PlusIcon from '../../assets/sidebar/plus.svg?react';
 import logoIcon from '/logo.svg';
 import AdvancedConfigIcon from '../../assets/sidebar/advanced-config-new.svg?react';
 import UpdateIcon from '../../assets/sidebar/advanced-config.svg?react';
-import TracehoundIcon from '../../assets/sidebar/tracehound.svg?react';
 import WorkIcon from '../../assets/工作.svg?react';
 import SkillDesignIcon from '../../assets/技能.svg?react';
 import AgentDesignIcon from '../../assets/智能体.svg?react';
@@ -73,7 +72,6 @@ const moreNavItems: NavItem[] = [
   { key: 'extensions', labelKey: 'nav.extensions', icon: <PluginIcon aria-hidden /> },
   { key: 'browserpanel', labelKey: 'nav.browser', icon: <WebIcon aria-hidden /> },
   { key: 'updatepanel', labelKey: 'nav.update', icon: <UpdateIcon aria-hidden /> },
-  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <TracehoundIcon aria-hidden /> },
 ];
 
 // Advanced Config Panel Component

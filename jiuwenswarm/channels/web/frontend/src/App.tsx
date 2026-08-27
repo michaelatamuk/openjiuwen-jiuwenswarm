@@ -19,7 +19,7 @@ import { BrowserPanel } from './components/BrowserPanel';
 import { UpdatePanel } from './components/UpdatePanel';
 import { ExtensionsHubPanel } from './components/ExtensionsHubPanel';
 import { ConnectorMarketPanel } from './components/ConnectorMarket';
-import { TraceHoundPanel } from './components/TraceHound';
+import { TrajectoryPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
   exportShareImageNode,
@@ -367,6 +367,8 @@ function AppContent() {
   const [hasVisitedSkills, setHasVisitedSkills] = useState(false);
   const [hasVisitedChannels, setHasVisitedChannels] = useState(false);
   const [sidebarMorePanelOpen, setSidebarMorePanelOpen] = useState(false);
+  /** Chat-integrated Trajectory panel (right workspace slot), scoped to the current session */
+  const [tracePanelOpen, setTracePanelOpen] = useState(false);
   const {
     conversationSidebarCollapsed,
     setConversationSidebarCollapsed,
@@ -626,10 +628,12 @@ function AppContent() {
       setTeamAreaExpanded(false);
       setSingleAgentPanelExpanded(false);
       setToolPanelMaximized(false);
+      setTracePanelOpen(false);
       return;
     }
     setToolPanelHidden(false);
     setToolPanelMaximized(false);
+    setTracePanelOpen(false);
     if (mode === 'team') {
       setTeamAreaExpanded(expanded);
       return;
@@ -651,6 +655,19 @@ function AppContent() {
       setSingleAgentPanelExpanded(true);
     }
   }, [mode, setSingleAgentPanelActiveTab, setSingleAgentPanelExpanded, setTeamAreaActiveTab, setTeamAreaExpanded, setToolPanelHidden]);
+
+  const handleOpenTrace = useCallback(() => {
+    if (!sessionId || sessionId === NEW_CONVERSATION_ID) return;
+    setTracePanelOpen(true);
+    setToolPanelHidden(false);
+    setToolPanelMaximized(false);
+    setTeamAreaExpanded(false);
+    setSingleAgentPanelExpanded(false);
+  }, [sessionId, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden, setToolPanelMaximized]);
+
+  const handleCloseTrace = useCallback(() => {
+    setTracePanelOpen(false);
+  }, []);
 
   const handleDividerPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || chatPanelResizeDragRef.current) return;
@@ -2962,7 +2979,9 @@ function AppContent() {
     && missingSessionId === routeSessionId
     && isConversationMissing(routeSessionId, true, sessions);
   const showConversationNotFound = route.kind === 'not-found' || routeSessionMissing;
-  const showWorkspaceDivider = isTeamAreaExpanded && !showConversationNotFound && !toolPanelMaximized;
+  const showTracePanel = tracePanelOpen && Boolean(sessionId) && sessionId !== NEW_CONVERSATION_ID && !showConversationNotFound;
+  const hasRightPanel = isTeamAreaExpanded || showTracePanel;
+  const showWorkspaceDivider = hasRightPanel && !showConversationNotFound && !toolPanelMaximized;
   const isNewSessionPromotion = Boolean(sessionId && sessionIdsCreatedInThisPageRef.current.has(sessionId));
   const composerFocusKey = showConversationNotFound ? null : `${sessionId}:${composerFocusNonce}`;
 
@@ -3043,8 +3062,8 @@ function AppContent() {
                 )}
                 {/* Chat Panel - 在展开时可拖拽调整宽度 */}
                 <div
-                  className={`${showConversationNotFound || toolPanelMaximized ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${isTeamAreaExpanded ? '' : 'min-w-0'} min-h-0 ${isTeamAreaExpanded ? '' : 'flex-1'}`}
-                  style={isTeamAreaExpanded ? { width: `${chatPanelWidthPct}%` } : undefined}
+                  className={`${showConversationNotFound || toolPanelMaximized ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${hasRightPanel ? '' : 'min-w-0'} min-h-0 ${hasRightPanel ? '' : 'flex-1'}`}
+                  style={hasRightPanel ? { width: `${chatPanelWidthPct}%` } : undefined}
                   data-testid="app-chat-surface"
                 >
                   <div className={`flex-1 min-h-0`}>
@@ -3069,6 +3088,7 @@ function AppContent() {
                       onNavigateToSkills={() => handleNavigate('skills')}
                       onToggleTeamArea={handleToggleDetailPanel}
                       onOpenCodeReview={handleOpenCodeReview}
+                      onOpenTrace={handleOpenTrace}
                       permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
                       onSavePermission={savePermissionSilent}
                       historyPager={chatHistoryPager}
@@ -3099,8 +3119,19 @@ function AppContent() {
                   />
                 )}
 
+                {/* TraceHound Trajectory panel — session-scoped, shown in place of ToolPanel */}
+                {showTracePanel && (
+                  <TrajectoryPanel
+                    sessionId={sessionId}
+                    sessionTitle={sessionTitle}
+                    sessionMode={mode}
+                    isConnected={isConnected}
+                    onClose={handleCloseTrace}
+                  />
+                )}
+
                 {/* Tool Panel / Expanded Team Panel */}
-                {(!toolPanelHidden && (toolPanelHasContent || isRestoringTeamHistory)) && !showConversationNotFound && (
+                {(!toolPanelHidden && (toolPanelHasContent || isRestoringTeamHistory)) && !showConversationNotFound && !showTracePanel && (
                   <ToolPanel
                     sessionId={sessionId}
                     project={sessionProject}
@@ -3150,11 +3181,6 @@ function AppContent() {
               isProcessing={isProcessing}
               onRestoreSession={handleRestoreSession}
             />
-          </div>
-        )}
-        {activeNav === 'tracehound' && (
-          <div className="app-section">
-            <TraceHoundPanel isConnected={isConnected} />
           </div>
         )}
         {activeNav === 'cron' && (
