@@ -749,7 +749,7 @@ export function buildHighlights(turns: TurnSummary[]): Highlight[] {
   }
 
   const withProblems = turns.filter(t => t.outcome !== 'completed' && t.outcome !== 'deferred');
-  if (withProblems.length > 0 && withProblems.length === turns.length && turns.length > 1) {
+  if (withProblems.length > 0 && turns.length > 1) {
     out.push({ id: 'problems', icon: '⚠', kind: 'problems',
       label: `${withProblems.length} of ${turns.length} with problems`, turnIds: withProblems.map(t => t.turn_id) });
   }
