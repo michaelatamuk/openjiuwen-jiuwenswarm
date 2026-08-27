@@ -184,6 +184,9 @@ flowchart TD
 
 Both plugins reuse the existing JiuwenSwarm WebSocket gateway protocol, so the agent runtime and server API are unchanged.
 
+Screenshot:
+<img width="1275" height="680" alt="image" src="https://github.com/user-attachments/assets/15d4a592-7ad1-42bf-8b7f-76eb4162e7a8" />
+
 ---
 
 ## **Expected Impact**

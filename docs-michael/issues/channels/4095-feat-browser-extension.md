@@ -181,6 +181,10 @@ flowchart TD
 
 The extension reuses the existing JiuwenSwarm WebSocket gateway protocol, so the agent runtime and server API are unchanged.
 
+Screenshot:
+<img width="1083" height="585" alt="image" src="https://github.com/user-attachments/assets/019fff55-617a-44c0-ba4f-f68ec3d8e0ed" />
+
+
 ---
 
 ## **Expected Impact**
