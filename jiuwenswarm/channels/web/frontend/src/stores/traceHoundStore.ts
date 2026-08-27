@@ -273,6 +273,8 @@ interface TraceHoundState {
   sessionStats: SessionStats | null;
   selectedTurnId: string | null;
   turnRecords: HistoryRecord[];
+  /** When a cross-link jumped into a turn, the record (by tool_call_id) to scroll to */
+  focusRecordId: string | null;
   loading: boolean;
   error: string | null;
 
@@ -290,6 +292,10 @@ interface TraceHoundState {
    *  selected turn (re-fetches its records only when its event_count grew). */
   refreshTurns: (sessionId: string) => Promise<void>;
   selectTurn: (turnId: string) => Promise<void>;
+  /** Fetch + store a turn's records (shared by selectTurn and jumpToTurn). */
+  loadTurnDetail: (turnId: string) => Promise<void>;
+  /** Select a turn and request a scroll to the record matching `recordId`. */
+  jumpToTurn: (turnId: string, recordId?: string) => void;
   back: () => void;
   clearError: () => void;
   analyzeSession: () => Promise<void>;
@@ -304,6 +310,7 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
   sessionStats: null,
   selectedTurnId: null,
   turnRecords: [],
+  focusRecordId: null,
   loading: false,
   error: null,
 
@@ -379,6 +386,7 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       sessionStats: null,
       selectedTurnId: null,
       turnRecords: [],
+      focusRecordId: null,
       analysis: cachedAnalysis,
       analyzeError: null,
     });
@@ -466,7 +474,14 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
   selectTurn: async (turnId) => {
     const { selectedSessionId } = get();
     if (!selectedSessionId) return;
-    set({ loading: true, error: null, selectedTurnId: turnId, turnRecords: [] });
+    set({ selectedTurnId: turnId, focusRecordId: null });
+    await get().loadTurnDetail(turnId);
+  },
+
+  loadTurnDetail: async (turnId) => {
+    const { selectedSessionId } = get();
+    if (!selectedSessionId) return;
+    set({ loading: true, error: null, turnRecords: [] });
     try {
       const res = await webRequest<{ ok: boolean; records: HistoryRecord[] }>(
         'tracehound.turn.get',
@@ -481,10 +496,15 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
     }
   },
 
+  jumpToTurn: (turnId, recordId) => {
+    set({ selectedTurnId: turnId, focusRecordId: recordId ?? null });
+    void get().loadTurnDetail(turnId);
+  },
+
   back: () => {
     const { selectedTurnId } = get();
     if (selectedTurnId) {
-      set({ selectedTurnId: null, turnRecords: [] });
+      set({ selectedTurnId: null, turnRecords: [], focusRecordId: null });
     } else {
       set({ selectedSessionId: null, selectedSession: null, turns: [], sessionStats: null, analysis: null, analyzeError: null });
     }

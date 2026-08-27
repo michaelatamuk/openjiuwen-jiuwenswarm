@@ -728,7 +728,8 @@ function findLLMResponseForUsage(
 
 // ── Analytics Panel ───────────────────────────────────────────────────────────
 
-function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
+function AnalyticsPanel({ turns, isConnected }: { turns: TurnSummary[]; isConnected: boolean }) {
+  const jumpToTurn = useTraceHoundStore(s => s.jumpToTurn);
   if (turns.length === 0) return null;
 
   const outcomes = { completed: 0, completed_with_issues: 0, no_response: 0, error: 0, deferred: 0 };
@@ -1065,8 +1066,20 @@ function AnalyticsPanel({ turns }: { turns: TurnSummary[] }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Tool usage</div>
             {displayTools.map(([tool, u]) => {
               const failedAgents = Object.entries(u.byAgent).filter(([, a]) => a.failed > 0);
+              const firstFail = turns
+                .flatMap(t => (t.tool_results_detail ?? []).map(r => ({ turnId: t.turn_id, r })))
+                .find(x => x.r.tool_name === tool && (x.r.failed || (x.r.result ?? '').includes('success=False')));
               return (
-                <div key={tool} style={{ marginBottom: 5 }}>
+                <div
+                  key={tool}
+                  style={{ marginBottom: 5, cursor: u.failed > 0 ? 'pointer' : 'default' }}
+                  title={u.failed > 0 ? 'Jump to first failure' : undefined}
+                  onClick={() => {
+                    if (u.failed > 0 && firstFail && isConnected) {
+                      jumpToTurn(firstFail.turnId, firstFail.r.tool_call_id);
+                    }
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
                     <span style={{ color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '52%' }}>🔧 {tool}</span>
                     <span style={{ color: u.failed > 0 ? '#dc2626' : '#6b7280', flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -1522,7 +1535,7 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
             <span style={{ flex: 1, fontSize: 11, color: C.textFaint, textAlign: 'right', paddingRight: 4 }}>from session data</span>
             <span style={{ fontSize: 11, color: C.textFaint }}>{analyticsOpen ? '▲' : '▼'}</span>
           </div>
-          {analyticsOpen && <AnalyticsPanel turns={turns} />}
+          {analyticsOpen && <AnalyticsPanel turns={turns} isConnected={isConnected} />}
         </div>
       )}
 
@@ -1777,7 +1790,7 @@ function RecordCard({ rec, isRetry, displayDelta, endDelta, allRecords, expandAl
   // "+56s" when the actual attempt took ~1s (the 56s was idle time between retries).
 
   return (
-    <div id={`rec-${rec.id}`} style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+    <div id={`rec-${rec.id}`} data-event-type={rec.event_type} data-tool-call-id={rec.tool_call_id} style={{ border: `1px solid ${color}33`, borderLeft: `3px solid ${danger ? '#ef4444' : color}`, borderRadius: 6, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
       {/* Header */}
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: collapsible ? 'pointer' : 'default', background: danger ? '#fef2f2' : color + '08' }}
@@ -2064,6 +2077,20 @@ export function TurnDetailView() {
   const { selectedSession, selectedTurnId, turns, turnRecords, loading, error, back, clearError } = useTraceHoundStore();
   const turn = turns.find(t => t.turn_id === selectedTurnId);
   const retrySet = useMemo(() => buildRetrySet(turnRecords), [turnRecords]);
+
+  // When a cross-link (e.g. a failing tool row in the Stats panel) requested a
+  // specific record, scroll its card into view once the records have loaded.
+  const focusRecordId = useTraceHoundStore(s => s.focusRecordId);
+  useEffect(() => {
+    if (!focusRecordId || turnRecords.length === 0) return;
+    // tool_call and tool_result cards share the same tool_call_id; prefer the
+    // tool_result card (the failing record) when present.
+    const el =
+      Array.from(document.querySelectorAll(`[data-tool-call-id="${focusRecordId}"]`))
+        .find(n => n.getAttribute('data-event-type') === 'chat.tool_result') ??
+      document.querySelector(`[data-tool-call-id="${focusRecordId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusRecordId, turnRecords]);
 
   // Collapse-by-default: every card shows only its header until expanded.
   // "Expand all" overrides; toggling it remounts the cards (key) to reset
