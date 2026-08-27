@@ -50,6 +50,8 @@ export interface Session {
     plugin_names?: string[];
     mcp?: string[];
   };
+  round_id?: number;           // LLM 轮次/回合数
+  total_tokens?: number;       // 累计 token 消耗
 }
 
 export type AgentMode =

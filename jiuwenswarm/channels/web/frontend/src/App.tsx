@@ -26,6 +26,7 @@ import {
   type SettingsModuleTarget,
 } from './features/settings/settingsNavigation';
 import { ConnectorMarketPanel } from './components/ConnectorMarket';
+import { TrajectoryPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
   exportShareImageNode,
@@ -311,6 +312,7 @@ function AppContent({
     serverConfig?.kv_cache_affinity_enabled,
   );
   const trajectoryUiEnabled = useTrajectoryUiEnabled();
+  const traceLiveUpdatesEnabled = String(serverConfig?.tracehound_live_updates_enabled) === 'true';
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -338,6 +340,8 @@ function AppContent({
   const [hasVisitedSkills, setHasVisitedSkills] = useState(false);
   const [requestedSettingsModuleId, setRequestedSettingsModuleId] =
     useState<SettingsModuleTarget | null>(null);
+  /** Chat-integrated Trajectory panel (right workspace slot), scoped to the current session */
+  const [tracePanelOpen, setTracePanelOpen] = useState(false);
   const {
     isMobile,
     conversationSidebarCollapsed,
@@ -637,6 +641,8 @@ function AppContent({
   }, [sessionId]);
 
   const handleToggleHeartbeatPanel = useCallback(() => {
+    // 心跳面板与轨迹面板互斥，共用右侧工作区同一栏
+    setTracePanelOpen(false);
     setHeartbeatPanelOpen((v) => !v);
   }, []);
 
@@ -647,9 +653,11 @@ function AppContent({
       setToolPanelHidden(true);
       setTeamAreaExpanded(false);
       setSingleAgentPanelExpanded(false);
+      setTracePanelOpen(false);
       return;
     }
     setToolPanelHidden(false);
+    setTracePanelOpen(false);
     if (mode === 'team') {
       // 真正处于 Team 模式时不动 teamAreaActiveTab：下面这段"陈旧 team tab 切回
       // planning"的兜底只是给单 Agent 面板用的。曾经按某版交接文档建议去掉这层
@@ -678,6 +686,19 @@ function AppContent({
       setSingleAgentPanelExpanded(true);
     }
   }, [mode, setSingleAgentPanelActiveTab, setSingleAgentPanelExpanded, setTeamAreaActiveTab, setTeamAreaExpanded, setToolPanelHidden]);
+
+  const handleOpenTrace = useCallback(() => {
+    if (!sessionId || sessionId === NEW_CONVERSATION_ID) return;
+    setHeartbeatPanelOpen(false);
+    setTracePanelOpen(true);
+    setToolPanelHidden(false);
+    setTeamAreaExpanded(false);
+    setSingleAgentPanelExpanded(false);
+  }, [sessionId, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden]);
+
+  const handleCloseTrace = useCallback(() => {
+    setTracePanelOpen(false);
+  }, []);
 
   const handleDividerPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || chatPanelResizeDragRef.current) return;
@@ -3000,7 +3021,9 @@ function AppContent({
     && missingSessionId === routeSessionId
     && isConversationMissing(routeSessionId, true, sessions);
   const showConversationNotFound = route.kind === 'not-found' || routeSessionMissing;
-const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFound && !shouldFullscreen;
+  const showTracePanel = tracePanelOpen && Boolean(sessionId) && sessionId !== NEW_CONVERSATION_ID && !showConversationNotFound;
+  const hasRightPanel = isTeamAreaExpanded || showTracePanel;
+  const showWorkspaceDivider = hasRightPanel && !showConversationNotFound && !shouldFullscreen;
   const isNewSessionPromotion = Boolean(sessionId && sessionIdsCreatedInThisPageRef.current.has(sessionId));
   const composerFocusKey = showConversationNotFound ? null : `${sessionId}:${composerFocusNonce}`;
   const activeApplicationPlugin = visibleApplicationPlugins.find(
@@ -3084,8 +3107,8 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                 )}
                 {/* Chat Panel - 在展开时可拖拽调整宽度 */}
                 <div
-                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${effectiveTeamAreaExpanded ? '' : 'min-w-0'} min-h-0 ${effectiveTeamAreaExpanded ? '' : 'flex-1'}`}
-                  style={effectiveTeamAreaExpanded ? { width: `${chatPanelWidthPct}%` } : undefined}
+                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${hasRightPanel ? '' : 'min-w-0'} min-h-0 ${hasRightPanel ? '' : 'flex-1'}`}
+                  style={hasRightPanel ? { width: `${chatPanelWidthPct}%` } : undefined}
                   data-testid="app-chat-surface"
                 >
 <SingleAgentSurface
@@ -3113,6 +3136,7 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                         onNavigateToAgents={() => handleNavigate('agents')}
                         onToggleTeamArea={handleToggleDetailPanel}
                         onOpenCodeReview={handleOpenCodeReview}
+                        onOpenTrace={handleOpenTrace}
                         permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
                         heartbeatPanelOpen={heartbeatPanelOpen}
                         onToggleHeartbeatPanel={handleToggleHeartbeatPanel}
@@ -3169,8 +3193,20 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                   />
                 )}
 
+                {/* TraceHound Trajectory panel — session-scoped, shown in place of ToolPanel */}
+                {showTracePanel && (
+                  <TrajectoryPanel
+                    sessionId={sessionId}
+                    sessionTitle={sessionTitle}
+                    sessionMode={mode}
+                    isConnected={isConnected}
+                    liveUpdatesEnabled={traceLiveUpdatesEnabled}
+                    onClose={handleCloseTrace}
+                  />
+                )}
+
                 {/* Tool Panel / Expanded Team Panel */}
-                {!toolPanelHidden && trajectoryTaskPanelAvailable && !showConversationNotFound && !heartbeatPanelOpen && (
+                {!toolPanelHidden && trajectoryTaskPanelAvailable && !showConversationNotFound && !heartbeatPanelOpen && !showTracePanel && (
                   <ToolPanel
                     sessionId={sessionId}
                     project={sessionProject}

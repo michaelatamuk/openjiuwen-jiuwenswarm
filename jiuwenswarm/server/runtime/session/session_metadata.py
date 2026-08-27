@@ -759,6 +759,7 @@ def init_session_metadata(
         "pin_order": 0,
         "status": "idle",
         "work_mode": resolved_work_mode,
+        "total_tokens": 0,
     }
     if isinstance(channel_metadata, dict) and channel_metadata:
         metadata["channel_metadata"] = channel_metadata
@@ -774,6 +775,10 @@ def update_session_metadata(
     clear_title: bool = False,
     increment_message_count: bool = False,
     set_message_count: int | None = None,
+    set_round_id: int | None = None,
+    set_llm_calls: int | None = None,
+    set_total_events: int | None = None,
+    add_tokens: int = 0,
     user_content: str | None = None,
     channel_metadata: dict[str, Any] | None = None,
     mode: str | None = None,
@@ -793,6 +798,7 @@ def update_session_metadata(
     sync_write: bool = False,
     work_mode: str | None = None,
     session_equipment: dict[str, Any] | None = None,
+    extra_metadata: dict[str, Any] | None = None,
 ) -> None:
     """更新会话元数据(异步写入,不阻塞调用方)
 
@@ -866,6 +872,7 @@ def update_session_metadata(
             "pin_order": pin_order if pin_order is not None else 0,
             "status": "idle",
             "work_mode": resolved_work_mode,
+            "total_tokens": 0,
         }
         # 首次创建时写入 channel_metadata
         if channel_metadata:
@@ -927,6 +934,18 @@ def update_session_metadata(
             metadata["message_count"] = metadata.get("message_count", 0) + 1
         if set_message_count is not None:
             metadata["message_count"] = set_message_count
+        if set_round_id is not None:
+            metadata["round_id"] = set_round_id
+        if set_llm_calls is not None:
+            metadata["llm_calls"] = set_llm_calls
+        if set_total_events is not None:
+            metadata["total_events"] = set_total_events
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        # Accumulate total tokens (from LLM usage events)
+        if add_tokens > 0:
+            metadata["total_tokens"] = metadata.get("total_tokens", 0) + add_tokens
 
         # 自动生成标题: 当 title 为空且提供了用户消息内容时
         if not metadata.get("title") and user_content:
@@ -1701,6 +1720,8 @@ def get_all_sessions_metadata(
                 "project_dir": "",
                 "cron_id": "",
                 "work_mode": DEFAULT_WEB_WORK_MODE,
+                "round_id": 0,
+                "total_tokens": 0,
             }
             # 无 metadata.json 的会话不做推断写盘,仅补默认值
             metadata = _apply_metadata_defaults_with_inference(
@@ -1722,6 +1743,21 @@ def get_all_sessions_metadata(
                 id_to_work_mode=id_to_work_mode,
                 enable_writeback=False,
             )
+
+        # 如果 metadata 中的 round_id / total_tokens 为 0，尝试从 history 文件轻量扫描补充
+        if metadata.get("round_id", 0) == 0 or metadata.get("total_tokens", 0) == 0:
+            try:
+                from jiuwenswarm.server.runtime.session.session_history import get_session_history_stats
+                stats = get_session_history_stats(session_id)
+                if metadata.get("round_id", 0) == 0 and stats["turn_count"] > 0:
+                    metadata["round_id"] = stats["turn_count"]
+                if metadata.get("total_tokens", 0) == 0 and stats["total_tokens"] > 0:
+                    metadata["total_tokens"] = stats["total_tokens"]
+                # 同时修正 message_count，因为 message_count 的增量计数可能存在偏差
+                if stats["event_count"] > 0:
+                    metadata["message_count"] = stats["event_count"]
+            except Exception:
+                pass
 
         sessions.append(metadata)
 
