@@ -8,6 +8,7 @@ import { useTraceHoundStore, type HistoryRecord, type TurnSummary, type Analysis
 import { webRequest } from '../../services/webClient';
 import { C } from './traceTokens';
 import { shouldRefetch, POLL_INTERVAL_MS } from './traceLive';
+import { buildHighlights } from './highlights';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1385,6 +1386,21 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
 
       {error && <ErrorBanner message={error} onClose={clearError} />}
       {analyzeError && <ErrorBanner message={`Analysis failed: ${analyzeError}`} onClose={clearAnalyzeError} />}
+
+      {/* Highlights strip — deterministic signals from session data (no LLM) */}
+      {!loading && (() => { const hs = buildHighlights(turns); return hs.length > 0 ? (
+        <div data-testid="tracehound-highlights" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {hs.map(h => (
+            <button key={h.id} style={{
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer',
+              padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
+              background: C.surface, color: C.textMuted,
+            }} onClick={() => isConnected && selectTurn(h.turnIds[0])} title={h.label}>
+              <span>{h.icon}</span><span>{h.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null; })()}
 
       {/* 2. Diagnosis — LLM-powered analysis */}
       <div style={{ marginBottom: 20, border: '1px solid #e0e7ff', borderRadius: 8, background: '#f5f3ff08', overflow: 'hidden' }}>
