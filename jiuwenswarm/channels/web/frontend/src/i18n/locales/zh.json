@@ -112,8 +112,6 @@
       "retryLegendMany": "2+ 次重试",
       "toolsPerMsg": "每条消息工具数",
       "skillsPerMsg": "每条消息技能数",
-      "errorCategories": "错误分类",
-      "queryTypes": "查询类型",
       "toolUsage": "工具使用",
       "skillUsage": "技能使用",
       "speedFast": "快",
@@ -178,7 +176,7 @@
       "fileCount": "📄 {{count}}",
       "tokens": "{{count}} tok",
       "llmCalls": "{{count}} 次 LLM 调用",
-      "chars": "{{count}} 字符",
+
       "latencyAvg": "{{seconds}}s 平均",
       "latencyTooltip": "平均 TTFT {{ttft}}ms · 平均 TPOT {{tpot}}ms",
       "contextTooltip": "上下文窗口：{{tokens}}",

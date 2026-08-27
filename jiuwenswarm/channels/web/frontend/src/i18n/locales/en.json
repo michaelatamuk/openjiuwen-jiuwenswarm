@@ -112,8 +112,6 @@
       "retryLegendMany": "2+ retries",
       "toolsPerMsg": "Tools per msg",
       "skillsPerMsg": "Skills per msg",
-      "errorCategories": "Error categories",
-      "queryTypes": "Query types",
       "toolUsage": "Tool usage",
       "skillUsage": "Skill usage",
       "speedFast": "fast",
@@ -178,7 +176,7 @@
       "fileCount": "📄 {{count}}",
       "tokens": "{{count}} tok",
       "llmCalls": "{{count}} LLM call(s)",
-      "chars": "{{count}} chars",
+
       "latencyAvg": "{{seconds}}s avg",
       "latencyTooltip": "Avg TTFT {{ttft}}ms · Avg TPOT {{tpot}}ms",
       "contextTooltip": "Context window: {{tokens}}",

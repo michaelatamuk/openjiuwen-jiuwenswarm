@@ -25,6 +25,6 @@ export const C = {
 
 /** Categorical color for agents/query types (1-based, cycles). */
 export function cat(n: number): string {
-  const i = ((n - 1) % 6) + 1;
+  const i = ((Math.max(n, 1) - 1) % 6) + 1;
   return `var(--color-trace-cat-${i})`;
 }

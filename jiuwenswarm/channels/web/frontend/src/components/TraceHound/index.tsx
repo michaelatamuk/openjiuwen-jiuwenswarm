@@ -762,16 +762,6 @@ function AnalyticsPanel({ turns, isConnected, hasUsage }: { turns: TurnSummary[]
   const outcomes = { completed: 0, completed_with_issues: 0, no_response: 0, error: 0, deferred: 0 };
   turns.forEach(t => { const o = t.outcome; if (o && o in outcomes) (outcomes as Record<string, number>)[o]++; });
 
-  const errCats: Record<string, number> = {};
-  // Includes turns whose error_category was set from a failed tool result, not
-  // only hard chat.error turns — so tool failures surface in the stats pane.
-  turns.filter(t => t.error_category).forEach(t => {
-    errCats[t.error_category!] = (errCats[t.error_category!] ?? 0) + 1;
-  });
-
-  const qtCounts: Record<string, number> = {};
-  turns.forEach(t => { if (t.query_type) qtCounts[t.query_type] = (qtCounts[t.query_type] ?? 0) + 1; });
-
   // Tool usage: merge tool_call names with tool results so failure counts are
   // visible per tool, and never hide a tool that had failures. Failures are
   // attributed to the acting agent (member_name / leader) when available.
@@ -1058,45 +1048,6 @@ function AnalyticsPanel({ turns, isConnected, hasUsage }: { turns: TurnSummary[]
             );
           })()}
         </div>
-
-        {/* Error categories */}
-        {Object.keys(errCats).length > 0 && (
-          <div style={{ background: C.dangerSubtle, borderRadius: 6, padding: 12, border: `1px solid ${C.dangerSubtle}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.danger, marginBottom: 8 }}>{t('traceHound.stats.errorCategories')}</div>
-            {Object.entries(errCats).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
-              <div key={cat} style={{ marginBottom: 5 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: C.text }}>{cat}</span>
-                  <span style={{ fontWeight: 600, color: C.danger }}>{t('traceHound.stats.errCount', { count })}</span>
-                </div>
-                <div style={{ height: 3, background: C.dangerSubtle, borderRadius: 2 }}>
-                  <div style={{ height: 3, width: `${(count / Object.values(errCats).reduce((a, b) => a + b, 0)) * 100}%`, background: C.danger, borderRadius: 2 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Query types */}
-        {Object.keys(qtCounts).length > 1 && (
-          <div style={{ background: C.surface, borderRadius: 6, padding: 12, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 8 }}>{t('traceHound.stats.queryTypes')}</div>
-            {Object.entries(qtCounts).sort((a, b) => b[1] - a[1]).map(([qt, count]) => {
-              const icons: Record<string, string> = { coding: '💻', debug: '🐛', file_op: '📁', analysis: '🔍', question: '❓', general: '💬' };
-              return (
-                <div key={qt} style={{ marginBottom: 5 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                    <span style={{ color: C.text }}>{icons[qt] ?? ''} {qt}</span>
-                    <span style={{ color: C.textMuted }}>{count}</span>
-                  </div>
-                  <div style={{ height: 3, background: C.border, borderRadius: 2 }}>
-                    <div style={{ height: 3, width: `${(count / turns.length) * 100}%`, background: C.violet, borderRadius: 2 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
 
         {/* Tool frequency */}
         {displayTools.length > 0 && (
@@ -1760,9 +1711,6 @@ export function TurnListView({ isConnected, embedded = false }: { isConnected: b
                           <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.llmCalls', { count: turn.llm_call_count })}</div>
                         )}
                         {turn.total_tokens > 0 && <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.tokens', { count: turn.total_tokens.toLocaleString() })}</div>}
-                        {turn.final_length > 0 && (
-                          <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1 }}>{t('traceHound.messages.chars', { count: turn.final_length.toLocaleString() })}</div>
-                        )}
                         {(turn.avg_total_latency_ms ?? 0) > 0 && (
                           <Tooltip text={t('traceHound.messages.latencyTooltip', { ttft: (turn.avg_ttft_ms ?? 0).toFixed(0), tpot: (turn.avg_tpot_ms ?? 0).toFixed(1) })}>
                             <div style={{ fontSize: 11, color: C.textFaint, marginTop: 1, cursor: 'help' }}>⏱️ {t('traceHound.messages.latencyAvg', { seconds: ((turn.avg_total_latency_ms ?? 0) / 1000).toFixed(1) })}</div>
