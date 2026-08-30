@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -31,6 +32,13 @@ _CATALOG_PREVIEWABLE_DIRS: frozenset[str] = frozenset(
 )
 _CATALOG_PREVIEWABLE_EXTS: frozenset[str] = frozenset({".md", ".py"})
 _MAX_PREVIEW_FILE_BYTES = 1 * 1024 * 1024
+_AVATAR_MIME = {
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 _AGENT_TEMPLATE_KIND = "agent_templates"
 _AGENT_GROUP_KIND = "agent_groups"
 _PLUGIN_PACKAGE_KIND = "plugin_packages"
@@ -401,6 +409,32 @@ def _package_connection_state(manifest: dict, *, installed: bool) -> str:
     return "disconnected"
 
 
+def _resolve_package_avatar(pkg_dir: Path, manifest: dict) -> str:
+    """Inline manifest avatar as a data URL so the frontend can render <img src>."""
+    raw = manifest.get("avatar")
+    if not isinstance(raw, str):
+        return ""
+    rel = raw.strip().replace("\\", "/")
+    if not rel or rel.startswith("/") or ".." in PurePosixPath(rel).parts:
+        return ""
+    mime = _AVATAR_MIME.get(Path(rel).suffix.lower())
+    if mime is None:
+        return ""
+    root = pkg_dir.resolve()
+    full = (pkg_dir / rel).resolve()
+    try:
+        full.relative_to(root)
+    except ValueError:
+        return ""
+    if not full.is_file():
+        return ""
+    try:
+        data = full.read_bytes()
+    except OSError:
+        return ""
+    return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+
+
 def _build_list_card(
     pkg_dir: Path,
     *,
@@ -420,6 +454,7 @@ def _build_list_card(
         "displayDescription": manifest.get("display_description") or {},
         "category": category if isinstance(category, str) else "",
         "source": source,
+        "avatar": _resolve_package_avatar(pkg_dir, manifest),
     }
     if installed is not None:
         card["installed"] = installed
@@ -446,17 +481,20 @@ def _build_show_card(
     if manifest is None or manifest.get("package_type") != package_type:
         return None
     resolved_source = source if source is not None else _source_from_pkg_dir(pkg_dir)
-    avatar = manifest.get("avatar")
     version = manifest.get("version")
     tags = manifest.get("tags")
+    details = _read_readme_details(pkg_dir)
+    if package_type == "agent_template":
+        description = manifest.get("description")
+        details = description if isinstance(description, str) else ""
     card: dict[str, Any] = {
         "id": pkg_dir.name,
         "displayName": manifest.get("display_name") or pkg_dir.name,
         "displayDescription": manifest.get("display_description") or {},
         "source": resolved_source,
-        "avatar": avatar if isinstance(avatar, str) else "",
+        "avatar": _resolve_package_avatar(pkg_dir, manifest),
         "version": version if isinstance(version, str) else "",
-        "details": _read_readme_details(pkg_dir),
+        "details": details,
         "tags": tags if isinstance(tags, list) else [],
         "skills": _map_skills(pkg_dir, manifest),
         "tools": _map_class_entries(manifest, "tools"),
@@ -971,6 +1009,49 @@ def _require_mcp_names(params: dict) -> list[str]:
     return names
 
 
+def _require_quick_inputs(params: dict) -> list[dict[str, str]]:
+    """Validate and localize optional Agent quick inputs for the manifest."""
+    quick_inputs = params.get("quickInputs")
+    if quick_inputs is None:
+        return []
+    if not isinstance(quick_inputs, list):
+        raise ValueError("missing or invalid quickInputs")
+    entries: list[dict[str, str]] = []
+    for item in quick_inputs:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError("invalid quick input: empty")
+        prompt = item.strip()
+        entries.append({"zh": prompt, "en": prompt})
+    return entries
+
+
+def _require_tags(params: dict) -> list[dict[str, str]]:
+    """Validate optional bilingual Agent tags and remove duplicates."""
+    tags = params.get("tags")
+    if tags is None:
+        return []
+    if not isinstance(tags, list):
+        raise ValueError("missing or invalid tags")
+    entries: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in tags:
+        if not isinstance(item, dict):
+            raise ValueError("invalid tag")
+        zh = item.get("zh")
+        en = item.get("en")
+        if not isinstance(zh, str) or not zh.strip():
+            raise ValueError("invalid tag: zh/en must be non-empty strings")
+        if not isinstance(en, str) or not en.strip():
+            raise ValueError("invalid tag: zh/en must be non-empty strings")
+        entry = {"zh": zh.strip(), "en": en.strip()}
+        key = (entry["zh"], entry["en"])
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append(entry)
+    return entries
+
+
 def _assert_package_id_available(
     package_id: str,
     *,
@@ -1458,6 +1539,8 @@ def create_agent_template(params: dict) -> None:
     persona = _require_nonempty_str(params, "persona")
     skill_names = _require_skill_names(params)
     mcp_names = _require_mcp_names(params)
+    quick_inputs = _require_quick_inputs(params)
+    tags = _require_tags(params)
 
     local_root = _local_root(_AGENT_TEMPLATE_KIND)
     built_in_root = _built_in_root(_AGENT_TEMPLATE_KIND)
@@ -1488,6 +1571,10 @@ def create_agent_template(params: dict) -> None:
         }
         if mcp_names:
             manifest["mcps"] = [{"connector": n} for n in mcp_names]
+        if quick_inputs:
+            manifest["quick_inputs"] = quick_inputs
+        if tags:
+            manifest["tags"] = tags
         _write_json(pkg_dir / "manifest.json", manifest)
     except Exception:
         if pkg_dir.exists():
