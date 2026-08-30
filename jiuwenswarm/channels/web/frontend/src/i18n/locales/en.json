@@ -775,9 +775,6 @@
     "approvalInputPlaceholder": "Add revision notes then click Next; leave empty and click Skip"
   },
   "persistSession": {
-    "toolbarTag": "Persist Session",
-    "closeTag": "Turn off Persist Session",
-    "lockedHint": "Persist Session was locked when this session was created and cannot be changed",
     "textRequired": "Enter a task after /persist"
   },
   "goal": {
@@ -945,6 +942,11 @@
     "disable": "Disable",
     "enableSuccess": "Enabled “{{name}}”",
     "disableSuccess": "Disabled “{{name}}”",
+    "xiaoyiEnableConfirmation": {
+      "title": "Notice",
+      "continueEnable": "Enable anyway",
+      "editConfiguration": "Edit configuration"
+    },
     "unbind": "Unbind",
     "unbindConfigurationTitle": "Unbind channel configuration",
     "unbindConfigurationMessage": "Unbind the channel configuration for “{{name}}”? The saved configuration will be cleared.",
@@ -1604,7 +1606,9 @@
       "gitcodeLogin": "Login with GitCode",
       "githubLogin": "Login with GitHub",
       "notConfigured": "GitCode OAuth is not configured. Set VITE_GITCODE_OAUTH_CLIENT_ID and VITE_GITCODE_OAUTH_CLIENT_SECRET in .env.local",
-      "githubNotConfigured": "GitHub OAuth is not configured. Set VITE_GITHUB_OAUTH_CLIENT_ID in .env.local"
+      "githubNotConfigured": "GitHub OAuth is not configured. Set VITE_GITHUB_OAUTH_CLIENT_ID in .env.local",
+      "loading": "Logging in...",
+      "callbackHint": "Please access the frontend via http://127.0.0.1:5173. The OAuth callback URL is set to: http://127.0.0.1:5173/oauth/callback"
     },
     "uploadSkillModal": {
       "title": "Upload Skill",
@@ -2123,6 +2127,8 @@
       "create": "Create",
       "createFirst": "Create manually",
       "createByChat": "Create via chat",
+      "createByUpload": "Create from file",
+      "uploading": "Uploading…",
       "createViaChatPrompt": "Help me create an xxx Agent who is good at xxx",
       "back": "Back"
     },
@@ -2143,6 +2149,8 @@
       "authRequired": "This Agent requires authentication before it can be installed",
       "connectionUnavailable": "Required MCP connectors are not connected yet. Connect them before use.",
       "connectorUnavailableNamed": "This Agent requires the MCP connector “{{connector}}”, which is not connected. Connect it and try again.",
+      "uploadSuccess": "Agent package {{id}} was imported. Review it in My Agents.",
+      "uploadError": "Unable to upload and import the Agent package. Check the file and try again.",
       "newVersion": "This Agent has a new version available",
       "teamUnavailable": "Team Agent management is not available yet",
       "featureUnavailable": "This feature is outside this milestone",
@@ -2225,6 +2233,12 @@
       "personaLabel": "Persona",
       "personaPlaceholder": "Keep Markdown and line breaks in the persona",
       "personaPreview": "Persona Markdown preview",
+      "uploadHint": "Supports .zip and .tar files; once extracted, the folder must include manifest.json, persona files, and README.md, and the .json file must declare package_type.",
+      "uploadPlaceholder": "Click or drag a file here",
+      "uploadInvalidType": "Only .zip and .tar files are supported",
+      "uploadPickerUnsupported": "Local file selection is not supported in this environment",
+      "uploadPickerFailed": "Failed to open the local file picker. Try again.",
+      "removeUpload": "Remove selected file",
       "skillsLabel": "Skills (optional)",
       "skillsToggle": "Collapse or expand skill configuration",
       "addSkill": "Add skill",
@@ -3049,11 +3063,12 @@
       "cancelRun": "Cancel this run",
       "pause": "Pause",
       "resume": "Resume",
-      "resumeFromCompletedHint": "Job completed or expired. Click to reactivate with its current schedule (edit to a future time first)",
+      "resumeFromCompletedHint": "Job completed or expired. Edit its schedule/stop conditions to a future time first — it will reactivate automatically",
       "delete": "Delete",
       "deleteConfirm": "Delete heartbeat job \"{{name}}\"?",
       "filterLabel": "Status",
       "filterAll": "All",
+      "filterActive": "Active",
       "searchPlaceholder": "Search by name or prompt",
       "emptyFiltered": "No heartbeat jobs match this filter",
       "nextRunAt": "Next run: {{time}}",
@@ -3062,8 +3077,14 @@
       "createMenu": {
         "manual": "Create manually",
         "viaChat": "Create via chat",
-        "viaChatPrompt": "Help me create a heartbeat reminder: "
+        "viaChatPrompt": "Help me create a heartbeat reminder in the current session: "
       }
+    },
+    "pagination": {
+      "pageSize": "Per page",
+      "total": "{{total}} total",
+      "prev": "Previous",
+      "next": "Next"
     },
     "toast": {
       "paused": "Future schedule paused",
