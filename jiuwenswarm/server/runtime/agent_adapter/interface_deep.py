@@ -6917,6 +6917,33 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
+    def _build_verifier_circuit_breaker_rail(config_base: dict[str, Any]) -> VerifierCircuitBreakerRail | None:
+        """Build VerifierCircuitBreakerRail: force a strategy change on repeated verifier failures.
+
+        Reads ``verifier_circuit_breaker`` from the config snapshot (``enabled``
+        defaults True, ``break_after`` defaults 3). When the same verifier
+        failure repeats ``break_after`` times in a row without improvement, a
+        high-priority system-prompt section instructs the agent to abandon its
+        current approach. Returns None (skip) when explicitly disabled.
+        """
+        try:
+            _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+            if not bool(_vcb_cfg.get("enabled", True)):
+                return None
+            _break_after = int(_vcb_cfg.get("break_after", 3))
+            rail = VerifierCircuitBreakerRail(_break_after)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] VerifierCircuitBreakerRail attached (break_after=%d)",
+                _break_after,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] Failed to attach VerifierCircuitBreakerRail: %s", exc
+            )
+            return None
+
+    @staticmethod
     def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
         """Build AutonomousModeRail: override interactive hedging when running unattended.
 
