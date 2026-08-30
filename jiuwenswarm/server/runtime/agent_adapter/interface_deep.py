@@ -7197,6 +7197,30 @@ class JiuWenSwarmDeepAdapter:
             logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", exc)
             return None
 
+    @staticmethod
+    def _build_iteration_budget_rail(config: dict[str, Any]) -> IterationBudgetRail | None:
+        """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
+
+        Reads ``max_iterations`` / ``budget_warning_threshold`` from the mode
+        config (defaults 100 / 10) and injects a system-prompt warning when the
+        agent is running low, so it prioritises finishing instead of starting
+        new long subtasks.
+        """
+        try:
+            _max_iter = int(config.get("max_iterations", 100))
+            _warn_threshold = int(config.get("budget_warning_threshold", 10))
+            rail = IterationBudgetRail(_max_iter, _warn_threshold)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] IterationBudgetRail attached "
+                "(max_iterations=%d, warning_threshold=%d)",
+                _max_iter,
+                _warn_threshold,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach IterationBudgetRail: %s", exc)
+            return None
+
     def _build_agent_rails(
         self,
         config: dict[str, Any],
