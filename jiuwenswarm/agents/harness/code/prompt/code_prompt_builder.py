@@ -11,9 +11,12 @@ Dynamic content (time, runtime state, memory) is injected per-request by Rails.
 
 from __future__ import annotations
 
+import logging
 from enum import IntEnum
 
 from openjiuwen.harness.prompts import PromptSection, SystemPromptBuilder
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Priority ────────────────────────────────────
@@ -491,6 +494,10 @@ def _code_verification_prompt() -> "PromptSection | None":
         cfg = get_config() or {}
         verifier_cmd = (cfg.get("verification") or {}).get("verifier_cmd", "").strip()
     except Exception:
+        logger.warning(
+            "Verification config failed to load; verification step disabled",
+            exc_info=True,
+        )
         verifier_cmd = ""
 
     if not verifier_cmd:
