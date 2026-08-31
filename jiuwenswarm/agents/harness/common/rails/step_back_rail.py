@@ -41,8 +41,17 @@ def _parse_exit_code(result: str) -> int | None:
         if not isinstance(data, dict):
             return None
         for key in _EXIT_KEYS:
-            if key in data:
-                return int(data[key])
+            if key not in data:
+                continue
+            value = data[key]
+            if isinstance(value, bool):
+                # JSON booleans are not exit codes; treating ``false`` as 0
+                # would reset the failure counter on a tool that never ran.
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
     except (ValueError, TypeError):
         pass
     return None
@@ -85,7 +94,7 @@ class StepBackRail(DeepAgentRail):
 
     def __init__(self, step_back_after: int = 3) -> None:
         super().__init__()
-        self._step_back_after = step_back_after
+        self._step_back_after = max(1, int(step_back_after))
         self.system_prompt_builder = None
 
     # ------------------------------------------------------------------
@@ -145,10 +154,11 @@ class StepBackRail(DeepAgentRail):
         self.system_prompt_builder.remove_section(_SECTION_NAME)
 
         if consecutive >= self._step_back_after:
+            body = _build_section(consecutive)
             self.system_prompt_builder.add_section(
                 PromptSection(
                     name=_SECTION_NAME,
-                    content=_build_section(consecutive),
+                    content={"cn": body, "en": body},
                     priority=_PRIORITY,
                 )
             )

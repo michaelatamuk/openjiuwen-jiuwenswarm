@@ -1320,6 +1320,7 @@ class JiuWenSwarmDeepAdapter:
         self._tool_call_deduplication_rail: ToolCallDeduplicationRail | None = None
         self._failure_memory_rail: FailureMemoryRail | None = None
         self._output_format_rail: OutputFormatRail | None = None
+        self._step_back_rail: StepBackRail | None = None
         self._tool_cards = None
         self._evolution_watcher_tasks: set[asyncio.Task] = set()
         self._sys_operation = None
@@ -7130,7 +7131,7 @@ class JiuWenSwarmDeepAdapter:
         """
         try:
             _sb_cfg = config_base.get("step_back") or {}
-            _step_back_after = int(_sb_cfg.get("step_back_after", 3))
+            _step_back_after = max(1, parse_int(_sb_cfg.get("step_back_after"), 3))
             rail = StepBackRail(_step_back_after)
             logger.info(
                 "[JiuWenSwarmDeepAdapter] StepBackRail attached (step_back_after=%d)",
@@ -7783,6 +7784,25 @@ class JiuWenSwarmDeepAdapter:
             self._output_format_rail = None
         _of_reload_rail = self._output_format_rail or _old_of_rail
 
+        # Rebuild the step-back rail from the current config snapshot so
+        # step_back.enabled / .step_back_after changes take effect on hot
+        # reload. Its type appearing in the returned list makes _hot_reload_rails
+        # cycle the old instance out (uninit removes the section). When
+        # disabled, the previous instance is still listed so it is torn down,
+        # and the property is cleared.
+        _sb_cfg = (config_base or self._config_base_cache or {}).get(
+            "step_back"
+        ) or {}
+        _sb_enabled = bool(_sb_cfg.get("enabled", False))
+        _old_sb_rail = getattr(self, "_step_back_rail", None)
+        if _sb_enabled:
+            self._step_back_rail = self._build_step_back_rail(
+                config_base or self._config_base_cache or {}
+            )
+        else:
+            self._step_back_rail = None
+        _sb_reload_rail = self._step_back_rail or _old_sb_rail
+
         rails_list = []
         if self._skill_rail is not None:
             rails_list.append(self._skill_rail)
@@ -7810,6 +7830,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(_fm_reload_rail)
         if _of_reload_rail is not None:
             rails_list.append(_of_reload_rail)
+        if _sb_reload_rail is not None:
+            rails_list.append(_sb_reload_rail)
         return rails_list
 
     def _tool_owner_id(self) -> str:
