@@ -852,6 +852,111 @@ def test_swarm_list_skill_composes_member_team_and_global_visibility(
     assert tools.visible_skill_names_for_list_skill(ctx) == {"alpha", "beta"}
 
 
+def test_swarm_list_skill_includes_external_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """External skill dirs are listed alongside the personal library."""
+    from jiuwenswarm.agents.swarm.providers import skills as skills_provider
+
+    library = tmp_path / "library"
+    for name in ("alpha", "personal"):
+        _install_library_skill(library, name)
+    external = tmp_path / "external"
+    for name in ("task-a", "task-b"):
+        _install_library_skill(external, name)
+    member_root = tmp_path / "workspaces" / "coder_workspace"
+    member_root.mkdir(parents=True)
+    monkeypatch.setattr(skills_provider, "_load_global_disabled_skills", list)
+
+    ctx = SwarmBuildContext(
+        mode="team",
+        team_id="unit-team",
+        member_name="coder",
+        global_skills_dir=str(library),
+        workspace=SimpleNamespace(root_path=str(member_root)),
+        config={"skills": {"external_dirs": [str(external)]}},
+    )
+
+    assert tools.visible_skill_names_for_list_skill(ctx) == {
+        "alpha",
+        "personal",
+        "task-a",
+        "task-b",
+    }
+
+
+def test_swarm_list_skill_external_only_hides_personal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``skills.external_only`` keeps only external skills in the listing."""
+    from jiuwenswarm.agents.swarm.providers import skills as skills_provider
+
+    library = tmp_path / "library"
+    for name in ("alpha", "personal"):
+        _install_library_skill(library, name)
+    external = tmp_path / "external"
+    for name in ("task-a", "task-b"):
+        _install_library_skill(external, name)
+    member_root = tmp_path / "workspaces" / "coder_workspace"
+    member_root.mkdir(parents=True)
+    monkeypatch.setattr(skills_provider, "_load_global_disabled_skills", list)
+
+    ctx = SwarmBuildContext(
+        mode="team",
+        team_id="unit-team",
+        member_name="coder",
+        global_skills_dir=str(library),
+        workspace=SimpleNamespace(root_path=str(member_root)),
+        config={
+            "skills": {
+                "external_dirs": [str(external)],
+                "external_only": True,
+            }
+        },
+    )
+
+    assert tools.visible_skill_names_for_list_skill(ctx) == {"task-a", "task-b"}
+
+
+def test_swarm_skill_retrieval_directories_include_external_dirs(
+    tmp_path: Path,
+) -> None:
+    """The retrieval toolkit scans the same external-aware roots as the rail."""
+    from jiuwenswarm.agents.swarm.providers import tools as tools_provider
+
+    library = tmp_path / "library"
+    library.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+
+    ctx = SwarmBuildContext(
+        mode="team",
+        team_id="unit-team",
+        global_skills_dir=str(library),
+        config={"skills": {"external_dirs": [str(external)]}},
+    )
+
+    assert tools_provider._member_skill_scan_dirs(ctx) == [
+        str(library),
+        str(external),
+    ]
+
+    ctx_external_only = SwarmBuildContext(
+        mode="team",
+        team_id="unit-team",
+        global_skills_dir=str(library),
+        config={
+            "skills": {
+                "external_dirs": [str(external)],
+                "external_only": True,
+            }
+        },
+    )
+    assert tools_provider._member_skill_scan_dirs(ctx_external_only) == [str(external)]
+
+
 def test_swarm_skill_retrieval_prompt_uses_same_live_inventory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

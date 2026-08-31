@@ -5103,7 +5103,10 @@ class SkillManager:
             cfg = get_config() or {}
             skills_cfg = cfg.get("skills") or {}
             raw = skills_cfg.get("external_dirs") or []
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "[SkillManager] 读取 external_dirs 配置失败: %s", exc
+            )
             raw = []
 
         if isinstance(raw, str):
