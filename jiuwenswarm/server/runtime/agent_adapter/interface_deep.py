@@ -6887,7 +6887,11 @@ class JiuWenSwarmDeepAdapter:
         *,
         mode: str = "agent",
     ) -> list[Any]:
-        """Build DeepAgent rails consistently for cold start and hot reload."""
+        """Build DeepAgent rails for cold start (agent creation / mode change).
+
+        Hot reload does not go through this method: on config reload the
+        rails are reconciled by ``_get_current_agent_rails`` instead.
+        """
         rail_infos = [
             _RailBuildInfo("_runtime_prompt_rail", self._build_runtime_prompt_rail),
             _RailBuildInfo("_response_prompt_rail", self._build_response_prompt_rail),
@@ -7162,6 +7166,14 @@ class JiuWenSwarmDeepAdapter:
         if self._heartbeat_rail is None:
             self._heartbeat_rail = self._build_heartbeat_rail()
 
+        # Rebuild the autonomous-mode rail from the current config snapshot so
+        # an ``autonomy.enabled`` change takes effect on hot reload. Its type
+        # appearing in the returned list makes ``_hot_reload_rails`` cycle the
+        # old instance out (uninit) and register the rebuilt one (init).
+        self._autonomous_mode_rail = self._build_autonomous_mode_rail(
+            config_base or self._config_base_cache or {}
+        )
+
         rails_list = []
         if self._skill_rail is not None:
             rails_list.append(self._skill_rail)
@@ -7179,6 +7191,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(self._permission_rail)
         if self._heartbeat_rail is not None:
             rails_list.append(self._heartbeat_rail)
+        if self._autonomous_mode_rail is not None:
+            rails_list.append(self._autonomous_mode_rail)
         return rails_list
 
     def _tool_owner_id(self) -> str:
