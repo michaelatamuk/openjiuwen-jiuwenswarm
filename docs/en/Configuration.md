@@ -447,7 +447,7 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `models.*.model_config_obj.temperature` | Temperature | `0.95` |
 | `react.context_engine_config.dialogue_compressor_config.tokens_threshold` | Dialogue compression token threshold | `100000` |
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.9` |
-| `verifier_circuit_breaker.enabled` | Enable the verifier-aware circuit breaker rail; when `true`, `VerifierCircuitBreakerRail` is registered automatically | `true` |
+| `verifier_circuit_breaker.enabled` | Enable the verifier-aware circuit breaker rail; when `true`, `VerifierCircuitBreakerRail` is registered automatically | `false` |
 | `verifier_circuit_breaker.break_after` | Number of consecutive identical verifier failures before a rethink directive is injected into the system prompt; escalates to an "abandon approach entirely" directive at `break_after × 2` | `3` |
 
 <a id="dotenv-configuration"></a>

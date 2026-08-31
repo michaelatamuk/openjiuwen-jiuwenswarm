@@ -39,11 +39,12 @@ _SHELL_TOOLS: frozenset[str] = frozenset(
 )
 
 # At least 2 of these must appear to classify output as verifier output.
+# Matching is case-insensitive (see _is_verifier_output), so only lowercase
+# forms are kept — an uppercase duplicate would let a single "passed" or
+# "failed" hit two markers and satisfy the threshold.
 _VERIFIER_MARKERS: tuple[str, ...] = (
     "test session starts",
     "test_outputs.py",
-    "PASSED",
-    "FAILED",
     "pytest",
     "verifier",
     "reward.txt",
@@ -51,6 +52,10 @@ _VERIFIER_MARKERS: tuple[str, ...] = (
     "passed",
     "failed",
 )
+
+# Reward-file success values: exactly 1 (or 1.0 / 1.00), never 10 / 100 / 1.5.
+_REWARD_ONE_RE = re.compile(r"reward\s*:\s*1(?:\.0+)?(?![\d.])", re.IGNORECASE)
+_REWARD_JSON_ONE_RE = re.compile(r'"reward"\s*:\s*1(?:\.0+)?(?![\d.])', re.IGNORECASE)
 
 # Regex patterns that extract the meaningful failure lines.
 _FAILURE_PATTERNS: tuple[re.Pattern, ...] = (
@@ -105,8 +110,9 @@ def _is_verifier_success(text: str) -> bool:
     # pytest: "N passed" with no "failed" anywhere
     if re.search(r"\d+ passed", text) and "failed" not in text.lower():
         return True
-    # reward file embedded in output
-    if "reward: 1" in text or '"reward": 1' in text:
+    # reward file embedded in output — only exact 1 (or 1.0/1.00) counts,
+    # not 10 / 100 / 1.5
+    if _REWARD_ONE_RE.search(text) or _REWARD_JSON_ONE_RE.search(text):
         return True
     return False
 
@@ -253,10 +259,11 @@ class VerifierCircuitBreakerRail(DeepAgentRail):
         self.system_prompt_builder.remove_section(_SECTION_NAME)
 
         if consecutive >= self._break_after:
+            body = _build_section(consecutive, self._break_after)
             self.system_prompt_builder.add_section(
                 PromptSection(
                     name=_SECTION_NAME,
-                    content=_build_section(consecutive, self._break_after),
+                    content={"cn": body, "en": body},
                     priority=_PRIORITY,
                 )
             )
