@@ -116,7 +116,8 @@ class FailureMemoryRail(DeepAgentRail):
     # ------------------------------------------------------------------
 
     async def after_tool_call(self, ctx: AgentCallbackContext, **kwargs: Any) -> None:
-        result: str = ctx.inputs.tool_result or ""
+        raw = ctx.inputs.tool_result
+        result: str = "" if raw is None else (raw if isinstance(raw, str) else str(raw))
         if not _is_error_result(result):
             return
         error_snippet = _extract_snippet(result)
@@ -192,11 +193,12 @@ class FailureMemoryRail(DeepAgentRail):
             # Indent the error so it reads as continuation
             for error_line in f["error"].splitlines():
                 lines.append(f"   → {error_line}")
+        body = "\n".join(lines)
         self.system_prompt_builder.remove_section(_SECTION_NAME)
         self.system_prompt_builder.add_section(
             PromptSection(
                 name=_SECTION_NAME,
-                content="\n".join(lines),
+                content={"cn": body, "en": body},
                 priority=_WARNING_PRIORITY,
             )
         )
