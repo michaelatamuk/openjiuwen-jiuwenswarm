@@ -83,12 +83,15 @@ class TaskDescriptionRail(DeepAgentRail):
         if self.system_prompt_builder is None:
             return
         content = self._read_file()
-        if content is None:
+        if not content:
+            # No usable file (missing or empty) → do not mark injected, so
+            # before_model_call keeps retrying until the file is populated.
             return
+        body = f"# Task Description\n\n{content}"
         self.system_prompt_builder.add_section(
             PromptSection(
                 name=_SECTION_NAME,
-                content=f"# Task Description\n\n{content}",
+                content={"cn": body, "en": body},
                 priority=_SECTION_PRIORITY,
             )
         )
