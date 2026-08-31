@@ -72,7 +72,7 @@ class IterationBudgetRail(DeepAgentRail):
             self.system_prompt_builder.add_section(
                 PromptSection(
                     name=_SECTION_NAME,
-                    content=warning_text,
+                    content={"cn": warning_text, "en": warning_text},
                     priority=_WARNING_PRIORITY,
                 )
             )
