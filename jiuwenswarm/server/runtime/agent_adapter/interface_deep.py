@@ -1297,6 +1297,7 @@ class JiuWenSwarmDeepAdapter:
         self._permission_rail: Any = None
         self._avatar_rail: Any = None
         self._memory_forbidden_rail: Any = None
+        self._autonomous_mode_rail: AutonomousModeRail | None = None
         self._tool_cards = None
         self._evolution_watcher_tasks: set[asyncio.Task] = set()
         self._sys_operation = None
