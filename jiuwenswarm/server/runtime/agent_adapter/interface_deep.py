@@ -882,6 +882,16 @@ def parse_int(value: Any, default: int) -> int:
         return default
 
 
+def _parse_float(value: Any, default: float) -> float:
+    """Parse float-like values safely, falling back to *default* on null/invalid."""
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _deep_agent_context_engine_config(
     react_cfg: dict[str, Any] | None,
 ) -> ContextEngineConfig:
@@ -1293,6 +1303,7 @@ class JiuWenSwarmDeepAdapter:
         self._ask_user_rail: StructuredAskUserRail | None = None
         self._permission_rail: Any = None
         self._avatar_rail: Any = None
+        self._context_headroom_rail: ContextHeadroomRail | None = None
         self._memory_forbidden_rail: Any = None
         self._tool_cards = None
         self._evolution_watcher_tasks: set[asyncio.Task] = set()
@@ -6877,8 +6888,8 @@ class JiuWenSwarmDeepAdapter:
         """
         try:
             _ch_cfg = config_base.get("context_headroom") or {}
-            _warn_ratio = float(_ch_cfg.get("warn_ratio", 0.60))
-            _critical_ratio = float(_ch_cfg.get("critical_ratio", 0.80))
+            _warn_ratio = _parse_float(_ch_cfg.get("warn_ratio"), 0.60)
+            _critical_ratio = _parse_float(_ch_cfg.get("critical_ratio"), 0.80)
             rail = ContextHeadroomRail(_warn_ratio, _critical_ratio)
             logger.info(
                 "[JiuWenSwarmDeepAdapter] ContextHeadroomRail attached "
@@ -7181,6 +7192,25 @@ class JiuWenSwarmDeepAdapter:
         if self._heartbeat_rail is None:
             self._heartbeat_rail = self._build_heartbeat_rail()
 
+        # Rebuild the context-headroom rail from the current config snapshot so
+        # context_headroom.enabled / .warn_ratio / .critical_ratio changes take
+        # effect on hot reload. Its type appearing in the returned list makes
+        # _hot_reload_rails cycle the old instance out (uninit removes the
+        # section). When disabled, the previous instance is still listed so it
+        # is torn down, and the property is cleared.
+        _ch_cfg = (config_base or self._config_base_cache or {}).get(
+            "context_headroom"
+        ) or {}
+        _ch_enabled = bool(_ch_cfg.get("enabled", False))
+        _old_ch_rail = getattr(self, "_context_headroom_rail", None)
+        if _ch_enabled:
+            self._context_headroom_rail = self._build_context_headroom_rail(
+                config_base or self._config_base_cache or {}
+            )
+        else:
+            self._context_headroom_rail = None
+        _ch_reload_rail = self._context_headroom_rail or _old_ch_rail
+
         rails_list = []
         if self._skill_rail is not None:
             rails_list.append(self._skill_rail)
@@ -7198,6 +7228,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(self._permission_rail)
         if self._heartbeat_rail is not None:
             rails_list.append(self._heartbeat_rail)
+        if _ch_reload_rail is not None:
+            rails_list.append(_ch_reload_rail)
         return rails_list
 
     def _tool_owner_id(self) -> str:
