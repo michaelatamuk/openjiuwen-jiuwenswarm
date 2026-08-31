@@ -31,10 +31,13 @@ _OUTPUT_CODE_RE = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
-# Sentence-level signals that strongly indicate output format instructions
+# Sentence-level signals that strongly indicate output format instructions.
+# Kept to format-specific terms only — generic words like "write" / "file" /
+# "path" appear in nearly every paragraph and would make the filter match
+# everything.
 _FORMAT_SIGNAL_RE = re.compile(
-    r"\b(output|save|write|store|produce|generate|create|print|return|result|format|"
-    r"csv|json|yaml|xml|html|markdown|plain.?text|file|stdout|path)\b",
+    r"\b(output|format|csv|tsv|json|yaml|yml|xml|html|markdown|"
+    r"plain.?text|stdout)\b",
     re.IGNORECASE,
 )
 
@@ -172,7 +175,7 @@ class OutputFormatRail(DeepAgentRail):
         self.system_prompt_builder.add_section(
             PromptSection(
                 name=_SECTION_NAME,
-                content=content,
+                content={"cn": content, "en": content},
                 priority=_PRIORITY,
             )
         )
@@ -183,7 +186,10 @@ class OutputFormatRail(DeepAgentRail):
         try:
             path = Path(self._task_path)
             if path.is_file():
-                return path.read_text(encoding="utf-8").strip()
+                text = path.read_text(encoding="utf-8")
+                # Normalize CRLF so frontmatter/paragraph/code-block parsing
+                # behaves the same on files written on Windows.
+                return text.replace("\r\n", "\n").strip()
         except Exception as exc:
             logger.warning("[OutputFormat] Could not read %s: %s", self._task_path, exc)
         return None
