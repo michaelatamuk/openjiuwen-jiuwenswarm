@@ -65,6 +65,15 @@ class ContextHeadroomRail(DeepAgentRail):
         critical_ratio: float = 0.80,
     ) -> None:
         super().__init__()
+        if warn_ratio >= critical_ratio:
+            logger.warning(
+                "[ContextHeadroom] warn_ratio (%.2f) must be below "
+                "critical_ratio (%.2f); swapping so the warn branch stays "
+                "reachable",
+                warn_ratio,
+                critical_ratio,
+            )
+            warn_ratio, critical_ratio = critical_ratio, warn_ratio
         self._warn_ratio = warn_ratio
         self._critical_ratio = critical_ratio
         self.system_prompt_builder = None
@@ -99,7 +108,7 @@ class ContextHeadroomRail(DeepAgentRail):
             self.system_prompt_builder.add_section(
                 PromptSection(
                     name=_SECTION_NAME,
-                    content=_CRITICAL_CONTENT,
+                    content={"cn": _CRITICAL_CONTENT, "en": _CRITICAL_CONTENT},
                     priority=_PRIORITY,
                 )
             )
@@ -110,7 +119,7 @@ class ContextHeadroomRail(DeepAgentRail):
             self.system_prompt_builder.add_section(
                 PromptSection(
                     name=_SECTION_NAME,
-                    content=_WARN_CONTENT,
+                    content={"cn": _WARN_CONTENT, "en": _WARN_CONTENT},
                     priority=_PRIORITY,
                 )
             )
@@ -127,9 +136,10 @@ class ContextHeadroomRail(DeepAgentRail):
         try:
             stats = ctx.context.statistic()
             current = stats.total_tokens
-            max_tokens: int = (
-                getattr(ctx.context, "_context_window_tokens", None) or 100_000
-            )
+            max_tokens_raw = getattr(ctx.context, "_context_window_tokens", None)
+            # Explicit is-None check: 0 is a real (invalid) value that must be
+            # caught by the guard below, not silently replaced by the fallback.
+            max_tokens: int = 100_000 if max_tokens_raw is None else int(max_tokens_raw)
             if max_tokens <= 0:
                 return None
             return current / max_tokens
