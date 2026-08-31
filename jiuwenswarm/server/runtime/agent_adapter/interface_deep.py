@@ -6863,13 +6863,15 @@ class JiuWenSwarmDeepAdapter:
         """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
 
         Reads ``max_iterations`` / ``budget_warning_threshold`` from the mode
-        config (defaults 100 / 10) and injects a system-prompt warning when the
+        config (defaults 15 / 10) and injects a system-prompt warning when the
         agent is running low, so it prioritises finishing instead of starting
-        new long subtasks.
+        new long subtasks. ``max_iterations`` defaults to 15 to match the
+        agent's own iteration budget; parsing is lenient (``parse_int``) so a
+        null/empty value in config falls back instead of crashing.
         """
         try:
-            _max_iter = int(config.get("max_iterations", 100))
-            _warn_threshold = int(config.get("budget_warning_threshold", 10))
+            _max_iter = parse_int(config.get("max_iterations"), 15)
+            _warn_threshold = parse_int(config.get("budget_warning_threshold"), 10)
             rail = IterationBudgetRail(_max_iter, _warn_threshold)
             logger.info(
                 "[JiuWenSwarmDeepAdapter] IterationBudgetRail attached "
