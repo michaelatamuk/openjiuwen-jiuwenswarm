@@ -6995,57 +6995,6 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
-    def _build_iteration_budget_rail(config: dict[str, Any]) -> IterationBudgetRail | None:
-        """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
-
-        Reads ``max_iterations`` / ``budget_warning_threshold`` from the mode
-        config (defaults 100 / 10) and injects a system-prompt warning when the
-        agent is running low, so it prioritises finishing instead of starting
-        new long subtasks.
-        """
-        try:
-            _max_iter = int(config.get("max_iterations", 100))
-            _warn_threshold = int(config.get("budget_warning_threshold", 10))
-            rail = IterationBudgetRail(_max_iter, _warn_threshold)
-            logger.info(
-                "[JiuWenSwarmDeepAdapter] IterationBudgetRail attached "
-                "(max_iterations=%d, warning_threshold=%d)",
-                _max_iter,
-                _warn_threshold,
-            )
-            return rail
-        except Exception as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach IterationBudgetRail: %s", exc)
-            return None
-
-    @staticmethod
-    def _build_verifier_circuit_breaker_rail(config_base: dict[str, Any],) -> VerifierCircuitBreakerRail | None:
-        """Build VerifierCircuitBreakerRail: force a strategy change on repeated verifier failures.
-
-        Reads ``verifier_circuit_breaker`` from the config snapshot (``enabled``
-        defaults True, ``break_after`` defaults 3). When the same verifier
-        failure repeats ``break_after`` times in a row without improvement, a
-        high-priority system-prompt section instructs the agent to abandon its
-        current approach. Returns None (skip) when explicitly disabled.
-        """
-        try:
-            _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
-            if not bool(_vcb_cfg.get("enabled", True)):
-                return None
-            _break_after = int(_vcb_cfg.get("break_after", 3))
-            rail = VerifierCircuitBreakerRail(_break_after)
-            logger.info(
-                "[JiuWenSwarmDeepAdapter] VerifierCircuitBreakerRail attached (break_after=%d)",
-                _break_after,
-            )
-            return rail
-        except Exception as exc:
-            logger.warning(
-                "[JiuWenSwarmDeepAdapter] Failed to attach VerifierCircuitBreakerRail: %s", exc
-            )
-            return None
-
-    @staticmethod
     def _build_tool_call_deduplication_rail(config_base: dict[str, Any]) -> ToolCallDeduplicationRail | None:
         """Build ToolCallDeduplicationRail: collapse repeated identical tool calls.
 
@@ -7168,72 +7117,6 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
-    def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
-        """Build AutonomousModeRail: override interactive hedging when running unattended.
-
-        Reads ``autonomy.enabled`` from the config snapshot. When enabled, the
-        rail injects a high-priority system-prompt directive (no asking for
-        confirmation, no hedging, verify + finish end-to-end) for CI / scripted
-        / benchmark runs without a human in the loop. Attached unconditionally
-        with the resolved flag — the rail itself no-ops when disabled.
-        """
-        try:
-            _autonomy_enabled = bool((config_base.get("autonomy") or {}).get("enabled", False))
-            rail = AutonomousModeRail(_autonomy_enabled)
-            logger.info(
-                "[JiuWenSwarmDeepAdapter] AutonomousModeRail attached (enabled=%s)",
-                _autonomy_enabled,
-            )
-            return rail
-        except Exception as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach AutonomousModeRail: %s", exc)
-            return None
-
-    @staticmethod
-    def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
-        """Build TaskDescriptionRail: pin a task-description file into the system prompt.
-
-        Only added to the rail set when ``task_description.enabled`` is true
-        (see ``_build_agent_rails``). Reads the file path from
-        ``task_description.path`` (default /app/task.md) and keeps its content
-        visible for every model call — never compressed away — for CI /
-        evaluation runs where the task is written to a file first.
-        """
-        try:
-            _td_cfg = config_base.get("task_description") or {}
-            _td_path = str(_td_cfg.get("path", "/app/task.md"))
-            rail = TaskDescriptionRail(_td_path)
-            logger.info("[JiuWenSwarmDeepAdapter] TaskDescriptionRail loaded from %s", _td_path)
-            return rail
-        except Exception as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] Failed to load TaskDescriptionRail: %s", exc)
-            return None
-
-    @staticmethod
-    def _build_iteration_budget_rail(config: dict[str, Any]) -> IterationBudgetRail | None:
-        """Build IterationBudgetRail: warn the agent when iterations are nearly exhausted.
-
-        Reads ``max_iterations`` / ``budget_warning_threshold`` from the mode
-        config (defaults 100 / 10) and injects a system-prompt warning when the
-        agent is running low, so it prioritises finishing instead of starting
-        new long subtasks.
-        """
-        try:
-            _max_iter = int(config.get("max_iterations", 100))
-            _warn_threshold = int(config.get("budget_warning_threshold", 10))
-            rail = IterationBudgetRail(_max_iter, _warn_threshold)
-            logger.info(
-                "[JiuWenSwarmDeepAdapter] IterationBudgetRail attached "
-                "(max_iterations=%d, warning_threshold=%d)",
-                _max_iter,
-                _warn_threshold,
-            )
-            return rail
-        except Exception as exc:
-            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach IterationBudgetRail: %s", exc)
-            return None
-
-    @staticmethod
     def _build_task_description_rail(config_base: dict[str, Any]) -> TaskDescriptionRail | None:
         """Build TaskDescriptionRail: pin a task-description file into the system prompt.
 
@@ -7344,16 +7227,24 @@ class JiuWenSwarmDeepAdapter:
                 {"config_base": config_base},
             ),
             _RailBuildInfo(
-                "_verifier_circuit_breaker_rail",
-                self._build_verifier_circuit_breaker_rail,
-                {"config_base": config_base},
-            ),
-            _RailBuildInfo(
                 "_iteration_budget_rail",
                 self._build_iteration_budget_rail,
                 {"config": config},
             ),
         ]
+
+        # Verifier-aware circuit breaker: only inserted when explicitly enabled
+        # (default off) so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+        if bool(_vcb_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_verifier_circuit_breaker_rail",
+                    self._build_verifier_circuit_breaker_rail,
+                    {"config_base": config_base},
+                )
+            )
 
         # Task description pinning: keep task file content visible throughout the run.
         # Disabled by default — only inserted when enabled so the registry's
@@ -7445,33 +7336,6 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_task_description_rail",
                     self._build_task_description_rail,
-                    {"config_base": config_base},
-                )
-            )
-
-        # Task description pinning: keep task file content visible throughout the run.
-        # Disabled by default — only inserted when enabled so the registry's
-        # "build returned None" warning is not spammed on every normal build.
-        _td_cfg = config_base.get("task_description") or {}
-        if bool(_td_cfg.get("enabled", False)):
-            rail_infos.append(
-                _RailBuildInfo(
-                    "_task_description_rail",
-                    self._build_task_description_rail,
-                    {"config_base": config_base},
-                )
-            )
-        ]
-
-        # Verifier-aware circuit breaker: only inserted when explicitly enabled
-        # (default off) so the registry's "build returned None" warning is not
-        # spammed on every normal build.
-        _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
-        if bool(_vcb_cfg.get("enabled", False)):
-            rail_infos.append(
-                _RailBuildInfo(
-                    "_verifier_circuit_breaker_rail",
-                    self._build_verifier_circuit_breaker_rail,
                     {"config_base": config_base},
                 )
             )
