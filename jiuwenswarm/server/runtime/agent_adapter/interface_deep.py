@@ -7692,6 +7692,25 @@ class JiuWenSwarmDeepAdapter:
         if self._heartbeat_rail is None:
             self._heartbeat_rail = self._build_heartbeat_rail()
 
+        # Rebuild the task-description rail from the current config snapshot so
+        # task_description.enabled / .path changes take effect on hot reload.
+        # Its type appearing in the returned list makes _hot_reload_rails cycle
+        # the old instance out (uninit removes the section). When disabled, the
+        # previous instance is still listed so it is torn down, and the property
+        # is cleared.
+        _td_cfg = (config_base or self._config_base_cache or {}).get(
+            "task_description"
+        ) or {}
+        _td_enabled = bool(_td_cfg.get("enabled", False))
+        _old_td_rail = getattr(self, "_task_description_rail", None)
+        if _td_enabled:
+            self._task_description_rail = self._build_task_description_rail(
+                config_base or self._config_base_cache or {}
+            )
+        else:
+            self._task_description_rail = None
+        _td_reload_rail = self._task_description_rail or _old_td_rail
+
         # Rebuild the autonomous-mode rail from the current config snapshot so
         # an ``autonomy.enabled`` change takes effect on hot reload. Its type
         # appearing in the returned list makes ``_hot_reload_rails`` cycle the
@@ -7717,6 +7736,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(self._permission_rail)
         if self._heartbeat_rail is not None:
             rails_list.append(self._heartbeat_rail)
+        if _td_reload_rail is not None:
+            rails_list.append(_td_reload_rail)
         if self._autonomous_mode_rail is not None:
             rails_list.append(self._autonomous_mode_rail)
         return rails_list
