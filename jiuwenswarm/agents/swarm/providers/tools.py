@@ -198,7 +198,13 @@ def _external_skill_dirs(config: dict[str, Any] | None) -> list[str]:
     for part in parts:
         try:
             path = Path(part).expanduser().resolve()
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "[swarm.skill_toolkit] invalid skills.external_dirs entry %r, "
+                "skipped: %s",
+                part,
+                exc,
+            )
             continue
         if path.is_dir():
             dirs.append(str(path))
