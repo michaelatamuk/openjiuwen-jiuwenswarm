@@ -6063,13 +6063,24 @@ class JiuWenSwarmDeepAdapter:
                 )
 
     def _build_skill_rail(
-        self, config: dict[str, Any], include_tools: bool = False
+        self,
+        config: dict[str, Any],
+        include_tools: bool = False,
+        config_base: dict[str, Any] | None = None,
     ) -> SkillUseRail | None:
         """Build SkillUseRail.
 
         skills_dir seeds with the agent's main skills dir PLUS the connected
         MCPs' skill dirs (derived from state.json), so a freshly started agent
         sees connected MCP skills immediately.
+
+        Args:
+            config: The ``react`` sub-configuration. ``skills.external_only``
+                is read from ``config_base`` (the root config), NOT from this
+                mapping — ``skills`` lives at the root, sibling to ``react``.
+            include_tools: Whether the rail registers read_file / bash tools.
+            config_base: The root configuration cache. Falls back to
+                ``self._config_base_cache`` when omitted.
         """
         try:
             skill_mode = self._resolve_skill_mode(
@@ -6095,7 +6106,8 @@ class JiuWenSwarmDeepAdapter:
             if callable(get_external):
                 external_dirs = [str(p) for p in get_external()]
 
-            _skills_cfg = (config.get("skills") or {})
+            _root_cfg = config_base or self._config_base_cache or {}
+            _skills_cfg = _root_cfg.get("skills") or {}
             _external_only = bool(_skills_cfg.get("external_only", False))
 
             if _external_only and external_dirs:
@@ -7451,7 +7463,11 @@ class JiuWenSwarmDeepAdapter:
             _RailBuildInfo(
                 "_skill_rail",
                 self._build_skill_rail,
-                {"config": config, "include_tools": self._skill_include_tools_for_profile()},
+                {
+                    "config": config,
+                    "include_tools": self._skill_include_tools_for_profile(),
+                    "config_base": config_base,
+                },
             ),
         )
         rail_infos.insert(
@@ -7642,6 +7658,7 @@ class JiuWenSwarmDeepAdapter:
             self._skill_rail = self._build_skill_rail(
                 config,
                 include_tools=self._skill_include_tools_for_profile(),
+                config_base=config_base or self._config_base_cache,
             )
         else:
             # Update existing rail's skill_mode if changed.
