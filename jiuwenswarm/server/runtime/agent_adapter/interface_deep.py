@@ -1294,6 +1294,7 @@ class JiuWenSwarmDeepAdapter:
         self._permission_rail: Any = None
         self._avatar_rail: Any = None
         self._memory_forbidden_rail: Any = None
+        self._failure_memory_rail: FailureMemoryRail | None = None
         self._tool_cards = None
         self._evolution_watcher_tasks: set[asyncio.Task] = set()
         self._sys_operation = None
@@ -6867,7 +6868,7 @@ class JiuWenSwarmDeepAdapter:
         """
         try:
             _fm_cfg = config_base.get("failure_memory") or {}
-            _max_failures = int(_fm_cfg.get("max_failures", 10))
+            _max_failures = parse_int(_fm_cfg.get("max_failures"), 10)
             rail = FailureMemoryRail(_max_failures)
             logger.info(
                 "[JiuWenSwarmDeepAdapter] FailureMemoryRail attached (max_failures=%d)",
@@ -7169,6 +7170,25 @@ class JiuWenSwarmDeepAdapter:
         if self._heartbeat_rail is None:
             self._heartbeat_rail = self._build_heartbeat_rail()
 
+        # Rebuild the failure-memory rail from the current config snapshot so
+        # failure_memory.enabled / .max_failures changes take effect on hot
+        # reload. Its type appearing in the returned list makes _hot_reload_rails
+        # cycle the old instance out (uninit removes the section). When
+        # disabled, the previous instance is still listed so it is torn down,
+        # and the property is cleared.
+        _fm_cfg = (config_base or self._config_base_cache or {}).get(
+            "failure_memory"
+        ) or {}
+        _fm_enabled = bool(_fm_cfg.get("enabled", False))
+        _old_fm_rail = getattr(self, "_failure_memory_rail", None)
+        if _fm_enabled:
+            self._failure_memory_rail = self._build_failure_memory_rail(
+                config_base or self._config_base_cache or {}
+            )
+        else:
+            self._failure_memory_rail = None
+        _fm_reload_rail = self._failure_memory_rail or _old_fm_rail
+
         rails_list = []
         if self._skill_rail is not None:
             rails_list.append(self._skill_rail)
@@ -7186,6 +7206,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(self._permission_rail)
         if self._heartbeat_rail is not None:
             rails_list.append(self._heartbeat_rail)
+        if _fm_reload_rail is not None:
+            rails_list.append(_fm_reload_rail)
         return rails_list
 
     def _tool_owner_id(self) -> str:
