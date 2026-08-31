@@ -7051,7 +7051,7 @@ class JiuWenSwarmDeepAdapter:
         """
         try:
             _td_cfg = config_base.get("tool_dedup") or {}
-            _warn_after = int(_td_cfg.get("warn_after", 3))
+            _warn_after = parse_int(_td_cfg.get("warn_after"), 3)
             rail = ToolCallDeduplicationRail(_warn_after)
             logger.info(
                 "[JiuWenSwarmDeepAdapter] ToolCallDeduplicationRail attached (warn_after=%d)",
@@ -7719,6 +7719,27 @@ class JiuWenSwarmDeepAdapter:
             config_base or self._config_base_cache or {}
         )
 
+        # Rebuild the tool-dedup rail from the current config snapshot so
+        # tool_dedup.enabled / .warn_after changes take effect on hot reload.
+        # Its type appearing in the returned list makes _hot_reload_rails cycle
+        # the old instance out (uninit removes the warning section). When
+        # disabled, the previous instance is still listed so it is torn down,
+        # and the property is cleared.
+        _dedup_cfg = (config_base or self._config_base_cache or {}).get(
+            "tool_dedup"
+        ) or {}
+        _dedup_enabled = bool(_dedup_cfg.get("enabled", False))
+        _old_dedup_rail = getattr(self, "_tool_call_deduplication_rail", None)
+        if _dedup_enabled:
+            self._tool_call_deduplication_rail = (
+                self._build_tool_call_deduplication_rail(
+                    config_base or self._config_base_cache or {}
+                )
+            )
+        else:
+            self._tool_call_deduplication_rail = None
+        _dedup_reload_rail = self._tool_call_deduplication_rail or _old_dedup_rail
+
         rails_list = []
         if self._skill_rail is not None:
             rails_list.append(self._skill_rail)
@@ -7740,6 +7761,8 @@ class JiuWenSwarmDeepAdapter:
             rails_list.append(_td_reload_rail)
         if self._autonomous_mode_rail is not None:
             rails_list.append(self._autonomous_mode_rail)
+        if _dedup_reload_rail is not None:
+            rails_list.append(_dedup_reload_rail)
         return rails_list
 
     def _tool_owner_id(self) -> str:

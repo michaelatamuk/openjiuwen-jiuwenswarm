@@ -81,8 +81,6 @@ class ToolCallDeduplicationRail(DeepAgentRail):
         self._exec_counts: dict[str, int] = {}
         # Keys for which a warning section is currently active
         self._warned_keys: set[str] = set()
-        # Flag set in before_tool_call to tell after_tool_call this was a cache hit
-        self._current_hit_key: str | None = None
 
     # ------------------------------------------------------------------
     # Rail lifecycle
@@ -103,7 +101,6 @@ class ToolCallDeduplicationRail(DeepAgentRail):
     async def before_model_call(self, ctx: AgentCallbackContext, **kwargs: Any) -> None:
         """Clear per-turn cache before each LLM call."""
         self._turn_cache = {}
-        self._current_hit_key = None
 
     # ------------------------------------------------------------------
     # Tool interception
@@ -111,8 +108,6 @@ class ToolCallDeduplicationRail(DeepAgentRail):
 
     async def before_tool_call(self, ctx: AgentCallbackContext, **kwargs: Any) -> None:
         """Check per-turn cache; skip real call if result is already known."""
-        self._current_hit_key = None
-
         tool_name: str = ctx.inputs.tool_name or ""
         if tool_name not in _CACHEABLE_TOOLS:
             return
@@ -132,7 +127,6 @@ class ToolCallDeduplicationRail(DeepAgentRail):
 
         ctx.extra["_skip_tool"] = True
         ctx.extra["_dedup_hit"] = True
-        self._current_hit_key = key
 
         ctx.inputs.tool_result = cached_result
         if ToolMessage is not None:
@@ -146,7 +140,6 @@ class ToolCallDeduplicationRail(DeepAgentRail):
         """Cache the result of a fresh call and update cross-turn counters."""
         # Skip if this was itself a cache hit (avoid double-counting)
         if ctx.extra.pop("_dedup_hit", False):
-            self._current_hit_key = None
             return
 
         tool_name: str = ctx.inputs.tool_name or ""
@@ -167,13 +160,13 @@ class ToolCallDeduplicationRail(DeepAgentRail):
         # Inject warning if threshold reached for the first time
         if count >= self._warn_after and key not in self._warned_keys:
             self._warned_keys.add(key)
-            self._inject_warning(tool_name, key, count)
+            self._inject_warning()
 
     # ------------------------------------------------------------------
     # Warning section helpers
     # ------------------------------------------------------------------
 
-    def _inject_warning(self, tool_name: str, key: str, count: int) -> None:
+    def _inject_warning(self) -> None:
         if not self.system_prompt_builder:
             return
         # Build an aggregated warning covering all over-threshold keys
@@ -189,11 +182,12 @@ class ToolCallDeduplicationRail(DeepAgentRail):
             "Do not call these again unless you have changed the inputs. "
             "Use the results you already have and proceed."
         )
+        body = "\n".join(lines)
         self.system_prompt_builder.remove_section(_SECTION_NAME)
         self.system_prompt_builder.add_section(
             PromptSection(
                 name=_SECTION_NAME,
-                content="\n".join(lines),
+                content={"cn": body, "en": body},
                 priority=_WARNING_PRIORITY,
             )
         )
