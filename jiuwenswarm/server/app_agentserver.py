@@ -28,7 +28,11 @@ parse_dotenv_early("jiuwenswarm-agentserver")
 
 # --- Now safe to import jiuwenswarm modules ---
 from jiuwenswarm.common.debug_dump import install_async_dump_handler
+from jiuwenswarm.common.media_capability_config import (
+    migrate_media_capability_switches,
+)
 from jiuwenswarm.common.utils import (
+    apply_free_search_runtime_defaults,
     ensure_config_migrated_from_template,
     ensure_default_builtin_skills,
     get_env_file,
@@ -36,7 +40,6 @@ from jiuwenswarm.common.utils import (
     get_user_workspace_dir,
     logger,
     prepare_workspace,
-    reset_free_search_runtime_flags,
 )
 
 # Ensure workspace initialized
@@ -157,8 +160,10 @@ else:
     _perm_ns_logger.propagate = False
 
 # Load env from user workspace config/.env
-load_dotenv_runtime(dotenv_path=get_env_file(), override=True)
-reset_free_search_runtime_flags()
+_env_file = get_env_file()
+load_dotenv_runtime(dotenv_path=_env_file, override=True)
+migrate_media_capability_switches(_env_file)
+apply_free_search_runtime_defaults()
 
 from jiuwenswarm.agents.harness.common.tools.bash_tool_safety import (
     install_shell_tool_safety_hooks,
@@ -489,5 +494,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 
