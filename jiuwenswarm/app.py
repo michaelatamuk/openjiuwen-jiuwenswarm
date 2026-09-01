@@ -19,14 +19,17 @@ parse_dotenv_early("jiuwenswarm-app")
 
 # --- Now safe to import jiuwenswarm modules ---
 from jiuwenswarm.common.debug_dump import install_async_dump_handler
+from jiuwenswarm.common.media_capability_config import (
+    migrate_media_capability_switches,
+)
 from jiuwenswarm.common.utils import (
+    apply_free_search_runtime_defaults,
     cleanup_team_files,
     ensure_config_migrated_from_template,
     ensure_default_builtin_skills,
     get_env_file,
     get_user_workspace_dir,
     prepare_workspace,
-    reset_free_search_runtime_flags,
 )
 
 # Record the parsed dotenv path for subprocess spawning
@@ -59,8 +62,10 @@ ensure_config_migrated_from_template()
 # 幂等地补齐默认内置技能（对已有工作区也生效，新增默认技能时自动安装）
 ensure_default_builtin_skills()
 
-load_dotenv_runtime(dotenv_path=get_env_file(), override=True)
-reset_free_search_runtime_flags()
+_env_file = get_env_file()
+load_dotenv_runtime(dotenv_path=_env_file, override=True)
+migrate_media_capability_switches(_env_file)
+apply_free_search_runtime_defaults()
 
 
 def main() -> None:
