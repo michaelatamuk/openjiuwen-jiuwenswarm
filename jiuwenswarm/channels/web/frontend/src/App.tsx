@@ -1153,6 +1153,7 @@ function AppContent({
             toolCallId: n.toolCallId,
             summary: n.summary,
             skillTree: n.skillTree,
+            ...(n.mermaid ? { mermaid: n.mermaid } : {}),
             ...(n.timedOut ? { timedOut: true } : {}),
             ...(n.beamSearch ? { beamSearch: n.beamSearch } : {}),
           },
@@ -1516,6 +1517,13 @@ function AppContent({
       console.warn('Failed to refresh models list:', error);
     }
   }, [request, setAvailableModels]);
+
+  const handleSettingsConfigSaved = useCallback(
+    async (updatedKeys: readonly string[]) => {
+      if (updatedKeys.includes('enable_free_models')) await handleModelsRefresh();
+    },
+    [handleModelsRefresh],
+  );
 
   const detectExternalCli = useCallback(async (cliAgent: ExternalCliAgentKind, cliPath?: string) => {
     return request<{
@@ -1904,6 +1912,7 @@ function AppContent({
                 toolCallId: n.toolCallId,
                 summary: n.summary,
                 skillTree: n.skillTree,
+                ...(n.mermaid ? { mermaid: n.mermaid } : {}),
                 ...(n.timedOut ? { timedOut: true } : {}),
                 ...(n.beamSearch ? { beamSearch: n.beamSearch } : {}),
               },
@@ -3154,6 +3163,7 @@ function AppContent({
               connectionState={connectionState}
               request={settingsRequest}
               onHasChangesChange={handleSettingsHasChangesChange}
+              onConfigSaved={handleSettingsConfigSaved}
               onDetectExternalCli={detectExternalCli}
               onSelectExternalCliPath={selectExternalCliPath}
               onTrackExternalCliDependencyInstalls={trackExternalCliDependencyInstalls}

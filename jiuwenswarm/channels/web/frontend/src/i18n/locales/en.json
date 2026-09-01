@@ -673,6 +673,7 @@
     "extensionConnect": "Connect",
     "extensionManagePlugins": "Manage My Plugins",
     "extensionManageMcps": "Manage My MCPs",
+    "extensionMore": "More",
     "recentTasks": "Progress",
     "contextCompressionCommandRunning": "Compressing context",
     "teamPause": "Pause",
@@ -1862,6 +1863,7 @@
         "readFailed": "Unable to read the skill graph. Refresh the graph first.",
         "refreshFailed": "Failed to refresh the skill graph",
         "cancelFailed": "Failed to cancel the skill graph build",
+        "primaryModelProbeFailed": "Primary model connection test failed: {{detail}}",
         "buildFailedWithDetail": "Symphony graph build failed: {{detail}}"
       },
       "serverDetails": {
@@ -1875,6 +1877,8 @@
       "buildStages": {
         "idle": "No build logs",
         "updateStart": "Starting skill graph build",
+        "modelProbeStart": "Testing primary model connection",
+        "modelProbeDone": "Primary model connection test passed",
         "updateCancelRequested": "Cancelling skill graph build",
         "updateCancelled": "Skill graph build cancelled",
         "scanStart": "Scanning skill directories",
@@ -2382,6 +2386,8 @@
       "toolName": "Tool name",
       "arguments": "Arguments",
       "result": "Result",
+      "flowchart": "Flowchart",
+      "flowchartHint": "click to expand/collapse",
       "truncated": "result truncated"
     },
     "toolGroup": {
