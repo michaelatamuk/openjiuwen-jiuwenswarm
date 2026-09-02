@@ -15,9 +15,9 @@ from jiuwenswarm.trajectory_insight.signals import detect
 from tests.unit_tests.trajectory_insight.fixtures import build_record, llm_span
 
 
-def _seed(trace_id: str) -> IssueSeed:
+def _seed(trace_id: str, code: str = "tool_execution_error") -> IssueSeed:
     return IssueSeed(
-        code="tool_execution_error",
+        code=code,
         severity=1,
         title="Tool failed",
         evidence=f"trace={trace_id} span=abc",
@@ -63,7 +63,7 @@ def test_llm_report_normalization() -> None:
     payload = (
         '[{"priority": 1, "title": "Retry storm", "description": "d", '
         '"evidence": "trace=222", "impact": "i", "root_cause": "rc", '
-        '"recommendation": "rec", "trace_id": "222", "span_id": null, "turn_index": 0, '
+        '"recommendation": "rec", "trace_id": "' + "2" * 32 + '", "span_id": null, "turn_index": 0, '
         '"evolution": {"kind": "skill", "action": "modify", "target": "debugging", '
         '"section": "Troubleshooting", "rationale": "r", "risk": "low", '
         '"confidence": 0.9, "artifacts": []}}]'
@@ -81,7 +81,7 @@ def test_llm_report_normalization() -> None:
 def test_empty_json_array_produces_no_issues() -> None:
     records = [llm_span(trace_id="3" * 32, start_ns=0, text="ok")]
     model = build_session_read_model(records)
-    seeds = [_seed("3" * 32)]
+    seeds = [_seed("3" * 32, code="context_near_overflow")]
     fake = _FakeModel("[]")
     report = asyncio.run(analyze_session(model, seeds, model=fake))
     assert report.issues == ()
@@ -102,3 +102,47 @@ def test_digest_redacts_secrets() -> None:
     digest = build_digest(model, [])
     assert "sk-abcdef123456789" not in digest
     assert redact_secrets("Bearer abcdefghijklmnop") == "<redacted>"
+
+
+def test_recorded_tool_failure_is_never_silenced() -> None:
+    records = [
+        build_record(
+            trace_id="8" * 32,
+            span_id="8888888888888888",
+            name="tool.read_file",
+            start_ns=0,
+            status_code=2,
+            status_message="file system operation execution error: File not found",
+            attrs={"gen_ai.tool.name": "read_file"},
+        )
+    ]
+    model = build_session_read_model(records)
+    seeds = detect(model)
+    assert seeds
+    # LLM reports a healthy session -> recorded failure must still surface.
+    report = asyncio.run(analyze_session(model, seeds, model=_FakeModel("[]")))
+    assert any("read_file" in issue.title or "8888888888888888" in issue.evidence for issue in report.issues)
+
+
+def test_recorded_failure_is_not_duplicated_when_llm_reports_it() -> None:
+    records = [
+        build_record(
+            trace_id="9" * 32,
+            span_id="9999999999999999",
+            name="tool.read_file",
+            start_ns=0,
+            status_code=2,
+            status_message="file system operation execution error: File not found",
+            attrs={"gen_ai.tool.name": "read_file"},
+        )
+    ]
+    model = build_session_read_model(records)
+    seeds = detect(model)
+    payload = (
+        '[{"priority": 1, "title": "read_file failed", "description": "d", '
+        '"evidence": "trace=999 span=9999999999999999", "impact": "i", '
+        '"root_cause": "rc", "recommendation": "rec", "trace_id": "' + "9" * 32 + '", '
+        '"span_id": "9999999999999999", "turn_index": 0, "evolution": null}]'
+    )
+    report = asyncio.run(analyze_session(model, seeds, model=_FakeModel(payload)))
+    assert len(report.issues) == 1

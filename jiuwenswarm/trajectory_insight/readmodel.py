@@ -246,9 +246,25 @@ def _decode_value(value: Any) -> Any:
     return value
 
 
+def _span_field(span: Mapping[str, Any], record: Mapping[str, Any], field: str) -> Any:
+    """Read a span identity field tolerating OTLP camelCase and row fallback."""
+    camel = {
+        "span_id": "spanId",
+        "trace_id": "traceId",
+        "parent_span_id": "parentSpanId",
+    }.get(field)
+    for key in (field, camel):
+        if key and span.get(key):
+            return span[key]
+    return record.get(field)
+
+
 def _span_start(span: Mapping[str, Any]) -> int:
+    raw = span.get("start_time_unix_nano")
+    if raw is None:
+        raw = span.get("startTimeUnixNano")
     try:
-        return int(span.get("start_time_unix_nano") or 0)
+        return int(raw or 0)
     except (TypeError, ValueError):
         return 0
 
@@ -261,8 +277,8 @@ def _span_to_event(
     max_event_text: int,
 ) -> TrajectoryEvent | None:
     """Convert one OTLP span into a normalized event."""
-    span_id = str(span.get("span_id") or "")
-    trace_id = str(span.get("trace_id") or record.get("trace_id") or "")
+    span_id = str(_span_field(span, record, "span_id") or "")
+    trace_id = str(_span_field(span, record, "trace_id") or "")
     if not span_id and not trace_id:
         return None
 
@@ -289,7 +305,7 @@ def _span_to_event(
         kind=kind,
         trace_id=trace_id,
         span_id=span_id,
-        parent_span_id=_clean_id(span.get("parent_span_id")),
+        parent_span_id=_clean_id(_span_field(span, record, "parent_span_id")),
         ts_ns=_span_start(span),
         name=str(span.get("name") or ""),
         role=role,

@@ -105,6 +105,10 @@ async def analyze_session(
         issues = await _run_llm_pass(read_model, digest, model, language=language)
     if issues is None:
         issues = _seeds_to_issues(seeds)
+    else:
+        # Recorded error statuses are high-precision facts: never let an
+        # under-reporting LLM erase a concrete tool/LLM failure.
+        issues = _merge_recorded_failures(seeds, issues)
     return SessionAnalysisReport(
         session_id=read_model.session_id,
         analysis_id="",
@@ -209,6 +213,53 @@ def _seeds_to_issues(seeds: list[IssueSeed]) -> list[AnalysisIssue]:
         )
         for seed in seeds
     ]
+
+
+_RECORDED_FAILURE_CODES = frozenset({"tool_execution_error", "llm_call_error"})
+
+
+def _merge_recorded_failures(
+    seeds: list[IssueSeed],
+    issues: list[AnalysisIssue],
+) -> list[AnalysisIssue]:
+    """Append deterministic recorded failures the LLM report omitted."""
+    merged = list(issues)
+    covered: set[tuple[str | None, str | None]] = set()
+
+    def is_covered(seed: IssueSeed) -> bool:
+        for issue in merged:
+            if issue.trace_id != seed.trace_id:
+                continue
+            if issue.span_id is None or seed.span_id is None or issue.span_id == seed.span_id:
+                return True
+        return False
+
+    for seed in seeds:
+        if seed.code not in _RECORDED_FAILURE_CODES:
+            continue
+        key = (seed.trace_id, seed.span_id)
+        if key in covered or is_covered(seed):
+            covered.add(key)
+            continue
+        merged.append(
+            AnalysisIssue(
+                priority=seed.severity,
+                title=seed.title,
+                description=seed.evidence,
+                evidence=seed.evidence,
+                impact="",
+                root_cause="",
+                recommendation="",
+                trace_id=seed.trace_id,
+                span_id=seed.span_id,
+                turn_index=seed.turn_index,
+                subject_id=seed.subject_id,
+                evolution=None,
+            )
+        )
+        covered.add(key)
+    merged.sort(key=lambda issue: issue.priority)
+    return merged
 
 
 def _parse_issue_json(text: str) -> Any:

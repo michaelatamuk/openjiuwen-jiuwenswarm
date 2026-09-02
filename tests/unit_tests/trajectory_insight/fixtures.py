@@ -51,7 +51,7 @@ def build_record(
                                 "spanId": span_id,
                                 "name": name,
                                 "status": status,
-                                "start_time_unix_nano": start_ns,
+                                "startTimeUnixNano": start_ns,
                                 "attributes": [
                                     _attribute(key, value)
                                     for key, value in (attrs or {}).items()
