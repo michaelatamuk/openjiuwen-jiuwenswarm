@@ -39,7 +39,7 @@ export function useTrajectoryAnalysisCopy(): { zh: boolean; copy: Record<string,
     verifyNote: '校验结果',
   } : {
     run: 'Analyze',
-    rerun: 'Re-run',
+    rerun: 'Analyze again',
     running: 'Analyzing… (uses LLM, ~1–2 min)',
     runningHint: 'LLM analysis in progress',
     noRun: 'Click Analyze to identify issues and improvement suggestions in this session.',

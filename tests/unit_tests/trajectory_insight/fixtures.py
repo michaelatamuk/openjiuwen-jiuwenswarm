@@ -26,14 +26,17 @@ def build_record(
     start_ns: int = 0,
     attrs: dict | None = None,
     status_message: str | None = None,
+    status_code: int | None = None,
     session_id: str = "session-1",
     raw_sha256: str = "",
 ) -> dict:
     """Build one archive-row shaped record with an embedded OTLP span."""
+    if status_code is None:
+        status_code = 2 if status_message is not None else 0
     status = (
-        {"code": 2, "message": status_message}
+        {"code": status_code, "message": status_message}
         if status_message is not None
-        else {"code": 0}
+        else {"code": status_code}
     )
     otlp = {
         "resourceSpans": [

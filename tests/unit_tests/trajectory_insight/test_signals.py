@@ -68,3 +68,36 @@ def test_seeds_are_deduplicated() -> None:
     seeds = detect(model)
     keys = {(seed.code, seed.trace_id, seed.span_id) for seed in seeds}
     assert len(keys) == len(seeds)
+
+
+def test_real_otlp_shape_ok_spans_are_not_failures() -> None:
+    llm_ok = build_record(
+        trace_id="7" * 32,
+        span_id="7" * 16,
+        name="llm.call",
+        start_ns=0,
+        status_code=1,
+        attrs={"gen_ai.operation.name": "chat", "gen_ai.response.model": "m1"},
+    )
+    tool_error = build_record(
+        trace_id="7" * 32,
+        span_id="777777777777777a",
+        name="tool.read_file",
+        start_ns=10,
+        status_code=2,
+        status_message="file system operation execution error, execution: read_file, "
+        "reason: File not found: this_file_does_not_exist.txt",
+        attrs={"gen_ai.tool.name": "read_file", "gen_ai.tool.call.result": "{}"},
+    )
+    model = build_session_read_model([llm_ok, tool_error])
+    assert model.turn_count_total == 1
+    turn = model.turns[0]
+    assert turn.has_error is True
+    assert turn.tool_failures == 1
+    ok_events = [event for event in turn.events if "llm.call" in (event.name or "")]
+    assert ok_events
+    assert all(event.error is None for event in ok_events)
+    seeds = detect(model)
+    codes = {seed.code for seed in seeds}
+    assert "tool_execution_error" in codes
+    assert "llm_call_error" not in codes

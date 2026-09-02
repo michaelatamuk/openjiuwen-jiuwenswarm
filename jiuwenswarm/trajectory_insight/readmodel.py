@@ -176,6 +176,11 @@ def build_session_read_model(
 
 def _parse_otlp(raw_json: Any) -> Mapping[str, Any] | None:
     """Parse one raw OTLP JSON payload tolerantly."""
+    if isinstance(raw_json, bytes):
+        try:
+            raw_json = raw_json.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
     if not isinstance(raw_json, str):
         return None
     try:
@@ -409,11 +414,19 @@ def _messages_to_text(value: Any, prefer_role: str | None = "assistant") -> str:
 
 def _status_text(span: Mapping[str, Any]) -> str | None:
     status = span.get("status")
-    if isinstance(status, Mapping):
-        code = status.get("code")
-        message = status.get("message")
-        if code not in {None, 0, "0", "STATUS_CODE_UNSET"}:
-            return _as_text(message) or _as_text(code)
+    if not isinstance(status, Mapping):
+        return None
+    code = status.get("code")
+    message = status.get("message")
+    # OTel status codes: 0 = UNSET, 1 = OK, 2 = ERROR. Only code 2 surfaces an
+    # error; everything else (including absent) is not a failure.
+    if code in {0, 1}:
+        return None
+    normalized_code = str(code or "").strip().lower()
+    if normalized_code in {"0", "1", "unset", "status_code_unset", "ok", "status_code_ok", ""}:
+        return None
+    if code == 2 or normalized_code in {"2", "error", "status_code_error"}:
+        return _as_text(message) or "ERROR"
     return None
 
 
