@@ -51,11 +51,12 @@ from openjiuwen.harness.tools import WebFetchWebpageTool, WebFreeSearchTool, Web
 from openjiuwen.harness.tools.worktree import WorktreeConfig, WorktreeRail
 
 from jiuwenswarm.server.runtime.agent_adapter.interface_deep import (
+    _ContextEngineModelState,
     JiuWenSwarmDeepAdapter,
     _AGENT_CARD_ID,
     _CRON_TOOL_CHANNEL_ID,
     _RailBuildInfo,
-    _deep_agent_context_engine_config,
+    _deep_agent_context_engine_config_for_model,
     _deep_agent_kv_cache_affinity_config,
     parse_int,
 )
@@ -729,8 +730,15 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         if self._sys_operation is None or self._sys_operation_card is None:
             raise RuntimeError("code DeepAgent sys_operation is not initialized")
         agent_card = AgentCard(name=self._agent_name, id=_AGENT_CARD_ID)
-        context_engine_config = _deep_agent_context_engine_config(
+        context_model_state = _ContextEngineModelState(
+            full_config=config_base,
+            model_name=getattr(getattr(model, "model_config", None), "model_name", ""),
+            model=model,
+            config_base=config_base,
+        )
+        context_engine_config = _deep_agent_context_engine_config_for_model(
             config,
+            model_state=context_model_state,
         )
         logger.info(
             "[JiuwenSwarmCodeAdapter] ContextEngineConfig resolved: "
@@ -1871,9 +1879,11 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
                 )
             )
 
-        # ── 固定挂载：explore_agent（Code 模式核心子代理，始终启用）──
-        if not self._subagent_list_has_name(subagents, "explore_agent"):
-            explore_agent_cfg = subagents_cfg.get("explore_agent") if isinstance(subagents_cfg, dict) else None
+        # ── explore_agent（Code 模式核心子代理，默认启用，可显式关闭）──
+        explore_agent_cfg = subagents_cfg.get("explore_agent") if isinstance(subagents_cfg, dict) else None
+        if self._is_subagent_default_enabled(explore_agent_cfg) and not self._subagent_list_has_name(
+            subagents, "explore_agent"
+        ):
             explore_spec = build_explore_agent_config(
                 model=model,
                 workspace=workspace,
@@ -1887,9 +1897,11 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             explore_spec.factory_kwargs = {"auto_create_workspace": False}
             subagents.append(explore_spec)
 
-        # ── 固定挂载：plan_agent（Code 模式核心子代理，始终启用）──
-        if not self._subagent_list_has_name(subagents, "plan_agent"):
-            plan_agent_cfg = subagents_cfg.get("plan_agent") if isinstance(subagents_cfg, dict) else None
+        # ── plan_agent（Code 模式核心子代理，默认启用，可显式关闭）──
+        plan_agent_cfg = subagents_cfg.get("plan_agent") if isinstance(subagents_cfg, dict) else None
+        if self._is_subagent_default_enabled(plan_agent_cfg) and not self._subagent_list_has_name(
+            subagents, "plan_agent"
+        ):
             plan_spec = build_plan_agent_config(
                 model=model,
                 workspace=workspace,
@@ -2094,6 +2106,8 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
                 project_dir=runtime_config.project_dir or self._project_dir,
             )
             self._runtime_prompt_rail.set_session_id(runtime_config.session_id)
+            # BrowserTaskPromptRail 已改为 load-aware（按 deep_config.subagents 里是否挂载
+            # browser_agent 决定是否追加浏览器策略），不再需要按请求注入 channel。
         eternal_conversation_rail = getattr(self, "_eternal_conversation_rail", None)
         if eternal_conversation_rail is not None:
             self._eternal_conversation_enabled = runtime_config.eternal_conversation_enabled
