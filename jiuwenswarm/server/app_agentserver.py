@@ -20,11 +20,17 @@ import logging.handlers
 import os
 import sys
 
-from openjiuwen.core.common.logging import LogManager
-
 # --- Early --dotenv parsing (before jiuwenswarm imports) ---
 from jiuwenswarm.dotenv_early import parse_dotenv_early, load_dotenv_runtime
 parse_dotenv_early("jiuwenswarm-agentserver")
+
+# Repair package-data leftovers before imports that may build OpenJiuwen's
+# recursive tool-description index.
+from jiuwenswarm.common.utils import cleanup_stale_openjiuwen_descs
+cleanup_stale_openjiuwen_descs()
+
+from openjiuwen.core.common.logging import LogManager  # pylint: disable=wrong-import-order
+from openjiuwen.harness.observability import install_subagent_observability_hook  # pylint: disable=wrong-import-order
 
 # --- Now safe to import jiuwenswarm modules ---
 from jiuwenswarm.common.debug_dump import install_async_dump_handler
@@ -308,6 +314,10 @@ async def _run(host: str, port: int) -> None:
         name="zen-free-models-warmup",
     )
 
+    from jiuwenswarm.observability.gateway_hints import trajectory_gateway_hint_bridge
+
+    trajectory_gateway_hint_bridge.bind(asyncio.get_running_loop(), server.send_push)
+
     # ---------- ProactiveEngine 初始化 ----------
     # 适配逻辑（建专用 agent + 触发主 agent 回调）封装在 proactive_adapter，
     # app_agentserver 只调 init_proactive_engine。
@@ -329,7 +339,10 @@ async def _run(host: str, port: int) -> None:
     # Distributed teammate can receive bootstrap before any team-mode request arrives.
     # Keep a lightweight daemon alive so remote member bootstrap is consumed proactively.
     teammate_bootstrap_task = asyncio.create_task(
-        run_teammate_bootstrap_daemon(stop_event=stop_event)
+        run_teammate_bootstrap_daemon(
+            stop_event=stop_event,
+            agent_manager=server.get_agent_manager(),
+        )
     )
 
     def _on_signal() -> None:
@@ -350,6 +363,7 @@ async def _run(host: str, port: int) -> None:
         pass
     finally:
         logger.info("[AgentServer] stopping…")
+        await trajectory_gateway_hint_bridge.unbind()
         if teammate_bootstrap_task is not None:
             teammate_bootstrap_task.cancel()
             try:

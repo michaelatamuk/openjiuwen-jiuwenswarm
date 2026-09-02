@@ -1,30 +1,25 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
-"""Single-agent / coding-agent observability lifecycle.
+"""Config-gated lifecycle for single-agent / coding-agent observability.
 
-This is the non-team counterpart of the team observability adapter in
-``jiuwenswarm.agents.harness.team.team_manager`` (``sync_team_observability``
-/ ``shutdown_team_observability``). It is kept in a **separate file with its
-own state and config section** on purpose, so the existing team scenario is
-not affected.
+The non-team counterpart of ``sync_team_observability`` /
+``shutdown_team_observability`` in
+``jiuwenswarm.agents.harness.team.team_manager``, and symmetric with it: this
+module only reads this platform's config and toggles the runtime, while the
+tracing mechanics — run root span, the session-keyed fallback that keeps it
+reachable from supervisor tasks, agent-tier rail wiring and the sub-agent
+dispatch hook — live in the SDK under ``openjiuwen.harness.observability``.
 
-Once ``openjiuwen.agent_teams.observability.init_observability`` has run, the
-generic ``OtelCallbackHandler`` is registered against the **global**
-``Runner.callback_framework``. LLM and tool events are emitted from the shared
-foundation layer (``core/foundation/llm/model.py`` /
-``core/foundation/tool/base.py``) for *every* agent, team or not — so simply
-ensuring the provider is initialized before ``Runner.run_agent_streaming`` /
-``Runner.run_agent`` gives single-agent and coding-agent runs automatic
-LLM/tool span tracing. The team-only ``OtelTeamMonitorHandler`` (team/member/
-task/message spans) is intentionally never attached here.
+It is kept in a **separate file with its own state and config section** on
+purpose, so the existing team scenario is not affected.
 
 Shared-provider caveat (important):
-    OpenTelemetry allows exactly ONE global ``TracerProvider`` per process,
-    and ``init_observability`` is a no-op if already initialized. In a process
-    where BOTH team and agent observability are enabled, whichever runs first
-    wins; the other silently reuses it (its exporter/endpoint/service_name are
-    ignored). Provider demands are coordinated by ``observability_runtime`` so
-    agent shutdown never tears down a provider the team subsystem depends on.
+    OpenTelemetry allows exactly ONE global ``TracerProvider`` per process, and
+    initialization is a no-op if one already exists. In a process where BOTH
+    team and agent observability are enabled, whichever runs first wins; the
+    other silently reuses it (its exporter/endpoint/service_name are ignored).
+    Provider demands are coordinated inside the SDK, so agent shutdown never
+    tears down a provider the team subsystem depends on.
 """
 
 from __future__ import annotations
@@ -34,6 +29,12 @@ import logging
 import time
 from typing import Any
 
+from openjiuwen.harness.observability import (
+    acquire_observability,
+    release_observability,
+)
+
+from jiuwenswarm.agents.harness.observability_runtime import build_observability_config
 from openjiuwen.core.common.logging import server_logger
 
 from jiuwenswarm.common.config import (
@@ -41,136 +42,19 @@ from jiuwenswarm.common.config import (
     get_skill_evolution_enabled,
 )
 from jiuwenswarm.common.utils import get_user_workspace_dir
-from jiuwenswarm.agents.harness.observability_runtime import (
-    acquire_observability_demand,
-    build_observability_config,
-    release_observability_demand,
+from jiuwenswarm.observability.config import load_trajectory_store_settings
+from jiuwenswarm.observability.runtime import (
+    shutdown_trajectory_runtime,
+    sync_trajectory_runtime,
 )
 
 logger = logging.getLogger(__name__)
 
-# ── Single-Agent Observability ─────────────────────────────────
 # Tracks whether observability is currently active so we can detect config
 # toggles (enabled -> disabled or vice-versa) and init / shutdown accordingly
 # on each single-agent request.
 _agent_observability_active: bool = False
 
-# Root spans of the runs currently in flight, keyed by session id.
-#
-# The per-request root ContextVar can't reach the round tasks (agent execution
-# runs in a session-setup supervisor task), so SDK lookups that only see the
-# ContextVar return None there. The wrappers installed below fall back to this
-# registry, which works regardless of task/context boundary.
-#
-# Keyed rather than a single "current run" slot because sessions overlap: a
-# process serves several chats at once, and a single slot made them fight over
-# it. Whoever finished first cleared it, so a run still in progress silently
-# lost its agent-tier spans from that moment on (its sub-agents landed flat
-# under the dispatching agent) — and before that, whoever opened last owned the
-# slot, so the other run's spans would have joined the wrong trace.
-_ROOT_SPANS: dict[str, Any] = {}
-
-# Marker set on the wrapped ``get_root_span`` / ``get_team_span`` callables so
-# install stays idempotent and tests can assert the fallback is in place.
-_SDK_ROOT_SPAN_FALLBACK_ATTR = "_jiuwenswarm_root_span_fallback"
-
-
-def _is_recording(span: Any) -> bool:
-    """Report whether *span* is still open, tolerating stubs without the API."""
-    try:
-        return bool(span is not None and span.is_recording())
-    except Exception:
-        return False
-
-
-def _resolve_root_span() -> Any:
-    """Return the root span of the run the calling task belongs to, or None.
-
-    Resolution is by session id first: ``get_session_id`` is set by the SDK
-    around agent execution, so it is readable from the tasks the ContextVar
-    cannot reach — which is exactly where this fallback is needed.
-
-    When no session id is in reach, a single run in flight is unambiguous and
-    answers. Several in flight with no way to tell them apart returns None
-    rather than a guess: attaching one run's spans to another run's trace is
-    worse than the span being missing.
-    """
-    session_id = ""
-    try:
-        from openjiuwen.agent_teams.context import get_session_id
-
-        session_id = get_session_id() or ""
-    except Exception as exc:
-        logger.debug("[AgentObservability] session id lookup failed: %s", exc)
-
-    span = _ROOT_SPANS.get(session_id)
-    if _is_recording(span):
-        return span
-
-    live = [candidate for candidate in list(_ROOT_SPANS.values()) if _is_recording(candidate)]
-    if len(live) == 1:
-        return live[0]
-    return None
-
-
-def _install_team_span_global_fallback() -> None:
-    """Wrap SDK root/team span lookups with the session-keyed ``_ROOT_SPANS`` fallback.
-
-    Newer openjiuwen moved team-span state into
-    ``extensions.observability.span_context.get_root_span`` (session registry +
-    ContextVar). ``get_team_span`` is a thin facade over that. Wrapping both
-    the extension accessor and the team facade keeps:
-
-    * ``get_team_span()`` (rail / callback parent lookup), and
-    * ``ActiveSpanTracker`` parent resolution (via ``get_root_span``),
-
-    able to see the single-agent root even when the ContextVar is invisible to
-    the supervisor task.
-
-    Best-effort, idempotent, never raises — observability must never break a run.
-    """
-    try:
-        from openjiuwen.agent_teams.observability import span_context as team_sc
-        from openjiuwen.extensions.observability import span_context as ext_sc
-    except Exception as exc:
-        logger.debug("[AgentObservability] skip team-span fallback install: %s", exc)
-        return
-
-    original = getattr(ext_sc, "get_root_span", None)
-    if original is None or getattr(original, _SDK_ROOT_SPAN_FALLBACK_ATTR, False):
-        return
-
-    def get_root_span_with_fallback(*, session_id: str | None = None):
-        try:
-            span = original(session_id=session_id)
-        except TypeError:
-            span = original()
-        if _is_recording(span):
-            return span
-        return _resolve_root_span()
-
-    setattr(get_root_span_with_fallback, _SDK_ROOT_SPAN_FALLBACK_ATTR, True)
-    ext_sc.get_root_span = get_root_span_with_fallback
-    team_sc.get_root_span = get_root_span_with_fallback
-    # callback_handler imports get_root_span by name at module load; rebind that
-    # early binding too, otherwise LLM/tool parent lookup still sees the unwrapped
-    # accessor when the handler was imported before this install ran.
-    try:
-        from openjiuwen.extensions.observability import callback_handler as ch
-
-        ch.get_root_span = get_root_span_with_fallback
-    except Exception as exc:
-        logger.debug("[AgentObservability] callback_handler rebind skipped: %s", exc)
-
-    def get_team_span_with_fallback(team_name: str | None = None):
-        del team_name
-        return get_root_span_with_fallback()
-
-    setattr(get_team_span_with_fallback, _SDK_ROOT_SPAN_FALLBACK_ATTR, True)
-    team_sc.get_team_span = get_team_span_with_fallback
-
-
-_install_team_span_global_fallback()
 # Sticky flag: once any single-agent request has force-enabled observability
 # (e.g. a ``/debug`` run with ``debug_trace.<mode>.otel_enabled``), we never
 # auto-teardown the provider for the rest of the process. OTel allows only one
@@ -188,7 +72,7 @@ def sync_agent_observability(*, force: bool = False) -> None:
     that hot-reloading the ``agent_observability.enabled`` flag takes effect
     immediately:
 
-    * disabled -> enabled : ``init_observability()`` (or reuse if already up)
+    * disabled -> enabled : acquire the provider (or reuse if already up)
     * enabled -> disabled : ``shutdown_agent_observability()``
     * unchanged           : no-op
 
@@ -206,9 +90,11 @@ def sync_agent_observability(*, force: bool = False) -> None:
 
     config = get_config()
     cfg = config.get("agent_observability", {}) or {}
+    trajectory_settings = load_trajectory_store_settings(config)
     evolution_requested = get_skill_evolution_enabled(config)
     want_enabled = (
         bool(cfg.get("enabled", False))
+        or trajectory_settings.enabled
         or evolution_requested
         or force
         or _force_ever_enabled
@@ -216,12 +102,11 @@ def sync_agent_observability(*, force: bool = False) -> None:
     if force:
         _force_ever_enabled = True
 
-    # Single-agent spans carry a redundant agentteam.* block; drop it. Scoped
-    # to single-agent runs — real team members keep their team attrs.
-    if want_enabled:
-        _apply_single_agent_team_attr_suppression()
-
     if not want_enabled:
+        try:
+            sync_trajectory_runtime(trajectory_settings, demand="agent")
+        except Exception as exc:
+            logger.warning("[AgentObservability] trajectory runtime stop failed: %s", exc)
         if _agent_observability_active:
             shutdown_agent_observability()
         return
@@ -231,14 +116,18 @@ def sync_agent_observability(*, force: bool = False) -> None:
         obs_cfg = build_observability_config(
             cfg,
             service_name="jiuwenswarm-agent",
+            default_backend="otlp",
             traces_dir=traces_dir,
         )
-        provider_existed = acquire_observability_demand(
-            "agent",
-            observability_config=obs_cfg,
-        )
+        provider_existed = acquire_observability(obs_cfg)
         was_active = _agent_observability_active
         _agent_observability_active = True
+        try:
+            sync_trajectory_runtime(trajectory_settings, demand="agent")
+        except Exception as exc:
+            # The trajectory read store is an optional fan-out. Existing file,
+            # OTLP and Langfuse exporters must keep the Agent path available.
+            logger.warning("[AgentObservability] trajectory runtime init failed: %s", exc)
         if not was_active:
             if provider_existed:
                 logger.info(
@@ -269,10 +158,15 @@ def sync_agent_observability(*, force: bool = False) -> None:
 def shutdown_agent_observability() -> None:
     """Shutdown single-agent observability (on disable or process exit)."""
     global _agent_observability_active
+    try:
+        if not shutdown_trajectory_runtime(demand="agent"):
+            logger.warning("[AgentObservability] trajectory runtime did not drain cleanly")
+    except Exception as exc:
+        logger.warning("[AgentObservability] trajectory runtime shutdown failed: %s", exc)
     if not _agent_observability_active:
         return
     try:
-        release_observability_demand("agent")
+        release_observability()
         _agent_observability_active = False
         logger.info("[AgentObservability] disabled")
     except Exception as exc:
