@@ -29,13 +29,13 @@ import logging
 import time
 from typing import Any
 
+from openjiuwen.core.common.logging import server_logger
 from openjiuwen.harness.observability import (
     acquire_observability,
     release_observability,
 )
 
 from jiuwenswarm.agents.harness.observability_runtime import build_observability_config
-from openjiuwen.core.common.logging import server_logger
 
 from jiuwenswarm.common.config import (
     get_config,
