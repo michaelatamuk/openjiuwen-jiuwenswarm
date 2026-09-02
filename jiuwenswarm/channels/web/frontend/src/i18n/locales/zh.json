@@ -598,8 +598,8 @@
     "placeholderAwaitingApproval": "请先处理上方待确认项",
     "placeholderProcessing": "处理中，输入新指令可中断...",
     "placeholderProcessingQueue": "处理中，输入新指令将加入等待队列...",
-    "placeholderTeamMode": "需要帮你做些什么？输入“/”快速引用技能及指令",
-    "placeholderTeamModeProcessing": "集群模式处理中，输入新指令会并行执行...",
+    "placeholderTeamMode": "需要帮你做些什么？输入“/”快速引用技能",
+    "placeholderTeamModeProcessing": "集群模式处理中，输入新消息会并行执行...",
     "placeholderVoice": "正在听取语音...",
     "welcomeLogoAlt": "WorkSwarm 标志",
     "welcomeBubbleText": "HI~我是你的专属桌面智能搭子，随时待命陪你摸鱼解闷~",
@@ -2970,8 +2970,10 @@
       "message": "卸载后该插件将变为不可用状态，可以重新安装。"
     },
     "empty": {
-      "myMcp": "还没有已安装的MCP",
-      "myPlugin": "还没有已安装的插件",
+      "myMcp": "暂无我的 MCP",
+      "myPlugin": "暂无我的插件",
+      "mcp": "暂无可用的 MCP",
+      "plugin": "暂无可用的插件",
       "searchNoResult": "没有找到匹配的结果",
       "loadingPlugin": "加载插件中...",
       "loadingMcp": "加载MCP中...",

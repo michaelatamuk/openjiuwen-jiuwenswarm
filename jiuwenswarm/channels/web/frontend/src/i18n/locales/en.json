@@ -610,8 +610,8 @@
     "placeholderAwaitingApproval": "Please respond to the pending confirmation above",
     "placeholderProcessing": "Processing, enter to interrupt...",
     "placeholderProcessingQueue": "Processing, new input will join the queue...",
-    "placeholderTeamMode": "What can I do for you? Type \"/\" to quickly reference skills and commands",
-    "placeholderTeamModeProcessing": "Team mode processing, new input will run in parallel...",
+    "placeholderTeamMode": "What can I do for you? Type \"/\" to quickly reference skills",
+    "placeholderTeamModeProcessing": "Team mode processing, new messages will run in parallel...",
     "placeholderVoice": "Listening...",
     "welcomeLogoAlt": "WorkSwarm logo",
     "welcomeBubbleText": "Hi~ I'm your personal desktop smart buddy.",
@@ -2989,8 +2989,10 @@
       "message": "This plugin will become unavailable — you can reinstall it anytime."
     },
     "empty": {
-      "myMcp": "No MCPs installed yet",
-      "myPlugin": "No plugins installed yet",
+      "myMcp": "No MCPs yet",
+      "myPlugin": "No plugins yet",
+      "mcp": "No MCPs available",
+      "plugin": "No plugins available",
       "searchNoResult": "No matches found",
       "loadingPlugin": "Loading plugins...",
       "loadingMcp": "Loading MCPs...",
