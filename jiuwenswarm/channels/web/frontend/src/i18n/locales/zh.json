@@ -304,6 +304,7 @@
       "permissions_mode": { "title": "全局权限模式", "description": "为普通 Agent 与 Team 选择统一的安全护栏模式。" },
       "a2ui_enabled": { "title": "启用 A2UI", "description": "允许将支持的结果渲染成交互式界面。" },
       "trajectory_ui_enabled": { "title": "启用轨迹界面", "description": "在单 Agent 和集群模式中显示对话与轨迹切换，并启用轨迹观测数据链路。" },
+      "trajectory_analysis_enabled": { "title": "启用轨迹 AI 分析", "description": "在“轨迹”页展示“分析”入口，对会话执行 LLM 诊断并给出技能演进建议。需先启用轨迹界面。" },
       "external_cli_agent_claude_enabled": {
         "title": "启用 Claude",
         "description": "允许 Team Leader 拉起 Claude Agent。"

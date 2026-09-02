@@ -79,6 +79,7 @@ from jiuwenswarm.common.config import (
     update_updater_in_config,
     update_proactive_recommendation_in_config,
     update_trajectory_ui_in_config,
+    update_trajectory_analysis_enabled_in_config,
     update_skill_evolution_enabled_in_config,
 )
 from jiuwenswarm.common.kv_cache_affinity_config import (
@@ -189,6 +190,8 @@ class _ConfigChangeSet:
             elif key_text.startswith("symphony") or key_text.startswith("skill_retrieval"):
                 scopes.add("agent_runtime")
             elif key_text == "trajectory_ui_enabled":
+                scopes.update({"agent_runtime", "web_ui"})
+            elif key_text == "trajectory_analysis_enabled":
                 scopes.update({"agent_runtime", "web_ui"})
             elif key_text.startswith("a2ui_") or key_text == "setup_guide_enabled":
                 scopes.add("web_ui")
@@ -3155,6 +3158,8 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                     update_a2ui_in_config(update)
                 elif param_key == "trajectory_ui_enabled":
                     update_trajectory_ui_in_config(parsed)
+                elif param_key == "trajectory_analysis_enabled":
+                    update_trajectory_analysis_enabled_in_config(parsed)
                 elif param_key == "proactive_recommendation_enabled":
                     update_proactive_recommendation_in_config({"enabled": parsed})
                 elif param_key == "proactive_recommendation_max_recommend_per_day":

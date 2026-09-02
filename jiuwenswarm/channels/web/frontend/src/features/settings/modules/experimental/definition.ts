@@ -4,6 +4,7 @@ import {
   A2UISetting,
   ExternalCliSettingsItem,
   ProactiveLimitsSetting,
+  TrajectoryAnalysisSetting,
   TrajectoryUiSetting,
 } from './ExperimentalSettings';
 
@@ -26,7 +27,10 @@ export const experimentalModule: SettingsModuleDefinition = {
     {
       id: 'trajectory-ui',
       titleKey: 'settingsPanel.experimental.trajectoryUi',
-      items: [{ id: 'trajectory-ui-enabled', component: 'custom', render: TrajectoryUiSetting }],
+      items: [
+        { id: 'trajectory-ui-enabled', component: 'custom', render: TrajectoryUiSetting },
+        { id: 'trajectory-analysis-enabled', component: 'custom', render: TrajectoryAnalysisSetting },
+      ],
     },
     {
       id: 'proactive-recommendation',

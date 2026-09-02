@@ -106,6 +106,7 @@ export const SETTINGS_CONFIG_FIELDS: readonly ConfigFieldContract[] = [
 
   yamlField('a2ui_enabled', 'experimental', 'boolean', 'a2ui.enabled'),
   yamlField('trajectory_ui_enabled', 'experimental', 'boolean', 'trajectory_ui.enabled'),
+  yamlField('trajectory_analysis_enabled', 'experimental', 'boolean', 'trajectory_ui.analysis.enabled'),
   yamlField(
     'external_cli_agent_claude_enabled',
     'experimental',

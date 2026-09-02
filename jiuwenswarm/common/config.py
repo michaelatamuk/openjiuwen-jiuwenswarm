@@ -868,6 +868,19 @@ def get_trajectory_analysis_enabled(config: dict[str, Any] | None = None) -> boo
     return bool(analysis.get("enabled")) and bool(trajectory_ui.get("enabled"))
 
 
+def update_trajectory_analysis_enabled_in_config(enabled: bool) -> None:
+    """Update ``trajectory_ui.analysis.enabled`` and persist config.yaml."""
+    data = load_yaml_round_trip(CONFIG_YAML_PATH)
+    if "trajectory_ui" not in data or data["trajectory_ui"] is None:
+        data["trajectory_ui"] = {}
+    analysis = data["trajectory_ui"].get("analysis")
+    if not isinstance(analysis, dict):
+        analysis = {}
+        data["trajectory_ui"]["analysis"] = analysis
+    analysis["enabled"] = bool(enabled)
+    dump_yaml_round_trip(CONFIG_YAML_PATH, data)
+
+
 def update_updater_in_config(updates: dict[str, Any]) -> None:
     """只更新 updater 段并写回。"""
     data = load_yaml_round_trip(CONFIG_YAML_PATH)

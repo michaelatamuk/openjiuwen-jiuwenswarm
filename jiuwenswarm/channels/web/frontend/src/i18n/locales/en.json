@@ -316,6 +316,7 @@
       },
       "a2ui_enabled": { "title": "Enable A2UI", "description": "Render supported results as interactive interfaces." },
       "trajectory_ui_enabled": { "title": "Enable trajectory UI", "description": "Show Chat and Trajectory switching in Agent and Team modes and enable the trajectory observability data path." },
+      "trajectory_analysis_enabled": { "title": "Enable trajectory AI analysis", "description": "Show an Analyze action in the Trajectory tab that runs LLM diagnosis over the session and suggests skill evolution. Requires Trajectory UI." },
       "external_cli_agent_claude_enabled": {
         "title": "Enable Claude",
         "description": "Allow a Team Leader to spawn a Claude Agent."
