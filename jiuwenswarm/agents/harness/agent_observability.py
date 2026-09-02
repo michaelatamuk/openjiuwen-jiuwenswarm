@@ -64,6 +64,14 @@ _agent_observability_active: bool = False
 # unless force was ever used.
 _force_ever_enabled: bool = False
 
+# Session-id → open root span fallback table (see ``open_agent_run_span``). The
+# agent and its sub-agents run in a different asyncio task than the request
+# handler, so ContextVars do not reach them; this table lets a sub-agent's
+# ``create_subagent``/LLM callback resolve the parent run's span by session id.
+# A session's entry is dropped when its run closes, and sessions overlap, so
+# closing never clears another still-running session's entry.
+_ROOT_SPANS: dict[str, Any] = {}
+
 
 def sync_agent_observability(*, force: bool = False) -> None:
     """Synchronize single-agent observability state with current config.
