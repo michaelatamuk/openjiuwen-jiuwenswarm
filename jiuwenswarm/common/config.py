@@ -859,6 +859,15 @@ def update_trajectory_ui_in_config(enabled: bool) -> None:
     dump_yaml_round_trip(CONFIG_YAML_PATH, data)
 
 
+def get_trajectory_analysis_enabled(config: dict[str, Any] | None = None) -> bool:
+    """Return the canonical ``trajectory_ui.analysis.enabled`` switch."""
+    if config is None:
+        config = get_config()
+    trajectory_ui = config.get("trajectory_ui") or {}
+    analysis = trajectory_ui.get("analysis") or {}
+    return bool(analysis.get("enabled")) and bool(trajectory_ui.get("enabled"))
+
+
 def update_updater_in_config(updates: dict[str, Any]) -> None:
     """只更新 updater 段并写回。"""
     data = load_yaml_round_trip(CONFIG_YAML_PATH)

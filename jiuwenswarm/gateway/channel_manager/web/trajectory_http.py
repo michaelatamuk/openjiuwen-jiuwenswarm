@@ -441,6 +441,274 @@ class TrajectoryHttpService:
         return None
 
 
+_ANALYSIS_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+
+
+class TrajectoryAnalysisEndpoints:
+    """HTTP layer over the in-process trajectory analysis jobs.
+
+    Analysis runs in the background through :class:`AnalysisJobRegistry`; this
+    class only starts, polls, cancels, and (with explicit human approval) applies
+    the resulting evolution suggestions. No unverified write ever happens.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings_loader=None,
+        reader_loader: Callable[[str], Awaitable[Any]] | None = None,
+        validate: Callable[[str], Response | None] | None = None,
+        registry=None,
+        model_provider=None,
+    ) -> None:
+        from jiuwenswarm.trajectory_insight.config import get_analysis_settings
+        from jiuwenswarm.trajectory_insight.jobs import AnalysisJobRegistry
+        from jiuwenswarm.trajectory_insight.model import resolve_model_for_analysis
+
+        self._settings_loader = settings_loader or get_analysis_settings
+        self._reader_loader = reader_loader
+        self._validate = validate or (lambda _session_id: None)
+        self._registry = registry or AnalysisJobRegistry()
+        self._model_provider = model_provider or resolve_model_for_analysis
+
+    async def start_analysis(self, session_id: str) -> Response:
+        from jiuwenswarm.trajectory_insight.analyzer import analyze_session
+        from jiuwenswarm.trajectory_insight.readmodel import build_session_read_model
+        from jiuwenswarm.trajectory_insight.signals import detect
+
+        settings = self._settings_loader()
+        if not settings.enabled:
+            return _error_response(
+                "trajectory analysis is disabled",
+                "TRAJECTORY_ANALYSIS_DISABLED",
+                503,
+            )
+        error = self._validate(session_id)
+        if error is not None:
+            return error
+
+        async def runner():
+            records, _epoch, _revision = await self._read_records(session_id)
+            read_model = build_session_read_model(
+                records,
+                max_turns=settings.max_report_turns,
+            )
+            seeds = detect(read_model)
+            model = self._model_provider() if settings.enabled else None
+            return await analyze_session(
+                read_model,
+                seeds,
+                model=model,
+                language=settings.language,
+                max_input_chars=settings.max_input_chars,
+            )
+
+        job = await self._registry.start(session_id, store_epoch="", runner=runner)
+        return _json_response(job.to_dict(), status_code=202)
+
+    async def get_analysis(self, analysis_id: str) -> Response:
+        job = self._registry.get(analysis_id)
+        if job is None:
+            return _error_response("analysis not found", "NOT_FOUND", 404)
+        return _json_response(job.to_dict())
+
+    async def cancel_analysis(self, analysis_id: str) -> Response:
+        cancelled = await self._registry.cancel(analysis_id)
+        if not cancelled:
+            return _error_response("analysis not found", "NOT_FOUND", 404)
+        return _json_response({"analysis_id": analysis_id, "status": "failed", "error": "cancelled"})
+
+    async def apply_analysis(self, session_id: str, analysis_id: str, request: Request) -> Response:
+        settings = self._settings_loader()
+        body = await _read_json_body(request)
+        if body is None:
+            return _error_response("invalid JSON body", "BAD_REQUEST", 400)
+        issue_index = _as_int(body.get("issue_index"))
+        if issue_index is None:
+            return _error_response("issue_index is required", "BAD_REQUEST", 400)
+        preview = bool(body.get("preview", False))
+
+        error = self._validate(session_id)
+        if error is not None:
+            return error
+        job = self._registry.get(analysis_id)
+        if job is None or job.session_id != session_id:
+            return _error_response("analysis not found", "NOT_FOUND", 404)
+        if job.status != "completed" or job.report is None:
+            return _error_response("analysis is not complete", "ANALYSIS_NOT_COMPLETE", 409)
+
+        from jiuwenswarm.trajectory_insight.evolution import SkillApplyService, derive_issue
+
+        issue = derive_issue(job.report, issue_index)
+        if issue is None:
+            return _error_response("issue not found", "NOT_FOUND", 404)
+        service = SkillApplyService(
+            settings,
+            model_provider=self._model_provider,
+        )
+        if preview:
+            result = service.preview(issue)
+            if result is None:
+                return _error_response(
+                    "issue has no applicable skill change",
+                    "NOT_APPLICABLE",
+                    409,
+                )
+            return _json_response(result)
+        if issue.evolution is None or issue.evolution.kind.value != "skill":
+            return _error_response(
+                "issue has no applicable skill change",
+                "NOT_APPLICABLE",
+                409,
+            )
+        result = await service.confirm(issue)
+        status_code = 200 if result.get("status") in {"applied", "previewed"} else 409
+        return _json_response(result, status_code=status_code)
+
+    async def proposal_analysis(self, session_id: str, analysis_id: str, request: Request) -> Response:
+        settings = self._settings_loader()
+        body = await _read_json_body(request)
+        if body is None:
+            return _error_response("invalid JSON body", "BAD_REQUEST", 400)
+        issue_index = _as_int(body.get("issue_index"))
+        if issue_index is None:
+            return _error_response("issue_index is required", "BAD_REQUEST", 400)
+
+        error = self._validate(session_id)
+        if error is not None:
+            return error
+        job = self._registry.get(analysis_id)
+        if job is None or job.session_id != session_id:
+            return _error_response("analysis not found", "NOT_FOUND", 404)
+        if job.status != "completed" or job.report is None:
+            return _error_response("analysis is not complete", "ANALYSIS_NOT_COMPLETE", 409)
+
+        from jiuwenswarm.trajectory_insight.evolution import build_code_proposal, derive_issue
+
+        issue = derive_issue(job.report, issue_index)
+        if issue is None:
+            return _error_response("issue not found", "NOT_FOUND", 404)
+        proposal = build_code_proposal(issue, settings)
+        if proposal is None:
+            return _error_response(
+                "code-surface proposals are disabled",
+                "PROPOSAL_DISABLED",
+                409,
+            )
+        return _json_response(proposal)
+
+    async def _read_records(self, session_id: str):
+        if self._reader_loader is not None:
+            return await self._reader_loader(session_id)
+        return [], "", 0
+
+
+def attach_trajectory_analysis_routes(
+    app: FastAPI,
+    trajectory_service: "TrajectoryHttpService",
+    *,
+    registry=None,
+    model_provider=None,
+) -> TrajectoryAnalysisEndpoints:
+    """Mount the analysis HTTP routes on the WebChannel FastAPI app."""
+    endpoints = TrajectoryAnalysisEndpoints(
+        reader_loader=trajectory_service.reader.get_session_archive_records,
+        validate=lambda session_id: trajectory_service._validate_access(  # noqa: SLF001
+            session_id,
+            trajectory_service.settings,
+        ),
+        registry=registry,
+        model_provider=model_provider,
+    )
+    app.state.trajectory_analysis_endpoints = endpoints
+
+    @app.post(f"{TRAJECTORY_API_PREFIX}/sessions/{{session_id}}/analyses")
+    async def start_analysis(
+        session_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        return await endpoints.start_analysis(session_id)
+
+    @app.get(f"{TRAJECTORY_API_PREFIX}/analyses/{{analysis_id}}")
+    async def get_analysis(
+        analysis_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
+            return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
+        return await endpoints.get_analysis(str(analysis_id))
+
+    @app.delete(f"{TRAJECTORY_API_PREFIX}/analyses/{{analysis_id}}")
+    async def cancel_analysis(
+        analysis_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
+            return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
+        return await endpoints.cancel_analysis(str(analysis_id))
+
+    @app.post(
+        f"{TRAJECTORY_API_PREFIX}/sessions/{{session_id}}/analyses/{{analysis_id}}/apply"
+    )
+    async def apply_analysis(
+        session_id: str,
+        analysis_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
+            return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
+        return await endpoints.apply_analysis(session_id, str(analysis_id), request)
+
+    @app.post(
+        f"{TRAJECTORY_API_PREFIX}/sessions/{{session_id}}/analyses/{{analysis_id}}/proposal"
+    )
+    async def proposal_analysis(
+        session_id: str,
+        analysis_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
+            return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
+        return await endpoints.proposal_analysis(session_id, str(analysis_id), request)
+
+    return endpoints
+
+
+async def _read_json_body(request: Request) -> dict | None:
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def attach_trajectory_routes(
     app: FastAPI,
     channel: WebChannel,
@@ -623,6 +891,7 @@ def attach_trajectory_routes(
             return origin_error
         return await service.get_raw_record(session_id, trace_id, span_id)
 
+    attach_trajectory_analysis_routes(app, service)
     return service
 
 

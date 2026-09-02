@@ -1,0 +1,152 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+
+"""In-process asyncio job registry for session analyses.
+
+Analysis jobs are long running (store read + capped LLM call) and must never be
+executed inline inside an HTTP handler. The registry starts one background task
+per analysis, enforces a global concurrency bound and a per-job timeout, and
+keeps completed reports for a TTL so the UI can poll them.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+import uuid
+from dataclasses import dataclass
+from typing import Awaitable, Callable
+
+from jiuwenswarm.trajectory_insight.schemas import SessionAnalysisReport
+
+AnalysisRunner = Callable[[], Awaitable[SessionAnalysisReport]]
+
+
+@dataclass
+class AnalysisJob:
+    """Mutable state of one analysis run."""
+
+    analysis_id: str
+    session_id: str
+    store_epoch: str
+    created_at: float
+    started_at: float | None = None
+    finished_at: float | None = None
+    status: str = "running"
+    fingerprint: str | None = None
+    error: str | None = None
+    report: SessionAnalysisReport | None = None
+
+    def to_dict(self) -> dict:
+        """Serialize for the HTTP boundary."""
+        payload = {
+            "analysis_id": self.analysis_id,
+            "session_id": self.session_id,
+            "status": self.status,
+            "store_epoch": self.store_epoch,
+            "stale": False,
+            "created_at": self.created_at,
+        }
+        if self.fingerprint is not None:
+            payload["fingerprint"] = self.fingerprint
+        if self.finished_at is not None:
+            payload["finished_at"] = self.finished_at
+        if self.error is not None:
+            payload["error"] = self.error
+        if self.report is not None:
+            payload["report"] = self.report.to_dict()
+        return payload
+
+
+class AnalysisJobRegistry:
+    """Owns background analysis tasks for the gateway process."""
+
+    def __init__(
+        self,
+        *,
+        max_concurrent: int = 4,
+        timeout_s: int = 600,
+        ttl_s: int = 3600,
+    ) -> None:
+        self._max_concurrent = max(1, max_concurrent)
+        self._timeout_s = max(1, timeout_s)
+        self._ttl_s = max(1, ttl_s)
+        self._semaphore = asyncio.Semaphore(self._max_concurrent)
+        self._jobs: dict[str, AnalysisJob] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._lock = asyncio.Lock()
+
+    async def start(self, session_id: str, store_epoch: str, runner: AnalysisRunner) -> AnalysisJob:
+        """Start a background analysis, returning the running or existing job."""
+        async with self._lock:
+            existing = next(
+                (
+                    job for job in self._jobs.values()
+                    if job.session_id == session_id and job.status == "running"
+                ),
+                None,
+            )
+            if existing is not None:
+                return existing
+            job = AnalysisJob(
+                analysis_id=uuid.uuid4().hex,
+                session_id=session_id,
+                store_epoch=store_epoch,
+                created_at=time.time(),
+            )
+            self._jobs[job.analysis_id] = job
+            task = asyncio.create_task(self._execute(job, runner))
+            self._tasks[job.analysis_id] = task
+            self._gc()
+            return job
+
+    def get(self, analysis_id: str) -> AnalysisJob | None:
+        """Return a job by id, or None when unknown or evicted."""
+        return self._jobs.get(analysis_id)
+
+    async def cancel(self, analysis_id: str) -> bool:
+        """Cancel a running job and mark it failed."""
+        async with self._lock:
+            job = self._jobs.get(analysis_id)
+            task = self._tasks.get(analysis_id)
+            if job is None:
+                return False
+            if task is not None and not task.done():
+                task.cancel()
+            if job.status == "running":
+                job.status = "failed"
+                job.error = "cancelled"
+                job.finished_at = time.time()
+            return True
+
+    async def _execute(self, job: AnalysisJob, runner: AnalysisRunner) -> None:
+        async with self._semaphore:
+            if job.status != "running":
+                return
+            job.started_at = time.time()
+            try:
+                report = await asyncio.wait_for(
+                    runner(),
+                    timeout=self._timeout_s,
+                )
+            except asyncio.TimeoutError:
+                job.status = "failed"
+                job.error = "ANALYSIS_TIMEOUT"
+                job.finished_at = time.time()
+            except Exception as exc:  # noqa: BLE001
+                job.status = "failed"
+                job.error = str(exc)
+                job.finished_at = time.time()
+            else:
+                job.status = "completed"
+                job.report = report
+                job.fingerprint = report.fingerprint
+                job.finished_at = time.time()
+            finally:
+                self._tasks.pop(job.analysis_id, None)
+
+    def _gc(self) -> None:
+        cutoff = time.time() - self._ttl_s
+        for analysis_id in list(self._jobs):
+            job = self._jobs[analysis_id]
+            if job.status in {"completed", "failed"} and job.finished_at and job.finished_at < cutoff:
+                self._jobs.pop(analysis_id, None)

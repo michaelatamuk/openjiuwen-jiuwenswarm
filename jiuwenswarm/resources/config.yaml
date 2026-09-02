@@ -532,6 +532,19 @@ trajectory_ui:
   flush_interval_ms: 200            # writer 最大合批等待时间
   poll_interval_ms: 2000            # Web 端兜底轮询间隔
   detail_max_bytes: 4194304          # 单次详情响应累计 raw 投影预算（超大 Span 仅返回索引）
+  # 轨迹 AI 分析（Trajectory tab 上的 Analyze）。master = enabled。
+  # LLM 分析在 Gateway 进程内运行，输入为脱敏并限长的会话摘要。
+  analysis:
+    enabled: false                    # 是否允许在 Trajectory UI 中发起分析
+    model: ""                         # 可选覆盖；留空则使用产品默认模型
+    max_input_chars: 8000             # 送入 LLM 的摘要字符上限
+    max_report_turns: 60              # 纳入分析的轮次数上限
+    job_timeout_s: 600                # 单次分析任务超时
+    job_ttl_s: 3600                   # 已完成任务保留时长
+    max_concurrent_jobs: 4            # Gateway 进程内并发分析上限
+    allow_apply_skill: false          # 是否允许“审阅后写入 SKILL.md”
+    allow_code_patch: false           # 是否允许生成 tool/rail/prompt 代码补丁
+    language: en                      # 诊断 prompt 语言: en | zh
 
 # ============================================================
 # Agent / Code 调试链路追踪（Debug Trace）配置

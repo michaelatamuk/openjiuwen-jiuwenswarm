@@ -2845,6 +2845,15 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             payload["trajectory_ui_enabled"] = (
                 "true" if trajectory_cfg.get("enabled", False) else "false"
             )
+            trajectory_analysis_cfg = (trajectory_cfg.get("analysis") or {}) if isinstance(
+                trajectory_cfg.get("analysis"), dict
+            ) else {}
+            payload["trajectory_analysis_enabled"] = (
+                "true"
+                if trajectory_cfg.get("enabled", False)
+                and trajectory_analysis_cfg.get("enabled", False)
+                else "false"
+            )
             payload.update(_flatten_swarmflow_for_config_panel(raw))
             payload.update(_flatten_external_cli_agents_for_config_panel(raw))
             payload.update(_flatten_symphony_for_config_panel(raw))
@@ -2876,6 +2885,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             for key, value in get_default_a2ui_config_payload().items():
                 payload.setdefault(key, value)
             payload.setdefault("trajectory_ui_enabled", "false")
+            payload.setdefault("trajectory_analysis_enabled", "false")
             for key, (_, value_type, default) in {
                 **_SYMPHONY_CONFIG_SPECS,
                 **_SKILL_RETRIEVAL_CONFIG_SPECS,

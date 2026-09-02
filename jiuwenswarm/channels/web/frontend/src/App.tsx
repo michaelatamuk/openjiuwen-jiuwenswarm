@@ -138,6 +138,7 @@ import {
 } from './features/trajectory/trajectoryLayout';
 import {
   normalizeTrajectoryUiEnabled,
+  setTrajectoryAnalysisEnabled,
   setTrajectoryUiEnabled,
   useTrajectoryUiEnabled,
 } from './features/trajectory/featureConfig';
@@ -1438,6 +1439,7 @@ function AppContent({
       const config = await request<Record<string, unknown>>('config.get');
       setA2UIFeatureEnabled(normalizeA2UIEnabled(config.a2ui_enabled));
       setTrajectoryUiEnabled(normalizeTrajectoryUiEnabled(config.trajectory_ui_enabled));
+      setTrajectoryAnalysisEnabled(normalizeTrajectoryUiEnabled(config.trajectory_analysis_enabled));
       setServerConfig(config);
       setConfigError(null);
       if (!modelSetupGuideEvaluatedRef.current) {
