@@ -105,6 +105,18 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   const runRef = useRef(0);
   const activeRef = useRef(active);
   activeRef.current = active;
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (phase !== 'running') return undefined;
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  const elapsedSec = runStartedAt === null
+    ? null
+    : Math.max(0, Math.floor((nowTick - runStartedAt) / 1000));
 
   const bump = useCallback(() => forceRender(value => value + 1), []);
   const uiFor = useCallback((index: number): IssueUi => {
@@ -125,6 +137,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     setError(null);
     setJob(null);
     setIssues([]);
+    setRunStartedAt(null);
     issueUiRef.current = {};
     bump();
   }, [sessionId, bump]);
@@ -137,6 +150,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     setError(null);
     setJob(null);
     setIssues([]);
+    setRunStartedAt(Date.now());
     issueUiRef.current = {};
     bump();
     let started: AnalysisJob;
@@ -218,6 +232,14 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     }
   }, [job, sessionId, patchUi]);
 
+  const stageText = useMemo(() => {
+    if (phase !== 'running') return '';
+    const stage = job?.stage;
+    if (stage === 'diagnosing') return copy.stageDiagnosing;
+    if (stage === 'analyzing') return copy.stageAnalyzing;
+    return copy.stageReading;
+  }, [phase, job?.stage, copy]);
+
   const header = useMemo(() => (
     <div className={css.header}>
       <button
@@ -227,7 +249,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
         onClick={() => { void run(); }}
         data-testid="trajectory-analysis-run"
       >
-        {phase === 'running' ? copy.runningHint : phase === 'done' ? copy.rerun : copy.run}
+        {phase === 'running' ? copy.running : phase === 'done' ? copy.rerun : copy.run}
       </button>
       <span className={css.note}>{copy.costNote}</span>
       {phase === 'done' && issues.length > 0 ? (
@@ -247,6 +269,15 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   return (
     <section className={css.root} data-testid="trajectory-analysis" aria-label="AI Analysis">
       {header}
+      {phase === 'running' ? (
+        <div className={css.progress} data-testid="trajectory-analysis-progress">
+          <span className={css.progressStage}>
+            {stageText}
+            {elapsedSec !== null ? ` · ${elapsedSec}s` : ''}
+          </span>
+          <span className={css.progressNote}>{copy.runningEstimate}</span>
+        </div>
+      ) : null}
       {phase === 'failed' && error !== null ? (
         <p className={css.error} role="alert">{error}</p>
       ) : null}
@@ -300,9 +331,7 @@ function IssueCard({
   return (
     <article className={css.card}>
       <div className={css.cardHead}>
-        <span className={css.priority} data-priority={issue.priority}>
-          {copy.priority} {issue.priority}
-        </span>
+        <span className={css.priority} data-priority={issue.priority}>P{issue.priority}</span>
         <h4 className={css.cardTitle}>{issue.title}</h4>
       </div>
       {issue.description ? <p className={css.text}>{issue.description}</p> : null}
@@ -367,7 +396,13 @@ function IssueCard({
       ) : null}
       {ui.proposal !== null ? (
         <div className={css.diffBlock}>
-          <pre className={css.diff}>{ui.proposal.note}{'\n'}{JSON.stringify(ui.proposal, null, 2)}</pre>
+          <pre className={css.diff}>
+            {ui.proposal.location_hint ? `${ui.proposal.location_hint}\n\n` : ''}
+            {`${copy.suggestedChange}: ${ui.proposal.rationale || ui.proposal.note}`}
+            {ui.proposal.artifacts && ui.proposal.artifacts.length > 0
+              ? `\n\n${JSON.stringify(ui.proposal.artifacts, null, 2)}`
+              : ''}
+          </pre>
         </div>
       ) : null}
     </article>

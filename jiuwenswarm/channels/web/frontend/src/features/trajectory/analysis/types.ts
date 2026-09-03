@@ -53,8 +53,10 @@ export interface AnalysisJob {
   store_epoch: string;
   stale: boolean;
   created_at: number;
-  fingerprint?: string;
+  stage?: string;
+  started_at?: number;
   finished_at?: number;
+  fingerprint?: string;
   error?: string;
   report?: SessionAnalysisReport;
 }
@@ -90,5 +92,6 @@ export interface ProposalResult {
   rationale: string;
   risk: string;
   artifacts: EvolutionArtifact[];
+  location_hint?: string;
   note: string;
 }

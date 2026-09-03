@@ -144,6 +144,8 @@ function jobOf(value: unknown): AnalysisJob | null {
     store_epoch: typeof value.store_epoch === 'string' ? value.store_epoch : '',
     stale: value.stale === true,
     created_at: typeof value.created_at === 'number' ? value.created_at : 0,
+    ...(typeof value.stage === 'string' ? { stage: value.stage } : {}),
+    ...(typeof value.started_at === 'number' ? { started_at: value.started_at } : {}),
     ...(typeof value.fingerprint === 'string' ? { fingerprint: value.fingerprint } : {}),
     ...(typeof value.finished_at === 'number' ? { finished_at: value.finished_at } : {}),
     ...(typeof value.error === 'string' ? { error: value.error } : {}),
@@ -202,6 +204,7 @@ function proposalOf(value: unknown): ProposalResult | null {
     rationale: typeof value.rationale === 'string' ? value.rationale : '',
     risk: typeof value.risk === 'string' ? value.risk : 'unknown',
     artifacts,
+    ...(typeof value.location_hint === 'string' ? { location_hint: value.location_hint } : {}),
     note: typeof value.note === 'string' ? value.note : '',
   };
 }

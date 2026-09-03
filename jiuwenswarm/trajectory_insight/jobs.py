@@ -18,7 +18,18 @@ from typing import Awaitable, Callable
 
 from jiuwenswarm.trajectory_insight.schemas import SessionAnalysisReport
 
-AnalysisRunner = Callable[[], Awaitable[SessionAnalysisReport]]
+AnalysisRunner = Callable[["JobProgress"], Awaitable[SessionAnalysisReport]]
+
+
+class JobProgress:
+    """Live progress handle passed to an analysis runner."""
+
+    def __init__(self, job: "AnalysisJob") -> None:
+        self._job = job
+
+    def set_stage(self, stage: str) -> None:
+        """Publish the current human-readable stage (e.g. ``reading``)."""
+        self._job.stage = stage
 
 
 @dataclass
@@ -32,6 +43,7 @@ class AnalysisJob:
     started_at: float | None = None
     finished_at: float | None = None
     status: str = "running"
+    stage: str = "reading"
     fingerprint: str | None = None
     error: str | None = None
     report: SessionAnalysisReport | None = None
@@ -45,11 +57,14 @@ class AnalysisJob:
             "store_epoch": self.store_epoch,
             "stale": False,
             "created_at": self.created_at,
+            "stage": self.stage,
         }
-        if self.fingerprint is not None:
-            payload["fingerprint"] = self.fingerprint
+        if self.started_at is not None:
+            payload["started_at"] = self.started_at
         if self.finished_at is not None:
             payload["finished_at"] = self.finished_at
+        if self.fingerprint is not None:
+            payload["fingerprint"] = self.fingerprint
         if self.error is not None:
             payload["error"] = self.error
         if self.report is not None:
@@ -123,9 +138,10 @@ class AnalysisJobRegistry:
             if job.status != "running":
                 return
             job.started_at = time.time()
+            progress = JobProgress(job)
             try:
                 report = await asyncio.wait_for(
-                    runner(),
+                    runner(progress),
                     timeout=self._timeout_s,
                 )
             except asyncio.TimeoutError:
@@ -138,6 +154,7 @@ class AnalysisJobRegistry:
                 job.finished_at = time.time()
             else:
                 job.status = "completed"
+                job.stage = "completed"
                 job.report = report
                 job.fingerprint = report.fingerprint
                 job.finished_at = time.time()

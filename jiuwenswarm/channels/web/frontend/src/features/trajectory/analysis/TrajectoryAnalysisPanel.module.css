@@ -15,6 +15,24 @@
   padding: 8px 12px;
 }
 
+.progress {
+  border-top: 1px solid var(--color-border-default);
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressStage {
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+
+.progressNote {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
 .run {
   border: 1px solid var(--color-border-default);
   border-radius: 6px;
@@ -48,6 +66,8 @@
 .result {
   border-top: 1px solid var(--color-border-default);
   padding: 4px 12px 12px;
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
 }
 
 .empty {
@@ -94,13 +114,20 @@
 
 .priority {
   color: var(--color-text-secondary);
-  font-size: 10px;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--color-surface-muted);
 }
 
 .priority[data-priority='1'],
 .priority[data-priority='2'] {
   color: var(--color-feedback-danger-text);
+}
+
+.priority[data-priority='3'] {
+  color: var(--color-feedback-warning-text);
 }
 
 .cardTitle {

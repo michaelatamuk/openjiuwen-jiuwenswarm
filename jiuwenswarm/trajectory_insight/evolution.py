@@ -190,15 +190,44 @@ def build_code_proposal(issue: AnalysisIssue, settings: AnalysisSettings) -> dic
         return None
     if suggestion.kind == SuggestionKind.CONFIG and suggestion.action == SuggestionAction.REVIEW:
         return None
+    target = suggestion.target
     return {
         "kind": suggestion.kind.value,
         "action": suggestion.action.value,
-        "target": suggestion.target,
+        "target": target,
         "rationale": suggestion.rationale,
         "risk": suggestion.risk,
         "artifacts": [dict(artifact) for artifact in suggestion.artifacts],
-        "note": "Code-surface change. Review and merge through a normal PR; never auto-applied.",
+        "location_hint": _location_hint(suggestion.kind, target),
+        "note": "This change is in JiuwenSwarm framework code, not your conversation. "
+        "Ship it through a normal code review/PR; it is never auto-applied.",
     }
+
+
+def _location_hint(kind: SuggestionKind, target: str | None) -> str:
+    name = target or "the reported surface"
+    hints = {
+        SuggestionKind.TOOL: (
+            f"Where to fix: the implementation of the `{name}` tool in the agent "
+            "harness (search the repo for its tool definition/executor). Suggest "
+            "the change there and open a PR."
+        ),
+        SuggestionKind.RAIL: (
+            f"Where to fix: the harness rail/policy named `{name}` (rails are "
+            "Python policies in the framework). Edit it in a branch and open a PR."
+        ),
+        SuggestionKind.PROMPT: (
+            f"Where to fix: the prompt section referenced by `{name}` in the "
+            "harness prompt files. Adjust the wording and open a PR."
+        ),
+        SuggestionKind.CONFIG: (
+            f"Where to fix: the `{name}` configuration value in your config file. "
+            "This one you can change directly; no code PR needed."
+        ),
+        SuggestionKind.NONE: "",
+        SuggestionKind.SKILL: "",
+    }
+    return hints.get(kind, "")
 
 
 def notify_skill_library_changed(skill_name: str) -> None:

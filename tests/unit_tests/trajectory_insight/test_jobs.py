@@ -26,7 +26,7 @@ def test_job_completes_and_is_pollable() -> None:
     async def scenario() -> None:
         registry = AnalysisJobRegistry(max_concurrent=2, timeout_s=10, ttl_s=60)
 
-        async def runner():
+        async def runner(_progress=None):
             await asyncio.sleep(0.01)
             return _report("s1")
 
@@ -46,7 +46,7 @@ def test_single_flight_per_session() -> None:
     async def scenario() -> None:
         registry = AnalysisJobRegistry()
 
-        async def runner():
+        async def runner(_progress=None):
             await asyncio.sleep(0.02)
             return _report("s2")
 
@@ -61,7 +61,7 @@ def test_timeout_marks_job_failed() -> None:
     async def scenario() -> None:
         registry = AnalysisJobRegistry(max_concurrent=1, timeout_s=1, ttl_s=60)
 
-        async def slow_runner():
+        async def slow_runner(_progress=None):
             await asyncio.sleep(5)
             return _report("s3")
 
@@ -77,7 +77,7 @@ def test_cancel_marks_failed() -> None:
     async def scenario() -> None:
         registry = AnalysisJobRegistry(timeout_s=30, ttl_s=60)
 
-        async def slow_runner():
+        async def slow_runner(_progress=None):
             await asyncio.sleep(30)
             return _report("s4")
 
