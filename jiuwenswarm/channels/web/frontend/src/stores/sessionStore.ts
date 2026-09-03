@@ -5,7 +5,11 @@
  */
 
 import { create } from 'zustand';
-import { parseContextUsageSnapshot } from '../features/contextUsage/contextUsageModel';
+import {
+  isSingleAgentContextUsageSnapshot,
+  isTeamLeaderContextUsageSnapshot,
+  parseContextUsageSnapshot,
+} from '../features/contextUsage/contextUsageModel';
 import {
   Session,
   AgentMode,
@@ -80,6 +84,13 @@ function loadAgentSelectionIntent(sessionId: string): AgentSelectionIntent {
   }
 }
 
+function contextUsageTimestamp(snapshot: ContextUsageSnapshot | null): number | null {
+  const raw = snapshot?.timestamp;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function saveAgentSelectionIntent(sessionId: string, intent: AgentSelectionIntent) {
   if (typeof localStorage === 'undefined') return;
   if (sessionId === TRANSIENT_NEW_CONVERSATION_ID) {
@@ -105,6 +116,14 @@ function saveAgentSelectionIntent(sessionId: string, intent: AgentSelectionInten
   } catch {
     // Browser storage can be unavailable in private/restricted contexts.
   }
+}
+
+function sameAgentSelectionIntent(
+  left: AgentSelectionIntent,
+  right: AgentSelectionIntent,
+): boolean {
+  if (left.kind !== right.kind) return false;
+  return left.kind !== 'select' || right.kind === 'select' && left.id === right.id;
 }
 
 function loadModeFromStorage(): AgentMode {
@@ -522,7 +541,7 @@ interface SessionState {
   setSessionMetadata: (sessionId: string, metadata: Record<string, unknown> | null) => void;
   /** 输入栏智能体选择：选择、清空或恢复为不修改 */
   setAgentSelectionIntent: (sessionId: string, intent: AgentSelectionIntent) => void;
-  clearAgentSelectionIntent: (sessionId: string) => void;
+  clearAgentSelectionIntent: (sessionId: string, expectedIntent?: AgentSelectionIntent) => void;
   /** 本会话启用插件：追加（去重） */
   addEnabledPlugin: (sessionId: string, pluginId: string) => void;
   /** 本会话启用插件：移除指定项 */
@@ -717,6 +736,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           [sessionId]: {
             ...runtime,
             mode: normalizedMode,
+            contextUsageSnapshot: runtime.mode === normalizedMode ? runtime.contextUsageSnapshot : null,
             agentSelectionIntent,
             ...(closingSwarmflow
               ? { enableSwarmflow: false, swarmflowBudget: null }
@@ -763,11 +783,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   receiveContextUsage: (payload) => {
     const snapshot = parseContextUsageSnapshot(payload);
-    if (!snapshot || snapshot.depth !== 0 || snapshot.team_id !== null || snapshot.member_name !== null) return;
+    if (!snapshot) return;
     const sessionId = snapshot.product_session_id;
     set((state) => {
       const runtime = state.runtimes[sessionId];
-      if (!runtime || runtime.mode !== 'agent') return state;
+      if (!runtime) return state;
+      const isEligible =
+        runtime.mode === 'agent'
+          ? isSingleAgentContextUsageSnapshot(snapshot)
+          : runtime.mode === 'team' && isTeamLeaderContextUsageSnapshot(snapshot);
+      if (!isEligible) return state;
+      const incomingTimestamp = contextUsageTimestamp(snapshot);
+      const currentTimestamp = contextUsageTimestamp(runtime.contextUsageSnapshot);
+      // history.get pages are loaded newest-first. Keep an older page from
+      // replacing the latest live/history snapshot already shown in the UI.
+      if (
+        incomingTimestamp !== null &&
+        currentTimestamp !== null &&
+        incomingTimestamp < currentTimestamp
+      ) {
+        return state;
+      }
       return {
         runtimes: {
           ...state.runtimes,
@@ -1115,10 +1151,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  clearAgentSelectionIntent: (sessionId) => {
+  clearAgentSelectionIntent: (sessionId, expectedIntent) => {
     set((state) => {
       const runtime = state.runtimes[sessionId];
       if (!runtime || runtime.agentSelectionIntent.kind === 'keep') return state;
+      if (expectedIntent && !sameAgentSelectionIntent(runtime.agentSelectionIntent, expectedIntent)) {
+        return state;
+      }
       // A selected Agent is a session-level attachment, not a one-shot input hint.
       // Keep the visible selection after a successful send; only a clear intent is
       // consumed after the server has applied the detach request.
