@@ -3118,6 +3118,7 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                         <LazyTrajectoryAnalysisPanel
                           active={chatSurfaceView === 'analysis'}
                           sessionId={sessionId}
+                          sessionTitle={sessionTitle ?? ''}
                         />
                       </Suspense>
                     )}

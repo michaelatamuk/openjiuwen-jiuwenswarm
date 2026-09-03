@@ -25,6 +25,18 @@
   padding: 12px;
 }
 
+.pageTitle {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .primary,
 .secondary {
   border-radius: 6px;
@@ -80,7 +92,13 @@
 .legend {
   color: var(--color-text-secondary);
   font-size: 11px;
-  margin: 6px 0 0;
+  margin: 2px 0 6px;
+}
+
+.summaryHeading {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  margin: 0 0 2px;
 }
 
 .empty {
@@ -107,8 +125,7 @@
 .issueList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
+  gap: 10px;
 }
 
 .card {

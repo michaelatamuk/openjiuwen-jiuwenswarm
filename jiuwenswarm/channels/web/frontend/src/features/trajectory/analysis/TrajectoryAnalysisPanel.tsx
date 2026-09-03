@@ -27,6 +27,8 @@ export interface TrajectoryAnalysisPanelProps {
   sessionId: string;
   /** Whether the analysis tab is the visible surface (pauses polling). */
   active: boolean;
+  /** Session title to show in the panel header, mirroring Chat/Trajectory. */
+  sessionTitle?: string;
 }
 
 type Phase = 'idle' | 'running' | 'done' | 'failed';
@@ -80,6 +82,7 @@ async function pollJob(
 export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   sessionId,
   active,
+  sessionTitle = '',
 }: TrajectoryAnalysisPanelProps) {
   const enabled = useTrajectoryAnalysisEnabled();
   const { copy } = useTrajectoryAnalysisCopy();
@@ -230,10 +233,12 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
 
   const busy = phase === 'running';
   const actionLabel = phase === 'done' || phase === 'failed' ? copy.rerun : copy.run;
+  const issueCountLabel = issues.length === 1 ? `${issues.length} ${copy.issueWord}` : `${issues.length} ${copy.issuesWord}`;
 
   return (
     <section className={css.page} data-testid="trajectory-analysis" aria-label="Analysis">
       <header className={css.pageHeader}>
+        <h2 className={css.pageTitle}>{sessionTitle.trim() || copy.reportTitle}</h2>
         <button
           type="button"
           className={css.primary}
@@ -264,6 +269,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
         {phase === 'done' && issues.length > 0 ? (
           <div className={css.result}>
             {job?.report?.truncated === true ? <p className={css.warning}>{copy.truncated}</p> : null}
+            <h3 className={css.summaryHeading}>{issueCountLabel}</h3>
             <p className={css.legend}>{copy.severityLegend}</p>
             <div className={css.issueList}>
               {issues.map((issue, index) => (
