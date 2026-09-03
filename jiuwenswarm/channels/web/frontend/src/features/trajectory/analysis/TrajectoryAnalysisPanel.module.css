@@ -164,6 +164,15 @@
   overflow: hidden;
 }
 
+.incident[data-tone='1'],
+.incident[data-tone='2'] {
+  border-left: 3px solid var(--color-feedback-danger-text);
+}
+
+.incident[data-tone='3'] {
+  border-left: 3px solid var(--color-feedback-warning-text);
+}
+
 .incidentHeader {
   display: flex;
   align-items: center;
@@ -178,19 +187,9 @@
   border-radius: 999px;
   padding: 2px 10px;
   border: 1px solid var(--color-border-default);
-  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
   white-space: nowrap;
-}
-
-.pill[data-tone='1'],
-.pill[data-tone='2'] {
-  color: var(--color-feedback-danger-text);
-  border-color: var(--color-feedback-danger-text);
-}
-
-.pill[data-tone='3'] {
-  color: var(--color-feedback-warning-text);
-  border-color: var(--color-feedback-warning-text);
 }
 
 .incidentTitle {
