@@ -6,12 +6,11 @@
  * 应用主布局，整合所有组件
  */
 
-import { useState, useCallback, useEffect, useRef, Component, ReactNode, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, Component, ReactNode, useMemo, lazy, Suspense, type PointerEvent as ReactPointerEvent } from 'react';
 import { ChatPanel } from './components/ChatPanel';
 import { SessionSidebar } from './components/SessionSidebar';
 import { SkillPanel } from './components/SkillPanel';
 import { AgentManagementPanel } from './components/AgentManagementPanel';
-import { TeamPanel } from './components/TeamPanel';
 import { SessionsPanel } from './components/SessionsPanel';
 import CronPanel from './components/CronPanel';
 import HeartbeatPanel from './components/HeartbeatPanel';
@@ -123,14 +122,34 @@ import {
 } from './features/a2ui/actionBridge';
 import { saveBlob } from './utils/desktopSave';
 import { generateUuidV4 } from './utils/uuid';
+import { ApplicationPluginOutlet } from './applicationPlugins/ApplicationPluginOutlet';
+import { enabledApplicationPlugins } from './applicationPlugins/manifest';
+import { useApplicationPlugins } from './applicationPlugins/useApplicationPlugins';
+import type { ApplicationPluginNavKey } from './applicationPlugins/types';
 import {
   ModelSetupGuide,
   type ModelSetupGuideStep,
 } from './features/modelSetupGuide/ModelSetupGuide';
 import { isSetupGuideEnabled } from './features/modelSetupGuide/modelSetupGuideState';
 import { isTeamAgentMode } from './features/planMode/wireMode';
+import {
+  SingleAgentSurface,
+  type ChatSurfaceView,
+} from './features/trajectory/SingleAgentSurface';
+import {
+  shouldInsetTrajectoryForFloatingTasks,
+} from './features/trajectory/trajectoryLayout';
+import {
+  normalizeTrajectoryUiEnabled,
+  setTrajectoryUiEnabled,
+  useTrajectoryUiEnabled,
+} from './features/trajectory/featureConfig';
 import './App.css';
 
+const LazyTrajectoryPanel = lazy(async () => {
+  const module = await import('./features/trajectory/TrajectoryPanel');
+  return { default: module.TrajectoryPanel };
+});
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
 const CHAT_PANEL_MAX_WIDTH_PCT = 70;
@@ -157,7 +176,7 @@ function normalizeConfigBoolean(value: unknown): boolean {
   );
 }
 
-type MainNavKey = SidebarNavKey | 'connectorMarket';
+type MainNavKey = SidebarNavKey | 'connectorMarket' | ApplicationPluginNavKey;
 
 type LoadedHistoryPage = {
   pageIdx: number;
@@ -280,12 +299,15 @@ function AppContent({
     if (route.kind === 'chat-session') return route.sessionId;
     return 'new';
   });
+  const [chatSurfaceViews, setChatSurfaceViews] = useState<Record<string, ChatSurfaceView>>({});
+  const [trajectoryUiRequested, setTrajectoryUiRequested] = useState(false);
 
   const [activeNav, setActiveNav] = useState<MainNavKey>('chat');
   const [serverConfig, setServerConfig] = useState<Record<string, unknown> | null>(null);
   const kvCacheAffinityEnabled = normalizeConfigBoolean(
     serverConfig?.kv_cache_affinity_enabled,
   );
+  const trajectoryUiEnabled = useTrajectoryUiEnabled();
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -573,6 +595,18 @@ function AppContent({
     )) ?? null;
   }, [currentSession, projects, sessions, sessionId]);
   const mode = useSessionStore((s) => s.runtimes[sessionId]?.mode ?? 'agent');
+  const chatSurfaceView: ChatSurfaceView = trajectoryUiEnabled
+    && (mode === 'agent' || mode === 'team')
+    ? (chatSurfaceViews[sessionId] ?? 'chat')
+    : 'chat';
+  const selectChatSurfaceView = useCallback((nextView: ChatSurfaceView) => {
+    if (nextView === 'trajectory') setTrajectoryUiRequested(true);
+    setChatSurfaceViews((current) => (
+      current[sessionId] === nextView
+        ? current
+        : { ...current, [sessionId]: nextView }
+    ));
+  }, [sessionId]);
   const teamTaskEvents = useSessionStore((s) => s.runtimes[sessionId]?.teamTaskEvents ?? []);
   const teamTasks = useSessionStore((s) => s.runtimes[sessionId]?.teamTasks ?? []);
   const teamMembers = useSessionStore((s) => s.runtimes[sessionId]?.teamMembers ?? []);
@@ -801,7 +835,13 @@ function AppContent({
   // 避免右侧面板与聊天面板平分空间导致宽度与集群模式不一致；auto_harness 走收起态分支。
   const panelExpanded = mode === 'team' ? teamAreaExpanded : singleAgentPanelExpanded;
   // 心跳面板打开时，团队/代码审核面板让出右侧工作区（两者互斥，不共同占用宽度）。
-  const isTeamAreaExpanded = mode !== 'auto_harness' && panelExpanded && toolPanelHasContent && !heartbeatPanelOpen;
+  const isTeamAreaExpanded = mode !== 'auto_harness' && panelExpanded && toolPanelHasContent && !heartbeatPanelOpen && !toolPanelHidden;
+
+  useEffect(() => {
+    if (panelExpanded && toolPanelHidden) {
+      setToolPanelHidden(false);
+    }
+  }, [panelExpanded, toolPanelHidden, setToolPanelHidden]);
 
   const { shouldFullscreen } = useResponsivePanelResize({
     isTeamAreaExpanded,
@@ -811,6 +851,15 @@ function AppContent({
     setTeamAreaExpanded,
     mode,
   });
+  const trajectoryTaskPanelAvailable = toolPanelHasContent || isRestoringTeamHistory;
+  const effectiveTeamAreaExpanded = isTeamAreaExpanded;
+  const insetTrajectoryFloatingTasks = shouldInsetTrajectoryForFloatingTasks(
+    mode,
+    chatSurfaceView,
+    trajectoryTaskPanelAvailable,
+    toolPanelHidden,
+    isTeamAreaExpanded,
+  );
 
   // WebSocket 连接 - provider 由后端配置决定 - provider 由后端配置决定，前端默认不在 URL query 传递
   const {
@@ -861,6 +910,9 @@ function AppContent({
       }
     },
   });
+  const applicationPluginState = useApplicationPlugins(isConnected);
+  const applicationPlugins = applicationPluginState.plugins;
+  const visibleApplicationPlugins = enabledApplicationPlugins(applicationPlugins);
   const settingsRequest = useMemo(() => resolveSettingsRequest(request), [request, resolveSettingsRequest]);
 
   const applySubagentHistoryReplay = useCallback((sid: string, items: HistorySubagentReplayItem[]) => {
@@ -1121,6 +1173,9 @@ function AppContent({
     // 这里若再 merge，localStorage 里的完成卡不在本页 messages 里就会被再次注入，
     // prepend 又不按 id 去重，导致完成卡重复。
     prependMessages(sid, stampGoalObjectiveMessages(sid, result.messages));
+    if (result.contextUsageSnapshot) {
+      useSessionStore.getState().receiveContextUsage(result.contextUsageSnapshot);
+    }
     for (const item of result.toolReplay) {
       if (item.kind === 'tool_call') {
         const n = normalizeToolCallPayload(item.payload);
@@ -1394,6 +1449,7 @@ function AppContent({
     try {
       const config = await request<Record<string, unknown>>('config.get');
       setA2UIFeatureEnabled(normalizeA2UIEnabled(config.a2ui_enabled));
+      setTrajectoryUiEnabled(normalizeTrajectoryUiEnabled(config.trajectory_ui_enabled));
       setServerConfig(config);
       setConfigError(null);
       if (!modelSetupGuideEvaluatedRef.current) {
@@ -1853,6 +1909,9 @@ function AppContent({
           }
         });
       },
+      onContextUsage: (payload) => {
+        useSessionStore.getState().receiveContextUsage(payload);
+      },
       onEmpty: (emptyTotalPages) => {
         replaceHistoryMessages(sessionId, mergePersistedGoalCompletionMessages(sessionId, []));
         const restoredTotalPages = emptyTotalPages ?? 1;
@@ -2069,6 +2128,54 @@ function AppContent({
     })();
   }, [isConnected, sessionId, refreshGoal, resumeGoal]);
 
+  // 会话进入 / 刷新 / 断线重连时问一次后端「当前还在不在计划里」，把输入框下方的「计划」
+  // 标签恢复回来。planStore 是纯内存、刷新即空，标签只看 planStore.active，所以必须像
+  // Goal 一样回后端问一次——否则刷新后标签一直缺失，只能靠「切走再切回」触发
+  // performSessionRestore 的 *.plan 兜底（且那条兜底对「建会话后才开 plan 的单 agent
+  // 会话」无效，因为它 metadata.mode 是光杆 agent）。
+  // 依赖后端 RPC session.plan_status（PR #5794）；后端未合入前 catch 掉未知 method，
+  // 静默无效果、不造成回归。单 agent 与集群均覆盖。
+  // 只在「进入已有会话 / 刷新」时问：本页面刚新建（提权）的会话 plan 状态以本地为准，
+  // 不问后端——新建 team 会话时后端 metadata.mode 处于 team.work.plan / team 的写入
+  // 竞态窗口，问回来的 false 会把刚从 'new' 搬过来的 active:true 顶掉（标签丢失）。
+  useEffect(() => {
+    if (!isConnected || !sessionId || sessionId === NEW_CONVERSATION_ID) return;
+    if (sessionIdsCreatedInThisPageRef.current.has(sessionId)) return;
+    let cancelled = false;
+    const targetSessionId = sessionId;
+    void (async () => {
+      // 参考 useWebSocket.ts 的 performGoalGet：轻量退避重试，失败到底就什么都不做，
+      // 不插聊天错误消息、不改本地标签。
+      const retryDelaysMs = [400, 1200];
+      for (let attempt = 0; !cancelled; attempt += 1) {
+        try {
+          const payload = await request<{ in_plan?: boolean }>('session.plan_status', {
+            session_id: targetSessionId,
+          });
+          if (cancelled || sessionIdRef.current !== targetSessionId) return;
+          // 用户刚手动打开开关、还没发消息：本地未提交态优先，别被后端「还没落盘」的
+          // 结果顶掉（覆盖「新会话提权」「响应晚于用户手动操作」两个竞态）。
+          if (usePlanStore.getState().hasPendingExplicitEntry(targetSessionId)) return;
+          // 只用 in_plan===true 开标签，false 不关：team 会话的 metadata.mode 有多方
+          // 写入竞态（sync_team_identity_metadata 会盖回 team），in_plan:false 不可靠，
+          // 不能拿它顶掉本地状态。关标签仍由 plan.mode_exited 推送和用户手动操作负责。
+          if (payload?.in_plan) {
+            // 不带 explicitEntry：刷新恢复的是「已经在计划里」，不是「用户刚打开开关」，
+            // 不能触发 plan_entry_source 一次性标记。
+            usePlanStore.getState().setActive(targetSessionId, true);
+          }
+          return;
+        } catch {
+          if (attempt >= retryDelaysMs.length) return;
+          await new Promise((resolve) => window.setTimeout(resolve, retryDelaysMs[attempt]));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, sessionId, request]);
+
   const requestComposerFocus = useCallback(() => {
     setComposerFocusNonce((nonce) => nonce + 1);
   }, []);
@@ -2095,12 +2202,17 @@ function AppContent({
     // 返回尚未发送的新建任务时，恢复该临时会话自己的模式和模型；真正开始一个新任务时，
     // 仍固定使用配置的默认模型，不继承当前正式会话手动切换过的模型。
     // 默认模型列表尚未加载完成时兜底沿用当前会话的模型，避免新会话没有模型可用。
-    const { mode: nextMode, selectedModelName } = resolveNewConversationEntrySettings(
+    const resolvedEntrySettings = resolveNewConversationEntrySettings(
       targetMode,
       useSessionStore.getState().defaultModelName,
       currentRuntime?.selectedModelName ?? null,
       shouldRestorePendingNewConversation ? pendingNewRuntime : null,
     );
+    // 扩展页"使用插件/使用 MCP/试试这样用"等入口传 forceMode:'agent'——插件/MCP 不支持集群
+    // 模式，无论当前会话是什么模式、也无论有没有未发送的集群模式草稿，跳转会话都要回到单
+    // agent 模式（bug003）。
+    const nextMode = options.forceMode ?? resolvedEntrySettings.mode;
+    const { selectedModelName } = resolvedEntrySettings;
     const selectedProject = options.project ?? useWorkspaceStore.getState().selectedProject;
     const projectDir = resolveNewConversationProjectDir(
       options.preserveProject,
@@ -2667,43 +2779,11 @@ function AppContent({
     if (target === 'new') { enterNewConversation(mode, options); return; }
     if (isMobile) {
       setTeamAreaExpanded(false);
+      setSingleAgentPanelExpanded(false);
       setToolPanelHidden(true);
     }
     void handleRestoreSession(target.session_id, target.mode, target);
-  }, [enterNewConversation, handleRestoreSession, isMobile, mode, setTeamAreaExpanded, setToolPanelHidden]);
-
-  const handleTeamSessionsDeleted = useCallback(async (sessionIds: string[]) => {
-    const deletedSessionIds = new Set(sessionIds);
-    const sessionState = useSessionStore.getState();
-
-    for (const deletedSessionId of deletedSessionIds) {
-      forgetCreatedConversation(deletedSessionId);
-      sessionState.removeSession(deletedSessionId);
-      sessionState.removeRuntime(deletedSessionId);
-      useChatStore.getState().removeRuntime(deletedSessionId);
-      useSubagentStore.getState().removeRuntime(deletedSessionId);
-      useTodoStore.getState().removeRuntime(deletedSessionId);
-      useHarnessStore.getState().removeRuntime(deletedSessionId);
-      useGoalStore.getState().removeRuntime(deletedSessionId);
-    }
-
-    if (routeSessionId && deletedSessionIds.has(routeSessionId)) {
-      setMissingSessionId(routeSessionId);
-    }
-
-    const workspaceState = useWorkspaceStore.getState();
-    const loadedProjectIds = Object.keys(workspaceState.projectSessions);
-    await workspaceState.loadProjects();
-    await Promise.all(loadedProjectIds.map((projectId) => workspaceState.loadProjectSessions(projectId)));
-
-    const cronStore = useCronStore.getState();
-    for (const [jobId, sessions] of Object.entries(cronStore.cronSessions)) {
-      if (sessions.some((session) => deletedSessionIds.has(session.session_id))) {
-        const job = cronStore.jobs.find((item) => item.id === jobId);
-        void cronStore.loadCronSessions(job?.project_id || 'default', jobId);
-      }
-    }
-  }, [routeSessionId]);
+  }, [enterNewConversation, handleRestoreSession, isMobile, mode, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!deleteTarget) return;
@@ -2760,6 +2840,7 @@ function AppContent({
         setConversationSidebarCollapsed(false);
         if (isMobile) {
           setTeamAreaExpanded(false);
+          setSingleAgentPanelExpanded(false);
           setToolPanelHidden(true);
         }
       }
@@ -2769,7 +2850,7 @@ function AppContent({
       }
       if (nav === 'skills') setHasVisitedSkills(true);
     },
-    [activeNav, isMobile, modelSetupGuideStep, setTeamAreaExpanded, setToolPanelHidden, t],
+    [activeNav, isMobile, modelSetupGuideStep, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden, t],
   );
 
   const skipModelSetupGuide = useCallback(() => {
@@ -2900,9 +2981,12 @@ function AppContent({
     && missingSessionId === routeSessionId
     && isConversationMissing(routeSessionId, true, sessions);
   const showConversationNotFound = route.kind === 'not-found' || routeSessionMissing;
-  const showWorkspaceDivider = isTeamAreaExpanded && !showConversationNotFound && !shouldFullscreen;
+const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFound && !shouldFullscreen;
   const isNewSessionPromotion = Boolean(sessionId && sessionIdsCreatedInThisPageRef.current.has(sessionId));
   const composerFocusKey = showConversationNotFound ? null : `${sessionId}:${composerFocusNonce}`;
+  const activeApplicationPlugin = visibleApplicationPlugins.find(
+    (plugin) => plugin.nav_key === activeNav,
+  );
 
   useEffect(() => {
     if (!showWorkspaceDivider) clearChatPanelResize();
@@ -2924,6 +3008,7 @@ function AppContent({
         onNewSession={handleNewSession}
         showNewSession={false}
         hiddenNavItems={hiddenNavItems}
+        applicationPlugins={visibleApplicationPlugins}
       />
 
       {modelSetupGuideStep !== null ? (
@@ -2938,7 +3023,7 @@ function AppContent({
       ) : null}
 
       {/* Main Content */}
-      <main className={`content ${activeNav === 'chat' ? 'content--chat' : ''} ${isTeamAreaExpanded ? 'content--team-expanded' : ''}`}>
+      <main className={`content ${activeNav === 'chat' ? 'content--chat' : ''} ${effectiveTeamAreaExpanded ? 'content--team-expanded' : ''}`}>
         {configError && (
           <div className="card mb-4" data-testid="app-config-error">
             <div className="text-sm text-text-muted">
@@ -2965,7 +3050,9 @@ function AppContent({
                 floating={conversationSidebarFloating}
                 onToggleCollapse={() => setConversationSidebarCollapsed((v) => !v)}
               />
-              <div className="chat-workspace flex-1 flex min-h-0 overflow-hidden">
+              <div
+                className={`chat-workspace flex-1 flex min-h-0 overflow-hidden ${insetTrajectoryFloatingTasks ? 'chat-workspace--trajectory-floating-tools' : ''}`}
+              >
                 {showConversationNotFound && (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4" data-testid="app-conversation-not-found">
                     <h1 className="text-lg font-semibold text-text" data-testid="app-conversation-not-found-title">{t('multiSession.notFound.title')}</h1>
@@ -2978,46 +3065,72 @@ function AppContent({
                 )}
                 {/* Chat Panel - 在展开时可拖拽调整宽度 */}
                 <div
-                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${isTeamAreaExpanded ? '' : 'min-w-0'} min-h-0 ${isTeamAreaExpanded ? '' : 'flex-1'}`}
-                  style={isTeamAreaExpanded ? { width: `${chatPanelWidthPct}%` } : undefined}
+                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${effectiveTeamAreaExpanded ? '' : 'min-w-0'} min-h-0 ${effectiveTeamAreaExpanded ? '' : 'flex-1'}`}
+                  style={effectiveTeamAreaExpanded ? { width: `${chatPanelWidthPct}%` } : undefined}
                   data-testid="app-chat-surface"
                 >
-                  <div className={`flex-1 min-h-0`}>
-                    <ChatPanel
-                      onSendMessage={handleSendMessage}
-                      onInputIntent={kvCacheAffinityEnabled ? handleKVCInputIntent : undefined}
-                      onPersistMedia={handlePersistMedia}
-                      onPersistDocuments={handlePersistDocuments}
-                      onInterrupt={handleInterrupt}
-                      onCancel={handleCancel}
-                      onSwitchMode={handleSwitchMode}
-                      isProcessing={isProcessing}
-                      onUserAnswer={handleUserAnswer}
-                      onExportShare={handleExportShare}
-                      isExportingShare={isExportingShare}
-                      canExportShare={Boolean(sessionId && sessionId !== NEW_CONVERSATION_ID && (!isProcessing || isPaused))}
-                      sessionTitle={sessionTitle}
-                      sessionProjectName={sessionProjectName}
-                      sessionProject={sessionProject}
-                      teamAreaExpanded={toolPanelHidden ? null : isTeamAreaExpanded}
-                      autoFocusKey={composerFocusKey}
-                      onNavigateToSkills={() => handleNavigate('skills')}
-                      onNavigateToAgents={() => handleNavigate('agents')}
-                      onToggleTeamArea={handleToggleDetailPanel}
-                      onOpenCodeReview={handleOpenCodeReview}
-                      permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
-                      heartbeatPanelOpen={heartbeatPanelOpen}
-                      onToggleHeartbeatPanel={handleToggleHeartbeatPanel}
-                      onSavePermission={savePermissionSilent}
-                      historyPager={chatHistoryPager}
-                      isHistoryRestoring={isRestoringHistorySession}
-                      onSetGoal={setGoalObjective}
-                      onPauseGoal={pauseGoal}
-                      onResumeGoal={resumeGoal}
-                      onClearGoal={handleClearGoal}
-                      onDrainTaskQueueIfIdle={drainTaskQueueIfIdle}
-                    />
-                  </div>
+<SingleAgentSurface
+                    activeView={chatSurfaceView}
+                    chat={(
+                      <ChatPanel
+                        onSendMessage={handleSendMessage}
+                        onInputIntent={kvCacheAffinityEnabled ? handleKVCInputIntent : undefined}
+                        onPersistMedia={handlePersistMedia}
+                        onPersistDocuments={handlePersistDocuments}
+                        onInterrupt={handleInterrupt}
+                        onCancel={handleCancel}
+                        onSwitchMode={handleSwitchMode}
+                        isProcessing={isProcessing}
+                        onUserAnswer={handleUserAnswer}
+                        onExportShare={handleExportShare}
+                        isExportingShare={isExportingShare}
+                        canExportShare={Boolean(sessionId && sessionId !== NEW_CONVERSATION_ID && (!isProcessing || isPaused))}
+                        sessionTitle={sessionTitle}
+                        sessionProjectName={sessionProjectName}
+                        sessionProject={sessionProject}
+                        teamAreaExpanded={toolPanelHidden ? null : isTeamAreaExpanded}
+                        autoFocusKey={composerFocusKey}
+                        onNavigateToSkills={() => handleNavigate('skills')}
+                        onNavigateToAgents={() => handleNavigate('agents')}
+                        onToggleTeamArea={handleToggleDetailPanel}
+                        onOpenCodeReview={handleOpenCodeReview}
+                        permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
+                        heartbeatPanelOpen={heartbeatPanelOpen}
+                        onToggleHeartbeatPanel={handleToggleHeartbeatPanel}
+                        onSavePermission={savePermissionSilent}
+                        historyPager={chatHistoryPager}
+                        isHistoryRestoring={isRestoringHistorySession}
+                        onSetGoal={setGoalObjective}
+                        onPauseGoal={pauseGoal}
+                        onResumeGoal={resumeGoal}
+                        onClearGoal={handleClearGoal}
+                        onDrainTaskQueueIfIdle={drainTaskQueueIfIdle}
+                      />
+                    )}
+                    chatLabel={t('nav.chat')}
+                    mode={mode}
+                    onViewChange={selectChatSurfaceView}
+                    tabListLabel={t('trajectory.tabs.aria')}
+                    trajectory={(
+                      <Suspense
+                        fallback={(
+                          <div className="trajectory-view-loading">
+                            {t('trajectory.loading')}
+                          </div>
+                        )}
+                      >
+                        <LazyTrajectoryPanel
+                          active={chatSurfaceView === 'trajectory'}
+                          mode={mode}
+                          sessionId={sessionId}
+                        />
+                      </Suspense>
+                    )}
+                    trajectoryEnabled={trajectoryUiEnabled}
+                    trajectoryLabel={t('trajectory.tabs.trajectory')}
+                    showNavigation={sessionId !== NEW_CONVERSATION_ID}
+                    trajectoryRequested={trajectoryUiRequested}
+                  />
                 </div>
 
                 {/* 可拖拽分割线 */}
@@ -3038,7 +3151,7 @@ function AppContent({
                 )}
 
                 {/* Tool Panel / Expanded Team Panel */}
-                {!toolPanelHidden && (toolPanelHasContent || isRestoringTeamHistory) && !showConversationNotFound && !heartbeatPanelOpen && (
+                {!toolPanelHidden && trajectoryTaskPanelAvailable && !showConversationNotFound && !heartbeatPanelOpen && (
                   <ToolPanel
                     sessionId={sessionId}
                     project={sessionProject}
@@ -3064,7 +3177,7 @@ function AppContent({
                     setSingleAgentPanelSelectedArtifactId={setSingleAgentPanelSelectedArtifactId}
                     setSingleAgentPanelSelectedSubagentId={setSingleAgentPanelSelectedSubagentId}
                     shouldFullscreen={shouldFullscreen}
-                    onCloseFloating={() => setToolPanelHidden(true)}
+                    onCloseFloating={() => handleToggleDetailPanel(null)}
                   />
                 )}
 
@@ -3077,21 +3190,14 @@ function AppContent({
           </>
         )}
         {activeNav === 'agents' && (
-          <div className="app-section">
-            <AgentManagementPanel
-              onUseAgent={handleUseAgent}
-              onUsePrompt={handleUseAgentPrompt}
-              onCreateViaChat={() => requestSessionNavigation('new', {
-                initialInputValue: t('agentManagement.actions.createViaChatPrompt'),
-                initialSelectedSkills: ['agent-creator'],
-              })}
-            />
-          </div>
-        )}
-        {activeNav === 'teams' && (
-          <div className="app-section">
-            <TeamPanel onSessionsDeleted={handleTeamSessionsDeleted} />
-          </div>
+          <AgentManagementPanel
+            onUseAgent={handleUseAgent}
+            onUsePrompt={handleUseAgentPrompt}
+            onCreateViaChat={() => requestSessionNavigation('new', {
+              initialInputValue: t('agentManagement.actions.createViaChatPrompt'),
+              initialSelectedSkills: ['agent-creator'],
+            })}
+          />
         )}
         {activeNav === 'sessions' && (
           <div className="app-section">
@@ -3170,6 +3276,11 @@ function AppContent({
             />
           </div>
         )}
+        {activeApplicationPlugin && (
+          <div className="app-section">
+            <ApplicationPluginOutlet contribution={activeApplicationPlugin} />
+          </div>
+        )}
         {FEATURE_APP_UPDATER_UI && activeNav === 'updatepanel' && (
           <div className="app-section">
             <UpdatePanel isConnected={isConnected} request={request} />
@@ -3191,6 +3302,10 @@ function AppContent({
         {activeNav === 'connectorMarket' && (
           <div className="app-section">
             <ConnectorMarketPanel
+              applicationPlugins={applicationPlugins}
+              applicationPluginsLoading={applicationPluginState.loading}
+              applicationPluginsError={applicationPluginState.error}
+              onRefreshApplicationPlugins={applicationPluginState.refresh}
               onCreateViaChat={() => window.dispatchEvent(new CustomEvent('jiuwen:new-conversation', {
                 detail: {
                   skillName: 'plugin-creator',
@@ -3199,18 +3314,46 @@ function AppContent({
                 },
               }))}
               onUseExample={(initialInputValue, mcpName) =>
-                requestSessionNavigation('new', { initialInputValue, initialEnabledMcps: [mcpName] })
+                requestSessionNavigation('new', { initialInputValue, initialEnabledMcps: [mcpName], forceMode: 'agent' })
               }
               onUsePluginExample={(initialInputValue, pluginId) =>
-                requestSessionNavigation('new', { initialInputValue, initialEnabledPlugins: [pluginId] })
+                requestSessionNavigation('new', { initialInputValue, initialEnabledPlugins: [pluginId], forceMode: 'agent' })
               }
               onUseExtension={({ kind, id }) =>
                 requestSessionNavigation(
                   'new',
-                  kind === 'plugin' ? { initialEnabledPlugins: [id] } : { initialEnabledMcps: [id] },
+                  kind === 'plugin'
+                    ? { initialEnabledPlugins: [id], forceMode: 'agent' }
+                    : { initialEnabledMcps: [id], forceMode: 'agent' },
                 )
               }
             />
+          <div className="app-page-body">
+            <div className="page-content">
+              <ConnectorMarketPanel
+                onCreateViaChat={() => window.dispatchEvent(new CustomEvent('jiuwen:new-conversation', {
+                  detail: {
+                    skillName: 'plugin-creator',
+                    suffixText: t('connectorMarket.chatPrompts.createPlugin'),
+                    metadata: { scene: 'create_plugin' },
+                  },
+                }))}
+                onUseExample={(initialInputValue, mcpName) =>
+                  requestSessionNavigation('new', { initialInputValue, initialEnabledMcps: [mcpName], forceMode: 'agent' })
+                }
+                onUsePluginExample={(initialInputValue, pluginId) =>
+                  requestSessionNavigation('new', { initialInputValue, initialEnabledPlugins: [pluginId], forceMode: 'agent' })
+                }
+                onUseExtension={({ kind, id }) =>
+                  requestSessionNavigation(
+                    'new',
+                    kind === 'plugin'
+                      ? { initialEnabledPlugins: [id], forceMode: 'agent' }
+                      : { initialEnabledMcps: [id], forceMode: 'agent' },
+                  )
+                }
+              />
+            </div>
           </div>
         )}
       </main>
@@ -3244,7 +3387,10 @@ function AppContent({
 
       {proactiveToastVisible && proactiveToastMessage && (
         <div className="app-toast-wrapper app-toast-wrapper--top-center" data-testid="app-proactive-notification-toast">
-          <div className="bg-warn-subtle text-warn px-4 py-2 rounded-lg shadow-lg animate-rise text-sm" data-testid="app-proactive-notification-toast-message">
+          <div
+            className="max-w-[640px] whitespace-pre-line bg-warn-subtle text-warn px-4 py-3 rounded-lg shadow-lg animate-rise text-sm leading-5"
+            data-testid="app-proactive-notification-toast-message"
+          >
             {proactiveToastMessage}
           </div>
         </div>
