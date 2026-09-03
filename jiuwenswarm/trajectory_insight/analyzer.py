@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from dataclasses import replace
 from typing import Any
 
 from jiuwenswarm.trajectory_insight.prompts import build_analysis_prompt, build_retry_prompt
@@ -109,6 +110,7 @@ async def analyze_session(
         # Recorded error statuses are high-precision facts: never let an
         # under-reporting LLM erase a concrete tool/LLM failure.
         issues = _merge_recorded_failures(seeds, issues)
+    issues = [_attach_default_suggestion(issue) for issue in issues]
     return SessionAnalysisReport(
         session_id=read_model.session_id,
         analysis_id="",
@@ -193,6 +195,38 @@ def _parse_suggestion(value: Any) -> EvolutionSuggestion | None:
         confidence=max(0.0, min(1.0, float(value.get("confidence") or 0.0) if _is_float(value.get("confidence")) else 0.0)),
         artifacts=tuple(artifact_list),
     )
+
+
+_TOOL_NAME_PATTERNS = [
+    re.compile(r"tool(?:_call)?\s+([A-Za-z_][A-Za-z0-9_.]*)"),
+    re.compile(r"tool=([A-Za-z_][A-Za-z0-9_.]*)"),
+]
+
+
+def _attach_default_suggestion(issue: AnalysisIssue) -> AnalysisIssue:
+    """Attach a default tool suggestion when a failure names a tool."""
+    if issue.evolution is not None:
+        return issue
+    text = issue.evidence or issue.title or ""
+    for pattern in _TOOL_NAME_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            tool = match.group(1)
+            return replace(
+                issue,
+                evolution=EvolutionSuggestion(
+                    kind=SuggestionKind.TOOL,
+                    action=SuggestionAction.MODIFY,
+                    target=tool,
+                    rationale=(
+                        f"Improve the `{tool}` tool (precondition checks or clearer, "
+                        "structured error guidance) based on this failure."
+                    ),
+                    risk="low",
+                    confidence=0.7,
+                ),
+            )
+    return issue
 
 
 def _seeds_to_issues(seeds: list[IssueSeed]) -> list[AnalysisIssue]:

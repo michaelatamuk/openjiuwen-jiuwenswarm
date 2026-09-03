@@ -53,7 +53,8 @@ def test_deterministic_only_when_no_model() -> None:
     seeds = detect(model)
     report = asyncio.run(analyze_session(model, seeds, model=None))
     assert len(report.issues) == len(seeds)
-    assert all(issue.evolution is None for issue in report.issues)
+    assert all(issue.evolution is not None for issue in report.issues)
+    assert all(issue.evolution.kind.value == "tool" for issue in report.issues)
 
 
 def test_llm_report_normalization() -> None:
