@@ -112,10 +112,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .chat-surface-toolbar {
-  padding-bottom: 0.5rem;
+  position: relative;
+  z-index: 2;
 }
 
 .chat-surface-tabs {

@@ -153,6 +153,26 @@ const LazyTrajectoryAnalysisPanel = lazy(async () => {
   const module = await import('./features/trajectory/analysis/TrajectoryAnalysisPanel');
   return { default: module.TrajectoryAnalysisPanel };
 });
+
+interface SurfaceErrorBoundaryProps {
+  children: ReactNode;
+  label: string;
+}
+
+class SurfaceErrorBoundary extends Component<SurfaceErrorBoundaryProps, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return <div className="trajectory-view-loading">{this.props.label} unavailable.</div>;
+    }
+    return this.props.children;
+  }
+}
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
 const CHAT_PANEL_MAX_WIDTH_PCT = 70;
@@ -3099,11 +3119,13 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                           </div>
                         )}
                       >
-                        <LazyTrajectoryPanel
-                          active={chatSurfaceView === 'trajectory'}
-                          mode={mode}
-                          sessionId={sessionId}
-                        />
+                        <SurfaceErrorBoundary label="Trajectory">
+                          <LazyTrajectoryPanel
+                            active={chatSurfaceView === 'trajectory'}
+                            mode={mode}
+                            sessionId={sessionId}
+                          />
+                        </SurfaceErrorBoundary>
                       </Suspense>
                     )}
                     trajectoryEnabled={trajectoryUiEnabled}
@@ -3118,10 +3140,12 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                           </div>
                         )}
                       >
-                        <LazyTrajectoryAnalysisPanel
-                          active={chatSurfaceView === 'analysis'}
-                          sessionId={sessionId}
-                        />
+                        <SurfaceErrorBoundary label="Analysis">
+                          <LazyTrajectoryAnalysisPanel
+                            active={chatSurfaceView === 'analysis'}
+                            sessionId={sessionId}
+                          />
+                        </SurfaceErrorBoundary>
                       </Suspense>
                     )}
                     analysisEnabled={trajectoryAnalysisEnabled}
