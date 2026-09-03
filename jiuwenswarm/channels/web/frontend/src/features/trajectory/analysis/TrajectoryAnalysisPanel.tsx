@@ -227,9 +227,12 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
         : '';
     }
     if (stage === 'diagnosing') {
-      return job?.seeds !== undefined
+      const base = job?.seeds !== undefined
         ? copy.detailDiagnosing.replace('{seeds}', String(job.seeds))
-        : '';
+        : copy.stageDiagnosing;
+      return job?.chars !== undefined && job.chars > 0
+        ? `${base} · ${job.chars} chars generated`
+        : base;
     }
     return '';
   }, [phase, job, copy]);
@@ -270,6 +273,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
         {phase === 'running' ? (
           <div className={css.progressCard} data-testid="trajectory-analysis-progress">
             <span className={css.progressStage}>
+              <span className={css.thinking} aria-hidden="true" />
               {stageText}
               {elapsedSec !== null ? ` · ${elapsedSec}s` : ''}
             </span>

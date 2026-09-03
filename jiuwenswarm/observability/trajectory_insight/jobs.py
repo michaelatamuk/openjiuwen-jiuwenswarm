@@ -45,6 +45,11 @@ class JobProgress:
         if seeds is not None:
             job.seeds = seeds
 
+    def add_chars(self, count: int) -> None:
+        """Accumulate streamed response characters for live progress."""
+        if count:
+            self._job.chars += count
+
 
 @dataclass
 class AnalysisJob:
@@ -61,6 +66,7 @@ class AnalysisJob:
     records: int | None = None
     turns: int | None = None
     seeds: int | None = None
+    chars: int = 0
     fingerprint: str | None = None
     error: str | None = None
     report: SessionAnalysisReport | None = None
@@ -82,6 +88,8 @@ class AnalysisJob:
             payload["turns"] = self.turns
         if self.seeds is not None:
             payload["seeds"] = self.seeds
+        if self.chars:
+            payload["chars"] = self.chars
         if self.started_at is not None:
             payload["started_at"] = self.started_at
         if self.finished_at is not None:

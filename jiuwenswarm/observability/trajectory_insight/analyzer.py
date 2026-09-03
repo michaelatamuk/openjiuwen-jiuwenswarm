@@ -93,17 +93,19 @@ async def analyze_session(
     model=None,
     language: str = _DEFAULT_LANGUAGE,
     max_input_chars: int = _DEFAULT_MAX_INPUT_CHARS,
+    progress=None,
 ) -> SessionAnalysisReport:
     """Produce a structured report.
 
     When ``model`` is None only deterministic findings are reported (issues carry
     no evolution suggestion). The caller controls model resolution so tests can
-    exercise both paths without a live LLM.
+    exercise both paths without a live LLM. ``progress`` receives streamed
+    character counts during the LLM pass for live UI feedback.
     """
     digest = build_digest(read_model, seeds, max_input_chars=max_input_chars)
     issues: list[AnalysisIssue] | None = None
     if model is not None:
-        issues = await _run_llm_pass(read_model, digest, model, language=language)
+        issues = await _run_llm_pass(read_model, digest, model, language=language, progress=progress)
     if issues is None:
         # Model unavailable/failed: report deterministic observations so the UI
         # is never empty, with a default tool suggestion when a tool is named.
@@ -123,23 +125,78 @@ async def analyze_session(
     )
 
 
-async def _run_llm_pass(read_model, digest: str, model, *, language: str) -> list[AnalysisIssue] | None:
+def _chunk_text(chunk: Any) -> str:
+    """Extract plain text from a stream chunk of unknown shape."""
+    if isinstance(chunk, str):
+        return chunk
+    content = getattr(chunk, "content", None)
+    if content is None and isinstance(chunk, dict):
+        content = chunk.get("content")
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and isinstance(part.get("text"), str):
+                parts.append(part["text"])
+        return "".join(parts)
+    return str(content)
+
+
+async def _invoke_or_stream(
+    model,
+    messages,
+    *,
+    progress,
+    **kwargs,
+) -> str:
+    """Stream the response when supported so progress can show live output."""
+    if hasattr(model, "stream"):
+        parts: list[str] = []
+        try:
+            async for chunk in model.stream(messages, **kwargs):
+                part = _chunk_text(chunk)
+                if part:
+                    parts.append(part)
+                    if progress is not None:
+                        progress.add_chars(len(part))
+            return "".join(parts)
+        except Exception:  # noqa: BLE001
+            # Fall back to a normal invoke if streaming is unsupported/fails.
+            pass
+    response = await model.invoke(messages, **kwargs)
+    return (getattr(response, "content", None) or str(response))
+
+
+async def _run_llm_pass(
+    read_model,
+    digest: str,
+    model,
+    *,
+    language: str,
+    progress=None,
+) -> list[AnalysisIssue] | None:
     from openjiuwen.core.foundation.llm.schema.message import UserMessage
 
     prompt = build_analysis_prompt(digest, language=language)
     try:
-        response = await model.invoke([UserMessage(content=prompt)], temperature=0.2)
+        text = (await _invoke_or_stream(model, [UserMessage(content=prompt)], progress=progress, temperature=0.2)).strip()
     except Exception:  # noqa: BLE001
         return None
-    text = (getattr(response, "content", None) or str(response)).strip()
     parsed = _parse_issue_json(text)
     if parsed is None:
         retry_prompt = build_retry_prompt(digest, text[:2000], language=language)
         try:
-            retry = await model.invoke([UserMessage(content=retry_prompt)], temperature=0.0)
+            text = (
+                await _invoke_or_stream(model, [UserMessage(content=retry_prompt)], progress=progress, temperature=0.0)
+            ).strip()
         except Exception:  # noqa: BLE001
             return None
-        parsed = _parse_issue_json((getattr(retry, "content", None) or str(retry)).strip())
+        parsed = _parse_issue_json(text)
     if parsed is None:
         return None
     return _normalize_issues(read_model, parsed)

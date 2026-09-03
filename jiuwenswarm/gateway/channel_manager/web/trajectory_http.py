@@ -512,6 +512,7 @@ class TrajectoryAnalysisEndpoints:
                 model=model,
                 language=settings.language,
                 max_input_chars=settings.max_input_chars,
+                progress=progress,
             )
 
         job = await self._registry.start(session_id, store_epoch="", runner=runner)

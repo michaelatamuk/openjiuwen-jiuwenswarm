@@ -57,6 +57,7 @@ export interface AnalysisJob {
   records?: number;
   turns?: number;
   seeds?: number;
+  chars?: number;
   started_at?: number;
   finished_at?: number;
   fingerprint?: string;
