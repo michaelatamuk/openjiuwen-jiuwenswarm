@@ -1,6 +1,6 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
-/** Session analysis surface mounted as its own Chat/Trajectory/Analysis tab. */
+/** Session analysis: professional report surface mounted as its own tab. */
 
 import {
   memo,
@@ -40,6 +40,14 @@ interface IssueUi {
 
 function emptyIssueUi(): IssueUi {
   return { loading: false, error: null, preview: null, applied: null };
+}
+
+function severityOf(priority: number): { label: keyof Record<string, string>; tone: 1 | 2 | 3 | 4 | 5 } {
+  if (priority <= 1) return { label: 'severityCritical', tone: 1 };
+  if (priority === 2) return { label: 'severityHigh', tone: 2 };
+  if (priority === 3) return { label: 'severityMedium', tone: 3 };
+  if (priority === 4) return { label: 'severityLow', tone: 4 };
+  return { label: 'severityInfo', tone: 5 };
 }
 
 async function pollJob(
@@ -226,15 +234,19 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     return '';
   }, [phase, job, copy]);
 
+  const countLabel = useMemo(() => {
+    const word = issues.length === 1 ? copy.issueWord : copy.issuesWord;
+    return `${issues.length} ${word}`;
+  }, [issues.length, copy]);
+
   if (!enabled || !sessionId) return null;
 
   const busy = phase === 'running';
   const actionLabel = phase === 'done' || phase === 'failed' ? copy.rerun : copy.run;
-  const issueCountLabel = issues.length === 1 ? `${issues.length} ${copy.issueWord}` : `${issues.length} ${copy.issuesWord}`;
 
   return (
     <section className={css.page} data-testid="trajectory-analysis" aria-label="Analysis">
-      <header className={css.pageHeader}>
+      <div className={css.toolbar}>
         <button
           type="button"
           className={css.primary}
@@ -244,32 +256,57 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
         >
           {busy ? copy.running : actionLabel}
         </button>
-        <span className={css.note}>{copy.costNote}</span>
-      </header>
-      <div className={css.pageBody}>
+        <span className={css.hint}>{copy.costNote}</span>
+      </div>
+
+      <div className={css.body}>
+        {phase === 'idle' ? (
+          <div className={css.stateCard} data-testid="trajectory-analysis-idle">
+            <h2 className={css.stateTitle}>{copy.idleTitle}</h2>
+            <p className={css.stateText}>{copy.idleText}</p>
+          </div>
+        ) : null}
+
         {phase === 'running' ? (
-          <div className={css.progress} data-testid="trajectory-analysis-progress">
+          <div className={css.progressCard} data-testid="trajectory-analysis-progress">
             <span className={css.progressStage}>
               {stageText}
               {elapsedSec !== null ? ` · ${elapsedSec}s` : ''}
             </span>
-            {detailText !== '' ? <span className={css.progressNote}>{detailText}</span> : null}
+            {detailText !== '' ? <span className={css.progressDetail}>{detailText}</span> : null}
           </div>
         ) : null}
-        {phase === 'failed' && error !== null ? (
-          <p className={css.error} role="alert">{error}</p>
+
+        {phase === 'failed' ? (
+          <div className={css.stateCard} data-testid="trajectory-analysis-failed">
+            <h2 className={css.stateTitle}>{copy.failedTitle}</h2>
+            <p className={css.stateText}>{error}</p>
+          </div>
         ) : null}
+
         {phase === 'done' && issues.length === 0 ? (
-          <p className={css.empty}>{copy.noIssues}</p>
+          <div className={`${css.stateCard} ${css.stateCardOk}`} data-testid="trajectory-analysis-healthy">
+            <h2 className={css.stateTitle}>{copy.healthyTitle}</h2>
+            <p className={css.stateText}>{copy.healthyText}</p>
+          </div>
         ) : null}
+
         {phase === 'done' && issues.length > 0 ? (
-          <div className={css.result}>
-            {job?.report?.truncated === true ? <p className={css.warning}>{copy.truncated}</p> : null}
-            <h3 className={css.summaryHeading}>{issueCountLabel}</h3>
-            <p className={css.legend}>{copy.severityLegend}</p>
-            <div className={css.issueList}>
+          <div className={css.report} data-testid="trajectory-analysis-report">
+            {job?.report?.truncated === true ? (
+              <p className={css.notice}>{copy.truncated}</p>
+            ) : null}
+            <div className={css.summary}>
+              <span className={css.summaryDot} aria-hidden="true" />
+              <div className={css.summaryText}>
+                <h2 className={css.summaryTitle}>{copy.summaryTitle}</h2>
+                <p className={css.summarySub}>{copy.summarySub}</p>
+              </div>
+              <span className={css.summaryCount}>{countLabel}</span>
+            </div>
+            <div className={css.incidentList}>
               {issues.map((issue, index) => (
-                <IssueCard
+                <IncidentCard
                   key={`${issue.trace_id ?? ''}-${index}`}
                   issue={issue}
                   index={index}
@@ -287,7 +324,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   );
 });
 
-function IssueCard({
+function IncidentCard({
   issue,
   index,
   copy,
@@ -305,68 +342,81 @@ function IssueCard({
   const evolution = issue.evolution;
   const skillAction = evolution !== null && evolution.kind === 'skill'
     && (evolution.action === 'add' || evolution.action === 'modify' || evolution.action === 'remove');
-  const severityWord = issue.priority <= 1
-    ? copy.severityCritical
-    : issue.priority === 2 ? copy.severityHigh
-      : issue.priority === 3 ? copy.severityMedium
-        : issue.priority === 4 ? copy.severityLow : copy.severityInfo;
-  const evidence = issue.evidence ? (
-    <details className={css.evidenceWrap}>
-      <summary className={css.evidenceSummary}>{copy.evidenceLabel}</summary>
-      <pre className={css.evidence}>{issue.evidence}</pre>
-    </details>
-  ) : null;
+  const severity = severityOf(issue.priority);
+  const severityLabel = copy[severity.label];
+  const showGuidance = Boolean(issue.root_cause || issue.impact || issue.recommendation);
   return (
-    <article className={css.card}>
-      <div className={css.cardHead}>
-        <span className={css.severity} data-priority={issue.priority}>
-          <span className={css.severityDot} data-priority={issue.priority} aria-hidden="true" />
-          {severityWord}
-        </span>
-        <h4 className={css.cardTitle}>{issue.title}</h4>
-      </div>
-      {issue.description ? <p className={css.text}>{issue.description}</p> : null}
-      {evidence}
-      {issue.root_cause ? <p className={css.field}><strong>{copy.why}: </strong>{issue.root_cause}</p> : null}
-      {issue.impact ? <p className={css.field}><strong>{copy.affects}: </strong>{issue.impact}</p> : null}
-      {issue.recommendation ? <p className={css.field}><strong>{copy.nextStep}: </strong>{issue.recommendation}</p> : null}
-      {skillAction ? (
-        <div className={css.actions}>
-          {ui.loading ? (
-            <span className={css.note}>{ui.applied === null ? copy.previewing : copy.applying}</span>
+    <section className={css.incident} data-tone={severity.tone}>
+      <header className={css.incidentHeader}>
+        <span className={css.pill} data-tone={severity.tone}>{severityLabel}</span>
+        <h3 className={css.incidentTitle}>{issue.title}</h3>
+      </header>
+      {issue.description ? <p className={css.incidentSummary}>{issue.description}</p> : null}
+      {showGuidance ? (
+        <div className={css.guidance}>
+          {issue.root_cause ? (
+            <div className={css.guidanceBlock}>
+              <span className={css.guidanceLabel}>{copy.why}</span>
+              <p className={css.guidanceText}>{issue.root_cause}</p>
+            </div>
           ) : null}
-          <button
-            type="button"
-            className={css.action}
-            disabled={ui.loading}
-            onClick={() => { void onPreview(index); }}
-          >
-            {copy.preview}
-          </button>
-          {ui.preview !== null && ui.preview.allowed === true ? (
+          {issue.impact ? (
+            <div className={css.guidanceBlock}>
+              <span className={css.guidanceLabel}>{copy.affects}</span>
+              <p className={css.guidanceText}>{issue.impact}</p>
+            </div>
+          ) : null}
+          {issue.recommendation ? (
+            <div className={css.guidanceBlock}>
+              <span className={css.guidanceLabel}>{copy.nextStep}</span>
+              <p className={css.guidanceText}>{issue.recommendation}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      <footer className={css.incidentFooter}>
+        {skillAction ? (
+          <div className={css.actions}>
+            {ui.loading ? (
+              <span className={css.hint}>{ui.applied === null ? copy.previewing : copy.applying}</span>
+            ) : null}
             <button
               type="button"
-              className={css.actionPrimary}
-              disabled={ui.loading || ui.preview.apply_allowed !== true}
-              title={ui.preview.apply_allowed === true ? undefined : copy.proposalOnly}
-              onClick={() => { void onApply(index); }}
+              className={css.action}
+              disabled={ui.loading}
+              onClick={() => { void onPreview(index); }}
             >
-              {copy.apply}
+              {copy.preview}
             </button>
-          ) : null}
-        </div>
-      ) : null}
-      {ui.error !== null ? <p className={css.error}>{ui.error}</p> : null}
+            {ui.preview !== null && ui.preview.allowed === true ? (
+              <button
+                type="button"
+                className={css.actionPrimary}
+                disabled={ui.loading || ui.preview.apply_allowed !== true}
+                title={ui.preview.apply_allowed === true ? undefined : copy.proposalOnly}
+                onClick={() => { void onApply(index); }}
+              >
+                {copy.apply}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {issue.evidence ? (
+          <details className={css.evidence}>
+            <summary className={css.evidenceSummary}>{copy.evidenceLabel}</summary>
+            <pre className={css.evidenceBody}>{issue.evidence}</pre>
+          </details>
+        ) : null}
+      </footer>
+      {ui.error !== null ? <p className={css.errorText}>{ui.error}</p> : null}
       {ui.preview !== null && ui.preview.allowed === true ? (
-        <div className={css.diffBlock}>
-          <pre className={css.diff}>{ui.preview.diff ?? '(no diff)'}</pre>
-        </div>
+        <pre className={css.diff}>{ui.preview.diff ?? '(no diff)'}</pre>
       ) : null}
       {ui.applied !== null ? (
-        <p className={css.applied}>
+        <p className={css.appliedText}>
           {ui.applied.status === 'applied' ? copy.applied : `${copy.rejected}: ${ui.applied.error ?? ''}`}
         </p>
       ) : null}
-    </article>
+    </section>
   );
 }
