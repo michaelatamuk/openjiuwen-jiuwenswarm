@@ -559,7 +559,7 @@ _GEN_EXCLUDE_PARTS = (
     "sharing",
     "signal",
 )
-_GEN_MODEL_TIMEOUT_S = 25
+_GEN_MODEL_TIMEOUT_S = 90
 
 
 def _find_small_source_file(kind: SuggestionKind, target: str) -> tuple[str, str] | None:
