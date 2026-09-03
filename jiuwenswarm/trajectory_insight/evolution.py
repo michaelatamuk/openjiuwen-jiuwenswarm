@@ -291,3 +291,173 @@ def _unified_diff(before: str, after: str) -> str:
     return "".join(
         difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True))
     )
+
+
+_APPLYABLE_KINDS = frozenset({
+    SuggestionKind.SKILL,
+    SuggestionKind.CONFIG,
+    SuggestionKind.TOOL,
+    SuggestionKind.RAIL,
+    SuggestionKind.PROMPT,
+})
+
+
+def _first_artifact(suggestion) -> dict[str, Any]:
+    if suggestion is None or not suggestion.artifacts:
+        return {}
+    first = suggestion.artifacts[0]
+    return first if isinstance(first, dict) else {}
+
+
+def _package_source_root() -> Path:
+    """Repo source package root that in-place source writes are confined to."""
+    return Path(__file__).resolve().parents[1]
+
+
+def _in_place_possible(kind: SuggestionKind, artifact: dict[str, Any]) -> bool:
+    if kind == SuggestionKind.CONFIG:
+        return bool(artifact.get("key")) and "value" in artifact
+    return bool(artifact.get("path")) and isinstance(artifact.get("content"), str)
+
+
+def _skill_preview_payload(issue: AnalysisIssue, settings: AnalysisSettings) -> dict[str, Any] | None:
+    return SkillApplyService(settings).preview(issue)
+
+
+def build_apply_preview(issue: AnalysisIssue, settings: AnalysisSettings) -> dict[str, Any] | None:
+    """Return what approving this issue would do (never writes)."""
+    suggestion = issue.evolution
+    if suggestion is None or suggestion.kind not in _APPLYABLE_KINDS:
+        return None
+    artifact = _first_artifact(suggestion)
+    if suggestion.kind == SuggestionKind.SKILL:
+        return _skill_preview_payload(issue, settings)
+    patch = build_code_proposal(issue, settings) or {}
+    return {
+        "allowed": True,
+        "apply_allowed": True,
+        "kind": suggestion.kind.value,
+        "target": suggestion.target,
+        "can_in_place": settings.apply_in_place and _in_place_possible(suggestion.kind, artifact),
+        "patch": patch,
+        "status": ApplyStatus.PREVIEWED.value,
+    }
+
+
+async def apply_evolution(
+    issue: AnalysisIssue,
+    settings: AnalysisSettings,
+    *,
+    mode: str = "patch",
+    model_provider=None,
+) -> dict[str, Any]:
+    """Apply an approved evolution suggestion.
+
+    ``mode`` is the human's choice at approval time:
+    - ``patch``  -> returns a change artifact, writes nothing.
+    - ``in_place`` -> writes to config (or to an allowlisted source file when the
+      artifact carries an exact relative ``path`` + ``content`` and
+      ``settings.apply_in_place`` is enabled).
+    """
+    suggestion = issue.evolution
+    if suggestion is None or suggestion.kind not in _APPLYABLE_KINDS:
+        return {"status": ApplyStatus.REJECTED.value, "error": "NOT_APPLICABLE"}
+
+    if suggestion.kind == SuggestionKind.SKILL:
+        return await SkillApplyService(settings, model_provider=model_provider).confirm(issue)
+
+    if mode == "in_place" and settings.apply_in_place:
+        if suggestion.kind == SuggestionKind.CONFIG:
+            return _apply_config_value(issue)
+        return _apply_source_value(issue)
+
+    patch = build_code_proposal(issue, settings) or {}
+    return {
+        "status": "patch_generated",
+        "kind": suggestion.kind.value,
+        "target": suggestion.target,
+        "patch": patch,
+        "note": "No file was changed. Review the artifact and ship it through a normal PR.",
+    }
+
+
+def _apply_config_value(issue: AnalysisIssue) -> dict[str, Any]:
+    suggestion = issue.evolution
+    artifact = _first_artifact(suggestion)
+    key = str(artifact.get("key") or suggestion.target or "").strip()
+    value = artifact.get("value")
+    if not key or "value" not in artifact:
+        return {"status": ApplyStatus.REJECTED.value, "error": "CONFIG_NEEDS_ARTIFACT"}
+    from jiuwenswarm.common.config import (
+        CONFIG_YAML_PATH,
+        dump_yaml_round_trip,
+        load_yaml_round_trip,
+    )
+
+    data = load_yaml_round_trip(CONFIG_YAML_PATH)
+    node: Any = data
+    parts = key.split(".")
+    for part in parts[:-1]:
+        if not isinstance(node, dict) or part not in node:
+            return {"status": ApplyStatus.REJECTED.value, "error": f"CONFIG_KEY_NOT_FOUND: {key}"}
+        node = node[part]
+    leaf = parts[-1]
+    if not isinstance(node, dict) or leaf not in node:
+        return {"status": ApplyStatus.REJECTED.value, "error": f"CONFIG_KEY_NOT_FOUND: {key}"}
+    old = node[leaf]
+    node[leaf] = _coerce_config_value(old, value)
+    dump_yaml_round_trip(CONFIG_YAML_PATH, data)
+    return {
+        "status": ApplyStatus.APPLIED.value,
+        "kind": "config",
+        "path": key,
+        "before": old,
+        "after": node[leaf],
+        "note": "Config updated in your config file; restart for it to take effect.",
+    }
+
+
+def _coerce_config_value(current: Any, value: Any) -> Any:
+    if isinstance(current, bool):
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(current, int):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return current
+    if isinstance(current, float):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return current
+    return value
+
+
+def _apply_source_value(issue: AnalysisIssue) -> dict[str, Any]:
+    suggestion = issue.evolution
+    artifact = _first_artifact(suggestion)
+    relpath = str(artifact.get("path") or "").strip()
+    content = artifact.get("content")
+    if not relpath or not isinstance(content, str):
+        return {"status": ApplyStatus.REJECTED.value, "error": "SOURCE_NEEDS_ARTIFACT"}
+    root = _package_source_root()
+    try:
+        target = (root / relpath).resolve()
+        if not target.is_relative_to(root):
+            return {"status": ApplyStatus.REJECTED.value, "error": "PATH_OUTSIDE_SOURCE"}
+        if not target.is_file():
+            return {"status": ApplyStatus.REJECTED.value, "error": f"SOURCE_FILE_NOT_FOUND: {relpath}"}
+    except OSError as exc:
+        return {"status": ApplyStatus.FAILED.value, "error": f"PATH_ERROR: {exc}"}
+    try:
+        before = _read_text(target)
+        _atomic_write(target, content)
+    except OSError as exc:
+        return {"status": ApplyStatus.FAILED.value, "error": f"WRITE_FAILED: {exc}"}
+    return {
+        "status": ApplyStatus.APPLIED.value,
+        "kind": suggestion.kind.value,
+        "path": str(target),
+        "diff": _unified_diff(before, content),
+        "note": "Source file updated in place. Rebuild/restart for it to take effect.",
+    }

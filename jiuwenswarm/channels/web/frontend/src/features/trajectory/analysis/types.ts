@@ -68,6 +68,7 @@ export interface ApplyResult {
   status: string;
   allowed?: boolean;
   apply_allowed?: boolean;
+  can_in_place?: boolean;
   target?: string | null;
   kind?: string;
   path?: string | null;
@@ -76,6 +77,7 @@ export interface ApplyResult {
   diff?: string;
   applied_at?: number;
   apply_id?: string;
+  patch?: unknown;
   verification?: {
     accepted?: boolean;
     method?: string;

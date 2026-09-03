@@ -195,11 +195,11 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     }
   }, [job, sessionId, patchUi]);
 
-  const handleApply = useCallback(async (index: number) => {
+  const handleApply = useCallback(async (index: number, mode = 'patch') => {
     if (!job) return;
     patchUi(index, { loading: true, error: null });
     try {
-      const result = await confirmTrajectoryApply(sessionId, job.analysis_id, index);
+      const result = await confirmTrajectoryApply(sessionId, job.analysis_id, index, mode);
       patchUi(index, { loading: false, applied: result });
     } catch (caught) {
       patchUi(index, {
@@ -337,11 +337,15 @@ function IncidentCard({
   copy: Record<string, string>;
   ui: IssueUi;
   onPreview: (index: number) => void;
-  onApply: (index: number) => void;
+  onApply: (index: number, mode: string) => void;
 }) {
   const evolution = issue.evolution;
   const skillAction = evolution !== null && evolution.kind === 'skill'
     && (evolution.action === 'add' || evolution.action === 'modify' || evolution.action === 'remove');
+  const codeAction = evolution !== null && !skillAction
+    && (evolution.kind === 'config' || evolution.kind === 'tool'
+      || evolution.kind === 'rail' || evolution.kind === 'prompt');
+  const applyable = skillAction || codeAction;
   const severity = severityOf(issue.priority);
   const severityLabel = copy[severity.label];
   const showGuidance = Boolean(issue.root_cause || issue.impact || issue.recommendation);
@@ -381,7 +385,7 @@ function IncidentCard({
         </div>
       ) : null}
       <footer className={css.incidentFooter}>
-        {skillAction ? (
+        {applyable ? (
           <div className={css.actions}>
             {ui.loading ? (
               <span className={css.hint}>{ui.applied === null ? copy.previewing : copy.applying}</span>
@@ -394,28 +398,58 @@ function IncidentCard({
             >
               {copy.preview}
             </button>
-            {ui.preview !== null && ui.preview.allowed === true ? (
+            {ui.preview !== null && ui.preview.allowed === true && skillAction ? (
               <button
                 type="button"
                 className={css.actionPrimary}
                 disabled={ui.loading || ui.preview.apply_allowed !== true}
                 title={ui.preview.apply_allowed === true ? undefined : copy.proposalOnly}
-                onClick={() => { void onApply(index); }}
+                onClick={() => { void onApply(index, 'patch'); }}
               >
                 {copy.apply}
               </button>
+            ) : null}
+            {ui.preview !== null && ui.preview.allowed === true && codeAction ? (
+              <>
+                {ui.preview.can_in_place === true ? (
+                  <button
+                    type="button"
+                    className={css.actionPrimary}
+                    disabled={ui.loading}
+                    onClick={() => { void onApply(index, 'in_place'); }}
+                  >
+                    {copy.applyInPlace}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={ui.preview.can_in_place === true ? css.action : css.actionPrimary}
+                  disabled={ui.loading}
+                  onClick={() => { void onApply(index, 'patch'); }}
+                >
+                  {copy.generatePatch}
+                </button>
+              </>
             ) : null}
           </div>
         ) : null}
       </footer>
       {ui.error !== null ? <p className={css.errorText}>{ui.error}</p> : null}
       {ui.preview !== null && ui.preview.allowed === true ? (
-        <pre className={css.diff}>{ui.preview.diff ?? '(no diff)'}</pre>
+        ui.preview.diff !== undefined ? (
+          <pre className={css.diff}>{ui.preview.diff}</pre>
+        ) : codeAction ? (
+          <pre className={css.diff}>{JSON.stringify(ui.preview.patch ?? {}, null, 2)}</pre>
+        ) : null
       ) : null}
       {ui.applied !== null ? (
-        <p className={css.appliedText}>
-          {ui.applied.status === 'applied' ? copy.applied : `${copy.rejected}: ${ui.applied.error ?? ''}`}
-        </p>
+        ui.applied.status === 'patch_generated' ? (
+          <pre className={css.diff}>{JSON.stringify(ui.applied.patch ?? {}, null, 2)}</pre>
+        ) : ui.applied.status === 'applied' ? (
+          <p className={css.appliedText}>{copy.applied}{ui.applied.path ? ` · ${ui.applied.path}` : ''}</p>
+        ) : (
+          <p className={css.errorText}>{copy.rejected}: {ui.applied.error ?? 'apply failed'}</p>
+        )
       ) : null}
     </section>
   );

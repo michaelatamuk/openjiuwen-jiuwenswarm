@@ -536,6 +536,7 @@ class TrajectoryAnalysisEndpoints:
         if issue_index is None:
             return _error_response("issue_index is required", "BAD_REQUEST", 400)
         preview = bool(body.get("preview", False))
+        mode = str(body.get("mode") or "patch").strip().lower()
 
         error = self._validate(session_id)
         if error is not None:
@@ -546,32 +547,35 @@ class TrajectoryAnalysisEndpoints:
         if job.status != "completed" or job.report is None:
             return _error_response("analysis is not complete", "ANALYSIS_NOT_COMPLETE", 409)
 
-        from jiuwenswarm.trajectory_insight.evolution import SkillApplyService, derive_issue
+        from jiuwenswarm.trajectory_insight.evolution import (
+            apply_evolution,
+            build_apply_preview,
+            derive_issue,
+        )
 
         issue = derive_issue(job.report, issue_index)
         if issue is None:
             return _error_response("issue not found", "NOT_FOUND", 404)
-        service = SkillApplyService(
-            settings,
-            model_provider=self._model_provider,
-        )
         if preview:
-            result = service.preview(issue)
+            result = build_apply_preview(issue, settings)
             if result is None:
                 return _error_response(
-                    "issue has no applicable skill change",
+                    "issue has no applicable change",
                     "NOT_APPLICABLE",
                     409,
                 )
             return _json_response(result)
-        if issue.evolution is None or issue.evolution.kind.value != "skill":
-            return _error_response(
-                "issue has no applicable skill change",
-                "NOT_APPLICABLE",
-                409,
-            )
-        result = await service.confirm(issue)
-        status_code = 200 if result.get("status") in {"applied", "previewed"} else 409
+        result = await apply_evolution(
+            issue,
+            settings,
+            mode=mode,
+            model_provider=self._model_provider,
+        )
+        status_code = 200 if result.get("status") in {
+            "applied",
+            "previewed",
+            "patch_generated",
+        } else 409
         return _json_response(result, status_code=status_code)
 
     async def proposal_analysis(self, session_id: str, analysis_id: str, request: Request) -> Response:

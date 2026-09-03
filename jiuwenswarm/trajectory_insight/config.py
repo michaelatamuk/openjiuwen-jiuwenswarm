@@ -24,6 +24,7 @@ DEFAULT_JOB_TTL_S = 3600
 DEFAULT_MAX_CONCURRENT_JOBS = 4
 DEFAULT_ALLOW_APPLY_SKILL = False
 DEFAULT_ALLOW_CODE_PATCH = True
+DEFAULT_APPLY_IN_PLACE = False
 DEFAULT_LANGUAGE = "en"
 
 
@@ -40,6 +41,7 @@ class AnalysisSettings:
     max_concurrent_jobs: int = DEFAULT_MAX_CONCURRENT_JOBS
     allow_apply_skill: bool = DEFAULT_ALLOW_APPLY_SKILL
     allow_code_patch: bool = DEFAULT_ALLOW_CODE_PATCH
+    apply_in_place: bool = DEFAULT_APPLY_IN_PLACE
     language: str = DEFAULT_LANGUAGE
 
 
@@ -83,6 +85,7 @@ def analysis_settings_from(source: Mapping[str, Any]) -> AnalysisSettings:
         ),
         allow_apply_skill=_as_bool(analysis.get("allow_apply_skill"), DEFAULT_ALLOW_APPLY_SKILL),
         allow_code_patch=_as_bool(analysis.get("allow_code_patch"), DEFAULT_ALLOW_CODE_PATCH),
+        apply_in_place=_as_bool(analysis.get("apply_in_place"), DEFAULT_APPLY_IN_PLACE),
         language=str(analysis.get("language") or DEFAULT_LANGUAGE),
     )
 

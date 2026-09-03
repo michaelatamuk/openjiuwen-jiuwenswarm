@@ -16,6 +16,8 @@ from jiuwenswarm.trajectory_insight.config import (
 )
 from jiuwenswarm.trajectory_insight.evolution import (
     SkillApplyService,
+    apply_evolution,
+    build_apply_preview,
     build_code_proposal,
     derive_issue,
 )
@@ -57,6 +59,8 @@ __all__ = [
     "TrajectoryUsage",
     "analysis_settings_from",
     "analyze_session",
+    "apply_evolution",
+    "build_apply_preview",
     "build_code_proposal",
     "build_digest",
     "build_session_read_model",

@@ -91,3 +91,25 @@ def test_code_proposal_gated_by_config() -> None:
     proposal = build_code_proposal(_issue(kind=SuggestionKind.RAIL), enabled)
     assert proposal is not None
     assert proposal["kind"] == "rail"
+
+
+def test_patch_mode_changes_nothing() -> None:
+    from jiuwenswarm.trajectory_insight.evolution import apply_evolution
+
+    settings = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=False)
+    result = asyncio.run(apply_evolution(_issue(kind=SuggestionKind.RAIL), settings, mode="patch"))
+    assert result["status"] == "patch_generated"
+
+
+def test_in_place_source_requires_enabled_flag_and_artifact() -> None:
+    from jiuwenswarm.trajectory_insight.evolution import apply_evolution
+
+    disabled = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=False)
+    issue = _issue(kind=SuggestionKind.RAIL)
+    result = asyncio.run(apply_evolution(issue, disabled, mode="in_place"))
+    assert result["status"] == "patch_generated"
+
+    enabled = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=True)
+    result = asyncio.run(apply_evolution(issue, enabled, mode="in_place"))
+    assert result["status"] == "rejected"
+    assert result["error"] == "SOURCE_NEEDS_ARTIFACT"

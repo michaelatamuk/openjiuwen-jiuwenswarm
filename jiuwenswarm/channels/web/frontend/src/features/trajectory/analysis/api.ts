@@ -161,10 +161,13 @@ function applyResultOf(value: unknown): ApplyResult {
   const result: ApplyResult = {
     status: typeof value.status === 'string' ? value.status : 'failed',
   };
-  for (const key of ['allowed', 'apply_allowed']) {
+  for (const key of ['allowed', 'apply_allowed', 'can_in_place']) {
     if (typeof value[key] === 'boolean') {
       (result as unknown as Record<string, unknown>)[key] = value[key];
     }
+  }
+  if (object(value.patch)) {
+    result.patch = value.patch;
   }
   for (const key of ['target', 'kind', 'path', 'before', 'after', 'diff', 'error', 'note']) {
     if (typeof value[key] === 'string') {
@@ -270,15 +273,18 @@ async function postIssueAction(
   action: 'apply' | 'proposal',
   issueIndex: number,
   preview: boolean,
+  mode?: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<unknown> {
+  const body: Record<string, unknown> = { issue_index: issueIndex, preview };
+  if (mode !== undefined) body.mode = mode;
   const response = await fetch(analysisUrl(
     `/api/trajectory/sessions/${encodeURIComponent(sessionId)}`
     + `/analyses/${encodeURIComponent(analysisId)}/${action}`,
   ), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ issue_index: issueIndex, preview }),
+    body: JSON.stringify(body),
     cache: 'no-store',
     signal: options.signal,
   });
@@ -291,16 +297,17 @@ export async function previewTrajectoryApply(
   issueIndex: number,
   options: { signal?: AbortSignal } = {},
 ): Promise<ApplyResult> {
-  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, true, options));
+  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, true, undefined, options));
 }
 
 export async function confirmTrajectoryApply(
   sessionId: string,
   analysisId: string,
   issueIndex: number,
+  mode = 'patch',
   options: { signal?: AbortSignal } = {},
 ): Promise<ApplyResult> {
-  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, false, options));
+  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, false, mode, options));
 }
 
 export async function getTrajectoryProposal(
@@ -309,6 +316,6 @@ export async function getTrajectoryProposal(
   issueIndex: number,
   options: { signal?: AbortSignal } = {},
 ): Promise<ProposalResult | null> {
-  const payload = await postIssueAction(sessionId, analysisId, 'proposal', issueIndex, false, options);
+  const payload = await postIssueAction(sessionId, analysisId, 'proposal', issueIndex, false, undefined, options);
   return proposalOf(payload);
 }
