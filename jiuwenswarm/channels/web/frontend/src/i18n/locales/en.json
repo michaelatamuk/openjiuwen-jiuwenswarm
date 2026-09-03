@@ -360,7 +360,8 @@
     "loading": "Loading trajectory UI…",
     "tabs": {
       "aria": "Agent and Team content view",
-      "trajectory": "Trajectory"
+      "trajectory": "Trajectory",
+      "analysis": "Analysis"
     },
     "team": {
       "memberLanes": "Member trajectory lanes",

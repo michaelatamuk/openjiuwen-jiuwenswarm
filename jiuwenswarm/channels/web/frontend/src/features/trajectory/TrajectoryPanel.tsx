@@ -70,7 +70,6 @@ import {
   MAIN_TRAJECTORY_SUBJECT_ID,
 } from './trajectorySubjects';
 import { TeamTrajectoryWorkspace } from './TeamTrajectoryWorkspace';
-import { TrajectoryAnalysisPanel } from './analysis/TrajectoryAnalysisPanel';
 import css from './TrajectoryPanel.module.css';
 import './client/theme.css';
 
@@ -1376,9 +1375,6 @@ export const TrajectoryPanel = memo(function TrajectoryPanel({
           )}
         </div>
       </header>
-      {replayArchive === null && sessionId !== 'new' ? (
-        <TrajectoryAnalysisPanel sessionId={sessionId} active={active} />
-      ) : null}
       {archiveError === null ? null : (
         <p className={`${css.archiveError} ${css.errorText}`} role="alert">{archiveError}</p>
       )}

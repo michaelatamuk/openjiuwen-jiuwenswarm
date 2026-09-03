@@ -140,6 +140,7 @@ import {
   normalizeTrajectoryUiEnabled,
   setTrajectoryAnalysisEnabled,
   setTrajectoryUiEnabled,
+  useTrajectoryAnalysisEnabled,
   useTrajectoryUiEnabled,
 } from './features/trajectory/featureConfig';
 import './App.css';
@@ -147,6 +148,10 @@ import './App.css';
 const LazyTrajectoryPanel = lazy(async () => {
   const module = await import('./features/trajectory/TrajectoryPanel');
   return { default: module.TrajectoryPanel };
+});
+const LazyTrajectoryAnalysisPanel = lazy(async () => {
+  const module = await import('./features/trajectory/analysis/TrajectoryAnalysisPanel');
+  return { default: module.TrajectoryAnalysisPanel };
 });
 const CHAT_PANEL_DEFAULT_WIDTH_PCT = 33.33;
 const CHAT_PANEL_MIN_WIDTH_PCT = 20;
@@ -299,6 +304,7 @@ function AppContent({
   });
   const [chatSurfaceViews, setChatSurfaceViews] = useState<Record<string, ChatSurfaceView>>({});
   const [trajectoryUiRequested, setTrajectoryUiRequested] = useState(false);
+  const [analysisRequested, setAnalysisRequested] = useState(false);
 
   const [activeNav, setActiveNav] = useState<MainNavKey>('chat');
   const [serverConfig, setServerConfig] = useState<Record<string, unknown> | null>(null);
@@ -306,6 +312,7 @@ function AppContent({
     serverConfig?.kv_cache_affinity_enabled,
   );
   const trajectoryUiEnabled = useTrajectoryUiEnabled();
+  const trajectoryAnalysisEnabled = useTrajectoryAnalysisEnabled();
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -593,12 +600,13 @@ function AppContent({
     )) ?? null;
   }, [currentSession, projects, sessions, sessionId]);
   const mode = useSessionStore((s) => s.runtimes[sessionId]?.mode ?? 'agent');
-  const chatSurfaceView: ChatSurfaceView = trajectoryUiEnabled
+  const chatSurfaceView: ChatSurfaceView = (trajectoryUiEnabled || trajectoryAnalysisEnabled)
     && (mode === 'agent' || mode === 'team')
     ? (chatSurfaceViews[sessionId] ?? 'chat')
     : 'chat';
   const selectChatSurfaceView = useCallback((nextView: ChatSurfaceView) => {
     if (nextView === 'trajectory') setTrajectoryUiRequested(true);
+    if (nextView === 'analysis') setAnalysisRequested(true);
     setChatSurfaceViews((current) => (
       current[sessionId] === nextView
         ? current
@@ -3099,6 +3107,23 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                     trajectoryLabel={t('trajectory.tabs.trajectory')}
                     showNavigation={sessionId !== NEW_CONVERSATION_ID}
                     trajectoryRequested={trajectoryUiRequested}
+                    analysis={(
+                      <Suspense
+                        fallback={(
+                          <div className="trajectory-view-loading">
+                            {t('trajectory.loading')}
+                          </div>
+                        )}
+                      >
+                        <LazyTrajectoryAnalysisPanel
+                          active={chatSurfaceView === 'analysis'}
+                          sessionId={sessionId}
+                        />
+                      </Suspense>
+                    )}
+                    analysisEnabled={trajectoryAnalysisEnabled}
+                    analysisLabel={t('trajectory.tabs.analysis')}
+                    analysisRequested={analysisRequested}
                   />
                 </div>
 

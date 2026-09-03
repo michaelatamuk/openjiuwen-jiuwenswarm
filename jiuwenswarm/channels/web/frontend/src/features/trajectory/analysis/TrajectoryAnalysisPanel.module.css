@@ -1,46 +1,54 @@
 /* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved. */
 
-.root {
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  background: var(--color-surface-card);
-  margin: 8px 0 12px;
-  overflow: hidden;
+.page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.header {
+.pageHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
   padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  background: var(--color-surface-card);
+  flex: 0 0 auto;
 }
 
-.run {
-  border: 1px solid var(--color-border-default);
+.pageBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.primary,
+.secondary {
   border-radius: 6px;
-  background: var(--color-action-secondary);
-  color: var(--color-action-secondary-text);
   font-size: 12px;
   font-weight: 600;
-  padding: 4px 12px;
+  padding: 5px 14px;
   cursor: pointer;
 }
 
-.run:disabled {
+.primary {
+  border: 1px solid var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text);
+}
+
+.primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.summary {
+.secondary {
   border: 1px solid var(--color-border-default);
-  border-radius: 6px;
-  background: var(--color-surface-muted);
-  color: var(--color-text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  cursor: pointer;
+  background: var(--color-action-secondary);
+  color: var(--color-action-secondary-text);
 }
 
 .note {
@@ -49,11 +57,10 @@
 }
 
 .progress {
-  border-top: 1px solid var(--color-border-default);
-  padding: 8px 12px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 6px 0 10px;
 }
 
 .progressStage {
@@ -67,10 +74,7 @@
 }
 
 .result {
-  border-top: 1px solid var(--color-border-default);
-  padding: 4px 12px 12px;
-  max-height: min(55vh, 520px);
-  overflow-y: auto;
+  max-width: 960px;
 }
 
 .legend {
@@ -81,8 +85,7 @@
 
 .empty {
   color: var(--color-text-secondary);
-  font-size: 12px;
-  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .warning {
@@ -92,8 +95,7 @@
 
 .error {
   color: var(--color-feedback-danger-text);
-  font-size: 12px;
-  padding: 4px 12px;
+  font-size: 13px;
 }
 
 .applied {
@@ -105,43 +107,49 @@
 .issueList {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-top: 8px;
 }
 
 .card {
   border: 1px solid var(--color-border-default);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--color-surface-card);
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 
 .cardHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 700;
-  border: 1px solid var(--color-border-default);
-  border-radius: 4px;
-  padding: 1px 7px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
-.severity[data-priority='1'],
-.severity[data-priority='2'] {
-  color: var(--color-feedback-danger-text);
-  border-color: var(--color-feedback-danger-text);
+.severityDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  flex: 0 0 auto;
 }
 
-.severity[data-priority='3'] {
-  color: var(--color-feedback-warning-text);
-  border-color: var(--color-feedback-warning-text);
+.severityDot[data-priority='1'],
+.severityDot[data-priority='2'] {
+  background: var(--color-feedback-danger-text);
+}
+
+.severityDot[data-priority='3'] {
+  background: var(--color-feedback-warning-text);
 }
 
 .cardTitle {
@@ -149,7 +157,7 @@
   font-size: 13px;
   margin: 0;
   flex: 1;
-  min-width: 200px;
+  min-width: 220px;
 }
 
 .text {
@@ -193,12 +201,6 @@
   margin: 6px 0 0;
 }
 
-.badge {
-  color: var(--color-text-secondary);
-  font-size: 11px;
-  margin: 6px 0 0;
-}
-
 .actions {
   display: flex;
   align-items: center;
@@ -209,19 +211,20 @@
 
 .action,
 .actionPrimary {
-  border: 1px solid var(--color-border-default);
   border-radius: 6px;
   font-size: 12px;
-  padding: 3px 10px;
+  padding: 4px 12px;
   cursor: pointer;
 }
 
 .action {
+  border: 1px solid var(--color-border-default);
   background: var(--color-action-secondary);
   color: var(--color-action-secondary-text);
 }
 
 .actionPrimary {
+  border: 1px solid var(--color-action-primary);
   background: var(--color-action-primary);
   color: var(--color-action-primary-text);
 }
@@ -232,17 +235,9 @@
   cursor: not-allowed;
 }
 
-.proposal {
-  margin-top: 8px;
-  border-top: 1px dashed var(--color-border-default);
-  padding-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .diffBlock {
-  max-height: 220px;
+  margin-top: 8px;
+  max-height: 240px;
   overflow: auto;
 }
 

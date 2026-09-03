@@ -348,7 +348,8 @@
     "loading": "正在加载轨迹界面…",
     "tabs": {
       "aria": "Agent 与团队内容视图",
-      "trajectory": "轨迹"
+      "trajectory": "轨迹",
+      "analysis": "分析"
     },
     "team": {
       "memberLanes": "成员轨迹泳道",
