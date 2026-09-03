@@ -173,7 +173,7 @@ class SkillApplyService:
 
             response = await asyncio.wait_for(
                 model.invoke([UserMessage(content=prompt)], temperature=0.0),
-                timeout=60,
+                timeout=_GEN_MODEL_TIMEOUT_S,
             )
             text = (getattr(response, "content", None) or str(response)).strip().lower()
             accepted = "yes" in text[:400] and "no" not in text[:200]
@@ -533,6 +533,7 @@ def _apply_source_value(issue: AnalysisIssue) -> dict[str, Any]:
 _GEN_MAX_FILE_LINES = 600
 _GEN_MAX_FILE_BYTES = 400 * 1024
 _GEN_SKIP_PARTS = ("__pycache__", ".venv", "node_modules")
+_GEN_MODEL_TIMEOUT_S = 25
 
 
 def _find_small_source_file(kind: SuggestionKind, target: str) -> tuple[Path, str] | None:
@@ -614,7 +615,7 @@ async def _generate_source_artifact(
     try:
         response = await asyncio.wait_for(
             model.invoke([UserMessage(content=prompt)], temperature=0.0),
-            timeout=60,
+            timeout=_GEN_MODEL_TIMEOUT_S,
         )
     except Exception:  # noqa: BLE001
         logging.getLogger(__name__).warning("[trajectory.apply] change generation failed", exc_info=True)
