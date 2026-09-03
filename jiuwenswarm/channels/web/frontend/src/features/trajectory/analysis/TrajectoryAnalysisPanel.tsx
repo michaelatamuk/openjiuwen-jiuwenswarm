@@ -410,26 +410,16 @@ function IncidentCard({
               </button>
             ) : null}
             {ui.preview !== null && ui.preview.allowed === true && codeAction ? (
-              <>
-                {ui.preview.can_in_place === true ? (
-                  <button
-                    type="button"
-                    className={css.actionPrimary}
-                    disabled={ui.loading}
-                    onClick={() => { void onApply(index, 'in_place'); }}
-                  >
-                    {copy.applyInPlace}
-                  </button>
-                ) : null}
+              ui.preview.can_in_place === true ? (
                 <button
                   type="button"
-                  className={ui.preview.can_in_place === true ? css.action : css.actionPrimary}
+                  className={css.actionPrimary}
                   disabled={ui.loading}
-                  onClick={() => { void onApply(index, 'patch'); }}
+                  onClick={() => { void onApply(index, 'in_place'); }}
                 >
-                  {copy.generatePatch}
+                  {copy.applyInPlace}
                 </button>
-              </>
+              ) : null
             ) : null}
           </div>
         ) : null}
@@ -445,9 +435,7 @@ function IncidentCard({
         ) : null
       ) : null}
       {ui.applied !== null ? (
-        ui.applied.status === 'patch_generated' ? (
-          <pre className={css.diff}>{JSON.stringify(ui.applied.patch ?? {}, null, 2)}</pre>
-        ) : ui.applied.status === 'applied' ? (
+        ui.applied.status === 'applied' ? (
           <p className={css.appliedText}>{copy.applied}{ui.applied.path ? ` · ${ui.applied.path}` : ''}</p>
         ) : (
           <p className={css.errorText}>{copy.rejected}: {ui.applied.error ?? 'apply failed'}</p>
