@@ -37,7 +37,7 @@ export function useTrajectoryAnalysisCopy(): { zh: boolean; copy: Record<string,
     severityInfo: '信息',
     why: '发生原因',
     affects: '影响范围',
-    nextStep: '下一步建议',
+    nextStep: 'Agent 下一步该怎么做',
     preview: '预览变更',
     applying: '校验中…',
     previewing: '准备中…',
@@ -75,7 +75,7 @@ export function useTrajectoryAnalysisCopy(): { zh: boolean; copy: Record<string,
     severityInfo: 'Info',
     why: 'Why it happened',
     affects: 'What it affects',
-    nextStep: 'What to do next',
+    nextStep: 'What the agent should do next',
     preview: 'Preview change',
     applying: 'Verifying…',
     previewing: 'Preparing…',
@@ -86,3 +86,4 @@ export function useTrajectoryAnalysisCopy(): { zh: boolean; copy: Record<string,
   };
   return { zh, copy };
 }
+
