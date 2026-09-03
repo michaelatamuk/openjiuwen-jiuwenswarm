@@ -7,7 +7,7 @@ from __future__ import annotations
 
 
 
-from jiuwenswarm.trajectory_insight.readmodel import build_session_read_model
+from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
 from tests.unit_tests.trajectory_insight.fixtures import (
     build_record,
     llm_span,
@@ -89,7 +89,7 @@ def test_empty_records_produce_empty_model() -> None:
 def test_gateway_reader_otlp_shape_is_accepted() -> None:
     import json
 
-    from jiuwenswarm.trajectory_insight.signals import detect
+    from jiuwenswarm.observability.trajectory_insight.signals import detect
 
     base = build_record(
         trace_id="a" * 32,

@@ -17,7 +17,7 @@ import json
 import re
 from typing import Any, Mapping
 
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     EventKind,
     SessionReadModel,
     TrajectoryEvent,

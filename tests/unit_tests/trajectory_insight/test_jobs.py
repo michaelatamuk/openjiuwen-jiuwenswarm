@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import asyncio
 
-from jiuwenswarm.trajectory_insight.jobs import AnalysisJobRegistry
-from jiuwenswarm.trajectory_insight.schemas import SessionAnalysisReport
+from jiuwenswarm.observability.trajectory_insight.jobs import AnalysisJobRegistry
+from jiuwenswarm.observability.trajectory_insight.schemas import SessionAnalysisReport
 
 
 def _report(session_id: str) -> SessionAnalysisReport:

@@ -8,10 +8,10 @@ from __future__ import annotations
 import asyncio
 
 
-from jiuwenswarm.trajectory_insight.analyzer import analyze_session, build_digest, redact_secrets
-from jiuwenswarm.trajectory_insight.readmodel import build_session_read_model
-from jiuwenswarm.trajectory_insight.schemas import IssueSeed
-from jiuwenswarm.trajectory_insight.signals import detect
+from jiuwenswarm.observability.trajectory_insight.analyzer import analyze_session, build_digest, redact_secrets
+from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
+from jiuwenswarm.observability.trajectory_insight.schemas import IssueSeed
+from jiuwenswarm.observability.trajectory_insight.signals import detect
 from tests.unit_tests.trajectory_insight.fixtures import build_record, llm_span
 
 

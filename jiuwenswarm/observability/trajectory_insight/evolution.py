@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Any
 
 from jiuwenswarm.common.utils import get_agent_skills_dir
-from jiuwenswarm.trajectory_insight.config import AnalysisSettings
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.config import AnalysisSettings
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     AnalysisIssue,
     ApplyStatus,
     SuggestionAction,
@@ -317,7 +317,7 @@ def _first_artifact(suggestion) -> dict[str, Any]:
 
 def _package_source_root() -> Path:
     """Repo source package root that in-place source writes are confined to."""
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _source_roots() -> list[Path]:
@@ -647,7 +647,7 @@ async def _generate_source_artifact(
         return None
     from openjiuwen.core.foundation.llm.schema.message import UserMessage
 
-    from jiuwenswarm.trajectory_insight.prompts import build_change_prompt
+    from jiuwenswarm.observability.trajectory_insight.prompts import build_change_prompt
 
     prompt = build_change_prompt(
         language=settings.language,

@@ -10,8 +10,8 @@ import time
 from dataclasses import replace
 from typing import Any
 
-from jiuwenswarm.trajectory_insight.prompts import build_analysis_prompt, build_retry_prompt
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.prompts import build_analysis_prompt, build_retry_prompt
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     AnalysisIssue,
     EvolutionSuggestion,
     IssueSeed,

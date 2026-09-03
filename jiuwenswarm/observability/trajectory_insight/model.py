@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from jiuwenswarm.common.config import get_default_models
-from jiuwenswarm.trajectory_insight.config import get_analysis_settings
+from jiuwenswarm.observability.trajectory_insight.config import get_analysis_settings
 
 
 def _matches(entry: dict[str, Any], target: str) -> bool:

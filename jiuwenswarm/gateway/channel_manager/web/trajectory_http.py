@@ -462,9 +462,9 @@ class TrajectoryAnalysisEndpoints:
         apply_registry=None,
         model_provider=None,
     ) -> None:
-        from jiuwenswarm.trajectory_insight.config import get_analysis_settings
-        from jiuwenswarm.trajectory_insight.jobs import AnalysisJobRegistry, ApplyJobRegistry
-        from jiuwenswarm.trajectory_insight.model import resolve_model_for_analysis
+        from jiuwenswarm.observability.trajectory_insight.config import get_analysis_settings
+        from jiuwenswarm.observability.trajectory_insight.jobs import AnalysisJobRegistry, ApplyJobRegistry
+        from jiuwenswarm.observability.trajectory_insight.model import resolve_model_for_analysis
 
         self._settings_loader = settings_loader or get_analysis_settings
         self._reader_loader = reader_loader
@@ -474,9 +474,9 @@ class TrajectoryAnalysisEndpoints:
         self._model_provider = model_provider or resolve_model_for_analysis
 
     async def start_analysis(self, session_id: str) -> Response:
-        from jiuwenswarm.trajectory_insight.analyzer import analyze_session
-        from jiuwenswarm.trajectory_insight.readmodel import build_session_read_model
-        from jiuwenswarm.trajectory_insight.signals import detect
+        from jiuwenswarm.observability.trajectory_insight.analyzer import analyze_session
+        from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
+        from jiuwenswarm.observability.trajectory_insight.signals import detect
 
         settings = self._settings_loader()
         if not settings.enabled:
@@ -549,7 +549,7 @@ class TrajectoryAnalysisEndpoints:
         if job.status != "completed" or job.report is None:
             return _error_response("analysis is not complete", "ANALYSIS_NOT_COMPLETE", 409)
 
-        from jiuwenswarm.trajectory_insight.evolution import (
+        from jiuwenswarm.observability.trajectory_insight.evolution import (
             apply_evolution,
             build_apply_preview_with_artifact,
             build_code_proposal,
@@ -617,7 +617,7 @@ class TrajectoryAnalysisEndpoints:
         if job.status != "completed" or job.report is None:
             return _error_response("analysis is not complete", "ANALYSIS_NOT_COMPLETE", 409)
 
-        from jiuwenswarm.trajectory_insight.evolution import build_code_proposal, derive_issue
+        from jiuwenswarm.observability.trajectory_insight.evolution import build_code_proposal, derive_issue
 
         issue = derive_issue(job.report, issue_index)
         if issue is None:

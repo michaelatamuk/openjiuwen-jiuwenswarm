@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
-from jiuwenswarm.trajectory_insight.schemas import SessionAnalysisReport
+from jiuwenswarm.observability.trajectory_insight.schemas import SessionAnalysisReport
 
 AnalysisRunner = Callable[["JobProgress"], Awaitable[SessionAnalysisReport]]
 

@@ -8,12 +8,12 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from jiuwenswarm.trajectory_insight.config import AnalysisSettings
-from jiuwenswarm.trajectory_insight.evolution import (
+from jiuwenswarm.observability.trajectory_insight.config import AnalysisSettings
+from jiuwenswarm.observability.trajectory_insight.evolution import (
     SkillApplyService,
     build_code_proposal,
 )
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     AnalysisIssue,
     EvolutionSuggestion,
     SuggestionAction,
@@ -94,7 +94,7 @@ def test_code_proposal_gated_by_config() -> None:
 
 
 def test_patch_mode_changes_nothing() -> None:
-    from jiuwenswarm.trajectory_insight.evolution import apply_evolution
+    from jiuwenswarm.observability.trajectory_insight.evolution import apply_evolution
 
     settings = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=False)
     result = asyncio.run(apply_evolution(_issue(kind=SuggestionKind.RAIL), settings, mode="patch"))
@@ -102,7 +102,7 @@ def test_patch_mode_changes_nothing() -> None:
 
 
 def test_in_place_source_requires_enabled_flag_and_artifact() -> None:
-    from jiuwenswarm.trajectory_insight.evolution import apply_evolution
+    from jiuwenswarm.observability.trajectory_insight.evolution import apply_evolution
 
     disabled = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=False)
     issue = _issue(kind=SuggestionKind.RAIL)

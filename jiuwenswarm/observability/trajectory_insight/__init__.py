@@ -8,23 +8,23 @@ seeds (``signals``) → structured report (``analyzer``) → evolution suggestio
 registry (``jobs``) behind the ``/api/trajectory`` HTTP routes.
 """
 
-from jiuwenswarm.trajectory_insight.analyzer import analyze_session, build_digest, redact_secrets
-from jiuwenswarm.trajectory_insight.config import (
+from jiuwenswarm.observability.trajectory_insight.analyzer import analyze_session, build_digest, redact_secrets
+from jiuwenswarm.observability.trajectory_insight.config import (
     AnalysisSettings,
     analysis_settings_from,
     get_analysis_settings,
 )
-from jiuwenswarm.trajectory_insight.evolution import (
+from jiuwenswarm.observability.trajectory_insight.evolution import (
     SkillApplyService,
     apply_evolution,
     build_apply_preview_with_artifact,
     build_code_proposal,
     derive_issue,
 )
-from jiuwenswarm.trajectory_insight.jobs import AnalysisJob, AnalysisJobRegistry
-from jiuwenswarm.trajectory_insight.model import resolve_model_for_analysis
-from jiuwenswarm.trajectory_insight.readmodel import build_session_read_model
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.jobs import AnalysisJob, AnalysisJobRegistry
+from jiuwenswarm.observability.trajectory_insight.model import resolve_model_for_analysis
+from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     AnalysisIssue,
     ApplyStatus,
     EventKind,
@@ -38,7 +38,7 @@ from jiuwenswarm.trajectory_insight.schemas import (
     TrajectoryTurn,
     TrajectoryUsage,
 )
-from jiuwenswarm.trajectory_insight.signals import detect
+from jiuwenswarm.observability.trajectory_insight.signals import detect
 
 __all__ = [
     "AnalysisIssue",

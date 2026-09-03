@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Iterable
 
-from jiuwenswarm.trajectory_insight.schemas import (
+from jiuwenswarm.observability.trajectory_insight.schemas import (
     EventKind,
     IssueSeed,
     SessionReadModel,
