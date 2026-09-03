@@ -439,7 +439,9 @@ function IncidentCard({
         ui.preview.diff !== undefined ? (
           <pre className={css.diff}>{ui.preview.diff}</pre>
         ) : codeAction ? (
-          <pre className={css.diff}>{JSON.stringify(ui.preview.patch ?? {}, null, 2)}</pre>
+          <p className={css.appliedText}>
+            {ui.preview.can_in_place === true ? copy.canInPlaceNote : copy.patchOnlyNote}
+          </p>
         ) : null
       ) : null}
       {ui.applied !== null ? (
