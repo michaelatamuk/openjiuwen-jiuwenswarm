@@ -69,7 +69,7 @@ def build_digest(
             f"llm={turn.llm_calls} tools={turn.tool_calls} failures={turn.tool_failures} "
             f"tokens={turn.total_tokens} duration={turn.duration_s:.1f}s"
         )
-        lines.append(f"--- turn {turn.turn_index} trace={turn.trace_id} {stats} ---")
+        lines.append(f"--- turn {turn.turn_index + 1} trace={turn.trace_id} {stats} ---")
         user = turn.user_content.strip()
         if user:
             lines.append(f"user: {_shorten(user, 400)}")
@@ -105,12 +105,9 @@ async def analyze_session(
     if model is not None:
         issues = await _run_llm_pass(read_model, digest, model, language=language)
     if issues is None:
-        issues = _seeds_to_issues(seeds)
-    else:
-        # Recorded error statuses are high-precision facts: never let an
-        # under-reporting LLM erase a concrete tool/LLM failure.
-        issues = _merge_recorded_failures(seeds, issues)
-    issues = [_attach_default_suggestion(issue) for issue in issues]
+        # Model unavailable/failed: report deterministic observations so the UI
+        # is never empty, with a default tool suggestion when a tool is named.
+        issues = [_attach_default_suggestion(issue) for issue in _seeds_to_issues(seeds)]
     return SessionAnalysisReport(
         session_id=read_model.session_id,
         analysis_id="",

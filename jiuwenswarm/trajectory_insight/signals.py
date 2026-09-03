@@ -46,15 +46,13 @@ def detect(read_model: SessionReadModel, *, max_seeds: int = _MAX_SEEDS) -> list
 
 def _detect_turn(read_model: SessionReadModel, turn) -> list[IssueSeed]:
     seeds: list[IssueSeed] = []
-    failures: list[tuple] = []
     for event in turn.events:
         if event.kind in {EventKind.TOOL_RESULT, EventKind.TOOL_CALL} and event.error:
-            failures.append(event)
             seeds.append(_seed(
                 code="tool_execution_error",
                 severity=1,
                 title=f"Tool execution failed: {event.tool_name or event.name or 'tool'}",
-                evidence=(f"turn {turn.turn_index} · tool={event.tool_name or '?'} · "
+                evidence=(f"turn {turn.turn_index + 1} · tool={event.tool_name or '?'} · "
                           f"trace={event.trace_id} span={event.span_id} · "
                           f"{_truncate(event.error, 220)}"),
                 trace_id=event.trace_id,
@@ -68,7 +66,7 @@ def _detect_turn(read_model: SessionReadModel, turn) -> list[IssueSeed]:
                 code="llm_call_error",
                 severity=2,
                 title="LLM call returned an error",
-                evidence=(f"turn {turn.turn_index} · trace={event.trace_id} "
+                evidence=(f"turn {turn.turn_index + 1} · trace={event.trace_id} "
                           f"span={event.span_id} · {_truncate(event.error, 220)}"),
                 trace_id=event.trace_id,
                 span_id=event.span_id,
@@ -76,12 +74,14 @@ def _detect_turn(read_model: SessionReadModel, turn) -> list[IssueSeed]:
                 subject_id=turn.subject_id,
             ))
 
-    if turn.tool_calls > 0 and not failures and not turn.has_final_response:
+    if turn.tool_calls > 0 and not any(
+        seed.code == "tool_execution_error" for seed in seeds
+    ) and not turn.has_final_response:
         seeds.append(_seed(
             code="no_final_response",
             severity=2,
             title="Turn ended without a final answer",
-            evidence=(f"turn {turn.turn_index} · trace={turn.trace_id} · "
+            evidence=(f"turn {turn.turn_index + 1} · trace={turn.trace_id} · "
                       f"tool_calls={turn.tool_calls} llm_calls={turn.llm_calls}"),
             trace_id=turn.trace_id,
             span_id=None,
@@ -94,7 +94,7 @@ def _detect_turn(read_model: SessionReadModel, turn) -> list[IssueSeed]:
             code="retry_storm",
             severity=2,
             title="Turn retried repeatedly",
-            evidence=(f"turn {turn.turn_index} · trace={turn.trace_id} · "
+            evidence=(f"turn {turn.turn_index + 1} · trace={turn.trace_id} · "
                       f"retries={turn.retries}"),
             trace_id=turn.trace_id,
             span_id=None,
@@ -107,7 +107,7 @@ def _detect_turn(read_model: SessionReadModel, turn) -> list[IssueSeed]:
             code="context_near_overflow",
             severity=2,
             title="Context window near overflow",
-            evidence=(f"turn {turn.turn_index} · trace={turn.trace_id} · "
+            evidence=(f"turn {turn.turn_index + 1} · trace={turn.trace_id} · "
                       f"context_usage={turn.context_usage_pct:.1f}%"),
             trace_id=turn.trace_id,
             span_id=None,
@@ -168,7 +168,7 @@ def _detect_cross_turn(read_model: SessionReadModel) -> list[IssueSeed]:
                     code="latency_spike",
                     severity=3,
                     title="Turn took unusually long",
-                    evidence=(f"turn {turn.turn_index} · trace={turn.trace_id} · "
+                    evidence=(f"turn {turn.turn_index + 1} · trace={turn.trace_id} · "
                               f"duration={turn.duration_s:.1f}s · median={median_duration:.1f}s"),
                     trace_id=turn.trace_id,
                     span_id=None,
@@ -180,7 +180,7 @@ def _detect_cross_turn(read_model: SessionReadModel) -> list[IssueSeed]:
                 code="token_spike",
                 severity=3,
                 title="Turn consumed a large token budget",
-                evidence=(f"turn {turn.turn_index} · trace={turn.trace_id} · "
+                evidence=(f"turn {turn.turn_index + 1} · trace={turn.trace_id} · "
                           f"tokens={turn.total_tokens} · p90={token_p90:.0f}"),
                 trace_id=turn.trace_id,
                 span_id=None,

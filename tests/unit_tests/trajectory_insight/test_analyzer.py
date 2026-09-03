@@ -42,15 +42,16 @@ def test_deterministic_only_when_no_model() -> None:
     records = [
         build_record(
             trace_id="1" * 32,
-            span_id="1" * 16,
+            span_id="1111111111111111",
             name="x",
+            start_ns=0,
             attrs={"gen_ai.tool.name": "bash", "gen_ai.tool.call.result": "boom"},
             status_message="error",
         ),
-        llm_span(trace_id="1" * 32, start_ns=1, text=""),
     ]
     model = build_session_read_model(records)
     seeds = detect(model)
+    assert any(seed.code == "tool_execution_error" for seed in seeds)
     report = asyncio.run(analyze_session(model, seeds, model=None))
     assert len(report.issues) == len(seeds)
     assert all(issue.evolution is not None for issue in report.issues)
@@ -105,7 +106,7 @@ def test_digest_redacts_secrets() -> None:
     assert redact_secrets("Bearer abcdefghijklmnop") == "<redacted>"
 
 
-def test_recorded_tool_failure_is_never_silenced() -> None:
+def test_llm_decides_healthy_when_deterministic_observations_exist() -> None:
     records = [
         build_record(
             trace_id="8" * 32,
@@ -120,9 +121,9 @@ def test_recorded_tool_failure_is_never_silenced() -> None:
     model = build_session_read_model(records)
     seeds = detect(model)
     assert seeds
-    # LLM reports a healthy session -> recorded failure must still surface.
+    # The LLM is authoritative: it may conclude the session is healthy.
     report = asyncio.run(analyze_session(model, seeds, model=_FakeModel("[]")))
-    assert any("read_file" in issue.title or "8888888888888888" in issue.evidence for issue in report.issues)
+    assert report.issues == ()
 
 
 def test_recorded_failure_is_not_duplicated_when_llm_reports_it() -> None:

@@ -101,3 +101,19 @@ def test_real_otlp_shape_ok_spans_are_not_failures() -> None:
     codes = {seed.code for seed in seeds}
     assert "tool_execution_error" in codes
     assert "llm_call_error" not in codes
+
+
+def test_handled_single_tool_error_is_still_observed() -> None:
+    tool_error = build_record(
+        trace_id="a" * 32,
+        span_id="aaaaaaaaaaaaaaaa",
+        name="tool.read_file",
+        start_ns=0,
+        status_code=2,
+        status_message="file system operation execution error: File not found",
+        attrs={"gen_ai.tool.name": "read_file"},
+    )
+    recovery = llm_span(trace_id="a" * 32, start_ns=10, text="The file does not exist.")
+    model = build_session_read_model([tool_error, recovery])
+    seeds = detect(model)
+    assert any(seed.code == "tool_execution_error" for seed in seeds)
