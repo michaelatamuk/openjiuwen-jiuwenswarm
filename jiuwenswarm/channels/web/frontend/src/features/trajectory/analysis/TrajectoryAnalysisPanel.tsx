@@ -63,10 +63,10 @@ async function pollJob(
   for (;;) {
     if (runRef.current !== runId) return;
     if (!activeRef.current) {
-      await new Promise(resolve => window.setTimeout(resolve, 2000));
+      await new Promise(resolve => window.setTimeout(resolve, 1000));
       continue;
     }
-    await new Promise(resolve => window.setTimeout(resolve, 2000));
+    await new Promise(resolve => window.setTimeout(resolve, 1000));
     if (runRef.current !== runId) return;
     try {
       current = await getTrajectoryAnalysis(current.analysis_id);
@@ -278,6 +278,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
               {elapsedSec !== null ? ` · ${elapsedSec}s` : ''}
             </span>
             {detailText !== '' ? <span className={css.progressDetail}>{detailText}</span> : null}
+            {job?.stream_text ? <pre className={css.streamText}>{job.stream_text}</pre> : null}
           </div>
         ) : null}
 

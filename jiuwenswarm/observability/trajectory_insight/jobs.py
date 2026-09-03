@@ -20,6 +20,8 @@ from jiuwenswarm.observability.trajectory_insight.schemas import SessionAnalysis
 
 AnalysisRunner = Callable[["JobProgress"], Awaitable[SessionAnalysisReport]]
 
+_STREAM_TEXT_MAX = 8000
+
 
 class JobProgress:
     """Live progress handle passed to an analysis runner."""
@@ -45,6 +47,17 @@ class JobProgress:
         if seeds is not None:
             job.seeds = seeds
 
+    def add_chunk(self) -> None:
+        self._job.chunks += 1
+
+    def append_text(self, text: str) -> None:
+        """Append streamed response text for live display (bounded)."""
+        if not text:
+            return
+        job = self._job
+        job.stream_text = (job.stream_text + text)[-_STREAM_TEXT_MAX:]
+        job.chars += len(text)
+
     def add_chars(self, count: int) -> None:
         """Accumulate streamed response characters for live progress."""
         if count:
@@ -67,6 +80,8 @@ class AnalysisJob:
     turns: int | None = None
     seeds: int | None = None
     chars: int = 0
+    chunks: int = 0
+    stream_text: str = ""
     fingerprint: str | None = None
     error: str | None = None
     report: SessionAnalysisReport | None = None
@@ -90,6 +105,10 @@ class AnalysisJob:
             payload["seeds"] = self.seeds
         if self.chars:
             payload["chars"] = self.chars
+        if self.chunks:
+            payload["chunks"] = self.chunks
+        if self.stream_text:
+            payload["stream_text"] = self.stream_text
         if self.started_at is not None:
             payload["started_at"] = self.started_at
         if self.finished_at is not None:

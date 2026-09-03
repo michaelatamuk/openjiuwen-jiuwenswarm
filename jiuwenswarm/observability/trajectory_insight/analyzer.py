@@ -174,11 +174,13 @@ async def _invoke_or_stream(
         parts: list[str] = []
         try:
             async for chunk in model.stream(messages, **kwargs):
+                if progress is not None:
+                    progress.add_chunk()
                 part = _chunk_text(chunk)
                 if part:
                     parts.append(part)
                     if progress is not None:
-                        progress.add_chars(len(part))
+                        progress.append_text(part)
             return "".join(parts)
         except Exception as exc:  # noqa: BLE001
             # Fall back to a normal invoke if streaming is unsupported/fails.

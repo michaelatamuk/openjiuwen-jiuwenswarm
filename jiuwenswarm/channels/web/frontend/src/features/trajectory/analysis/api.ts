@@ -149,6 +149,7 @@ function jobOf(value: unknown): AnalysisJob | null {
     ...(typeof value.turns === 'number' ? { turns: value.turns } : {}),
     ...(typeof value.seeds === 'number' ? { seeds: value.seeds } : {}),
     ...(typeof value.chars === 'number' ? { chars: value.chars } : {}),
+    ...(typeof value.stream_text === 'string' ? { stream_text: value.stream_text } : {}),
     ...(typeof value.started_at === 'number' ? { started_at: value.started_at } : {}),
     ...(typeof value.fingerprint === 'string' ? { fingerprint: value.fingerprint } : {}),
     ...(typeof value.finished_at === 'number' ? { finished_at: value.finished_at } : {}),
