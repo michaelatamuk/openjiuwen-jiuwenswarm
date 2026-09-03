@@ -320,6 +320,28 @@ def _package_source_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _source_roots() -> list[Path]:
+    """Editable source root: the jiuwenswarm package only."""
+    roots: list[Path] = []
+    jiuwen_root = _package_source_root()
+    if jiuwen_root.is_dir():
+        roots.append(jiuwen_root)
+    return roots
+
+
+def _resolve_source_rel(relpath: str) -> Path | None:
+    """Resolve a source-relative path against any editable root (existing file only)."""
+    for root in _source_roots():
+        try:
+            candidate = (root / relpath).resolve()
+        except OSError:
+            continue
+        if not candidate.is_relative_to(root) or not candidate.is_file():
+            continue
+        return candidate
+    return None
+
+
 def _in_place_possible(kind: SuggestionKind, artifact: dict[str, Any]) -> bool:
     if kind == SuggestionKind.CONFIG:
         return bool(artifact.get("key")) and "value" in artifact
@@ -392,15 +414,12 @@ async def build_apply_preview_with_artifact(
         and artifact.get("path")
         and suggestion.kind in {SuggestionKind.TOOL, SuggestionKind.RAIL, SuggestionKind.PROMPT}
     ):
-        try:
-            original = (_package_source_root() / str(artifact["path"])).resolve()
-            if original.is_file():
-                old_text = _read_text(original)
-                new_text = str(artifact.get("content") or "")
-                if old_text != new_text:
-                    preview["diff"] = _unified_diff(old_text, new_text)
-        except OSError:
-            pass
+        original = _resolve_source_rel(str(artifact.get("path") or ""))
+        if original is not None:
+            old_text = _read_text(original)
+            new_text = str(artifact.get("content") or "")
+            if old_text != new_text:
+                preview["diff"] = _unified_diff(old_text, new_text)
     return issue, preview
 
 
@@ -507,15 +526,9 @@ def _apply_source_value(issue: AnalysisIssue) -> dict[str, Any]:
     content = artifact.get("content")
     if not relpath or not isinstance(content, str):
         return {"status": ApplyStatus.REJECTED.value, "error": "SOURCE_NEEDS_ARTIFACT"}
-    root = _package_source_root()
-    try:
-        target = (root / relpath).resolve()
-        if not target.is_relative_to(root):
-            return {"status": ApplyStatus.REJECTED.value, "error": "PATH_OUTSIDE_SOURCE"}
-        if not target.is_file():
-            return {"status": ApplyStatus.REJECTED.value, "error": f"SOURCE_FILE_NOT_FOUND: {relpath}"}
-    except OSError as exc:
-        return {"status": ApplyStatus.FAILED.value, "error": f"PATH_ERROR: {exc}"}
+    target = _resolve_source_rel(relpath)
+    if target is None:
+        return {"status": ApplyStatus.REJECTED.value, "error": f"SOURCE_FILE_NOT_FOUND: {relpath}"}
     try:
         before = _read_text(target)
         _atomic_write(target, content)
@@ -533,39 +546,68 @@ def _apply_source_value(issue: AnalysisIssue) -> dict[str, Any]:
 _GEN_MAX_FILE_LINES = 600
 _GEN_MAX_FILE_BYTES = 400 * 1024
 _GEN_SKIP_PARTS = ("__pycache__", ".venv", "node_modules")
+# Modules that only reference tool names incidentally; editing them based on a
+# tool failure would be wrong.
+_GEN_EXCLUDE_PARTS = (
+    "compressor",
+    "reinjection",
+    "forked",
+    "checkpointing",
+    "trajectory",
+    "agent_rl",
+    "experience",
+    "sharing",
+    "signal",
+)
 _GEN_MODEL_TIMEOUT_S = 25
 
 
-def _find_small_source_file(kind: SuggestionKind, target: str) -> tuple[Path, str] | None:
-    """Locate a small existing source file mentioning ``target``."""
+def _find_small_source_file(kind: SuggestionKind, target: str) -> tuple[str, str] | None:
+    """Locate a small existing source file mentioning ``target`` (repo-relative)."""
     suffixes = (".py",) if kind in {SuggestionKind.TOOL, SuggestionKind.RAIL} else (".py", ".md")
-    root = _package_source_root()
-    best: tuple[int, Path, str] | None = None
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix not in suffixes:
-            continue
-        if any(part in _GEN_SKIP_PARTS for part in path.parts):
-            continue
-        try:
-            size = path.stat().st_size
-        except OSError:
-            continue
-        if size > _GEN_MAX_FILE_BYTES:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        if target.lower() not in text.lower():
-            continue
-        line_count = text.count("\n")
-        if line_count > _GEN_MAX_FILE_LINES:
-            continue
-        if best is None or line_count < best[0]:
-            best = (line_count, path, text)
+    best: tuple[int, str, str] | None = None
+    for root in _source_roots():
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix not in suffixes:
+                continue
+            if any(part in _GEN_SKIP_PARTS or part in _GEN_EXCLUDE_PARTS for part in path.parts):
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size > _GEN_MAX_FILE_BYTES:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if target.lower() not in text.lower():
+                continue
+            if not _looks_like_target_file(target, path, text):
+                continue
+            line_count = text.count("\n")
+            if line_count > _GEN_MAX_FILE_LINES:
+                continue
+            rel = str(path.relative_to(root)).replace("\\", "/")
+            if best is None or line_count < best[0]:
+                best = (line_count, rel, text)
     if best is None:
         return None
     return best[1], best[2]
+
+
+def _looks_like_target_file(target: str, path: Path, text: str) -> bool:
+    """Require strong evidence the file actually defines/hosts the target."""
+    if f"def {target}(" in text:
+        return True
+    if target in path.name.lower():
+        return True
+    # Tool/rail names usually appear as an exact quoted identifier in the
+    # file that registers/describes them, alongside structure markers.
+    quoted = f"'{target}'" in text or f'"{target}"' in text
+    structural = "def " in text or "class " in text
+    return quoted and structural and ("tool" in text.lower() or "rail" in text.lower())
 
 
 async def _generate_source_artifact(
@@ -599,14 +641,17 @@ async def _generate_source_artifact(
     found = _find_small_source_file(kind, target)
     if found is None:
         return None
-    path, content = found
+    relpath, content = found
+    full_path = _resolve_source_rel(relpath)
+    if full_path is None:
+        return None
     from openjiuwen.core.foundation.llm.schema.message import UserMessage
 
     from jiuwenswarm.trajectory_insight.prompts import build_change_prompt
 
     prompt = build_change_prompt(
         language=settings.language,
-        file_path=str(path),
+        file_path=str(full_path),
         content=content,
         issue_title=issue.title,
         issue_evidence=issue.evidence,
@@ -627,8 +672,7 @@ async def _generate_source_artifact(
     new_content = payload["content"]
     if not new_content.strip() or new_content == content:
         return None
-    rel = path.relative_to(_package_source_root())
-    artifact = {"path": str(rel).replace("\\", "/"), "content": new_content}
+    artifact = {"path": relpath, "content": new_content}
     return replace(issue, evolution=replace(suggestion, artifacts=(artifact,)))
 
 
