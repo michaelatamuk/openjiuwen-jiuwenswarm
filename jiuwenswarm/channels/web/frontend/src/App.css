@@ -103,27 +103,41 @@
   right: 364px;
 }
 
-.chat-surface-title {
-  color: var(--color-text-primary);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.4;
-  padding: 0.625rem 0.75rem 0.5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Analysis mirrors trajectory: the ChatPanel header stays as the shared title. */
+.single-agent-surface--analysis .chat-surface-view[data-testid='single-agent-chat-view'] {
+  display: flex;
+  position: absolute;
+  inset: 0;
+}
+
+.single-agent-surface--analysis .chat-panel-shell {
+  height: 100%;
+}
+
+.single-agent-surface--analysis .chat-panel-header {
+  height: 48px;
+}
+
+.single-agent-surface--analysis .chat-panel-shell > :not(.chat-panel-header) {
+  visibility: hidden;
   pointer-events: none;
 }
 
-.single-agent-surface {
-  position: relative;
+.single-agent-surface--analysis .chat-surface-toolbar {
+  position: absolute;
+  z-index: 19;
+  top: 48px;
+  left: 0;
 }
 
-.chat-surface-toolbar {
-  position: relative;
-  z-index: 2000000000;
-  isolation: isolate;
-  pointer-events: auto;
+.single-agent-surface--analysis .chat-surface-view[data-testid='single-agent-analysis-view'] {
+  position: absolute;
+  z-index: 10;
+  top: 88px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--color-surface-card);
 }
 
 .chat-surface-tabs {
@@ -134,9 +148,6 @@
   border-radius: 0.5rem;
   background: var(--color-action-secondary);
   padding: 0.125rem;
-  position: relative;
-  z-index: 2000000001;
-  pointer-events: auto;
 }
 
 .chat-surface-tabs__tab {

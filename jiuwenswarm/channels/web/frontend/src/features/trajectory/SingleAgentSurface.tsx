@@ -18,8 +18,6 @@ export interface SingleAgentSurfaceProps {
   trajectoryLabel: string;
   trajectoryRequested: boolean;
   showNavigation?: boolean;
-  /** Session title rendered once above the tab row for all surfaces. */
-  sessionTitle?: string;
   /** Optional third surface: session analysis (kept mounted after first request). */
   analysis?: ReactNode;
   analysisEnabled?: boolean;
@@ -44,7 +42,6 @@ export function SingleAgentSurface({
   trajectoryLabel,
   trajectoryRequested,
   showNavigation = true,
-  sessionTitle,
   analysis,
   analysisEnabled = false,
   analysisLabel = 'Analysis',
@@ -68,26 +65,19 @@ export function SingleAgentSurface({
       data-testid="single-agent-surface"
     >
       {navigationVisible ? (
-        <>
-          {sessionTitle !== undefined && sessionTitle !== '' ? (
-            <div className="chat-surface-title" data-testid="single-agent-surface-title">
-              {sessionTitle}
-            </div>
-          ) : null}
-          <div className="chat-surface-toolbar">
-            <div
-              className="chat-surface-tabs"
-              role="tablist"
-              aria-label={tabListLabel}
-              data-testid="single-agent-surface-tabs"
-            >
+        <div className="chat-surface-toolbar">
+          <div
+            className="chat-surface-tabs"
+            role="tablist"
+            aria-label={tabListLabel}
+            data-testid="single-agent-surface-tabs"
+          >
             <button
               type="button"
               role="tab"
               aria-selected={resolvedView === 'chat'}
               className={`chat-surface-tabs__tab ${resolvedView === 'chat' ? 'is-active' : ''}`}
               onClick={() => onViewChange('chat')}
-onPointerDown={() => onViewChange('chat')}
               data-testid="single-agent-chat-tab"
             >
               {chatLabel}
@@ -99,7 +89,6 @@ onPointerDown={() => onViewChange('chat')}
                 aria-selected={resolvedView === 'trajectory'}
                 className={`chat-surface-tabs__tab ${resolvedView === 'trajectory' ? 'is-active' : ''}`}
                 onClick={() => onViewChange('trajectory')}
-onPointerDown={() => onViewChange('trajectory')}
                 data-testid="single-agent-trajectory-tab"
               >
                 {trajectoryLabel}
@@ -112,7 +101,6 @@ onPointerDown={() => onViewChange('trajectory')}
                 aria-selected={resolvedView === 'analysis'}
                 className={`chat-surface-tabs__tab ${resolvedView === 'analysis' ? 'is-active' : ''}`}
                 onClick={() => onViewChange('analysis')}
-onPointerDown={() => onViewChange('analysis')}
                 data-testid="single-agent-analysis-tab"
               >
                 {analysisLabel}
@@ -120,7 +108,6 @@ onPointerDown={() => onViewChange('analysis')}
             ) : null}
           </div>
         </div>
-        </>
       ) : null}
       <div
         className={`chat-surface-view flex-1 min-h-0 ${resolvedView === 'chat' ? '' : 'chat-surface-view--hidden'}`}
