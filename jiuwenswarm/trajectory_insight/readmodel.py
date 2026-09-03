@@ -11,6 +11,7 @@ so an analysis never takes a live trajectory down.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -103,8 +104,7 @@ def build_session_read_model(
             continue
         if not session_id:
             session_id = str(record.get("session_id") or "")
-        raw_json = record.get("raw_json")
-        otlp = _parse_otlp(raw_json)
+        otlp = _record_otlp(record)
         if otlp is None:
             skipped += 1
             continue
@@ -172,6 +172,29 @@ def build_session_read_model(
         turn_count_total=turn_count_total,
         skipped_malformed_records=skipped,
     )
+
+
+def _record_otlp(record: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Return the OTLP payload from any record shape the readers emit.
+
+    The gateway reader returns a parsed mapping under ``otlp`` plus a
+    ``raw_json_base64`` blob; the archive fixtures and older shapes store the
+    raw export JSON under ``raw_json``. All three are accepted here.
+    """
+    otlp = record.get("otlp")
+    if isinstance(otlp, Mapping):
+        return otlp
+    parsed = _parse_otlp(record.get("raw_json"))
+    if parsed is not None:
+        return parsed
+    encoded = record.get("raw_json_base64")
+    if isinstance(encoded, str) and encoded:
+        try:
+            decoded = base64.b64decode(encoded).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return None
+        return _parse_otlp(decoded)
+    return None
 
 
 def _parse_otlp(raw_json: Any) -> Mapping[str, Any] | None:

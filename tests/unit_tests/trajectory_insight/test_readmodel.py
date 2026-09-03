@@ -84,3 +84,25 @@ def test_empty_records_produce_empty_model() -> None:
     model = build_session_read_model([])
     assert model.turns == ()
     assert model.turn_count_total == 0
+
+
+def test_gateway_reader_otlp_shape_is_accepted() -> None:
+    import json
+
+    from jiuwenswarm.trajectory_insight.signals import detect
+
+    base = build_record(
+        trace_id="a" * 32,
+        span_id="bbbbbbbbbbbbbbbb",
+        name="tool.read_file",
+        start_ns=0,
+        status_code=2,
+        status_message="file system operation execution error: File not found",
+        attrs={"gen_ai.tool.name": "read_file"},
+    )
+    reader_record = dict(base)
+    reader_record["otlp"] = json.loads(reader_record.pop("raw_json"))
+    reader_record["raw_json_base64"] = ""
+    model = build_session_read_model([reader_record])
+    assert model.skipped_malformed_records == 0
+    assert any(seed.code == "tool_execution_error" for seed in detect(model))
