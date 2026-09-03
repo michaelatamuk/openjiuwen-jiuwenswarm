@@ -20,6 +20,7 @@ import {
   getTrajectoryProposal,
   previewTrajectoryApply,
   startTrajectoryAnalysis,
+  TrajectoryAnalysisApiError,
 } from './api';
 import css from './TrajectoryAnalysisPanel.module.css';
 
@@ -38,10 +39,18 @@ interface IssueUi {
   preview: ApplyResult | null;
   applied: ApplyResult | null;
   proposal: ProposalResult | null;
+  proposalDisabled: boolean;
 }
 
 function emptyIssueUi(): IssueUi {
-  return { loading: false, error: null, preview: null, applied: null, proposal: null };
+  return {
+    loading: false,
+    error: null,
+    preview: null,
+    applied: null,
+    proposal: null,
+    proposalDisabled: false,
+  };
 }
 
 async function pollJob(
@@ -165,7 +174,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
 
   const handlePreview = useCallback(async (index: number) => {
     if (!job) return;
-    patchUi(index, { loading: true, error: null, preview: null });
+    patchUi(index, { loading: true, error: null, preview: null, proposalDisabled: false });
     try {
       const result = await previewTrajectoryApply(sessionId, job.analysis_id, index);
       patchUi(index, { loading: false, preview: result });
@@ -179,7 +188,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
 
   const handleApply = useCallback(async (index: number) => {
     if (!job) return;
-    patchUi(index, { loading: true, error: null });
+    patchUi(index, { loading: true, error: null, proposalDisabled: false });
     try {
       const result = await confirmTrajectoryApply(sessionId, job.analysis_id, index);
       patchUi(index, { loading: false, applied: result });
@@ -193,11 +202,15 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
 
   const handleProposal = useCallback(async (index: number) => {
     if (!job) return;
-    patchUi(index, { loading: true, error: null, proposal: null });
+    patchUi(index, { loading: true, error: null, proposal: null, proposalDisabled: false });
     try {
       const proposal = await getTrajectoryProposal(sessionId, job.analysis_id, index);
       patchUi(index, { loading: false, proposal });
     } catch (caught) {
+      if (caught instanceof TrajectoryAnalysisApiError && caught.code === 'PROPOSAL_DISABLED') {
+        patchUi(index, { loading: false, proposalDisabled: true });
+        return;
+      }
       patchUi(index, {
         loading: false,
         error: caught instanceof Error ? caught.message : String(caught),
@@ -341,6 +354,7 @@ function IssueCard({
         </div>
       ) : null}
       {ui.error !== null ? <p className={css.error}>{ui.error}</p> : null}
+      {ui.proposalDisabled ? <p className={css.note}>{copy.proposalDisabled}</p> : null}
       {ui.preview !== null && ui.preview.allowed === true ? (
         <div className={css.diffBlock}>
           <pre className={css.diff}>{ui.preview.diff ?? '(no diff)'}</pre>

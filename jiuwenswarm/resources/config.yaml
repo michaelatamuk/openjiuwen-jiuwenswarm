@@ -543,7 +543,7 @@ trajectory_ui:
     job_ttl_s: 3600                   # 已完成任务保留时长
     max_concurrent_jobs: 4            # Gateway 进程内并发分析上限
     allow_apply_skill: false          # 是否允许“审阅后写入 SKILL.md”
-    allow_code_patch: false           # 是否允许生成 tool/rail/prompt 代码补丁
+    allow_code_patch: true            # 是否允许生成 tool/rail/prompt 补丁方案（只读，需走 PR）
     language: en                      # 诊断 prompt 语言: en | zh
 
 # ============================================================
