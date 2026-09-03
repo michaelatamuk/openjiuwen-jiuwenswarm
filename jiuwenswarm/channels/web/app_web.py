@@ -264,7 +264,9 @@ class _SpaStaticHandler(SimpleHTTPRequestHandler):
         "x-original-host",
     }
     _WS_LOG_MAX_CHARS = 2000
-    _HTTP_PROXY_TIMEOUT = 30
+    # LLM-backed analysis/apply calls can run for ~2 minutes; a 30s proxy
+    # socket timeout would drop them before the gateway answers.
+    _HTTP_PROXY_TIMEOUT = 300
     _WS_CONNECT_TIMEOUT = 10
     _WS_SELECT_TIMEOUT = 60
     _WS_RECV_BUFFER = 65536
