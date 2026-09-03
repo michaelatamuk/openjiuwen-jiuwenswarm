@@ -115,9 +115,15 @@
   pointer-events: none;
 }
 
+.single-agent-surface {
+  position: relative;
+}
+
 .chat-surface-toolbar {
   position: relative;
-  z-index: 2;
+  z-index: 2000000000;
+  isolation: isolate;
+  pointer-events: auto;
 }
 
 .chat-surface-tabs {
@@ -128,6 +134,9 @@
   border-radius: 0.5rem;
   background: var(--color-action-secondary);
   padding: 0.125rem;
+  position: relative;
+  z-index: 2000000001;
+  pointer-events: auto;
 }
 
 .chat-surface-tabs__tab {

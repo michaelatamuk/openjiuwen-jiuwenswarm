@@ -87,6 +87,7 @@ export function SingleAgentSurface({
               aria-selected={resolvedView === 'chat'}
               className={`chat-surface-tabs__tab ${resolvedView === 'chat' ? 'is-active' : ''}`}
               onClick={() => onViewChange('chat')}
+onPointerDown={() => onViewChange('chat')}
               data-testid="single-agent-chat-tab"
             >
               {chatLabel}
@@ -98,6 +99,7 @@ export function SingleAgentSurface({
                 aria-selected={resolvedView === 'trajectory'}
                 className={`chat-surface-tabs__tab ${resolvedView === 'trajectory' ? 'is-active' : ''}`}
                 onClick={() => onViewChange('trajectory')}
+onPointerDown={() => onViewChange('trajectory')}
                 data-testid="single-agent-trajectory-tab"
               >
                 {trajectoryLabel}
@@ -110,6 +112,7 @@ export function SingleAgentSurface({
                 aria-selected={resolvedView === 'analysis'}
                 className={`chat-surface-tabs__tab ${resolvedView === 'analysis' ? 'is-active' : ''}`}
                 onClick={() => onViewChange('analysis')}
+onPointerDown={() => onViewChange('analysis')}
                 data-testid="single-agent-analysis-tab"
               >
                 {analysisLabel}
