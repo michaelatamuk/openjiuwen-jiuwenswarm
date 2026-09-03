@@ -148,3 +148,20 @@ def test_recorded_failure_is_not_duplicated_when_llm_reports_it() -> None:
     )
     report = asyncio.run(analyze_session(model, seeds, model=_FakeModel(payload)))
     assert len(report.issues) == 1
+
+
+def test_default_tool_suggestion_attached_when_llm_omits_action() -> None:
+    records = [llm_span(trace_id="b" * 32, start_ns=0, text="ok")]
+    model = build_session_read_model(records)
+    seeds = []
+    payload = (
+        '[{"priority": 2, "title": "read_file failed", "description": "d", '
+        '"evidence": "tool_call read_file returned file not found", "impact": "i", '
+        '"root_cause": "rc", "recommendation": "verify the path first", '
+        '"trace_id": "' + "b" * 32 + '", "span_id": null, "turn_index": 0, "evolution": null}]'
+    )
+    report = asyncio.run(analyze_session(model, seeds, model=_FakeModel(payload)))
+    assert len(report.issues) == 1
+    assert report.issues[0].evolution is not None
+    assert report.issues[0].evolution.kind.value == "tool"
+    assert report.issues[0].evolution.target == "read_file"

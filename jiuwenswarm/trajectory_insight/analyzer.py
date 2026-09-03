@@ -108,6 +108,11 @@ async def analyze_session(
         # Model unavailable/failed: report deterministic observations so the UI
         # is never empty, with a default tool suggestion when a tool is named.
         issues = [_attach_default_suggestion(issue) for issue in _seeds_to_issues(seeds)]
+    else:
+        # The LLM decides what is an issue and its priority. When it omits an
+        # action for a tool-related issue, attach a default improvement
+        # suggestion so the apply affordance is always available.
+        issues = [_attach_default_suggestion(issue) for issue in issues]
     return SessionAnalysisReport(
         session_id=read_model.session_id,
         analysis_id="",
