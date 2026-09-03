@@ -8,7 +8,7 @@ from __future__ import annotations
 
 
 from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
-from tests.unit_tests.trajectory_insight.fixtures import (
+from tests.unit_tests.observability.trajectory_insight.fixtures import (
     build_record,
     llm_span,
     tool_span,

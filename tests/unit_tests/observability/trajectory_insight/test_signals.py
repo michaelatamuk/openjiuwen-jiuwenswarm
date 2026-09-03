@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from jiuwenswarm.observability.trajectory_insight.readmodel import build_session_read_model
 from jiuwenswarm.observability.trajectory_insight.signals import detect
-from tests.unit_tests.trajectory_insight.fixtures import build_record, llm_span, tool_span
+from tests.unit_tests.observability.trajectory_insight.fixtures import build_record, llm_span, tool_span
 
 
 def _error_record(trace_id: str, tool: str = "bash", start_ns: int = 0) -> dict:
