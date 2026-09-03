@@ -352,6 +352,12 @@ function IncidentCard({
         <h3 className={css.incidentTitle}>{issue.title}</h3>
       </header>
       {issue.description ? <p className={css.incidentSummary}>{issue.description}</p> : null}
+      {issue.evidence ? (
+        <div className={css.evidence}>
+          <span className={css.evidenceLabel}>{copy.evidenceLabel}</span>
+          <pre className={css.evidenceBody}>{issue.evidence}</pre>
+        </div>
+      ) : null}
       {showGuidance ? (
         <div className={css.guidance}>
           {issue.root_cause ? (
@@ -400,12 +406,6 @@ function IncidentCard({
               </button>
             ) : null}
           </div>
-        ) : null}
-        {issue.evidence ? (
-          <details className={css.evidence}>
-            <summary className={css.evidenceSummary}>{copy.evidenceLabel}</summary>
-            <pre className={css.evidenceBody}>{issue.evidence}</pre>
-          </details>
         ) : null}
       </footer>
       {ui.error !== null ? <p className={css.errorText}>{ui.error}</p> : null}
