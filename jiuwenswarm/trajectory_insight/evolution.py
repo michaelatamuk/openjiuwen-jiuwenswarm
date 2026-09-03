@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import json
 import logging
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -344,6 +346,60 @@ def build_apply_preview(issue: AnalysisIssue, settings: AnalysisSettings) -> dic
     }
 
 
+async def build_apply_preview_with_artifact(
+    issue: AnalysisIssue,
+    settings: AnalysisSettings,
+    *,
+    model_provider=None,
+) -> tuple[AnalysisIssue | None, dict[str, Any] | None]:
+    """Generate an exact source artifact (when possible) then return the preview.
+
+    Returns ``(enriched_issue, preview)``. ``enriched_issue`` carries the
+    concrete artifact needed by an in-place write; it is None when the model or
+    a bounded source file is unavailable.
+    """
+    suggestion = issue.evolution
+    if suggestion is None or suggestion.kind not in _APPLYABLE_KINDS:
+        return None, None
+    if suggestion.kind == SuggestionKind.SKILL:
+        return issue, _skill_preview_payload(issue, settings)
+    artifact = _first_artifact(suggestion)
+    if not artifact and settings.apply_in_place and suggestion.kind in {
+        SuggestionKind.TOOL,
+        SuggestionKind.RAIL,
+        SuggestionKind.PROMPT,
+    }:
+        enriched = await _generate_source_artifact(issue, settings, model_provider=model_provider)
+        if enriched is not None:
+            issue = enriched
+            artifact = _first_artifact(issue.evolution)
+    patch = build_code_proposal(issue, settings) or {}
+    preview = {
+        "allowed": True,
+        "apply_allowed": True,
+        "kind": suggestion.kind.value,
+        "target": suggestion.target,
+        "can_in_place": settings.apply_in_place and _in_place_possible(suggestion.kind, artifact),
+        "patch": patch,
+        "status": ApplyStatus.PREVIEWED.value,
+    }
+    if (
+        settings.apply_in_place
+        and artifact.get("path")
+        and suggestion.kind in {SuggestionKind.TOOL, SuggestionKind.RAIL, SuggestionKind.PROMPT}
+    ):
+        try:
+            original = (_package_source_root() / str(artifact["path"])).resolve()
+            if original.is_file():
+                old_text = _read_text(original)
+                new_text = str(artifact.get("content") or "")
+                if old_text != new_text:
+                    preview["diff"] = _unified_diff(old_text, new_text)
+        except OSError:
+            pass
+    return issue, preview
+
+
 async def apply_evolution(
     issue: AnalysisIssue,
     settings: AnalysisSettings,
@@ -369,7 +425,14 @@ async def apply_evolution(
     if mode == "in_place" and settings.apply_in_place:
         if suggestion.kind == SuggestionKind.CONFIG:
             return _apply_config_value(issue)
-        return _apply_source_value(issue)
+        enriched = await _generate_source_artifact(issue, settings, model_provider=model_provider)
+        if enriched is None:
+            return {
+                "status": ApplyStatus.REJECTED.value,
+                "error": "ARTIFACT_NOT_GENERATED",
+                "note": "No exact file change could be generated for this suggestion.",
+            }
+        return _apply_source_value(enriched)
 
     patch = build_code_proposal(issue, settings) or {}
     return {
@@ -461,3 +524,111 @@ def _apply_source_value(issue: AnalysisIssue) -> dict[str, Any]:
         "diff": _unified_diff(before, content),
         "note": "Source file updated in place. Rebuild/restart for it to take effect.",
     }
+
+
+_GEN_MAX_FILE_LINES = 600
+_GEN_MAX_FILE_BYTES = 400 * 1024
+_GEN_SKIP_PARTS = ("__pycache__", ".venv", "node_modules")
+
+
+def _find_small_source_file(kind: SuggestionKind, target: str) -> tuple[Path, str] | None:
+    """Locate a small existing source file mentioning ``target``."""
+    suffixes = (".py",) if kind in {SuggestionKind.TOOL, SuggestionKind.RAIL} else (".py", ".md")
+    root = _package_source_root()
+    best: tuple[int, Path, str] | None = None
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix not in suffixes:
+            continue
+        if any(part in _GEN_SKIP_PARTS for part in path.parts):
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size > _GEN_MAX_FILE_BYTES:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if target.lower() not in text.lower():
+            continue
+        line_count = text.count("\n")
+        if line_count > _GEN_MAX_FILE_LINES:
+            continue
+        if best is None or line_count < best[0]:
+            best = (line_count, path, text)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+async def _generate_source_artifact(
+    issue: AnalysisIssue,
+    settings: AnalysisSettings,
+    *,
+    model_provider=None,
+) -> AnalysisIssue | None:
+    """Ask the model to propose an exact, complete-file change for the target."""
+    if model_provider is None:
+        return None
+    model = model_provider()
+    if model is None:
+        return None
+    suggestion = issue.evolution
+    if suggestion is None:
+        return None
+    kind = suggestion.kind
+    if kind not in {SuggestionKind.TOOL, SuggestionKind.RAIL, SuggestionKind.PROMPT}:
+        return None
+    target = (suggestion.target or "").strip()
+    if not target:
+        return None
+    found = _find_small_source_file(kind, target)
+    if found is None:
+        return None
+    path, content = found
+    from openjiuwen.core.foundation.llm.schema.message import UserMessage
+
+    from jiuwenswarm.trajectory_insight.prompts import build_change_prompt
+
+    prompt = build_change_prompt(
+        language=settings.language,
+        file_path=str(path),
+        content=content,
+        issue_title=issue.title,
+        issue_evidence=issue.evidence,
+        issue_recommendation=issue.recommendation,
+    )
+    try:
+        response = await model.invoke([UserMessage(content=prompt)], temperature=0.0)
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).warning("[trajectory.apply] change generation failed", exc_info=True)
+        return None
+    text = (getattr(response, "content", None) or str(response)).strip()
+    payload = _parse_change_json(text)
+    if payload is None or not isinstance(payload.get("content"), str):
+        return None
+    new_content = payload["content"]
+    if not new_content.strip() or new_content == content:
+        return None
+    rel = path.relative_to(_package_source_root())
+    artifact = {"path": str(rel).replace("\\", "/"), "content": new_content}
+    return replace(issue, evolution=replace(suggestion, artifacts=(artifact,)))
+
+
+def _parse_change_json(text: str) -> dict[str, Any] | None:
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except (ValueError, TypeError):
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end <= start:
+            return None
+        try:
+            payload = json.loads(text[start : end + 1])
+        except (ValueError, TypeError):
+            return None
+    return payload if isinstance(payload, dict) else None

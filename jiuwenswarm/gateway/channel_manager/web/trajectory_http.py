@@ -549,7 +549,7 @@ class TrajectoryAnalysisEndpoints:
 
         from jiuwenswarm.trajectory_insight.evolution import (
             apply_evolution,
-            build_apply_preview,
+            build_apply_preview_with_artifact,
             derive_issue,
         )
 
@@ -557,7 +557,11 @@ class TrajectoryAnalysisEndpoints:
         if issue is None:
             return _error_response("issue not found", "NOT_FOUND", 404)
         if preview:
-            result = build_apply_preview(issue, settings)
+            _enriched, result = await build_apply_preview_with_artifact(
+                issue,
+                settings,
+                model_provider=self._model_provider,
+            )
             if result is None:
                 return _error_response(
                     "issue has no applicable change",

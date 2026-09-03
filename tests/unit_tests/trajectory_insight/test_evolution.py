@@ -112,4 +112,4 @@ def test_in_place_source_requires_enabled_flag_and_artifact() -> None:
     enabled = AnalysisSettings(enabled=True, allow_code_patch=True, apply_in_place=True)
     result = asyncio.run(apply_evolution(issue, enabled, mode="in_place"))
     assert result["status"] == "rejected"
-    assert result["error"] == "SOURCE_NEEDS_ARTIFACT"
+    assert result["error"] == "ARTIFACT_NOT_GENERATED"

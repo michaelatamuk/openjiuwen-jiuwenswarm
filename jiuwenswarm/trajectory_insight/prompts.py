@@ -108,3 +108,40 @@ def build_retry_prompt(digest: str, previous: str, *, language: str = "en") -> s
     """Build the JSON-repair prompt used after one unparsable answer."""
     template = _RETRY_PROMPT_EN if language == "en" else _RETRY_PROMPT_ZH
     return template.format(issue_schema=_ISSUE_SCHEMA_EN, digest=digest, previous=previous)
+
+
+def build_change_prompt(
+    *,
+    language: str,
+    file_path: str,
+    content: str,
+    issue_title: str,
+    issue_evidence: str,
+    issue_recommendation: str,
+) -> str:
+    """Build the prompt for proposing one exact, minimal file change."""
+    if language == "zh":
+        return (
+            "你是一位严谨的代码维护者。请针对下面的问题，对指定文件做一次最小的、"
+            "能落地的改动，并返回完整的新文件内容。\n"
+            f"问题：{issue_title}\n证据：{issue_evidence}\n建议：{issue_recommendation}\n"
+            f"文件路径：{file_path}\n\n文件当前内容：\n```\n{content}\n```\n\n"
+            "要求：\n"
+            "1. 只做与问题相关的必要修改，保留其余代码、导入和结构不变。\n"
+            "2. 必须返回完整的更新后文件内容，不要省略任何行。\n"
+            "3. 仅输出如下 JSON，不要包含其他文字：\n"
+            '{"content": "完整的更新后文件内容", "summary": "一句话说明改了什么"}\n'
+            "4. 如果无法安全修改（例如上下文不足或影响过大），返回 {\"content\": \"\"}。"
+        )
+    return (
+        "You are a careful maintainer. Make one minimal, concrete change to the file below "
+        "that addresses the reported problem, and return the COMPLETE updated file.\n"
+        f"Issue: {issue_title}\nEvidence: {issue_evidence}\nSuggested direction: {issue_recommendation}\n"
+        f"File path: {file_path}\n\nCurrent file content:\n```\n{content}\n```\n\n"
+        "Rules:\n"
+        "1. Change only what is needed for this issue; keep everything else (imports, structure) intact.\n"
+        "2. Output the complete updated file with no lines omitted.\n"
+        "3. Reply with ONLY the JSON object below, no prose:\n"
+        '{"content": "the complete updated file content", "summary": "one sentence on the change"}\n'
+        "4. If a safe change is not possible, return {\"content\": \"\"}."
+    )
