@@ -570,9 +570,16 @@ async def _generate_source_artifact(
     model_provider=None,
 ) -> AnalysisIssue | None:
     """Ask the model to propose an exact, complete-file change for the target."""
-    if model_provider is None:
+    try:
+        if model_provider is None:
+            return None
+        model = model_provider()
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "[trajectory.apply] model resolution failed; skipping change generation",
+            exc_info=True,
+        )
         return None
-    model = model_provider()
     if model is None:
         return None
     suggestion = issue.evolution
