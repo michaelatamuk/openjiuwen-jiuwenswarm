@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from dataclasses import replace
@@ -19,6 +20,8 @@ from jiuwenswarm.observability.trajectory_insight.schemas import (
     SuggestionAction,
     SuggestionKind,
 )
+
+logger = logging.getLogger(__name__)
 
 _MAX_SEED_LINES = 30
 _DEFAULT_MAX_INPUT_CHARS = 8000
@@ -132,6 +135,15 @@ def _chunk_text(chunk: Any) -> str:
     content = getattr(chunk, "content", None)
     if content is None and isinstance(chunk, dict):
         content = chunk.get("content")
+        if content is None:
+            choices = chunk.get("choices")
+            if isinstance(choices, list) and choices:
+                delta = choices[0].get("delta", {}) if isinstance(choices[0], dict) else {}
+                content = delta.get("content")
+    if content is None:
+        text_field = getattr(chunk, "text", None)
+        delta_field = getattr(chunk, "delta", None)
+        content = text_field if text_field is not None else delta_field
     if content is None:
         return ""
     if isinstance(content, str):
@@ -141,8 +153,11 @@ def _chunk_text(chunk: Any) -> str:
         for part in content:
             if isinstance(part, str):
                 parts.append(part)
-            elif isinstance(part, dict) and isinstance(part.get("text"), str):
-                parts.append(part["text"])
+            elif isinstance(part, dict):
+                if isinstance(part.get("text"), str):
+                    parts.append(part["text"])
+                elif isinstance(part.get("content"), str):
+                    parts.append(part["content"])
         return "".join(parts)
     return str(content)
 
@@ -165,8 +180,9 @@ async def _invoke_or_stream(
                     if progress is not None:
                         progress.add_chars(len(part))
             return "".join(parts)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # Fall back to a normal invoke if streaming is unsupported/fails.
+            logger.warning("[trajectory.analyze] streaming unsupported, using invoke: %s", exc)
             pass
     response = await model.invoke(messages, **kwargs)
     return (getattr(response, "content", None) or str(response))
