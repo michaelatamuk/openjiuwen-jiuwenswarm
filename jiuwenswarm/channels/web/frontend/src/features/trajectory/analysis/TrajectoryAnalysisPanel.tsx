@@ -53,6 +53,14 @@ function emptyIssueUi(): IssueUi {
   };
 }
 
+const SEVERITY_WORDS: Record<number, (copy: Record<string, string>) => string> = {
+  1: copy => copy.severityCritical,
+  2: copy => copy.severityHigh,
+  3: copy => copy.severityMedium,
+  4: copy => copy.severityLow,
+  5: copy => copy.severityInfo,
+};
+
 async function pollJob(
   job: AnalysisJob,
   activeRef: RefObject<boolean>,
@@ -99,7 +107,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [issues, setIssues] = useState<AnalysisIssue[]>([]);
-  const [expanded, setExpanded] = useState(true);
+  const [resultsOpen, setResultsOpen] = useState(false);
   const issueUiRef = useRef<Record<string, IssueUi>>({});
   const [, forceRender] = useState(0);
   const runRef = useRef(0);
@@ -138,6 +146,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     setJob(null);
     setIssues([]);
     setRunStartedAt(null);
+    setResultsOpen(false);
     issueUiRef.current = {};
     bump();
   }, [sessionId, bump]);
@@ -151,6 +160,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     setJob(null);
     setIssues([]);
     setRunStartedAt(Date.now());
+    setResultsOpen(false);
     issueUiRef.current = {};
     bump();
     let started: AnalysisJob;
@@ -257,6 +267,11 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     return '';
   }, [phase, job, copy]);
 
+  const issueCountLabel = useMemo(() => {
+    const word = issues.length === 1 ? copy.issueWord : copy.issuesWord;
+    return `${issues.length} ${word}`;
+  }, [issues.length, copy]);
+
   const header = useMemo(() => (
     <div className={css.header}>
       <button
@@ -268,18 +283,19 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
       >
         {phase === 'running' ? copy.running : phase === 'done' ? copy.rerun : copy.run}
       </button>
-      <span className={css.note}>{copy.costNote}</span>
       {phase === 'done' && issues.length > 0 ? (
         <button
           type="button"
-          className={css.toggle}
-          onClick={() => setExpanded(value => !value)}
+          className={css.summary}
+          onClick={() => setResultsOpen(value => !value)}
+          data-testid="trajectory-analysis-toggle"
         >
-          {expanded ? '▾' : '▸'}
+          {issueCountLabel} {resultsOpen ? '▾' : '▸'}
         </button>
       ) : null}
+      <span className={css.note}>{copy.costNote}</span>
     </div>
-  ), [copy, enabled, expanded, issues.length, phase, run]);
+  ), [copy, enabled, issues.length, phase, run, issueCountLabel, resultsOpen]);
 
   if (!enabled || !sessionId) return null;
 
@@ -298,27 +314,27 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
       {phase === 'failed' && error !== null ? (
         <p className={css.error} role="alert">{error}</p>
       ) : null}
-      {phase === 'done' ? (
+      {phase === 'done' && issues.length === 0 ? (
+        <p className={css.empty}>{copy.noIssues}</p>
+      ) : null}
+      {phase === 'done' && issues.length > 0 && resultsOpen ? (
         <div className={css.result}>
           {job?.report?.truncated === true ? <p className={css.warning}>{copy.truncated}</p> : null}
-          {issues.length === 0 ? (
-            <p className={css.empty}>{copy.noIssues}</p>
-          ) : (
-            <div className={css.issueList}>
-              {issues.map((issue, index) => (
-                <IssueCard
-                  key={`${issue.trace_id ?? ''}-${index}`}
-                  issue={issue}
-                  index={index}
-                  copy={copy}
-                  ui={uiFor(index)}
-                  onPreview={handlePreview}
-                  onApply={handleApply}
-                  onProposal={handleProposal}
-                />
-              ))}
-            </div>
-          )}
+          <p className={css.legend}>{copy.severityLegend}</p>
+          <div className={css.issueList}>
+            {issues.map((issue, index) => (
+              <IssueCard
+                key={`${issue.trace_id ?? ''}-${index}`}
+                issue={issue}
+                index={index}
+                copy={copy}
+                ui={uiFor(index)}
+                onPreview={handlePreview}
+                onApply={handleApply}
+                onProposal={handleProposal}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
     </section>
@@ -345,17 +361,26 @@ function IssueCard({
   const evolution = issue.evolution;
   const skillAction = evolution !== null && evolution.kind === 'skill'
     && (evolution.action === 'add' || evolution.action === 'modify' || evolution.action === 'remove');
+  const severityWord = SEVERITY_WORDS[issue.priority]
+    ? SEVERITY_WORDS[issue.priority](copy)
+    : `P${issue.priority}`;
+  const evidence = issue.evidence ? (
+    <details className={css.evidenceWrap}>
+      <summary className={css.evidenceSummary}>{copy.evidenceLabel}</summary>
+      <pre className={css.evidence}>{issue.evidence}</pre>
+    </details>
+  ) : null;
   return (
     <article className={css.card}>
       <div className={css.cardHead}>
-        <span className={css.priority} data-priority={issue.priority}>P{issue.priority}</span>
+        <span className={css.severity} data-priority={issue.priority}>{severityWord}</span>
         <h4 className={css.cardTitle}>{issue.title}</h4>
       </div>
       {issue.description ? <p className={css.text}>{issue.description}</p> : null}
-      {issue.evidence ? <pre className={css.evidence}>{issue.evidence}</pre> : null}
-      {issue.impact ? <p className={css.field}><strong>{copy.impact}: </strong>{issue.impact}</p> : null}
-      {issue.root_cause ? <p className={css.field}><strong>{copy.rootCause}: </strong>{issue.root_cause}</p> : null}
-      {issue.recommendation ? <p className={css.field}><strong>{copy.recommendation}: </strong>{issue.recommendation}</p> : null}
+      {evidence}
+      {issue.root_cause ? <p className={css.field}><strong>{copy.why}: </strong>{issue.root_cause}</p> : null}
+      {issue.impact ? <p className={css.field}><strong>{copy.affects}: </strong>{issue.impact}</p> : null}
+      {issue.recommendation ? <p className={css.field}><strong>{copy.nextStep}: </strong>{issue.recommendation}</p> : null}
       {evolution !== null && evolution.kind !== 'none' ? (
         <p className={css.badge}>
           {evolution.kind} · {evolution.action}{evolution.target ? ` · ${evolution.target}` : ''}
@@ -412,14 +437,17 @@ function IssueCard({
         </p>
       ) : null}
       {ui.proposal !== null ? (
-        <div className={css.diffBlock}>
-          <pre className={css.diff}>
-            {ui.proposal.location_hint ? `${ui.proposal.location_hint}\n\n` : ''}
-            {`${copy.suggestedChange}: ${ui.proposal.rationale || ui.proposal.note}`}
-            {ui.proposal.artifacts && ui.proposal.artifacts.length > 0
-              ? `\n\n${JSON.stringify(ui.proposal.artifacts, null, 2)}`
-              : ''}
-          </pre>
+        <div className={css.proposal}>
+          <p className={css.note}>{copy.proposalDeveloperNote}</p>
+          <div className={css.diffBlock}>
+            <pre className={css.diff}>
+              {ui.proposal.location_hint ? `${ui.proposal.location_hint}\n\n` : ''}
+              {`${copy.suggestedChange}: ${ui.proposal.rationale || ui.proposal.note}`}
+              {ui.proposal.artifacts && ui.proposal.artifacts.length > 0
+                ? `\n\n${JSON.stringify(ui.proposal.artifacts, null, 2)}`
+                : ''}
+            </pre>
+          </div>
         </div>
       ) : null}
     </article>
