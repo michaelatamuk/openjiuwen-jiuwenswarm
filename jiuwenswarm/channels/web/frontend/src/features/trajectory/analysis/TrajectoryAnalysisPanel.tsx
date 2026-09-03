@@ -27,8 +27,6 @@ export interface TrajectoryAnalysisPanelProps {
   sessionId: string;
   /** Whether the analysis tab is the visible surface (pauses polling). */
   active: boolean;
-  /** Session title to show in the panel header, mirroring Chat/Trajectory. */
-  sessionTitle?: string;
 }
 
 type Phase = 'idle' | 'running' | 'done' | 'failed';
@@ -82,7 +80,6 @@ async function pollJob(
 export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   sessionId,
   active,
-  sessionTitle = '',
 }: TrajectoryAnalysisPanelProps) {
   const enabled = useTrajectoryAnalysisEnabled();
   const { copy } = useTrajectoryAnalysisCopy();
@@ -238,7 +235,6 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
   return (
     <section className={css.page} data-testid="trajectory-analysis" aria-label="Analysis">
       <header className={css.pageHeader}>
-        <h2 className={css.pageTitle}>{sessionTitle.trim() || copy.reportTitle}</h2>
         <button
           type="button"
           className={css.primary}

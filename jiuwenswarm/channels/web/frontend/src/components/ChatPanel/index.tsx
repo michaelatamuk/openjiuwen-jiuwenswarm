@@ -88,6 +88,8 @@ interface ChatPanelProps {
   isExportingShare?: boolean;
   canExportShare?: boolean;
   sessionTitle?: string;
+  /** When a shared title is shown above the tab row, hide the in-panel one. */
+  hideSessionTitle?: boolean;
   sessionProjectName?: string;
   sessionProject?: ProjectInfo | null;
   /** 自会话管理恢复历史后出现；支持分页加载更早消息 */
@@ -792,6 +794,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   isExportingShare = false,
   canExportShare = false,
   sessionTitle,
+  hideSessionTitle = false,
   sessionProjectName,
   sessionProject = null,
   historyPager = null,
@@ -1304,9 +1307,11 @@ export const ChatPanel = React.memo(function ChatPanel({
       {shouldShowChatHeader && (
         <div className="chat-panel-header" data-testid="chat-panel-header">
           <div className="chat-panel-header__meta" data-testid="chat-panel-header-meta">
-            <div className="chat-panel-header__title" title={sessionTitle} data-testid="chat-panel-header-title">
-              {sessionTitle}
-            </div>
+            {!hideSessionTitle ? (
+              <div className="chat-panel-header__title" title={sessionTitle} data-testid="chat-panel-header-title">
+                {sessionTitle}
+              </div>
+            ) : null}
             {sessionProjectName && (
               <div className="chat-panel-header__project" title={sessionProjectName} data-testid="chat-panel-header-project">
                 <span className="chat-config-icon chat-config-icon--folder" aria-hidden="true" />

@@ -313,6 +313,8 @@ function AppContent({
   );
   const trajectoryUiEnabled = useTrajectoryUiEnabled();
   const trajectoryAnalysisEnabled = useTrajectoryAnalysisEnabled();
+  const sharedSurfaceTitle = (trajectoryUiEnabled || trajectoryAnalysisEnabled)
+    && Boolean(sessionId && sessionId !== NEW_CONVERSATION_ID);
   const [configError, setConfigError] = useState<string | null>(null);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [restartModalOpen, setRestartModalOpen] = useState(false);
@@ -3063,6 +3065,7 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                         isExportingShare={isExportingShare}
                         canExportShare={Boolean(sessionId && sessionId !== NEW_CONVERSATION_ID && (!isProcessing || isPaused))}
                         sessionTitle={sessionTitle}
+                        hideSessionTitle={sharedSurfaceTitle}
                         sessionProjectName={sessionProjectName}
                         sessionProject={sessionProject}
                         teamAreaExpanded={toolPanelHidden ? null : isTeamAreaExpanded}
@@ -3118,13 +3121,13 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                         <LazyTrajectoryAnalysisPanel
                           active={chatSurfaceView === 'analysis'}
                           sessionId={sessionId}
-                          sessionTitle={sessionTitle ?? ''}
                         />
                       </Suspense>
                     )}
                     analysisEnabled={trajectoryAnalysisEnabled}
                     analysisLabel={t('trajectory.tabs.analysis')}
                     analysisRequested={analysisRequested}
+                    sessionTitle={sharedSurfaceTitle ? sessionTitle : undefined}
                   />
                 </div>
 
