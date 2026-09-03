@@ -2408,21 +2408,6 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
     ) -> SkillRetrievalPromptRail | None:
         """Build prompt guidance from the active Code Spec snapshot."""
         return super()._build_skill_retrieval_prompt_rail()
-        if not self._skill_retrieval_tools_enabled_for_runtime():
-            return None
-        try:
-            toolkit = self._get_or_create_skill_retrieval_toolkit()
-            return SkillRetrievalPromptRail(
-                toolkit=toolkit,
-                session_scope=self._skill_retrieval_session_scope(),
-                config_base=self._config_base_cache,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "[JiuwenSwarmCodeAdapter] SkillRetrievalPromptRail build failed: %s",
-                exc,
-            )
-            return None
 
     def _build_skill_retrieval_toolkit(self, agent_id: str) -> list[Any] | None:
         """构建 SkillRetrievalToolkit 工具（不注册到 Runner，由 _get_tool_cards 统一注册）."""
@@ -2431,8 +2416,6 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             return None
         try:
             tools = self._create_skill_retrieval_tools()
-            toolkit = self._get_or_create_skill_retrieval_toolkit()
-            tools = mark_stateless(toolkit.get_tools())
             self._skill_retrieval_tools = tools
             self._skill_retrieval_tools_registered = bool(tools)
             logger.info(
