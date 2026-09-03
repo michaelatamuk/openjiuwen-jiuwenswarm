@@ -206,8 +206,9 @@ _TOOL_NAME_PATTERNS = [
 
 
 def _attach_default_suggestion(issue: AnalysisIssue) -> AnalysisIssue:
-    """Attach a default tool suggestion when a failure names a tool."""
-    if issue.evolution is not None:
+    """Attach a default tool suggestion when no actionable one was given."""
+    suggestion = issue.evolution
+    if suggestion is not None and suggestion.kind != SuggestionKind.NONE:
         return issue
     text = issue.evidence or issue.title or ""
     for pattern in _TOOL_NAME_PATTERNS:
