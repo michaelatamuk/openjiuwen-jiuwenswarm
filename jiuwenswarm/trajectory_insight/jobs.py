@@ -27,9 +27,23 @@ class JobProgress:
     def __init__(self, job: "AnalysisJob") -> None:
         self._job = job
 
-    def set_stage(self, stage: str) -> None:
-        """Publish the current human-readable stage (e.g. ``reading``)."""
-        self._job.stage = stage
+    def set_stage(
+        self,
+        stage: str,
+        *,
+        records: int | None = None,
+        turns: int | None = None,
+        seeds: int | None = None,
+    ) -> None:
+        """Publish the current stage plus any real counters known so far."""
+        job = self._job
+        job.stage = stage
+        if records is not None:
+            job.records = records
+        if turns is not None:
+            job.turns = turns
+        if seeds is not None:
+            job.seeds = seeds
 
 
 @dataclass
@@ -44,6 +58,9 @@ class AnalysisJob:
     finished_at: float | None = None
     status: str = "running"
     stage: str = "reading"
+    records: int | None = None
+    turns: int | None = None
+    seeds: int | None = None
     fingerprint: str | None = None
     error: str | None = None
     report: SessionAnalysisReport | None = None
@@ -59,6 +76,12 @@ class AnalysisJob:
             "created_at": self.created_at,
             "stage": self.stage,
         }
+        if self.records is not None:
+            payload["records"] = self.records
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        if self.seeds is not None:
+            payload["seeds"] = self.seeds
         if self.started_at is not None:
             payload["started_at"] = self.started_at
         if self.finished_at is not None:

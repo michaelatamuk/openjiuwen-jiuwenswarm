@@ -236,9 +236,26 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
     if (phase !== 'running') return '';
     const stage = job?.stage;
     if (stage === 'diagnosing') return copy.stageDiagnosing;
-    if (stage === 'analyzing') return copy.stageAnalyzing;
+    if (stage === 'scanning') return copy.stageScanning;
+    if (stage === 'completed') return copy.stageCompleted;
     return copy.stageReading;
   }, [phase, job?.stage, copy]);
+
+  const detailText = useMemo(() => {
+    if (phase !== 'running') return '';
+    const stage = job?.stage;
+    if (stage === 'scanning') {
+      return job?.records !== undefined
+        ? copy.detailScanning.replace('{records}', String(job.records))
+        : '';
+    }
+    if (stage === 'diagnosing') {
+      return job?.seeds !== undefined
+        ? copy.detailDiagnosing.replace('{seeds}', String(job.seeds))
+        : '';
+    }
+    return '';
+  }, [phase, job, copy]);
 
   const header = useMemo(() => (
     <div className={css.header}>
@@ -275,7 +292,7 @@ export const TrajectoryAnalysisPanel = memo(function TrajectoryAnalysisPanel({
             {stageText}
             {elapsedSec !== null ? ` · ${elapsedSec}s` : ''}
           </span>
-          <span className={css.progressNote}>{copy.runningEstimate}</span>
+          {detailText !== '' ? <span className={css.progressNote}>{detailText}</span> : null}
         </div>
       ) : null}
       {phase === 'failed' && error !== null ? (

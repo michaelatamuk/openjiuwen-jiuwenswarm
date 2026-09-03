@@ -54,6 +54,9 @@ export interface AnalysisJob {
   stale: boolean;
   created_at: number;
   stage?: string;
+  records?: number;
+  turns?: number;
+  seeds?: number;
   started_at?: number;
   finished_at?: number;
   fingerprint?: string;

@@ -490,7 +490,7 @@ class TrajectoryAnalysisEndpoints:
         async def runner(progress):
             progress.set_stage("reading")
             records, _epoch, _revision = await self._read_records(session_id)
-            progress.set_stage("analyzing")
+            progress.set_stage("scanning", records=len(records))
             read_model = build_session_read_model(
                 records,
                 max_turns=settings.max_report_turns,
@@ -498,7 +498,12 @@ class TrajectoryAnalysisEndpoints:
             seeds = detect(read_model)
             model = self._model_provider() if settings.enabled else None
             if model is not None:
-                progress.set_stage("diagnosing")
+                progress.set_stage(
+                    "diagnosing",
+                    records=len(records),
+                    turns=len(read_model.turns),
+                    seeds=len(seeds),
+                )
             return await analyze_session(
                 read_model,
                 seeds,
