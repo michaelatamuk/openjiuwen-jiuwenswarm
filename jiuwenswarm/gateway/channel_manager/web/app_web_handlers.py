@@ -48,6 +48,7 @@ from openjiuwen.extensions.external_provider.openai_auth.openai_account_models i
 from jiuwenswarm.common.config import (
     DEFAULT_SWARMFLOW_ENABLED,
     EXTERNAL_CLI_AGENTS_CONFIG_PATH,
+    SWARMFLOW_BUDGET_CONFIG_PATH,
     SWARMFLOW_ENABLED_CONFIG_PATH,
     get_config,
     get_config_raw,
@@ -73,9 +74,11 @@ from jiuwenswarm.common.config import (
     update_memory_forbidden_description_in_config,
     update_external_cli_agents_in_config,
     update_swarmflow_enabled_in_config,
+    update_swarmflow_budget_in_config,
     update_a2ui_in_config,
     update_updater_in_config,
     update_proactive_recommendation_in_config,
+    update_trajectory_ui_in_config,
     update_skill_evolution_enabled_in_config,
 )
 from jiuwenswarm.common.kv_cache_affinity_config import (
@@ -175,7 +178,9 @@ class _ConfigChangeSet:
             scopes.add("multimodal")
         for key in self.yaml_updated:
             key_text = str(key)
-            if key_text in {"models.defaults"} or key_text.startswith("models."):
+            if key_text == "skill_retrieval_index_recommendation_shown":
+                scopes.add("web_ui")
+            elif key_text in {"models.defaults"} or key_text.startswith("models."):
                 scopes.add("model")
             elif key_text in {"modes.team", "agents", "team"}:
                 scopes.add("team")
@@ -185,6 +190,8 @@ class _ConfigChangeSet:
                 scopes.add("proactive")
             elif key_text.startswith("symphony") or key_text.startswith("skill_retrieval"):
                 scopes.add("agent_runtime")
+            elif key_text == "trajectory_ui_enabled":
+                scopes.update({"agent_runtime", "web_ui"})
             elif key_text.startswith("a2ui_") or key_text == "setup_guide_enabled":
                 scopes.add("web_ui")
             else:
@@ -672,6 +679,11 @@ _FORWARD_REQ_METHODS = frozenset({
     "chat.interrupt",
     "chat.resume",
     "chat.user_answer",
+    "chat.swarmflow_reply",
+    "swarmflow.pause",
+    "swarmflow.resume",
+    "swarmflow.stop",
+    "command.workflows",
     "history.get",
     # "tts.synthesize",
     "skills.marketplace.list",
@@ -817,6 +829,9 @@ _FORWARD_REQ_METHODS = frozenset({
     "issue.state.list",
     "issue.matrix",
     "issue.delete",
+    # 主动推荐反馈（点赞/点踩）：经 E2A 转发到 AgentServer 的
+    # _handle_proactive_feedback，写入 recommendation.json 的 feedback_buffer。
+    "proactive.feedback",
 })
 
 _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
@@ -835,6 +850,10 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "team.snapshot",
     "team.history.get",
     "team.mq.publish",
+    "command.workflows",
+    "swarmflow.pause",
+    "swarmflow.resume",
+    "swarmflow.stop",
     "skills.marketplace.list",
     "skills.list",
     "skills.installed",
@@ -958,6 +977,7 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "agents.tools_list",
     "external_cli.detect",
     "external_cli.codex_install_status",
+    "proactive.feedback",
 })
 
 # 配置信息：config.get 返回、config.set 可修改的键（前端 param 名 -> 环境变量名）
@@ -1042,10 +1062,12 @@ _CONFIG_YAML_KEYS = frozenset({
     "memory_forbidden_enabled",
     "memory_forbidden_description",
     "a2ui_enabled",
+    "trajectory_ui_enabled",
     "proactive_recommendation_enabled",
     "proactive_recommendation_max_recommend_per_day",
     "proactive_recommendation_max_rounds_per_tick",
     "swarmflow_enabled",
+    "swarmflow_budget",
     "external_cli_agent_claude_enabled",
     "external_cli_agent_claude_use_builtin",
     "external_cli_agent_claude_cli_path",
@@ -1121,6 +1143,11 @@ _SYMPHONY_CONFIG_KEYS = tuple(_SYMPHONY_CONFIG_SPECS.keys())
 _SKILL_RETRIEVAL_CONFIG_SPECS: dict[str, tuple[tuple[str, ...], str, Any]] = {
     "skill_retrieval_enabled": (("enabled",), "bool", False),
     "skill_retrieval_index_enabled": (("index", "enabled"), "bool", False),
+    "skill_retrieval_index_recommendation_shown": (
+        ("index", "recommendation_shown"),
+        "bool",
+        False,
+    ),
     "skill_retrieval_max_results": (("discovery", "max_results"), "int", 10),
     "skill_retrieval_max_output_chars": (
         ("discovery", "max_output_chars"),
@@ -1233,7 +1260,11 @@ def _flatten_swarmflow_for_config_panel(raw: dict[str, Any]) -> dict[str, str]:
         SWARMFLOW_ENABLED_CONFIG_PATH,
         DEFAULT_SWARMFLOW_ENABLED,
     )
-    return {"swarmflow_enabled": "true" if enabled else "false"}
+    budget = _get_nested_config_value(raw, SWARMFLOW_BUDGET_CONFIG_PATH, None)
+    flat = {"swarmflow_enabled": "true" if enabled else "false"}
+    if budget is not None:
+        flat["swarmflow_budget"] = str(budget)
+    return flat
 
 
 def _flatten_external_cli_agents_for_config_panel(raw: dict[str, Any]) -> dict[str, str]:
@@ -1668,6 +1699,27 @@ def _update_external_cli_dependency_install_status(cli_agent: str, updates: dict
         status["updated_at"] = time.time()
 
 
+def _external_cli_dependency_install_succeeded_updates() -> dict[str, Any]:
+    """Build a terminal success state without stale download progress."""
+    return {
+        "status": "succeeded",
+        "phase": "succeeded",
+        "error": "",
+        "finished_at": time.time(),
+        "downloaded_bytes": 0,
+        "total_bytes": 0,
+        "bytes_per_second": 0.0,
+        "eta_seconds": 0.0,
+        "artifact_index": 0,
+        "artifact_count": 0,
+        "current_package": "",
+        "current_version": "",
+        "download_attempt": 0,
+        "download_max_attempts": 0,
+        "switching_source": False,
+    }
+
+
 def _append_external_cli_dependency_install_log(cli_agent: str, line: str) -> None:
     stripped = line.strip()
     if not stripped:
@@ -1691,15 +1743,8 @@ def _snapshot_claude_dependency_install_status() -> dict[str, Any]:
 def _ensure_claude_dependency_available_or_start_install() -> dict[str, Any] | None:
     if importlib.util.find_spec("claude_agent_sdk") is not None:
         with _CLAUDE_DEPENDENCY_INSTALL_LOCK:
-            _CLAUDE_DEPENDENCY_INSTALL_STATUS.update(
-                {
-                    "status": "succeeded",
-                    "phase": "succeeded",
-                    "error": "",
-                    "finished_at": time.time(),
-                    "updated_at": time.time(),
-                }
-            )
+            _CLAUDE_DEPENDENCY_INSTALL_STATUS.update(_external_cli_dependency_install_succeeded_updates())
+            _CLAUDE_DEPENDENCY_INSTALL_STATUS["updated_at"] = time.time()
         return None
     if _is_frozen_runtime():
         return _ensure_managed_external_cli_runtime_or_start_install("claude")
@@ -1739,7 +1784,7 @@ def _install_claude_dependency_background() -> None:
     try:
         package = _resolve_openjiuwen_extra_package("claude")
         _install_optional_dependency("claude", package, "claude_agent_sdk")
-        updates = {"status": "succeeded", "phase": "succeeded", "error": "", "finished_at": time.time()}
+        updates = _external_cli_dependency_install_succeeded_updates()
     except Exception as exc:  # noqa: BLE001
         logger.warning("[config.set] Claude dependency installation failed: %s", exc)
         _append_external_cli_dependency_install_log("claude", str(exc))
@@ -1835,14 +1880,7 @@ def _run_managed_external_cli_runtime_install(cli_agent: str) -> None:
 
     _update_external_cli_dependency_install_status(
         cli_agent,
-        {
-            "status": "succeeded",
-            "phase": "succeeded",
-            "error": "",
-            "finished_at": time.time(),
-            "bytes_per_second": 0.0,
-            "eta_seconds": 0.0,
-        },
+        _external_cli_dependency_install_succeeded_updates(),
     )
 
 
@@ -1860,12 +1898,7 @@ def _append_codex_dependency_install_log(line: str) -> None:
 
 def _ensure_codex_dependency_available_or_start_install() -> dict[str, Any] | None:
     if importlib.util.find_spec("openai_codex") is not None:
-        _update_codex_dependency_install_status({
-            "status": "succeeded",
-            "phase": "succeeded",
-            "error": "",
-            "finished_at": time.time(),
-        })
+        _update_codex_dependency_install_status(_external_cli_dependency_install_succeeded_updates())
         return None
 
     if _is_frozen_runtime():
@@ -1923,12 +1956,7 @@ def _run_codex_dependency_install_background() -> None:
         })
         return
 
-    _update_codex_dependency_install_status({
-        "status": "succeeded",
-        "phase": "succeeded",
-        "error": "",
-        "finished_at": time.time(),
-    })
+    _update_codex_dependency_install_status(_external_cli_dependency_install_succeeded_updates())
 
 
 def _install_codex_dependency() -> None:
@@ -2820,6 +2848,10 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             memory_desc = memory_cfg.get("description") or {}
             payload["memory_forbidden_description"] = memory_desc
             payload.update(get_a2ui_config_payload(raw))
+            trajectory_cfg = raw.get("trajectory_ui") or {}
+            payload["trajectory_ui_enabled"] = (
+                "true" if trajectory_cfg.get("enabled", False) else "false"
+            )
             payload.update(_flatten_swarmflow_for_config_panel(raw))
             payload.update(_flatten_external_cli_agents_for_config_panel(raw))
             payload.update(_flatten_symphony_for_config_panel(raw))
@@ -2850,6 +2882,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             payload.setdefault("swarmflow_enabled", "true" if DEFAULT_SWARMFLOW_ENABLED else "false")
             for key, value in get_default_a2ui_config_payload().items():
                 payload.setdefault(key, value)
+            payload.setdefault("trajectory_ui_enabled", "false")
             for key, (_, value_type, default) in {
                 **_SYMPHONY_CONFIG_SPECS,
                 **_SKILL_RETRIEVAL_CONFIG_SPECS,
@@ -3083,6 +3116,8 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                     update_memory_forbidden_description_in_config({preferred_lang: desc_val})
                 elif param_key == "swarmflow_enabled":
                     update_swarmflow_enabled_in_config(parsed)
+                elif param_key == "swarmflow_budget":
+                    update_swarmflow_budget_in_config(str(val).strip())
                 elif param_key in _EXTERNAL_CLI_AGENT_CONFIG_KEYS:
                     if not external_cli_agents_updated:
                         try:
@@ -3115,6 +3150,8 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                     if not ok:
                         raise _ConfigBadRequest(error or "invalid A2UI config")
                     update_a2ui_in_config(update)
+                elif param_key == "trajectory_ui_enabled":
+                    update_trajectory_ui_in_config(parsed)
                 elif param_key == "proactive_recommendation_enabled":
                     update_proactive_recommendation_in_config({"enabled": parsed})
                 elif param_key == "proactive_recommendation_max_recommend_per_day":
@@ -4241,6 +4278,27 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             label="session.get_metadata",
         )
 
+    async def _session_plan_status(ws, req_id, params, session_id, user_id=None):
+        """查询会话当前是否处于计划模式（只读，刷新后恢复前端「计划」标签）。
+
+        转发 AgentServer ``SESSION_PLAN_STATUS``：单 agent 读 live
+        ``plan_mode``，集群 / 读不到 agent 状态时回退 metadata.mode。
+        """
+        from jiuwenswarm.common.schema.message import ReqMethod
+        from jiuwenswarm.gateway.routing.e2a_proxy import proxy_unary_request
+
+        await proxy_unary_request(
+            channel=channel,
+            agent_client=_resolve(agent_client),
+            ws=ws,
+            req_id=req_id,
+            params=params,
+            session_id=session_id,
+            user_id=user_id,
+            req_method=ReqMethod.SESSION_PLAN_STATUS,
+            label="session.plan_status",
+        )
+
     async def _session_create(ws, req_id, params, session_id, user_id=None):
         """创建一个新 session（在 agent/sessions 下创建一个新目录）。
 
@@ -5234,6 +5292,13 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
         if isinstance(request_id, str) and request_id:
             payload["request_id"] = request_id
         await channel.send_response(ws, req_id, ok=True, payload=payload)
+
+    async def _chat_swarmflow_reply(ws, req_id, params, session_id):
+        # Empty-ack shell — standard 3-layer routing forwards the reply to the
+        # agent adapter, which builds HumanAgentMessage and calls team_manager.
+        await channel.send_response(
+            ws, req_id, ok=True, payload={"accepted": True, "session_id": session_id}
+        )
 
     async def _history_get(ws, req_id, params, session_id):
         payload = {"accepted": True, "session_id": session_id}
@@ -6465,6 +6530,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
     channel.register_method("session.create", _session_create)
     channel.register_method("session.delete", _session_delete)
     channel.register_method("session.get_metadata", _session_get_metadata)
+    channel.register_method("session.plan_status", _session_plan_status)
     channel.register_method("session.rename", _session_rename)
     channel.register_method("session.pin", _session_pin)
 
@@ -6544,6 +6610,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
     channel.register_method("chat.resume", _chat_resume)
     channel.register_method("chat.interrupt", _chat_interrupt)
     channel.register_method("chat.user_answer", _chat_user_answer)
+    channel.register_method("chat.swarmflow_reply", _chat_swarmflow_reply)
     channel.register_method("history.get", _history_get)
     channel.register_method("locale.get_conf", _locale_get_conf)
     channel.register_method("locale.set_conf", _locale_set_conf)
