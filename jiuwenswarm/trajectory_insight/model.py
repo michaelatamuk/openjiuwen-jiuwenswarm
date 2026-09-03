@@ -64,9 +64,17 @@ def resolve_model_for_analysis(config=None):
         "api_key": client_raw.get("api_key") or "",
         "verify_ssl": bool(client_raw.get("verify_ssl", False)),
     }
-    for key in ("endpoint_profile", "custom_headers", "timeout", "max_retries"):
+    for key in ("endpoint_profile", "custom_headers"):
         if key in client_raw:
             client_kwargs[key] = client_raw[key]
+    # Analysis calls are short LLM steps; never inherit the long product timeout.
+    raw_timeout = client_raw.get("timeout")
+    try:
+        timeout = float(raw_timeout) if raw_timeout else 120.0
+    except (TypeError, ValueError):
+        timeout = 120.0
+    client_kwargs["timeout"] = min(timeout, 120.0)
+    client_kwargs["max_retries"] = 0
     model_client_config = ModelClientConfig(**client_kwargs)
 
     model_obj = selected.get("model_config_obj") or {}

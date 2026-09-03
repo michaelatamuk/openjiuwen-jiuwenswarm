@@ -12,6 +12,7 @@ are never auto-applied.
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import hashlib
 import json
@@ -170,7 +171,10 @@ class SkillApplyService:
         try:
             from openjiuwen.core.foundation.llm.schema.message import UserMessage
 
-            response = await model.invoke([UserMessage(content=prompt)], temperature=0.0)
+            response = await asyncio.wait_for(
+                model.invoke([UserMessage(content=prompt)], temperature=0.0),
+                timeout=60,
+            )
             text = (getattr(response, "content", None) or str(response)).strip().lower()
             accepted = "yes" in text[:400] and "no" not in text[:200]
             return {
@@ -608,7 +612,10 @@ async def _generate_source_artifact(
         issue_recommendation=issue.recommendation,
     )
     try:
-        response = await model.invoke([UserMessage(content=prompt)], temperature=0.0)
+        response = await asyncio.wait_for(
+            model.invoke([UserMessage(content=prompt)], temperature=0.0),
+            timeout=60,
+        )
     except Exception:  # noqa: BLE001
         logging.getLogger(__name__).warning("[trajectory.apply] change generation failed", exc_info=True)
         return None
