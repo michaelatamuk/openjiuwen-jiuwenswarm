@@ -190,3 +190,76 @@ class AnalysisJobRegistry:
             job = self._jobs[analysis_id]
             if job.status in {"completed", "failed"} and job.finished_at and job.finished_at < cutoff:
                 self._jobs.pop(analysis_id, None)
+
+
+@dataclass
+class ApplyJob:
+    """Mutable state of one apply/preview job (preview or approved write)."""
+
+    apply_id: str
+    created_at: float
+    started_at: float | None = None
+    finished_at: float | None = None
+    status: str = "running"
+    error: str | None = None
+    result: dict | None = None
+
+    def to_dict(self) -> dict:
+        payload = {
+            "apply_id": self.apply_id,
+            "status": self.status,
+            "created_at": self.created_at,
+        }
+        if self.finished_at is not None:
+            payload["finished_at"] = self.finished_at
+        if self.error is not None:
+            payload["error"] = self.error
+        if self.result is not None:
+            payload["result"] = self.result
+        return payload
+
+
+class ApplyJobRegistry:
+    """Owns background preview/apply jobs that make slow LLM calls."""
+
+    def __init__(self, *, timeout_s: int = 150, ttl_s: int = 1800, max_concurrent: int = 4) -> None:
+        self._timeout_s = max(1, timeout_s)
+        self._ttl_s = max(1, ttl_s)
+        self._semaphore = asyncio.Semaphore(max(1, max_concurrent))
+        self._jobs: dict[str, ApplyJob] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
+
+    def start(self, runner) -> ApplyJob:
+        """Start a background apply/preview task and return the job."""
+        job = ApplyJob(apply_id=uuid.uuid4().hex, created_at=time.time())
+        self._jobs[job.apply_id] = job
+        task = asyncio.create_task(self._execute(job, runner))
+        self._tasks[job.apply_id] = task
+        self._gc()
+        return job
+
+    def get(self, apply_id: str) -> ApplyJob | None:
+        return self._jobs.get(apply_id)
+
+    async def _execute(self, job: ApplyJob, runner) -> None:
+        async with self._semaphore:
+            job.started_at = time.time()
+            try:
+                result = await asyncio.wait_for(runner(), timeout=self._timeout_s)
+            except Exception as exc:  # noqa: BLE001
+                job.status = "failed"
+                job.error = str(exc)
+                job.finished_at = time.time()
+            else:
+                job.status = "completed"
+                job.result = result
+                job.finished_at = time.time()
+            finally:
+                self._tasks.pop(job.apply_id, None)
+
+    def _gc(self) -> None:
+        cutoff = time.time() - self._ttl_s
+        for apply_id in list(self._jobs):
+            job = self._jobs[apply_id]
+            if job.status in {"completed", "failed"} and job.finished_at and job.finished_at < cutoff:
+                self._jobs.pop(apply_id, None)

@@ -459,16 +459,18 @@ class TrajectoryAnalysisEndpoints:
         reader_loader: Callable[[str], Awaitable[Any]] | None = None,
         validate: Callable[[str], Response | None] | None = None,
         registry=None,
+        apply_registry=None,
         model_provider=None,
     ) -> None:
         from jiuwenswarm.trajectory_insight.config import get_analysis_settings
-        from jiuwenswarm.trajectory_insight.jobs import AnalysisJobRegistry
+        from jiuwenswarm.trajectory_insight.jobs import AnalysisJobRegistry, ApplyJobRegistry
         from jiuwenswarm.trajectory_insight.model import resolve_model_for_analysis
 
         self._settings_loader = settings_loader or get_analysis_settings
         self._reader_loader = reader_loader
         self._validate = validate or (lambda _session_id: None)
         self._registry = registry or AnalysisJobRegistry()
+        self._apply_registry = apply_registry or ApplyJobRegistry()
         self._model_provider = model_provider or resolve_model_for_analysis
 
     async def start_analysis(self, session_id: str) -> Response:
@@ -557,45 +559,45 @@ class TrajectoryAnalysisEndpoints:
         issue = derive_issue(job.report, issue_index)
         if issue is None:
             return _error_response("issue not found", "NOT_FOUND", 404)
-        if preview:
+
+        async def runner() -> dict:
             try:
-                _enriched, result = await build_apply_preview_with_artifact(
+                if preview:
+                    _enriched, result = await build_apply_preview_with_artifact(
+                        issue,
+                        settings,
+                        model_provider=self._model_provider,
+                    )
+                    if result is None:
+                        return {
+                            "status": "rejected",
+                            "error": "NOT_APPLICABLE",
+                        }
+                    return result
+                return await apply_evolution(
                     issue,
                     settings,
+                    mode=mode,
                     model_provider=self._model_provider,
                 )
             except Exception as exc:  # noqa: BLE001
-                logger.exception("[trajectory.analyze] preview failed for issue %s", issue_index)
+                logger.exception("[trajectory.analyze] apply job failed for issue %s", issue_index)
                 fallback = build_code_proposal(issue, settings) or {}
-                result = {
-                    "allowed": True,
-                    "apply_allowed": True,
-                    "kind": (issue.evolution.kind.value if issue.evolution else "none"),
-                    "target": issue.evolution.target if issue.evolution else None,
-                    "can_in_place": False,
+                return {
+                    "status": "rejected",
+                    "error": str(exc),
                     "patch": fallback,
-                    "status": "previewed",
-                    "note": f"Change generation failed ({exc}); patch-only preview shown.",
+                    "note": "Apply failed; a patch-only artifact is shown instead.",
                 }
-            if result is None:
-                return _error_response(
-                    "issue has no applicable change",
-                    "NOT_APPLICABLE",
-                    409,
-                )
-            return _json_response(result)
-        result = await apply_evolution(
-            issue,
-            settings,
-            mode=mode,
-            model_provider=self._model_provider,
-        )
-        status_code = 200 if result.get("status") in {
-            "applied",
-            "previewed",
-            "patch_generated",
-        } else 409
-        return _json_response(result, status_code=status_code)
+
+        apply_job = self._apply_registry.start(runner)
+        return _json_response(apply_job.to_dict(), status_code=202)
+
+    async def get_apply(self, apply_id: str) -> Response:
+        apply_job = self._apply_registry.get(apply_id)
+        if apply_job is None:
+            return _error_response("apply not found", "NOT_FOUND", 404)
+        return _json_response(apply_job.to_dict())
 
     async def proposal_analysis(self, session_id: str, analysis_id: str, request: Request) -> Response:
         settings = self._settings_loader()
@@ -722,6 +724,24 @@ def attach_trajectory_analysis_routes(
         if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
             return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
         return await endpoints.proposal_analysis(session_id, str(analysis_id), request)
+
+    @app.get(
+        f"{TRAJECTORY_API_PREFIX}/analyses/{{analysis_id}}/apply/{{apply_id}}"
+    )
+    async def get_apply(
+        analysis_id: str,
+        apply_id: str,
+        request: Request,
+    ) -> Response:
+        request.state.trajectory_route_handled = True
+        origin_error = _validate_http_origin(request)
+        if origin_error is not None:
+            return origin_error
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(analysis_id or "")) is None:
+            return _error_response("invalid analysis_id", "BAD_REQUEST", 400)
+        if _ANALYSIS_ID_PATTERN.fullmatch(str(apply_id or "")) is None:
+            return _error_response("invalid apply_id", "BAD_REQUEST", 400)
+        return await endpoints.get_apply(str(apply_id))
 
     return endpoints
 

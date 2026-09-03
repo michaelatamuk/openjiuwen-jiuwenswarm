@@ -291,13 +291,74 @@ async function postIssueAction(
   return readJson(response);
 }
 
+function startJobOf(value: unknown): { apply_id: string } {
+  if (!object(value) || typeof value.apply_id !== 'string' || value.apply_id.length === 0) {
+    throw new TrajectoryAnalysisApiError('Invalid apply start response', 502, 'INVALID_RESPONSE');
+  }
+  return { apply_id: value.apply_id };
+}
+
+async function startApplyJob(
+  sessionId: string,
+  analysisId: string,
+  issueIndex: number,
+  preview: boolean,
+  mode: string | undefined,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const response = await fetch(analysisUrl(
+    `/api/trajectory/sessions/${encodeURIComponent(sessionId)}`
+    + `/analyses/${encodeURIComponent(analysisId)}/apply`,
+  ), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ issue_index: issueIndex, preview, ...(mode === undefined ? {} : { mode }) }),
+    cache: 'no-store',
+    signal: options.signal,
+  });
+  const payload = await readJson(response);
+  return startJobOf(payload).apply_id;
+}
+
+async function pollApplyResult(
+  analysisId: string,
+  applyId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ApplyResult> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    await new Promise(resolve => window.setTimeout(resolve, 1500));
+    const response = await fetch(analysisUrl(
+      `/api/trajectory/analyses/${encodeURIComponent(analysisId)}/apply/${encodeURIComponent(applyId)}`,
+    ), {
+      cache: 'no-store',
+      signal: options.signal,
+    });
+    const payload = await readJson(response);
+    if (!object(payload)) {
+      throw new TrajectoryAnalysisApiError('Invalid apply response', 502, 'INVALID_RESPONSE');
+    }
+    const status = typeof payload.status === 'string' ? payload.status : 'running';
+    if (status === 'completed' && object(payload.result)) {
+      return applyResultOf(payload.result);
+    }
+    if (status === 'failed') {
+      throw new TrajectoryAnalysisApiError(
+        typeof payload.error === 'string' ? payload.error : 'Apply failed',
+        502,
+      );
+    }
+  }
+  throw new TrajectoryAnalysisApiError('Apply timed out', 504, 'APPLY_TIMEOUT');
+}
+
 export async function previewTrajectoryApply(
   sessionId: string,
   analysisId: string,
   issueIndex: number,
   options: { signal?: AbortSignal } = {},
 ): Promise<ApplyResult> {
-  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, true, undefined, options));
+  const applyId = await startApplyJob(sessionId, analysisId, issueIndex, true, undefined, options);
+  return pollApplyResult(analysisId, applyId, options);
 }
 
 export async function confirmTrajectoryApply(
@@ -307,7 +368,8 @@ export async function confirmTrajectoryApply(
   mode = 'patch',
   options: { signal?: AbortSignal } = {},
 ): Promise<ApplyResult> {
-  return applyResultOf(await postIssueAction(sessionId, analysisId, 'apply', issueIndex, false, mode, options));
+  const applyId = await startApplyJob(sessionId, analysisId, issueIndex, false, mode, options);
+  return pollApplyResult(analysisId, applyId, options);
 }
 
 export async function getTrajectoryProposal(
