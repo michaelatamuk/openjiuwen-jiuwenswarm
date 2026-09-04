@@ -45,6 +45,7 @@ export interface Session {
   last_user_message_at?: number; // 最后一条用户消息时间(Unix时间戳)
   round_id?: number;           // LLM 轮次/回合数
   total_tokens?: number;       // 累计 token 消耗
+  cron_id?: string;            // 定时任务ID；非空表示 cron 触发的会话，侧栏仅归属定时任务分组
 }
 
 export type AgentMode =
