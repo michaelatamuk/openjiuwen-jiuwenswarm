@@ -285,9 +285,11 @@ async def _run(host: str, port: int) -> None:
     # 观测 hook 只会在后续创建子 Agent 时生效，不是首页 RPC 的前置条件。
     # 延后其依赖导入可让冻结进程先开放 AgentServer 端口；在事件循环处理首个
     # 请求前仍会同步安装完成，保持所有执行路径的 span 归属不变。
-    from openjiuwen.harness.observability import install_subagent_observability_hook
+    from openjiuwen.harness.observability import (
+        install_subagent_observability_hook as install_openjiuwen_subagent_observability_hook,
+    )
 
-    install_subagent_observability_hook()
+    install_openjiuwen_subagent_observability_hook()
     log_startup_stage("observability_installed")
 
     # ---------- 图像模态探针预热 ----------
