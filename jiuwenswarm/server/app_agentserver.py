@@ -203,6 +203,9 @@ _mark_startup_import_phase("entry_module_ready")
 
 # ``TaskTool`` 的 /debug 跟踪补丁按首个开启 subagent trace 的请求再加载。
 # 普通启动无需导入 SDK 的 TaskTool 实现；实际补丁仍会在请求 dispatch 前完成。
+from jiuwenswarm.server.runtime.debug_trace.task_tool_patch import (
+    apply_task_tool_debug_patch,
+)
 apply_task_tool_debug_patch()
 
 # 让所有分发路径创建的 subagent 都带上 OTel 观测 rail（内置 task_tool、自定义
