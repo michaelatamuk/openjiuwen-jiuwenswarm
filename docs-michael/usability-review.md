@@ -1,9 +1,13 @@
 # jiuwenswarm — Usability Review
 
-This document covers usability findings across every dimension of the product.
-Each section is anchored to one or more specific personas. Each finding describes
-the current state, the specific pain it causes, and what a high-quality
-implementation looks like.
+This document covers usability findings across every dimension of the product,
+organized by persona. Each top-level section belongs to one persona; readers can
+go directly to their section without scanning the entire document. Findings that
+affect multiple personas appear in full under the primary persona and are
+summarized with pointers under secondary ones.
+
+Finding IDs (e.g. **3.1**, **17.4**) are stable across document versions and used
+in the prioritized backlog.
 
 ---
 
@@ -15,24 +19,24 @@ be attributed correctly and so that gaps in coverage are explicit.
 
 ### Fully covered personas
 
-| ID | Persona | Who they are | Primary sections |
+| ID | Persona | Who they are | Section in this document |
 |---|---|---|---|
-| **P1** | **End-User** | The person chatting with the agent day to day — gives tasks, reads responses, judges whether the agent is useful | §1, §3–9, §12–16 |
-| **P2** | **Operator** | The person who installs, configures, deploys, and maintains the jiuwenswarm instance | §2, §3–5, §9 |
-| **P3** | **Extension Developer** | The engineer who extends jiuwenswarm from inside: writes custom rails, registers tools, works within the Python SDK | §17 |
-| **P4** | **Application Developer** | The engineer who builds their own product on top of jiuwenswarm as a backend: connects via E2A/WebSocket, builds a custom frontend or automation | §18 |
+| **P1** | **End-User** | The person chatting with the agent day to day — gives tasks, reads responses, judges whether the agent is useful | §P1 |
+| **P2** | **Operator** | The person who installs, configures, deploys, and maintains the jiuwenswarm instance | §P2 |
+| **P3** | **Extension Developer** | The engineer who extends jiuwenswarm from inside: writes custom rails, registers tools, works within the Python SDK | §P3 |
+| **P4** | **Application Developer** | The engineer who builds their own product on top of jiuwenswarm as a backend: connects via E2A/WebSocket, builds a custom frontend or automation | §P4 |
 
 ### Partially covered personas
 
-| ID | Persona | Who they are | Covered in |
+| ID | Persona | Who they are | Section in this document |
 |---|---|---|---|
-| **P5** | **Skill Author** | Creates skills to publish to the marketplace for others to install — writes `SKILL.md`, packages Python tools, tests and submits skills | §10 (partially) |
-| **P6** | **Team Admin** | Manages a shared jiuwenswarm instance on behalf of a team — sets per-user permissions, manages shared memory and skills, reviews activity | §11 (partially) |
+| **P5** | **Skill Author** | Creates skills to publish to the marketplace for others to install — writes `SKILL.md`, packages Python tools, tests and submits skills | §P5 (partial) |
+| **P6** | **Team Admin** | Manages a shared jiuwenswarm instance on behalf of a team — sets per-user permissions, manages shared memory and skills, reviews activity | §P6 (partial) |
 
 ### Personas with no dedicated coverage yet
 
-These personas are real, relevant, and will produce findings when investigated. They
-are defined here so that future sections can be attributed to them.
+These personas are real, relevant, and will produce findings when investigated.
+They are defined here so that future sections can be attributed to them.
 
 | ID | Persona | Who they are | Key unmet needs |
 |---|---|---|---|
@@ -45,15 +49,19 @@ are defined here so that future sections can be attributed to them.
 
 ---
 
-Each section below begins with a `Personas:` line identifying which of the above
-personas are primarily affected.
+# P1 — End-User
+
+*The person chatting with the agent day to day.*
+
+This is the largest section because end-users are the primary audience for most
+of jiuwenswarm's surface area. Operators, developers, and admins configure the
+system; end-users experience everything that results from those choices.
 
 ---
 
-## 1. End-User Usability
-*The person chatting with the agent day to day.*
+## §1 · Core Usability
 
-**Personas: P1 (End-User)**
+*Direct interaction quality: errors, modes, feedback, conversation management.*
 
 ### 1.1 Error Messages Give Users Nothing to Act On
 
@@ -209,10 +217,618 @@ code blocks and lengthy reasoning chains.
 
 ---
 
-## 2. Operator Usability
-*The person installing, configuring, and maintaining the system.*
+## §3 · Trust & Safety
 
-**Personas: P2 (Operator)**
+*Does the user understand what the agent is about to do, and can they stop it?*
+
+> Also affects: **P2** (operators configure permission rules), **P6** (team admins
+> manage per-user permissions). See the P2 and P6 sections for the operator/admin
+> perspective on these findings.
+
+### 3.1 No Visibility Into Agent Permissions Before the First Action
+
+**Current state.**
+The agent can run bash commands, read and write files, send messages to Feishu,
+call web APIs, and spawn subagents. Before a session starts the user sees no
+summary of what the agent's current permissions are. The `PermissionWarningDialog`
+only appears as a generic "full access warning" — it does not list what is
+specifically permitted.
+
+**What good looks like.**
+A "Session capabilities" summary shown as a collapsible banner at the top of a new
+conversation:
+```
+This agent can: read/write files in /home/mishka/invoices/ · send Feishu messages
+                · run bash commands · call the parse-invoice skill
+This agent cannot: access the internet · modify files outside the project directory
+```
+Users should be able to click any item to see the specific permission rule behind
+it, and toggle tool access for this session without editing config.
+
+### 3.2 No Diff/Preview Before the Agent Modifies Files
+
+**Current state.**
+The agent can create, edit, and delete files in the project directory. The Web UI
+has a `CodeChangesCard` component in `ChatPanel/index.tsx` — but it is not clear
+whether it shows a preview before changes are made or a summary after.
+
+**What good looks like.**
+Before committing any file write, the agent should show a diff in the chat panel:
+```
+Proposed change to src/parser.py:
+- def parse(file):
++ def parse(file, encoding="utf-8"):
+[Apply] [Edit] [Skip]
+```
+This requires the harness to separate the "compute change" step from the "commit
+change" step — architecturally non-trivial but the highest-leverage trust feature
+in a coding assistant.
+
+### 3.3 No Task Cancellation With Defined Semantics
+
+**Current state.**
+There is no Stop button with defined behavior. The user can close the tab or kill
+the process, but the agent may continue running on the server, and partial file
+writes or external API calls may be in an inconsistent state.
+
+**What good looks like.**
+A Stop button in the chat panel header that:
+1. Sends an interrupt signal to the harness.
+2. Waits for the currently executing tool call to finish (not mid-write).
+3. Displays a "Stopped" card listing exactly what was completed and what was not:
+   ```
+   Stopped after 3 of 5 steps.
+   Completed: listed files, read inv_001.pdf
+   Not completed: parse inv_002.pdf, write CSV
+   ```
+4. Leaves the conversation in a resumable state — the user can say "continue" to
+   pick up where it stopped.
+
+### 3.4 Destructive External Actions Have No Confirmation Layer
+
+**Current state.**
+The agent can send messages to Feishu groups, publish to external APIs, and call
+webhooks — all without a user confirmation step. The permission system can block
+tools entirely but cannot require per-call confirmation for sensitive actions.
+
+**What good looks like.**
+A "confirm before send" mode for external-impact tools. Before calling
+`send_feishu_message` or any external webhook, the agent shows the message content
+in the chat panel with Confirm / Edit / Cancel buttons. This is especially important
+for group messages where mistakes are visible to many people.
+
+---
+
+## §4 · Reliability & Resilience
+
+*What does the user experience when something goes wrong?*
+
+> Also affects: **P2** (operators are responsible for reliability configuration).
+> See §P2·§4 for the operator perspective.
+
+### 4.1 Graceful Degradation Is Silent
+
+**Current state.**
+When a non-critical subsystem fails — memory provider down, OTel exporter
+unreachable, a channel fails to initialize — the system continues running but the
+user receives no notice. They may be operating under the assumption that memory is
+being saved when it is silently failing. `config.py:84` logs this at DEBUG level.
+
+**What good looks like.**
+A persistent health indicator in the Web UI — a small dot in the sidebar or bottom
+bar:
+- Green: all subsystems nominal.
+- Yellow: one or more non-critical subsystems degraded (click for details).
+- Red: agent is not reachable.
+
+On hover or click, a panel shows: "Memory: degraded (disk full). OTel: offline
+(exporter unreachable). All other services nominal." This is a 2-hour implementation
+that eliminates an entire class of silent failures.
+
+### 4.2 Session Recovery After Disconnect Is Undefined
+
+**Current state.**
+If the browser tab closes or the WebSocket drops mid-task, it is not documented or
+visible whether the agent continues, stops, or is in an undefined state. There is
+no reconnect flow that shows what happened during the disconnect.
+
+**What good looks like.**
+On reconnect, the Web UI should immediately show what the agent did during the
+disconnect: "While you were away, the agent completed 4 steps and wrote 2 files.
+Here is what happened: [summary]." If the task is still running, show its current
+step. If it completed with an error, show the error prominently. The `useWebSocket`
+hook in `hooks/useWebSocket.ts` is the right place to implement reconnect + replay.
+
+### 4.3 Rate Limiting and API Failures Are Opaque
+
+**Current state.**
+When an API rate limit is hit or the model returns a 429 / 503, the user sees either
+a generic error message or the agent silently hangs. There is no exponential backoff
+indicator, no "retrying in 15s" message, no suggestion to switch to a different model.
+
+**What good looks like.**
+- A visible "Rate limited — retrying in 15s" countdown in the chat panel.
+- After 3 consecutive model errors, surface a prompt: "The model is repeatedly
+  failing. Try switching to deepseek-v3?" with a one-click model switch.
+- API errors should include the HTTP status code and the model's error message
+  verbatim, not a paraphrase.
+
+### 4.4 No Persistent State for In-Progress Tasks
+
+**Current state.**
+If the `jiuwenswarm` process crashes mid-task, the task is lost. There is no
+checkpoint system — the agent cannot resume from step 3 of 5 after a restart.
+
+**What good looks like.**
+The todo system (`TaskPlanningRail`) already tracks task state. Persisting this to
+disk (a simple JSON file per session) would allow the agent to display "last session
+was interrupted at step 3: parse invoices. Resume?" on reconnect. This turns a
+frustrating failure mode into a recoverable one.
+
+---
+
+## §5 · Onboarding & First-Run Experience
+
+*The experience from `pip install` to first successful task.*
+
+> Also affects: **P2** (operators perform the installation and initial config).
+> See §P2·§5 for the operator-side first-run findings.
+
+### 5.1 The Setup Wizard Ends Too Early
+
+**Current state.**
+`ModelSetupGuide.tsx` has 3 steps: welcome → settings spotlight → models module
+spotlight. The wizard ends at the models panel. The user must then figure out how
+to fill in provider credentials and validate them. If the model is misconfigured,
+the error only appears on the first chat.
+
+**What good looks like.**
+The wizard should not complete until the user has sent one successful message. Every
+step should be testable inline. Suggested flow:
+1. Welcome — what jiuwenswarm does in 3 bullet points.
+2. Choose model provider — dropdown with logos (DeepSeek, OpenAI, Anthropic,
+   Huawei MaaS, Azure, Custom). Each option shows which fields are required.
+3. Enter credentials — with a "Test connection" button that makes a live API call.
+   Show: ✓ Connected (320ms) or ✗ Invalid API key — check your provider dashboard.
+4. (Optional) Enable a channel — Feishu, Telegram, etc., same test pattern.
+5. Send your first message — prefilled with a suggested starter task.
+
+### 5.2 Empty State Has No Direction
+
+**Current state.**
+An empty conversation shows a blank input area. There is a `WelcomeBubble` component
+with adaptive positioning, but its content is not known without reading the code.
+
+**What good looks like.**
+The empty state should show:
+- 3–5 example tasks tailored to the active mode ("Parse my invoices", "Refactor
+  this Python file", "Search the web for…").
+- A prompt suggestion chip that inserts the text into the input on click.
+- A "What can I do?" link that opens a short capability overview.
+
+### 5.3 No Progressive Onboarding After First Use
+
+**Current state.**
+After the setup wizard there is no further onboarding. Features like trajectory,
+skills, team mode, memory, and the connector market are never introduced unless
+the user stumbles upon them.
+
+**What good looks like.**
+A "tip of the session" system: once per new feature area first encountered, show a
+small non-blocking tooltip. Examples:
+- First time an agent completes a multi-step task: "Did you know you can see exactly
+  what the agent did? Open the Trajectory panel →"
+- First time the agent writes a file: "You can review file changes before they're
+  applied. Enable change preview in settings →"
+- After 5 sessions: "You've had 5 conversations. Memory lets the agent remember your
+  preferences. Enable it →"
+
+### 5.4 CLI First-Run Has No Guidance
+
+**Current state.**
+Running `jiuwenswarm` from the terminal with no config gives an unclear error. There
+is no `jiuwenswarm --help` output that walks through what to do first.
+
+**What good looks like.**
+```
+$ jiuwenswarm
+No config found at ~/.jiuwenswarm/config/config.yaml.
+Run 'jiuwenswarm-init' to set up your workspace, then 'jiuwenswarm-start'.
+```
+And `jiuwenswarm-init` should interactively prompt for the minimum required
+configuration (model provider, API key) before exiting.
+
+---
+
+## §6 · Agent Transparency & Explainability
+
+*Can the user understand what the agent is doing and why?*
+
+> Also affects: **P7** (Auditor needs structured activity logs), **P9** (Support
+> needs session replay). These personas are not yet fully covered — findings here
+> are written from the end-user perspective but will gain dedicated sections when
+> P7/P9 investigation is complete.
+
+### 6.1 Thinking Display Is Hidden Behind the Trajectory Panel
+
+**Current state.**
+`TrajectoryTable.tsx` displays `thinkingDetail` for each trajectory cell with
+expandable thinking blocks. However, this is inside the Trajectory panel — a
+separate panel that must be explicitly opened. During a conversation, the user
+sees only the streaming text output and tool call cards.
+
+**What good looks like.**
+Two levels of transparency:
+- **Inline (default):** A collapsed "Reasoning" chip on each assistant message.
+  Clicking it expands the thinking inline in the chat, without switching panels.
+- **Full (Trajectory panel):** The full structured trace with timing, token counts,
+  and tool argument/result details.
+
+The inline chip should show the first 1–2 sentences of reasoning as a preview before
+expanding.
+
+### 6.2 Tool Calls Are Shown But Not Explained
+
+**Current state.**
+`ToolCallDisplay.tsx` shows tool name, formatted arguments (expandable), and
+success/failure status. The description field exists in the tool schema but is
+not displayed. The user sees `read_file("/data/invoices/inv_001.pdf")` but not why
+the agent chose to read that file.
+
+**What good looks like.**
+Show a one-sentence rationale before each tool call — either from the agent's
+reasoning or synthesized from the thinking trace:
+```
+Reading the invoice file to extract the vendor and amount fields.
+> read_file("/data/invoices/inv_001.pdf")   ✓  (140ms)
+```
+For tool errors, show what the agent will try next:
+```
+> glob("/data/invoices/*.pdf")   ✗  Directory not found
+  Agent will check if /data/invoices exists before retrying.
+```
+
+### 6.3 Subagent Activity Is Not Visible to the User
+
+**Current state.**
+When `subagent_spawn` is called, the parent agent's panel shows no indication that
+subagents are running. The user has no view into what the subagents are doing, how
+many are running, or whether any have failed.
+
+**What good looks like.**
+A live subagent activity panel (the `TeamArea` component exists for team mode —
+the same concept should apply to on-demand subagents):
+- A list of active subagents with: type, current step, elapsed time.
+- Clicking a subagent opens its own trajectory or streaming output.
+- When all subagents complete, a summary: "3 subagents finished in 28s."
+
+### 6.4 No Explanation of Why the Agent Asked a Question
+
+**Current state.**
+When the agent asks the user for clarification ("Which directory should I write the
+output to?"), there is no indication of what it was trying to do when it got stuck.
+Users must infer from context.
+
+**What good looks like.**
+Attach a brief context line to every clarification request:
+> "I'm about to write the output CSV and wasn't sure of the destination."
+> **Which directory should I write the output file to?**
+
+---
+
+## §7 · Performance & Perceived Speed
+
+*Does the system feel fast, and does it communicate when it is not?*
+
+### 7.1 No First-Token Latency Indicator
+
+**Current state.**
+`StreamingContent.tsx` renders tokens as they arrive. But between submitting a
+message and the first token appearing, there is a gap (model warm-up, context
+assembly, routing). During this gap the user sees nothing — no spinner, no progress.
+
+**What good looks like.**
+Immediately on message submit, show an animated "thinking" indicator (three dots,
+a pulsing bar) that disappears when the first token arrives. The `HarnessProgressBar`
+component already exists — it should be visible from the moment the user submits.
+
+### 7.2 No Indication of Context Length Pressure
+
+**Current state.**
+There is a proactive notification for "context limit reached" via WebSocket, but
+this appears only at the limit. Users have no advance warning.
+
+**What good looks like.**
+A small token counter in the chat input area, similar to what Claude.ai and ChatGPT
+show. At 70% capacity, change color to yellow. At 90%, show a warning: "Approaching
+context limit — older messages may be summarized." This gives users time to start a
+new session before the agent starts forgetting early context.
+
+### 7.3 Skill Execution Has No Progress Feedback
+
+**Current state.**
+When a skill is executing (potentially for minutes), the user sees only a generic
+tool call card. There is no progress bar, no step count, no estimated time.
+
+**What good looks like.**
+Skills should be able to emit progress events that render as a live progress bar
+in the tool call card: "parse-invoice: processed 3 of 12 files…". This requires a
+lightweight progress protocol in the skill execution harness, but the UI infrastructure
+(`HarnessProgressBar`) already exists.
+
+---
+
+## §8 · Notification & Async
+
+*How does the system communicate with users who are not watching?*
+
+> Also affects: **P4** (application developers need webhook events for async
+> task completion). See §P4·§8 for the developer perspective.
+
+### 8.1 No Notification When Long-Running Tasks Complete
+
+**Current state.**
+For tasks that take minutes, the user must keep the Web UI open and watch. There
+is no desktop notification, no sound, no badge, no message-to-self when the task
+completes. The only notifications found are in-app toasts.
+
+**What good looks like.**
+- **Browser notification:** On task complete, fire a Web Notifications API
+  notification (with permission): "Invoice parsing complete — 3 files processed."
+- **Sound:** An optional subtle completion sound (user-configurable).
+- **Tab badge:** Update the page title to show unread results: "(✓) jiuwenswarm".
+- **Channel self-notification:** Option to send the result summary to the user's own
+  Feishu/Telegram account on completion. Given that channels are already integrated,
+  this is a small addition.
+
+### 8.2 No Background Task Management
+
+**Current state.**
+When the user navigates to a different session while the agent is running, there is
+no indication in the sidebar that a session has an active task. The session list
+shows a processing state for the active session, but background sessions are silent.
+
+**What good looks like.**
+- A pulsing dot on sessions running in background in the `ConversationSidebar`.
+- A global "Running tasks" indicator in the `SessionSidebar` nav.
+- When a background task completes, show a badge on the session and a non-blocking
+  toast: "Session 'Invoice task' completed."
+
+---
+
+## §12 · Data & Privacy
+
+*What data is stored, where, and who can see it.*
+
+> Also affects: **P2** (operators set retention policies), **P7** (Auditors need
+> data lineage). See §P2·§12 for the operator perspective.
+
+### 12.1 No Visibility Into What Is Stored in Memory
+
+**Current state.**
+The memory system stores facts, daily logs, and user profile data in
+`~/.jiuwenswarm/workspace/`. Users have no UI to browse, search, edit, or delete
+what the agent has remembered about them.
+
+**What good looks like.**
+A "My memory" panel (accessible from the sidebar) that shows:
+- `USER.md` content formatted as a profile card.
+- `MEMORY.md` content as a searchable list of facts.
+- Recent daily memory entries (last 7 days).
+- A "Delete fact" button on each item.
+- A "Clear all memory" action with a confirmation.
+
+### 12.2 No Indication of What the Agent Sends to the LLM
+
+**Current state.**
+The full prompt sent to the model — including memory snapshot, installed skills,
+conversation history, and system sections — is invisible to the user. There is no
+way to audit what personal information is being sent to an external API.
+
+**What good looks like.**
+A "What's in the prompt?" inspector (accessible from a ⓘ icon on the model name
+indicator) that shows a summary of the current prompt: how many tokens, which
+sections are included, and whether memory or skills are attached. Users should be
+able to see that their `USER.md` content is part of the prompt before they consent
+to using an external model.
+
+### 12.3 No Data Retention Policy UI
+
+**Current state.**
+Memory and conversation history are stored indefinitely. There is a
+`trajectory_ui.retention_days` config option, but no equivalent for conversations
+or memory.
+
+**What good looks like.**
+A data retention settings panel: "Keep conversation history for: 30 / 90 / 365 /
+forever". "Keep daily memory for: 7 / 30 / 90 / forever". "Delete all data older
+than X". Automated expiration should run on startup.
+
+---
+
+## §13 · Help & Support
+
+*What happens when the user gets stuck?*
+
+> Also affects: **P2** (operators need diagnostic tools), **P9** (Support staff
+> need session lookup). See §P2·§13 for the operator/support perspective.
+
+### 13.1 No In-Context Help
+
+**Current state.**
+`HelpTips.tsx` exists as a generic help component. `channelGuideUrls.ts` has
+external links for channel setup. Beyond these, there is no contextual help — no
+tooltips on complex fields, no "?" icons that open relevant documentation.
+
+**What good looks like.**
+Every settings field with a non-obvious value should have a `?` icon that opens a
+popover with:
+- What this field does.
+- Where to find the value (e.g. "Find your app_secret in the Feishu developer
+  console under Credentials & Basic Info").
+- A link to the full documentation.
+
+### 13.2 No Diagnostic Mode for Users
+
+**Current state.**
+When something goes wrong, the user has no tool to collect diagnostic information.
+They would need to know to look in `~/.jiuwenswarm/agent/.logs/`, which directory
+the relevant log is in, and which log level to set.
+
+**What good looks like.**
+A `jiuwenswarm diagnostics` CLI command that:
+- Collects the last 100 lines of each log file.
+- Captures the config (with API keys redacted).
+- Captures system info (OS, Python version, package versions).
+- Writes a `jiuwenswarm-diagnostics-YYYY-MM-DD.txt` file.
+- Prints: "Diagnostics saved. Share this file when reporting an issue."
+
+### 13.3 Error Messages Do Not Reference Log Files
+
+**Current state.**
+When an error occurs, the user is not told where to look for more detail. They must
+know that logs exist, where they are, and how to read them.
+
+**What good looks like.**
+Every error message that has more detail in the log should end with:
+> "Full details in ~/.jiuwenswarm/agent/.logs/agent_server.log"
+
+Or in the Web UI, a "Show log" button that opens a scrollable log panel filtered
+to the current session and the last 60 seconds.
+
+---
+
+## §14 · Accessibility
+
+*Can all users operate the product regardless of ability?*
+
+### 14.1 No Keyboard Navigation Across the UI
+
+**Current state.**
+Tab focus traversal, arrow key navigation in lists, and keyboard activation of
+buttons have not been verified. The React component library used (`shadcn/ui`,
+`lucide-react`) supports accessibility, but it requires implementation discipline
+in the consuming components.
+
+**What good looks like.**
+Every interactive element — session list items, skill cards, settings toggles,
+tool call expand buttons — should be reachable and operable by keyboard. Focus
+indicators should be visible. `ConversationSidebar` session items should support
+arrow-key navigation.
+
+### 14.2 No Screen Reader Support Audit
+
+**Current state.**
+No `aria-label`, `aria-live` regions for streaming content, or `role` attributes
+are visible in the explored code. Streaming text in `StreamingContent.tsx` has no
+`aria-live="polite"` region, so screen readers would not announce new content.
+
+**What good looks like.**
+- The streaming output area should be an `aria-live="polite"` region.
+- Tool call status changes should announce via `aria-live="assertive"` when
+  a tool succeeds or fails.
+- All icon-only buttons should have `aria-label`.
+- A one-time accessibility audit (axe-core, Lighthouse) to surface the full list.
+
+### 14.3 No High-Contrast or Large-Text Mode
+
+**Current state.**
+The UI has a light/dark mode. No high-contrast theme, no font size controls, no
+zoom-safe layout testing documented.
+
+**What good looks like.**
+Respect the OS `prefers-contrast: more` and `prefers-reduced-motion` media queries.
+Use relative font units (`rem`) throughout so browser font size preferences apply.
+
+---
+
+## §15 · Mobile & Cross-Platform
+
+*Using jiuwenswarm on a phone or tablet.*
+
+### 15.1 Mobile Layout Exists But Is Not a First-Class Experience
+
+**Current state.**
+`useResponsive.ts` implements breakpoints and `isMobile` detection. The
+`ConversationSidebar` collapses and floats on small screens. The `useResponsivePanelResize`
+hook mutually excludes team and single-agent panels. Breakpoints at 1130px, 1000px,
+and 800px are defined.
+
+**What good looks like.**
+Mobile should be treated as a real use case, not a fallback. The Feishu and Telegram
+channels mean users are on mobile frequently. The Web UI should be fully usable on
+a 375px viewport: input area docked to bottom, conversation fills viewport, panels
+accessible via bottom sheet or drawer. The current panel architecture (left sidebar +
+chat + right panel) collapses poorly to mobile.
+
+### 15.2 No Native App (PWA) Support
+
+**Current state.**
+The Web UI is a standard React SPA. No `manifest.json`, no service worker, no
+offline support, no install-to-homescreen capability.
+
+**What good looks like.**
+A Progressive Web App manifest that allows users to install jiuwenswarm to their
+phone homescreen. Service worker for offline mode (read past conversations, queue
+messages to send when reconnected). Push notification support for task completion.
+
+---
+
+## §16 · Information Architecture
+
+*Is the right information in the right place?*
+
+> Also affects: **P2** (operators navigate the same settings panels). See §P2·§16
+> for the operator perspective on settings organization.
+
+### 16.1 Skills and Connectors Are Separate But Conceptually Similar
+
+**Current state.**
+`SessionSidebar` has separate nav items for "Skills" and "Connector Market" (plugins,
+MCP). These are conceptually similar — both extend agent capabilities — but are
+presented as separate top-level sections.
+
+**What good looks like.**
+A unified "Capabilities" section: Skills, MCP servers, plugins, and browser tools
+all in one place, filterable by type. A user adding a new capability should not need
+to know which category it falls into first.
+
+### 16.2 Settings Are Organized by Implementation, Not by User Task
+
+**Current state.**
+Settings modules: General, Models, Channels, Agent, Browser, Experimental. This is
+organized by implementation component, not by what the user is trying to do.
+
+**What good looks like.**
+Organize by user goal:
+- **Getting started** — model setup, language, first skill.
+- **Communication channels** — Feishu, Telegram, Discord, etc.
+- **Memory & context** — memory settings, coding memory, context length.
+- **Agent behavior** — permissions, tools, mode defaults, response style.
+- **Advanced** — observability, debug traces, experimental features.
+
+### 16.3 Trajectory / Trace Panel Is Hidden and Unnamed
+
+**Current state.**
+The trajectory system (full LLM input/output/thinking trace per call) is inside the
+right panel but requires knowing to look for it. The navigation item is labeled
+"TraceHound" — a name that means nothing to a new user.
+
+**What good looks like.**
+Rename to "Agent activity" or "What happened". Surface it as a default sub-tab
+in the right panel alongside artifacts, rather than a separate nav item.
+
+---
+
+# P2 — Operator
+
+*The person installing, configuring, deploying, and maintaining the system.*
+
+---
+
+## §2 · Operator Configuration & Setup
+
+*Installation, configuration, and day-to-day system management.*
 
 ### 2.1 No Startup Validation — Failures Surface on First Use
 
@@ -431,377 +1047,42 @@ languages, ideally as separate config templates: `config.zh.yaml`, `config.en.ya
 
 ---
 
-## 3. Trust & Safety UX
-*Does the user understand what the agent is about to do, and can they stop it?*
+## §4 · Reliability (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator), P6 (Team Admin)**
+*(Full findings → P1 chapter, §4)*
 
-### 3.1 No Visibility Into Agent Permissions Before the First Action
+Findings 4.1–4.4 are written from the user experience perspective but affect
+operators who are responsible for the reliability of the deployment:
 
-**Current state.**
-The agent can run bash commands, read and write files, send messages to Feishu,
-call web APIs, and spawn subagents. Before a session starts the user sees no
-summary of what the agent's current permissions are. The `PermissionWarningDialog`
-only appears as a generic "full access warning" — it does not list what is
-specifically permitted.
-
-**What good looks like.**
-A "Session capabilities" summary shown as a collapsible banner at the top of a new
-conversation:
-```
-This agent can: read/write files in /home/mishka/invoices/ · send Feishu messages
-                · run bash commands · call the parse-invoice skill
-This agent cannot: access the internet · modify files outside the project directory
-```
-Users should be able to click any item to see the specific permission rule behind
-it, and toggle tool access for this session without editing config.
-
-### 3.2 No Diff/Preview Before the Agent Modifies Files
-
-**Current state.**
-The agent can create, edit, and delete files in the project directory. The Web UI
-has a `CodeChangesCard` component in `ChatPanel/index.tsx` — but it is not clear
-whether it shows a preview before changes are made or a summary after.
-
-**What good looks like.**
-Before committing any file write, the agent should show a diff in the chat panel:
-```
-Proposed change to src/parser.py:
-- def parse(file):
-+ def parse(file, encoding="utf-8"):
-[Apply] [Edit] [Skip]
-```
-This requires the harness to separate the "compute change" step from the "commit
-change" step — architecturally non-trivial but the highest-leverage trust feature
-in a coding assistant.
-
-### 3.3 No Task Cancellation With Defined Semantics
-
-**Current state.**
-There is no Stop button with defined behavior. The user can close the tab or kill
-the process, but the agent may continue running on the server, and partial file
-writes or external API calls may be in an inconsistent state.
-
-**What good looks like.**
-A Stop button in the chat panel header that:
-1. Sends an interrupt signal to the harness.
-2. Waits for the currently executing tool call to finish (not mid-write).
-3. Displays a "Stopped" card listing exactly what was completed and what was not:
-   ```
-   Stopped after 3 of 5 steps.
-   Completed: listed files, read inv_001.pdf
-   Not completed: parse inv_002.pdf, write CSV
-   ```
-4. Leaves the conversation in a resumable state — the user can say "continue" to
-   pick up where it stopped.
-
-### 3.4 Destructive External Actions Have No Confirmation Layer
-
-**Current state.**
-The agent can send messages to Feishu groups, publish to external APIs, and call
-webhooks — all without a user confirmation step. The permission system can block
-tools entirely but cannot require per-call confirmation for sensitive actions.
-
-**What good looks like.**
-A "confirm before send" mode for external-impact tools. Before calling
-`send_feishu_message` or any external webhook, the agent shows the message content
-in the chat panel with Confirm / Edit / Cancel buttons. This is especially important
-for group messages where mistakes are visible to many people.
+- **4.1** Graceful Degradation Is Silent — operators should receive the same
+  health indicator in the startup log and a persistent alert channel (not just
+  the Web UI dot) when subsystems degrade.
+- **4.2** Session Recovery After Disconnect — operators need to understand the
+  server-side behavior: does the agent process continue after a WebSocket drop,
+  and how is state persisted?
+- **4.4** No Persistent State for In-Progress Tasks — the checkpoint system
+  should write to a configurable durable store, not just local disk.
 
 ---
 
-## 4. Reliability & Resilience UX
-*What does the user experience when something goes wrong?*
+## §5 · Onboarding (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator)**
+*(Full findings → P1 chapter, §5)*
 
-### 4.1 Graceful Degradation Is Silent
-
-**Current state.**
-When a non-critical subsystem fails — memory provider down, OTel exporter
-unreachable, a channel fails to initialize — the system continues running but the
-user receives no notice. They may be operating under the assumption that memory is
-being saved when it is silently failing. `config.py:84` logs this at DEBUG level.
-
-**What good looks like.**
-A persistent health indicator in the Web UI — a small dot in the sidebar or bottom
-bar:
-- Green: all subsystems nominal.
-- Yellow: one or more non-critical subsystems degraded (click for details).
-- Red: agent is not reachable.
-
-On hover or click, a panel shows: "Memory: degraded (disk full). OTel: offline
-(exporter unreachable). All other services nominal." This is a 2-hour implementation
-that eliminates an entire class of silent failures.
-
-### 4.2 Session Recovery After Disconnect Is Undefined
-
-**Current state.**
-If the browser tab closes or the WebSocket drops mid-task, it is not documented or
-visible whether the agent continues, stops, or is in an undefined state. There is
-no reconnect flow that shows what happened during the disconnect.
-
-**What good looks like.**
-On reconnect, the Web UI should immediately show what the agent did during the
-disconnect: "While you were away, the agent completed 4 steps and wrote 2 files.
-Here is what happened: [summary]." If the task is still running, show its current
-step. If it completed with an error, show the error prominently. The `useWebSocket`
-hook in `hooks/useWebSocket.ts` is the right place to implement reconnect + replay.
-
-### 4.3 Rate Limiting and API Failures Are Opaque
-
-**Current state.**
-When an API rate limit is hit or the model returns a 429 / 503, the user sees either
-a generic error message or the agent silently hangs. There is no exponential backoff
-indicator, no "retrying in 15s" message, no suggestion to switch to a different model.
-
-**What good looks like.**
-- A visible "Rate limited — retrying in 15s" countdown in the chat panel.
-- After 3 consecutive model errors, surface a prompt: "The model is repeatedly
-  failing. Try switching to deepseek-v3?" with a one-click model switch.
-- API errors should include the HTTP status code and the model's error message
-  verbatim, not a paraphrase.
-
-### 4.4 No Persistent State for In-Progress Tasks
-
-**Current state.**
-If the `jiuwenswarm` process crashes mid-task, the task is lost. There is no
-checkpoint system — the agent cannot resume from step 3 of 5 after a restart.
-
-**What good looks like.**
-The todo system (`TaskPlanningRail`) already tracks task state. Persisting this to
-disk (a simple JSON file per session) would allow the agent to display "last session
-was interrupted at step 3: parse invoices. Resume?" on reconnect. This turns a
-frustrating failure mode into a recoverable one.
+Finding 5.1 (setup wizard) and 5.4 (CLI first-run) directly affect operators
+who perform the installation. The model credential testing (5.1 step 3) is an
+operator task. Finding 2.4 in the §P2 Operator Configuration section covers the
+same wizard from the operator's configuration angle.
 
 ---
 
-## 5. Onboarding & First-Run Experience
-*The experience from `pip install` to first successful task.*
+## §9 · Economic UX
 
-**Personas: P1 (End-User), P2 (Operator)**
-
-### 5.1 The Setup Wizard Ends Too Early
-
-**Current state.**
-`ModelSetupGuide.tsx` has 3 steps: welcome → settings spotlight → models module
-spotlight. The wizard ends at the models panel. The user must then figure out how
-to fill in provider credentials and validate them. If the model is misconfigured,
-the error only appears on the first chat.
-
-**What good looks like.**
-The wizard should not complete until the user has sent one successful message. Every
-step should be testable inline. Suggested flow:
-1. Welcome — what jiuwenswarm does in 3 bullet points.
-2. Choose model provider — dropdown with logos (DeepSeek, OpenAI, Anthropic,
-   Huawei MaaS, Azure, Custom). Each option shows which fields are required.
-3. Enter credentials — with a "Test connection" button that makes a live API call.
-   Show: ✓ Connected (320ms) or ✗ Invalid API key — check your provider dashboard.
-4. (Optional) Enable a channel — Feishu, Telegram, etc., same test pattern.
-5. Send your first message — prefilled with a suggested starter task.
-
-### 5.2 Empty State Has No Direction
-
-**Current state.**
-An empty conversation shows a blank input area. There is a `WelcomeBubble` component
-with adaptive positioning, but its content is not known without reading the code.
-
-**What good looks like.**
-The empty state should show:
-- 3–5 example tasks tailored to the active mode ("Parse my invoices", "Refactor
-  this Python file", "Search the web for…").
-- A prompt suggestion chip that inserts the text into the input on click.
-- A "What can I do?" link that opens a short capability overview.
-
-### 5.3 No Progressive Onboarding After First Use
-
-**Current state.**
-After the setup wizard there is no further onboarding. Features like trajectory,
-skills, team mode, memory, and the connector market are never introduced unless
-the user stumbles upon them.
-
-**What good looks like.**
-A "tip of the session" system: once per new feature area first encountered, show a
-small non-blocking tooltip. Examples:
-- First time an agent completes a multi-step task: "Did you know you can see exactly
-  what the agent did? Open the Trajectory panel →"
-- First time the agent writes a file: "You can review file changes before they're
-  applied. Enable change preview in settings →"
-- After 5 sessions: "You've had 5 conversations. Memory lets the agent remember your
-  preferences. Enable it →"
-
-### 5.4 CLI First-Run Has No Guidance
-
-**Current state.**
-Running `jiuwenswarm` from the terminal with no config gives an unclear error. There
-is no `jiuwenswarm --help` output that walks through what to do first.
-
-**What good looks like.**
-```
-$ jiuwenswarm
-No config found at ~/.jiuwenswarm/config/config.yaml.
-Run 'jiuwenswarm-init' to set up your workspace, then 'jiuwenswarm-start'.
-```
-And `jiuwenswarm-init` should interactively prompt for the minimum required
-configuration (model provider, API key) before exiting.
-
----
-
-## 6. Agent Transparency & Explainability
-*Can the user understand what the agent is doing and why?*
-
-**Personas: P1 (End-User), P7 (Auditor), P9 (Support)**
-
-### 6.1 Thinking Display Is Hidden Behind the Trajectory Panel
-
-**Current state.**
-`TrajectoryTable.tsx` displays `thinkingDetail` for each trajectory cell with
-expandable thinking blocks. However, this is inside the Trajectory panel — a
-separate panel that must be explicitly opened. During a conversation, the user
-sees only the streaming text output and tool call cards.
-
-**What good looks like.**
-Two levels of transparency:
-- **Inline (default):** A collapsed "Reasoning" chip on each assistant message.
-  Clicking it expands the thinking inline in the chat, without switching panels.
-- **Full (Trajectory panel):** The full structured trace with timing, token counts,
-  and tool argument/result details.
-
-The inline chip should show the first 1–2 sentences of reasoning as a preview before
-expanding.
-
-### 6.2 Tool Calls Are Shown But Not Explained
-
-**Current state.**
-`ToolCallDisplay.tsx` shows tool name, formatted arguments (expandable), and
-success/failure status. The description field exists in the tool schema but is
-not displayed. The user sees `read_file("/data/invoices/inv_001.pdf")` but not why
-the agent chose to read that file.
-
-**What good looks like.**
-Show a one-sentence rationale before each tool call — either from the agent's
-reasoning or synthesized from the thinking trace:
-```
-Reading the invoice file to extract the vendor and amount fields.
-> read_file("/data/invoices/inv_001.pdf")   ✓  (140ms)
-```
-For tool errors, show what the agent will try next:
-```
-> glob("/data/invoices/*.pdf")   ✗  Directory not found
-  Agent will check if /data/invoices exists before retrying.
-```
-
-### 6.3 Subagent Activity Is Not Visible to the User
-
-**Current state.**
-When `subagent_spawn` is called, the parent agent's panel shows no indication that
-subagents are running. The user has no view into what the subagents are doing, how
-many are running, or whether any have failed.
-
-**What good looks like.**
-A live subagent activity panel (the `TeamArea` component exists for team mode —
-the same concept should apply to on-demand subagents):
-- A list of active subagents with: type, current step, elapsed time.
-- Clicking a subagent opens its own trajectory or streaming output.
-- When all subagents complete, a summary: "3 subagents finished in 28s."
-
-### 6.4 No Explanation of Why the Agent Asked a Question
-
-**Current state.**
-When the agent asks the user for clarification ("Which directory should I write the
-output to?"), there is no indication of what it was trying to do when it got stuck.
-Users must infer from context.
-
-**What good looks like.**
-Attach a brief context line to every clarification request:
-> "I'm about to write the output CSV and wasn't sure of the destination."
-> **Which directory should I write the output file to?**
-
----
-
-## 7. Performance & Perceived Speed UX
-*Does the system feel fast, and does it communicate when it is not?*
-
-**Personas: P1 (End-User)**
-
-### 7.1 No First-Token Latency Indicator
-
-**Current state.**
-`StreamingContent.tsx` renders tokens as they arrive. But between submitting a
-message and the first token appearing, there is a gap (model warm-up, context
-assembly, routing). During this gap the user sees nothing — no spinner, no progress.
-
-**What good looks like.**
-Immediately on message submit, show an animated "thinking" indicator (three dots,
-a pulsing bar) that disappears when the first token arrives. The `HarnessProgressBar`
-component already exists — it should be visible from the moment the user submits.
-
-### 7.2 No Indication of Context Length Pressure
-
-**Current state.**
-There is a proactive notification for "context limit reached" via WebSocket, but
-this appears only at the limit. Users have no advance warning.
-
-**What good looks like.**
-A small token counter in the chat input area, similar to what Claude.ai and ChatGPT
-show. At 70% capacity, change color to yellow. At 90%, show a warning: "Approaching
-context limit — older messages may be summarized." This gives users time to start a
-new session before the agent starts forgetting early context.
-
-### 7.3 Skill Execution Has No Progress Feedback
-
-**Current state.**
-When a skill is executing (potentially for minutes), the user sees only a generic
-tool call card. There is no progress bar, no step count, no estimated time.
-
-**What good looks like.**
-Skills should be able to emit progress events that render as a live progress bar
-in the tool call card: "parse-invoice: processed 3 of 12 files…". This requires a
-lightweight progress protocol in the skill execution harness, but the UI infrastructure
-(`HarnessProgressBar`) already exists.
-
----
-
-## 8. Notification & Async UX
-*How does the system communicate with users who are not watching?*
-
-**Personas: P1 (End-User), P4 (Application Developer)**
-
-### 8.1 No Notification When Long-Running Tasks Complete
-
-**Current state.**
-For tasks that take minutes, the user must keep the Web UI open and watch. There
-is no desktop notification, no sound, no badge, no message-to-self when the task
-completes. The only notifications found are in-app toasts.
-
-**What good looks like.**
-- **Browser notification:** On task complete, fire a Web Notifications API
-  notification (with permission): "Invoice parsing complete — 3 files processed."
-- **Sound:** An optional subtle completion sound (user-configurable).
-- **Tab badge:** Update the page title to show unread results: "(✓) jiuwenswarm".
-- **Channel self-notification:** Option to send the result summary to the user's own
-  Feishu/Telegram account on completion. Given that channels are already integrated,
-  this is a small addition.
-
-### 8.2 No Background Task Management
-
-**Current state.**
-When the user navigates to a different session while the agent is running, there is
-no indication in the sidebar that a session has an active task. The session list
-shows a processing state for the active session, but background sessions are silent.
-
-**What good looks like.**
-- A pulsing dot on sessions running in background in the `ConversationSidebar`.
-- A global "Running tasks" indicator in the `SessionSidebar` nav.
-- When a background task completes, show a badge on the session and a non-blocking
-  toast: "Session 'Invoice task' completed."
-
----
-
-## 9. Economic UX
 *Token consumption, API costs, and resource awareness.*
 
-**Personas: P1 (End-User), P2 (Operator), P12 (Data Analyst)**
+> Also affects: **P1** (end-users see their own token usage), **P12** (Data
+> Analysts need aggregate telemetry). The user-facing token counter (9.1) is
+> described here; P12 aggregate analytics is not yet covered.
 
 ### 9.1 No Token or Cost Visibility
 
@@ -835,10 +1116,13 @@ skills →".
 
 ---
 
-## 10. Skill Ecosystem UX
-*Discovering, installing, creating, and managing skills.*
+## §10 · Skill Ecosystem (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator), P5 (Skill Author)**
+*Discovering, installing, and managing skills across the instance.*
+
+> Also affects: **P1** (end-users discover and use skills), **P5** (Skill Authors
+> create and publish skills). End-user skill discovery is covered here; skill
+> authoring is in the P5 section.
 
 ### 10.1 Skill Marketplace Has No Quality Signals
 
@@ -893,284 +1177,59 @@ captures this data — wiring it to a skill test UI is achievable.
 
 ---
 
-## 11. Multi-User & Collaboration UX
-*More than one person using the same instance.*
+## §12 · Data & Privacy (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator), P4 (Application Developer), P6 (Team Admin)**
+*(Full findings → P1 chapter, §12)*
 
-### 11.1 No User Identity or Access Control
-
-**Current state.**
-The Web UI has no login. All users who can reach `localhost:5173` share the same
-agent identity, memory, and skills. There is no concept of "this conversation
-belongs to user A, not user B."
-
-**What good looks like.**
-For single-operator deployments this is acceptable. But for team deployments where
-the agent is shared via a channel (Feishu group, Telegram channel), there should
-be per-user memory isolation and the ability to set per-user permission levels.
-The channel integration already passes `user_id` — this should be plumbed through
-to memory and permission scoping.
-
-### 11.2 Conversation Sharing Is Image-Only
-
-**Current state.**
-`shareImageExport.tsx` converts the chat to a PNG image. This is the only sharing
-mechanism. There is no way to share a conversation as a link, as Markdown, or as
-a JSON export that another person could import.
-
-**What good looks like.**
-- Export as Markdown (conversation turns formatted as `**User:** / **Agent:**`).
-- Export as JSON (full structured conversation for import elsewhere).
-- Share link (if the instance has a publicly accessible URL).
-
-### 11.3 No Shared Skill Library for Teams
-
-**Current state.**
-Skills are per-agent-workspace. If two operators run separate instances, they cannot
-share skills without manually copying files.
-
-**What good looks like.**
-A skill export/import format (`.skill.zip`) and a shared skill registry that team
-members can publish to and pull from. The `SkillNetSearchModal` and `ClawHubSearchModal`
-components suggest this direction exists — it should be surfaced more prominently
-as the primary skill distribution mechanism.
+- **12.3** No Data Retention Policy UI — operators set the retention policy for
+  the whole instance. The settings panel described in 12.3 should distinguish
+  between instance-wide defaults (set by operator in config) and per-user
+  preferences (set by user in Web UI). Currently neither exists.
 
 ---
 
-## 12. Data & Privacy UX
-*What data is stored, where, and who can see it.*
+## §13 · Help & Support (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator), P7 (Auditor)**
+*(Full findings → P1 chapter, §13)*
 
-### 12.1 No Visibility Into What Is Stored in Memory
-
-**Current state.**
-The memory system stores facts, daily logs, and user profile data in
-`~/.jiuwenswarm/workspace/`. Users have no UI to browse, search, edit, or delete
-what the agent has remembered about them.
-
-**What good looks like.**
-A "My memory" panel (accessible from the sidebar) that shows:
-- `USER.md` content formatted as a profile card.
-- `MEMORY.md` content as a searchable list of facts.
-- Recent daily memory entries (last 7 days).
-- A "Delete fact" button on each item.
-- A "Clear all memory" action with a confirmation.
-
-### 12.2 No Indication of What the Agent Sends to the LLM
-
-**Current state.**
-The full prompt sent to the model — including memory snapshot, installed skills,
-conversation history, and system sections — is invisible to the user. There is no
-way to audit what personal information is being sent to an external API.
-
-**What good looks like.**
-A "What's in the prompt?" inspector (accessible from a ⓘ icon on the model name
-indicator) that shows a summary of the current prompt: how many tokens, which
-sections are included, and whether memory or skills are attached. Users should be
-able to see that their `USER.md` content is part of the prompt before they consent
-to using an external model.
-
-### 12.3 No Data Retention Policy UI
-
-**Current state.**
-Memory and conversation history are stored indefinitely. There is a
-`trajectory_ui.retention_days` config option, but no equivalent for conversations
-or memory.
-
-**What good looks like.**
-A data retention settings panel: "Keep conversation history for: 30 / 90 / 365 /
-forever". "Keep daily memory for: 7 / 30 / 90 / forever". "Delete all data older
-than X". Automated expiration should run on startup.
+- **13.2** No Diagnostic Mode — the `jiuwenswarm diagnostics` command is
+  primarily an operator tool, used when supporting an end-user who reports a
+  problem.
+- **13.3** Error Messages Do Not Reference Log Files — especially important for
+  operators who monitor the system and need to correlate Web UI errors with
+  server-side log entries.
 
 ---
 
-## 13. Help & Support UX
-*What happens when the user gets stuck?*
+## §16 · Information Architecture (Operator Perspective)
 
-**Personas: P1 (End-User), P2 (Operator), P9 (Support / Help Desk)**
+*(Full findings → P1 chapter, §16)*
 
-### 13.1 No In-Context Help
-
-**Current state.**
-`HelpTips.tsx` exists as a generic help component. `channelGuideUrls.ts` has
-external links for channel setup. Beyond these, there is no contextual help — no
-tooltips on complex fields, no "?" icons that open relevant documentation.
-
-**What good looks like.**
-Every settings field with a non-obvious value should have a `?` icon that opens a
-popover with:
-- What this field does.
-- Where to find the value (e.g. "Find your app_secret in the Feishu developer
-  console under Credentials & Basic Info").
-- A link to the full documentation.
-
-### 13.2 No Diagnostic Mode for Users
-
-**Current state.**
-When something goes wrong, the user has no tool to collect diagnostic information.
-They would need to know to look in `~/.jiuwenswarm/agent/.logs/`, which directory
-the relevant log is in, and which log level to set.
-
-**What good looks like.**
-A `jiuwenswarm diagnostics` CLI command that:
-- Collects the last 100 lines of each log file.
-- Captures the config (with API keys redacted).
-- Captures system info (OS, Python version, package versions).
-- Writes a `jiuwenswarm-diagnostics-YYYY-MM-DD.txt` file.
-- Prints: "Diagnostics saved. Share this file when reporting an issue."
-
-### 13.3 Error Messages Do Not Reference Log Files
-
-**Current state.**
-When an error occurs, the user is not told where to look for more detail. They must
-know that logs exist, where they are, and how to read them.
-
-**What good looks like.**
-Every error message that has more detail in the log should end with:
-> "Full details in ~/.jiuwenswarm/agent/.logs/agent_server.log"
-
-Or in the Web UI, a "Show log" button that opens a scrollable log panel filtered
-to the current session and the last 60 seconds.
+- **16.2** Settings Are Organized by Implementation, Not by User Task — this
+  affects operators who configure the system via the Web UI settings panels.
+  The goal-oriented reorganization proposed in 16.2 would reduce the time an
+  operator spends hunting for the right settings panel.
 
 ---
 
-## 14. Accessibility
-*Can all users operate the product regardless of ability?*
+# P3 — Extension Developer
 
-**Personas: P1 (End-User)**
+*The engineer extending jiuwenswarm from inside: writing custom rails, registering
+tools, working within the Python SDK.*
 
-### 14.1 No Keyboard Navigation Across the UI
+This audience is distinct from the operator (who installs and runs jiuwenswarm) and
+from the end-user (who chats with the agent). The extension developer writes Python
+code that participates in the agent lifecycle — adding new rails, registering tools,
+composing custom agents, and integrating jiuwenswarm into their own product. This
+section evaluates how well jiuwenswarm supports that experience.
 
-**Current state.**
-Tab focus traversal, arrow key navigation in lists, and keyboard activation of
-buttons have not been verified. The React component library used (`shadcn/ui`,
-`lucide-react`) supports accessibility, but it requires implementation discipline
-in the consuming components.
-
-**What good looks like.**
-Every interactive element — session list items, skill cards, settings toggles,
-tool call expand buttons — should be reachable and operable by keyboard. Focus
-indicators should be visible. `ConversationSidebar` session items should support
-arrow-key navigation.
-
-### 14.2 No Screen Reader Support Audit
-
-**Current state.**
-No `aria-label`, `aria-live` regions for streaming content, or `role` attributes
-are visible in the explored code. Streaming text in `StreamingContent.tsx` has no
-`aria-live="polite"` region, so screen readers would not announce new content.
-
-**What good looks like.**
-- The streaming output area should be an `aria-live="polite"` region.
-- Tool call status changes should announce via `aria-live="assertive"` when
-  a tool succeeds or fails.
-- All icon-only buttons should have `aria-label`.
-- A one-time accessibility audit (axe-core, Lighthouse) to surface the full list.
-
-### 14.3 No High-Contrast or Large-Text Mode
-
-**Current state.**
-The UI has a light/dark mode. No high-contrast theme, no font size controls, no
-zoom-safe layout testing documented.
-
-**What good looks like.**
-Respect the OS `prefers-contrast: more` and `prefers-reduced-motion` media queries.
-Use relative font units (`rem`) throughout so browser font size preferences apply.
+> Also relevant: **P10 (AI / Prompt Engineer)** works with the prompt section API
+> (17.9) and the examples directory (17.6). P10 coverage will expand in a future
+> dedicated section.
 
 ---
 
-## 15. Mobile & Cross-Platform UX
-*Using jiuwenswarm on a phone or tablet.*
-
-**Personas: P1 (End-User)**
-
-### 15.1 Mobile Layout Exists But Is Not a First-Class Experience
-
-**Current state.**
-`useResponsive.ts` implements breakpoints and `isMobile` detection. The
-`ConversationSidebar` collapses and floats on small screens. The `useResponsivePanelResize`
-hook mutually excludes team and single-agent panels. Breakpoints at 1130px, 1000px,
-and 800px are defined.
-
-**What good looks like.**
-Mobile should be treated as a real use case, not a fallback. The Feishu and Telegram
-channels mean users are on mobile frequently. The Web UI should be fully usable on
-a 375px viewport: input area docked to bottom, conversation fills viewport, panels
-accessible via bottom sheet or drawer. The current panel architecture (left sidebar +
-chat + right panel) collapses poorly to mobile.
-
-### 15.2 No Native App (PWA) Support
-
-**Current state.**
-The Web UI is a standard React SPA. No `manifest.json`, no service worker, no
-offline support, no install-to-homescreen capability.
-
-**What good looks like.**
-A Progressive Web App manifest that allows users to install jiuwenswarm to their
-phone homescreen. Service worker for offline mode (read past conversations, queue
-messages to send when reconnected). Push notification support for task completion.
-
----
-
-## 16. Information Architecture
-*Is the right information in the right place?*
-
-**Personas: P1 (End-User), P2 (Operator)**
-
-### 16.1 Skills and Connectors Are Separate But Conceptually Similar
-
-**Current state.**
-`SessionSidebar` has separate nav items for "Skills" and "Connector Market" (plugins,
-MCP). These are conceptually similar — both extend agent capabilities — but are
-presented as separate top-level sections.
-
-**What good looks like.**
-A unified "Capabilities" section: Skills, MCP servers, plugins, and browser tools
-all in one place, filterable by type. A user adding a new capability should not need
-to know which category it falls into first.
-
-### 16.2 Settings Are Organized by Implementation, Not by User Task
-
-**Current state.**
-Settings modules: General, Models, Channels, Agent, Browser, Experimental. This is
-organized by implementation component, not by what the user is trying to do.
-
-**What good looks like.**
-Organize by user goal:
-- **Getting started** — model setup, language, first skill.
-- **Communication channels** — Feishu, Telegram, Discord, etc.
-- **Memory & context** — memory settings, coding memory, context length.
-- **Agent behavior** — permissions, tools, mode defaults, response style.
-- **Advanced** — observability, debug traces, experimental features.
-
-### 16.3 Trajectory / Trace Panel Is Hidden and Unnamed
-
-**Current state.**
-The trajectory system (full LLM input/output/thinking trace per call) is inside the
-right panel but requires knowing to look for it. The navigation item is labeled
-"TraceHound" — a name that means nothing to a new user.
-
-**What good looks like.**
-Rename to "Agent activity" or "What happened". Surface it as a default sub-tab
-in the right panel alongside artifacts, rather than a separate nav item.
-
----
-
-## 17. Developer Usability
-*The engineer extending jiuwenswarm: writing custom rails, creating tools, integrating the SDK,
-building on top of the harness.*
-
-**Personas: P3 (Extension Developer), P10 (AI / Prompt Engineer)**
-
-This audience is distinct from the operator (who installs and runs jiuwenswarm) and from the
-end-user (who chats with the agent). The developer writes Python code that participates in the
-agent lifecycle — adding new rails, registering tools, composing custom agents, and integrating
-jiuwenswarm into their own product. This section evaluates how well jiuwenswarm supports that
-experience.
-
----
+## §17 · Developer Usability
 
 ### 17.1 Rail Extension API Is Undocumented at the Public Surface
 
@@ -1505,7 +1564,7 @@ use for custom content without colliding with built-in sections.
 
 ---
 
-### 17.10 No CLI Tool for Scaffold a New Rail or Skill
+### 17.10 No CLI Tool to Scaffold a New Rail or Skill
 
 **Current state.**
 Creating a new rail requires: creating a Python file, writing the class boilerplate, choosing
@@ -1636,18 +1695,30 @@ can figure it out. A developer who relies on documentation cannot start.
 
 ---
 
-## 18. Application Developer Usability
+# P4 — Application Developer
+
 *The engineer building their own product, app, or service on top of jiuwenswarm as a backend.*
 
-**Personas: P4 (Application Developer)**
-
-This audience is distinct from the developer in section 17 (who works inside the jiuwenswarm
+This audience is distinct from the extension developer in §P3 (who works inside the jiuwenswarm
 codebase, writing rails and tools). The application developer treats jiuwenswarm as a black
 box: they stand it up, connect to it over a network, and build their own frontend, workflow,
 or integration on top of it. Their only contact with jiuwenswarm is the external API it
-exposes. This section evaluates how well jiuwenswarm serves that experience.
+exposes.
 
 ---
+
+## §8 · Async Notifications (Application Developer Perspective)
+
+*(Full findings → P1 chapter, §8)*
+
+Finding 8.1 (task completion notification) is especially important for application
+developers building automation workflows: the current in-browser notification
+approach doesn't serve server-side consumers. The webhook system described in **18.8**
+is the right solution for P4 — see §18.8 below.
+
+---
+
+## §18 · Application Developer Usability
 
 ### 18.1 The Primary API Is WebSocket-Only — No REST Fallback
 
@@ -1687,8 +1758,7 @@ GET  /api/sessions/:id/history              → [ { role, content, timestamp } ]
 
 The WebSocket API remains for streaming and real-time use. The REST API is a convenience
 layer for integrations that don't need streaming. Under the hood, the gateway translates
-REST requests into E2A envelopes and returns the final response. This is a 2-day addition
-that makes jiuwenswarm accessible to any HTTP client.
+REST requests into E2A envelopes and returns the final response.
 
 ---
 
@@ -2078,6 +2148,238 @@ jiuwenswarm from the outside sees a WebSocket port, a Markdown file, and no SDK.
 
 ---
 
+# P5 — Skill Author
+
+*Creates skills to publish to the marketplace for others to install — writes `SKILL.md`,
+packages Python tools, tests and submits skills.*
+
+Coverage for P5 is partial. The findings below are drawn from §10 (Skill Ecosystem),
+which was investigated primarily from the operator/end-user perspective. A dedicated
+investigation of the skill authoring workflow will produce additional findings.
+
+---
+
+## §10 · Skill Authoring (Partial)
+
+### 10.3 No Skill Version Management or Rollback
+
+*(Full finding → P2 chapter, §10.3)*
+
+Skill authors are the ones who update `SKILL.md`. When the evolution system
+automatically modifies a skill, there is no diff-for-approval step and no way to
+roll back to a previous version. This affects skill authors more directly than
+operators — it is their work that gets overwritten.
+
+### 10.4 Skill Testing Has No Infrastructure
+
+*(Full finding → P2 chapter, §10.4)*
+
+A skill author cannot test their skill with sample inputs from the UI before
+submitting it to the marketplace. Every test requires a live chat session. A
+dedicated skill test runner (paste input, see output) is the most important
+unimplemented tool for this persona.
+
+### P5 Gaps
+
+The following aspects of skill authoring have not been investigated yet:
+
+- **SKILL.md format documentation** — is there a schema, a linter, or a guide for
+  writing well-structured skill prompts?
+- **Tool packaging** — how does a skill author package Python tools alongside a
+  SKILL.md? What is the directory structure?
+- **Submission process** — how does a skill get published to the marketplace?
+  What validation does it go through?
+- **Skill metadata** — ratings, install counts, author pages — is there an author
+  dashboard?
+
+---
+
+# P6 — Team Admin
+
+*Manages a shared jiuwenswarm instance on behalf of a team — sets per-user
+permissions, manages shared memory and skills, reviews activity.*
+
+Coverage for P6 is partial. The findings below cover multi-user collaboration,
+which is where team admin needs most clearly surface.
+
+---
+
+## §11 · Multi-User & Collaboration
+
+*More than one person using the same instance.*
+
+> Also affects: **P1** (end-users in a shared instance), **P2** (operators deploy
+> and configure the shared instance), **P4** (application developers building
+> multi-user products on top of jiuwenswarm). See finding 18.6 for the application
+> developer perspective on multi-tenancy.
+
+### 11.1 No User Identity or Access Control
+
+**Current state.**
+The Web UI has no login. All users who can reach `localhost:5173` share the same
+agent identity, memory, and skills. There is no concept of "this conversation
+belongs to user A, not user B."
+
+**What good looks like.**
+For single-operator deployments this is acceptable. But for team deployments where
+the agent is shared via a channel (Feishu group, Telegram channel), there should
+be per-user memory isolation and the ability to set per-user permission levels.
+The channel integration already passes `user_id` — this should be plumbed through
+to memory and permission scoping.
+
+### 11.2 Conversation Sharing Is Image-Only
+
+**Current state.**
+`shareImageExport.tsx` converts the chat to a PNG image. This is the only sharing
+mechanism. There is no way to share a conversation as a link, as Markdown, or as
+a JSON export that another person could import.
+
+**What good looks like.**
+- Export as Markdown (conversation turns formatted as `**User:** / **Agent:**`).
+- Export as JSON (full structured conversation for import elsewhere).
+- Share link (if the instance has a publicly accessible URL).
+
+### 11.3 No Shared Skill Library for Teams
+
+**Current state.**
+Skills are per-agent-workspace. If two operators run separate instances, they cannot
+share skills without manually copying files.
+
+**What good looks like.**
+A skill export/import format (`.skill.zip`) and a shared skill registry that team
+members can publish to and pull from. The `SkillNetSearchModal` and `ClawHubSearchModal`
+components suggest this direction exists — it should be surfaced more prominently
+as the primary skill distribution mechanism.
+
+---
+
+## §3 · Trust & Safety (Team Admin Perspective)
+
+*(Full findings → P1 chapter, §3)*
+
+- **3.1** No Visibility Into Agent Permissions — team admins are the ones who
+  configure per-user permission rules. Finding 2.6 (no GUI for permission system)
+  in the P2 chapter is the operator-side view of the same problem.
+- **3.4** Destructive External Actions Have No Confirmation Layer — team admins
+  may want to enable confirmation for specific users (e.g. newer team members)
+  while allowing trusted users to bypass it.
+
+---
+
+# P7–P12 — Not Yet Covered
+
+The following personas have been defined and their key needs identified, but no
+dedicated findings investigation has been completed. Sections will be added as
+investigation proceeds.
+
+| Persona | Key needs to investigate |
+|---|---|
+| **P7 — Auditor** | Structured audit log format, data lineage for tool calls, PII detection, export to SIEM |
+| **P8 — Agent QA** | Golden-set eval framework, trajectory comparison across model versions, deterministic replay |
+| **P9 — Support / Help Desk** | Session lookup by user ID, diagnostic replay UI, state reset commands |
+| **P10 — AI / Prompt Engineer** | Prompt section inspector (live, per-request), A/B comparison for prompts, version history |
+| **P11 — Security Researcher** | Documented threat model, security config hardening guide, test harness for injection patterns |
+| **P12 — Data Analyst** | Structured telemetry export (Parquet/JSON), usage dashboard, per-session metrics API |
+
+---
+
+## Appendix: Findings by Persona (Matrix)
+
+Quick-reference table for cross-persona navigation. Each finding ID is stable.
+Full content is in the persona section above.
+
+| Finding | Title | P1 | P2 | P3 | P4 | P5 | P6 |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1.1** | Error messages give users nothing to act on | ● | | | | | |
+| **1.2** | Mode naming is system-centric | ● | | | | | |
+| **1.3** | No structured feedback on responses | ● | | | | | |
+| **1.4** | Skill creation entry point not obvious | ● | | | | | |
+| **1.5** | Conversation history not searchable | ● | | | | | |
+| **1.6** | No keyboard shortcuts | ● | | | | | |
+| **1.7** | No output length/style controls | ● | | | | | |
+| **1.8** | No undo for agent actions | ● | | | | | |
+| **1.9** | Long messages lack structure aids | ● | | | | | |
+| **2.1** | No startup validation | | ● | | | | |
+| **2.2** | Config file has no validation tool | | ● | | | | |
+| **2.3** | Powerful features invisible by default | | ● | | | | |
+| **2.4** | Onboarding ends before hard part | | ● | | | | |
+| **2.5** | Instance/port management confusing | | ● | | | | |
+| **2.6** | Permission system has no GUI | | ● | | ○ | | ○ |
+| **2.7** | Optional deps fail at runtime | | ● | | | | |
+| **2.8** | Documentation scattered | | ● | | | | |
+| **2.9** | Upgrade experience undefined | | ● | | | | |
+| **2.10** | Internationalization inconsistent | | ● | | | | |
+| **3.1** | No agent permission visibility before first action | ● | ○ | | | | ○ |
+| **3.2** | No diff/preview before file modify | ● | | | | | |
+| **3.3** | No task cancellation with defined semantics | ● | | | | | |
+| **3.4** | No confirmation for destructive external actions | ● | ○ | | | | ○ |
+| **4.1** | Graceful degradation is silent | ● | ○ | | | | |
+| **4.2** | Session recovery after disconnect undefined | ● | ○ | | | | |
+| **4.3** | Rate limiting and API failures opaque | ● | | | | | |
+| **4.4** | No persistent state for in-progress tasks | ● | ○ | | | | |
+| **5.1** | Setup wizard ends too early | ● | ○ | | | | |
+| **5.2** | Empty state has no direction | ● | | | | | |
+| **5.3** | No progressive onboarding after first use | ● | | | | | |
+| **5.4** | CLI first-run has no guidance | ● | ○ | | | | |
+| **6.1** | Thinking display hidden behind trajectory panel | ● | | | | | |
+| **6.2** | Tool calls shown but not explained | ● | | | | | |
+| **6.3** | Subagent activity not visible | ● | | | | | |
+| **6.4** | No explanation of why agent asked a question | ● | | | | | |
+| **7.1** | No first-token latency indicator | ● | | | | | |
+| **7.2** | No indication of context length pressure | ● | | | | | |
+| **7.3** | Skill execution has no progress feedback | ● | | | | | |
+| **8.1** | No notification when long tasks complete | ● | | | ○ | | |
+| **8.2** | No background task management | ● | | | | | |
+| **9.1** | No token or cost visibility | ○ | ● | | | | |
+| **9.2** | No optimization hints | ○ | ● | | | | |
+| **10.1** | Skill marketplace has no quality signals | ○ | ● | | | ● | |
+| **10.2** | No skill dependency management | | ● | | | ○ | |
+| **10.3** | No skill version management or rollback | | ● | | | ● | |
+| **10.4** | Skill testing has no infrastructure | | ○ | | | ● | |
+| **11.1** | No user identity or access control | ○ | ○ | | ○ | | ● |
+| **11.2** | Conversation sharing is image-only | ● | | | | | ○ |
+| **11.3** | No shared skill library for teams | | ○ | | | ○ | ● |
+| **12.1** | No visibility into what is stored in memory | ● | | | | | |
+| **12.2** | No indication of what agent sends to LLM | ● | | | | | |
+| **12.3** | No data retention policy UI | ○ | ● | | | | |
+| **13.1** | No in-context help | ● | | | | | |
+| **13.2** | No diagnostic mode | ● | ○ | | | | |
+| **13.3** | Error messages don't reference log files | ● | ○ | | | | |
+| **14.1** | No keyboard navigation across the UI | ● | | | | | |
+| **14.2** | No screen reader support audit | ● | | | | | |
+| **14.3** | No high-contrast or large-text mode | ● | | | | | |
+| **15.1** | Mobile layout not first-class | ● | | | | | |
+| **15.2** | No PWA support | ● | | | | | |
+| **16.1** | Skills and connectors separate but similar | ● | | | | | |
+| **16.2** | Settings organized by implementation not task | ● | ● | | | | |
+| **16.3** | Trajectory panel hidden and unnamed | ● | | | | | |
+| **17.1** | Rail API undocumented | | | ● | | | |
+| **17.2** | Hook execution order not discoverable | | | ● | | | |
+| **17.3** | AgentCallbackContext has no type stubs | | | ● | | | |
+| **17.4** | Tool registration has no developer guide | | | ● | | | |
+| **17.5** | create_deep_agent() too many undocumented params | | | ● | | | |
+| **17.6** | Examples directory not discoverable | | | ● | | | |
+| **17.7** | Testing a rail requires undocumented mock infra | | | ● | | | |
+| **17.8** | No stable public API / no semver contract | | | ● | ○ | | |
+| **17.9** | Prompt section API is hidden | | | ● | | | |
+| **17.10** | No scaffold CLI for new rail | | | ● | | | |
+| **17.11** | Error framework not exposed as developer API | | | ● | | | |
+| **17.12** | No integration test layer | | | ● | | | |
+| **18.1** | WebSocket-only API, no REST fallback | | | | ● | | |
+| **18.2** | E2A protocol in markdown, not machine-readable | | | | ● | | |
+| **18.3** | No published client SDK | | | | ● | | |
+| **18.4** | Authentication not enforced — open by default | | ○ | | ● | | |
+| **18.5** | WebSocket origin checking disabled by default | | ○ | | ● | | |
+| **18.6** | No multi-tenancy | | | | ● | | ● |
+| **18.7** | Custom channel API has no developer guide | | | | ● | | |
+| **18.8** | Webhook/event system is limited | | | | ● | | |
+| **18.9** | Session API has no documented response shapes | | | | ● | | |
+| **18.10** | No local development mode | | | | ● | | |
+
+**Legend:** ● primary persona (full content in their section) · ○ secondary persona (affected, pointer in their section)
+
+---
+
 ## The Core Problem and the Highest-Leverage Fixes
 
 jiuwenswarm is engineered from the inside out. Each feature was built correctly
@@ -2095,7 +2397,7 @@ hostile to users who do not.
    `ModelSetupGuide.tsx` to include inline credential testing and a "send first
    message" step. Turns a 40% first-run failure rate into near zero.
 
-3. **Actionable error messages with a machine-readable code.** Every error surfaces
+3. **Actionable error messages with a machine-readable code.** Every error surfaced
    to the user must include: what happened, why, and what to do. Add `ERR_*` codes
    for searchability. Dramatically reduces support requests.
 
