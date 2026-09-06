@@ -109,6 +109,12 @@ export const SETTINGS_CONFIG_FIELDS: readonly ConfigFieldContract[] = [
   yamlField('trajectory_ui_enabled', 'experimental', 'boolean', 'trajectory_ui.enabled'),
   yamlField('trajectory_analysis_enabled', 'experimental', 'boolean', 'trajectory_ui.analysis.enabled'),
   yamlField(
+    'kv_cache_affinity_enabled',
+    'experimental',
+    'boolean',
+    'kv_cache_affinity_config.enable_kv_cache_affinity',
+  ),
+  yamlField(
     'external_cli_agent_claude_enabled',
     'experimental',
     'boolean',

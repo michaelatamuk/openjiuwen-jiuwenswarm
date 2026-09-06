@@ -33,6 +33,17 @@ export const experimentalModule: SettingsModuleDefinition = {
       ],
     },
     {
+      id: 'kv-cache-affinity',
+      titleKey: 'settingsPanel.experimental.kvCacheAffinity',
+      items: [
+        {
+          id: 'kv-cache-affinity-enabled',
+          component: 'switch',
+          key: 'kv_cache_affinity_enabled',
+        },
+      ],
+    },
+    {
       id: 'proactive-recommendation',
       titleKey: 'settingsPanel.experimental.proactive',
       items: [
