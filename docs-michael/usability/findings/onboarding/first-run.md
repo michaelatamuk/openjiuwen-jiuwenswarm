@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §5 · Onboarding & First-Run Experience
+# First Run
 
-*The experience from `pip install` to first successful task.*
+*The path from install to first success.*
 
 ---
 
-## 5.1 The Setup Wizard Ends Too Early
+## 1 Setup wizard ends before the model is confirmed working
 
 **Current state.**
 `ModelSetupGuide.tsx` has 3 steps: welcome → settings spotlight → models module
@@ -31,41 +31,7 @@ The guide should be re-enterable at any time (e.g. from a `?` icon), not just on
 
 ---
 
-## 5.2 Empty State Has No Direction
-
-**Current state.**
-An empty conversation shows a blank input area. There is a `WelcomeBubble` component
-with adaptive positioning, but its content is not known without reading the code.
-
-**What good looks like.**
-The empty state should show:
-- 3–5 example tasks tailored to the active mode ("Parse my invoices", "Refactor
-  this Python file", "Search the web for…").
-- A prompt suggestion chip that inserts the text into the input on click.
-- A "What can I do?" link that opens a short capability overview.
-
----
-
-## 5.3 No Progressive Onboarding After First Use
-
-**Current state.**
-After the setup wizard there is no further onboarding. Features like trajectory,
-skills, team mode, memory, and the connector market are never introduced unless
-the user stumbles upon them.
-
-**What good looks like.**
-A "tip of the session" system: once per new feature area first encountered, show a
-small non-blocking tooltip. Examples:
-- First time an agent completes a multi-step task: "Did you know you can see exactly
-  what the agent did? Open the Trajectory panel →"
-- First time the agent writes a file: "You can review file changes before they're
-  applied. Enable change preview in settings →"
-- After 5 sessions: "You've had 5 conversations. Memory lets the agent remember your
-  preferences. Enable it →"
-
----
-
-## 5.4 CLI First-Run Has No Guidance
+## 2 Running the CLI without config gives no next step
 
 **Current state.**
 Running `jiuwenswarm` from the terminal with no config gives an unclear error. There
@@ -79,3 +45,5 @@ Run 'jiuwenswarm-init' to set up your workspace, then 'jiuwenswarm-start'.
 ```
 And `jiuwenswarm-init` should interactively prompt for the minimum required
 configuration (model provider, API key) before exiting.
+
+---

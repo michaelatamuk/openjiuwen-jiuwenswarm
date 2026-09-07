@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §16 · Information Architecture
+# Navigation & Settings
 
-*Is the right information in the right place?*
+*Finding and organizing the UI.*
 
 ---
 
-## 16.1 Skills and Connectors Are Separate But Conceptually Similar
+## 1 Skills and connectors are split apart though they're the same kind of thing
 
 **Current state.**
 `SessionSidebar` has separate nav items for "Skills" and "Connector Market" (plugins,
@@ -22,7 +22,7 @@ to know which category it falls into first.
 
 ---
 
-## 16.2 Settings Are Organized by Implementation, Not by User Task
+## 2 Settings are organized by code module, not by user task
 
 **Current state.**
 Settings modules: General, Models, Channels, Agent, Browser, Experimental. This is
@@ -42,7 +42,7 @@ between "General", "Models", and "Agent".
 
 ---
 
-## 16.3 Trajectory / Trace Panel Is Hidden and Unnamed
+## 3 The activity view is hidden behind an unclear name
 
 **Current state.**
 The trajectory system (full LLM input/output/thinking trace per call) is inside the
@@ -52,3 +52,5 @@ right panel but requires knowing to look for it. The navigation item is labeled
 **What good looks like.**
 Rename to "Agent activity" or "What happened". Surface it as a default sub-tab
 in the right panel alongside artifacts, rather than a separate nav item.
+
+---

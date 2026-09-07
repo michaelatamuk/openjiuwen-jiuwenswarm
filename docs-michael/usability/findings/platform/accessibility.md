@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §14 · Accessibility
+# Accessibility & Keyboard
 
-*Can all users operate the product regardless of ability?*
+*Operating the UI regardless of ability.*
 
 ---
 
-## 14.1 No Keyboard Navigation Across the UI
+## 1 The UI can't be driven fully by keyboard
 
 **Current state.**
 Tab focus traversal, arrow key navigation in lists, and keyboard activation of
@@ -24,7 +24,7 @@ arrow-key navigation.
 
 ---
 
-## 14.2 No Screen Reader Support Audit
+## 2 No screen-reader support; streaming output isn't announced
 
 **Current state.**
 No `aria-label`, `aria-live` regions for streaming content, or `role` attributes
@@ -40,7 +40,7 @@ are visible in the explored code. Streaming text in `StreamingContent.tsx` has n
 
 ---
 
-## 14.3 No High-Contrast or Large-Text Mode
+## 3 No high-contrast or large-text option
 
 **Current state.**
 The UI has a light/dark mode. No high-contrast theme, no font size controls, no
@@ -49,3 +49,25 @@ zoom-safe layout testing documented.
 **What good looks like.**
 Respect the OS `prefers-contrast: more` and `prefers-reduced-motion` media queries.
 Use relative font units (`rem`) throughout so browser font size preferences apply.
+
+---
+
+## 4 Core actions have no keyboard shortcuts
+
+**Current state.**
+No documented keyboard shortcuts exist in the Web UI. The chat input handles `Enter`
+to submit, but actions like "new conversation", "stop agent", "switch mode", "open
+settings", and "focus input" have no keyboard access.
+
+**What good looks like.**
+A small keybindings layer with at minimum:
+- `Ctrl+K` / `Cmd+K` — new conversation
+- `Escape` — stop/interrupt agent
+- `Ctrl+/` / `Cmd+/` — command palette
+- `Ctrl+,` / `Cmd+,` — open settings
+- Arrow keys to navigate session list when focused
+
+A `?` key or `Shift+?` that opens a keybindings reference overlay.
+
+---
+

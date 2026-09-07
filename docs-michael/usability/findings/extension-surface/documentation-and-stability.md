@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §20 · Documentation & API Stability
+# Extension Documentation & Stability
 
-*Examples that teach, and an API contract developers can rely on.*
+*Examples and a stable API contract.*
 
 ---
 
-## 20.1 Examples Directory Is Not Discoverable and Inconsistently Structured
+## 1 The examples directory is undiscoverable and inconsistent
 
 **Current state.**
 Working examples live in `agent-core/examples/`. This directory contains:
@@ -44,7 +44,7 @@ every developer needs but currently does not exist.
 
 ---
 
-## 20.2 No Stable Public API / No Semver Contract
+## 2 No stable public API or semantic-versioning contract
 
 **Current state.**
 `agent-core` is at version `0.1.17`. `jiuwenswarm` (`workswarm`) is at `0.2.5.beta1`. The
@@ -68,3 +68,4 @@ they get no bug fixes. If they don't pin, any update may break their rail.
 - `@public` / `@internal` markers in docstrings for the transitional period.
 
 ---
+

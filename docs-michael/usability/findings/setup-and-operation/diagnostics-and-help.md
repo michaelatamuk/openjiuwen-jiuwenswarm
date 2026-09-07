@@ -1,31 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §13 · Help & Support
+# Diagnostics & Support
 
-*What happens when the user gets stuck?*
-
----
-
-## 13.1 No In-Context Help
-
-**Current state.**
-`HelpTips.tsx` exists as a generic help component. `channelGuideUrls.ts` has
-external links for channel setup. Beyond these, there is no contextual help — no
-tooltips on complex fields, no "?" icons that open relevant documentation.
-
-**What good looks like.**
-Every settings field with a non-obvious value should have a `?` icon that opens a
-popover with:
-- What this field does.
-- Where to find the value (e.g. "Find your app_secret in the Feishu developer
-  console under Credentials & Basic Info").
-- A link to the full documentation.
+*Getting unstuck and reporting problems.*
 
 ---
 
-## 13.2 No Diagnostic Mode for Users
+## 1 No single command to gather diagnostics for a bug report
 
 **Current state.**
 When something goes wrong, the user has no tool to collect diagnostic information.
@@ -45,7 +28,7 @@ sections.
 
 ---
 
-## 13.3 Error Messages Do Not Reference Log Files
+## 2 Errors don't point to the log entry with more detail
 
 **Current state.**
 When an error occurs, the user is not told where to look for more detail. They must
@@ -59,3 +42,23 @@ Or in the Web UI, a "Show log" button that opens a scrollable log panel filtered
 to the current session and the last 60 seconds. Errors written to stderr should also
 include the log file path automatically, so the detail is reachable without opening a
 separate viewer.
+
+---
+
+## 3 No help or tooltips at the point of confusion
+
+**Current state.**
+`HelpTips.tsx` exists as a generic help component. `channelGuideUrls.ts` has
+external links for channel setup. Beyond these, there is no contextual help — no
+tooltips on complex fields, no "?" icons that open relevant documentation.
+
+**What good looks like.**
+Every settings field with a non-obvious value should have a `?` icon that opens a
+popover with:
+- What this field does.
+- Where to find the value (e.g. "Find your app_secret in the Feishu developer
+  console under Credentials & Basic Info").
+- A link to the full documentation.
+
+---
+

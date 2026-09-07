@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §6 · Agent Transparency & Explainability
+# Agent Explanation
 
-*Can the user understand what the agent is doing and why?*
+*Why the agent is doing what it is doing.*
 
 ---
 
-## 6.1 Thinking Display Is Hidden Behind the Trajectory Panel
+## 1 Agent reasoning is hidden in a separate panel
 
 **Current state.**
 `TrajectoryTable.tsx` displays `thinkingDetail` for each trajectory cell with
@@ -28,7 +28,7 @@ expanding.
 
 ---
 
-## 6.2 Tool Calls Are Shown But Not Explained
+## 2 Tool calls show what ran but not why
 
 **Current state.**
 `ToolCallDisplay.tsx` shows tool name, formatted arguments (expandable), and
@@ -51,7 +51,7 @@ For tool errors, show what the agent will try next:
 
 ---
 
-## 6.3 Subagent Activity Is Not Visible to the User
+## 3 Subagents work invisibly with no progress view
 
 **Current state.**
 When `subagent_spawn` is called, the parent agent's panel shows no indication that
@@ -67,7 +67,7 @@ the same concept should apply to on-demand subagents):
 
 ---
 
-## 6.4 No Explanation of Why the Agent Asked a Question
+## 4 Clarification questions appear with no context
 
 **Current state.**
 When the agent asks the user for clarification ("Which directory should I write the
@@ -78,3 +78,5 @@ Users must infer from context.
 Attach a brief context line to every clarification request:
 > "I'm about to write the output CSV and wasn't sure of the destination."
 > **Which directory should I write the output file to?**
+
+---

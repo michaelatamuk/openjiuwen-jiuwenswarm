@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §19 · Testing & Tooling
+# Extension Testing & Tooling
 
-*Testing a custom rail and scaffolding new rails without cold-start friction.*
+*Testing and scaffolding custom rails.*
 
 ---
 
-## 19.1 Testing a Custom Rail Requires Knowing About Mock Infrastructure
+## 1 Writing a rail test requires reverse-engineering mock infrastructure
 
 **Current state.**
 The testing infrastructure for rails is excellent — `MockLLMModel`, `create_text_response()`,
@@ -51,7 +51,7 @@ the internal test infrastructure.
 
 ---
 
-## 19.2 No CLI Tool to Scaffold a New Rail or Skill
+## 2 No CLI to scaffold a new rail or skill
 
 **Current state.**
 Creating a new rail requires: creating a Python file, writing the class boilerplate, choosing
@@ -77,7 +77,7 @@ generated files serve as a living example of the correct patterns.
 
 ---
 
-## 19.3 No Integration Test Layer Between Unit Tests and Full System
+## 3 No integration test layer between unit tests and a full system
 
 **Current state.**
 The test suite has unit tests (mocked LLM, isolated rails) and manual end-to-end tests (full
@@ -109,3 +109,4 @@ This higher-level helper hides the mock sequencing complexity and lets the devel
 testing their rail's behavior, not the test framework mechanics.
 
 ---
+

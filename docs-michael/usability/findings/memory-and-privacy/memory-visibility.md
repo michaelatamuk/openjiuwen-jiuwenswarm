@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §12 · Data & Privacy
+# Memory Visibility
 
-*What data is stored, where, and who can see it.*
+*Seeing what is remembered and what is sent out.*
 
 ---
 
-## 12.1 No Visibility Into What Is Stored in Memory
+## 1 Users can't see what the agent has remembered
 
 **Current state.**
 The memory system stores facts, daily logs, and user profile data in
@@ -25,7 +25,7 @@ A "My memory" panel (accessible from the sidebar) that shows:
 
 ---
 
-## 12.2 No Indication of What the Agent Sends to the LLM
+## 2 No way to see what personal data is sent to the model
 
 **Current state.**
 The full prompt sent to the model — including memory snapshot, installed skills,
@@ -41,20 +41,3 @@ to using an external model.
 
 ---
 
-## 12.3 No Data Retention Policy UI
-
-**Current state.**
-Memory and conversation history are stored indefinitely. There is a
-`trajectory_ui.retention_days` config option, but no equivalent for conversations
-or memory.
-
-**What good looks like.**
-A data retention settings panel with separate controls for instance-wide defaults
-and per-user preferences (where applicable):
-- "Keep conversation history for: 30 / 90 / 365 / forever"
-- "Keep daily memory for: 7 / 30 / 90 / forever"
-- "Delete all data older than X"
-
-Automated expiration should run on startup. In shared deployments, instance
-administrators should be able to set a maximum retention period that individual
-users cannot exceed.

@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §9 · Economic UX
+# Cost & Token Economics
 
-*Token consumption, API costs, and resource awareness.*
+*Visibility into usage and cost.*
 
 ---
 
-## 9.1 No Token or Cost Visibility
+## 1 No visibility into token usage or session cost
 
 **Current state.**
 Users have no visibility into how many tokens each conversation is consuming.
@@ -27,7 +27,7 @@ per-session counter, no cost estimate, no warning before hitting the model's lim
 
 ---
 
-## 9.2 No Optimization Hints
+## 2 No hints about what is consuming the context
 
 **Current state.**
 If a session's context is growing large, there is no guidance on how to reduce it.
@@ -39,3 +39,5 @@ When the token count crosses 70%, show a breakdown: "Your context: conversation
 history 40%, memory snapshot 35%, skills 15%, system 10%." Each item has a link
 to the relevant setting: "Reduce memory snapshot size →", "Use auto_list mode for
 skills →".
+
+---

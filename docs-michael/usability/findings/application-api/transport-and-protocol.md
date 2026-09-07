@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §21 · Transport & Protocol
+# Transport & Protocol
 
-*How an application connects to jiuwenswarm and talks to the agent.*
+*How an app connects and speaks E2A.*
 
 ---
 
-## 21.1 The Primary API Is WebSocket-Only — No REST Fallback
+## 1 External apps can only reach the agent over WebSocket, with no REST
 
 **Current state.**
 jiuwenswarm's external interface is the E2A (Everything-to-Agent) protocol, carried over
@@ -50,7 +50,7 @@ REST requests into E2A envelopes and returns the final response.
 
 ---
 
-## 21.2 E2A Protocol Is Documented in Markdown, Not in a Machine-Readable Format
+## 2 The E2A protocol spec is prose, not a machine-readable schema
 
 **Current state.**
 The E2A protocol specification lives in two Markdown files:
@@ -84,7 +84,7 @@ It is also the ground truth that prevents spec-code drift.
 
 ---
 
-## 21.3 No Published Client SDK — Every App Reimplements the Protocol
+## 3 No published client SDK, so every app re-implements the protocol
 
 **Current state.**
 A `WebSocketAgentServerClient` class exists in:
@@ -129,12 +129,12 @@ for await (const chunk of session.chat("Parse this invoice")) {
 }
 ```
 
-Both packages generated from the AsyncAPI spec (see 21.2), so they stay in sync with the
+Both packages generated from the AsyncAPI spec (see [the E2A protocol finding](#2-the-e2a-protocol-spec-is-prose-not-a-machine-readable-schema)), so they stay in sync with the
 protocol automatically.
 
 ---
 
-## 21.4 Session API Is Full-Featured But Has No Documented Response Shapes
+## 4 Session API methods have no documented response shapes
 
 **Current state.**
 The E2A protocol supports a complete session lifecycle:
@@ -150,7 +150,7 @@ document for any of the ~30 E2A methods.
 This is the difference between an API that is *implemented* and an API that is *published*.
 
 **What good looks like.**
-A method reference document (or AsyncAPI spec — see 21.2) listing every method with its
+A method reference document (or AsyncAPI spec — see [the E2A protocol finding](#2-the-e2a-protocol-spec-is-prose-not-a-machine-readable-schema)) listing every method with its
 request params and response data shape:
 
 ```
@@ -171,3 +171,4 @@ session.create
 reading for every application developer.
 
 ---
+

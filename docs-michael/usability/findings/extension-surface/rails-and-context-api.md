@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §17 · Rails & Context API
+# Rails & Context API
 
-*Writing rails, understanding hook execution order, and using the callback context.*
+*Extending the agent from inside with rails.*
 
 ---
 
-## 17.1 Rail Extension API Is Undocumented at the Public Surface
+## 1 The rail extension API has no public documentation
 
 **Current state.**
 The rail system is the primary extension point for developers. The base class hierarchy is:
@@ -37,7 +37,7 @@ developer reading only `DeepAgentRail` does not know the 10 `AgentRail` hooks ex
 
 ---
 
-## 17.2 Hook Execution Order Is Not Discoverable
+## 2 Rail hook execution order can only be learned from source
 
 **Current state.**
 Twelve hooks exist across two base classes. A developer writing a rail that interacts with
@@ -98,7 +98,7 @@ This takes under an hour to write and saves every new developer from reading the
 
 ---
 
-## 17.3 `AgentCallbackContext` Has No Type Stubs or Usage Examples
+## 3 The hook context object is undocumented and untyped
 
 **Current state.**
 Every hook receives `ctx: AgentCallbackContext`. This object carries the current agent state:
@@ -129,7 +129,7 @@ whether `ctx.messages` reflects the assembled prompt or the raw conversation his
 
 ---
 
-## 17.4 Prompt Section API for Rails Is Hidden
+## 4 Adding prompt content from a rail is an undocumented hidden API
 
 **Current state.**
 Rails inject content into the LLM system prompt by calling `add_section()` or
@@ -168,7 +168,7 @@ use for custom content without colliding with built-in sections.
 
 ---
 
-## 17.5 Error Framework Is Not Exposed as a Developer API
+## 5 The structured error API isn't documented for rail authors
 
 **Current state.**
 The error framework (`openjiuwen/core/common/exception/errors.py`) is well-designed:
@@ -212,3 +212,4 @@ Show that `recoverable=True` causes the agent to retry; `recoverable=False` abor
 This is the correct API for rail authors to signal intent — but nobody knows it exists.
 
 ---
+

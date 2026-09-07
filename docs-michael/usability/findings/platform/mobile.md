@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §15 · Mobile & Cross-Platform
+# Mobile & Cross-Device
 
 *Using jiuwenswarm on a phone or tablet.*
 
 ---
 
-## 15.1 Mobile Layout Exists But Is Not a First-Class Experience
+## 1 The web UI isn't usable as a proper mobile experience
 
 **Current state.**
 `useResponsive.ts` implements breakpoints and `isMobile` detection. The
@@ -25,7 +25,7 @@ chat + right panel) collapses poorly to mobile.
 
 ---
 
-## 15.2 No Native App (PWA) Support
+## 2 No installable or offline (PWA) version
 
 **Current state.**
 The Web UI is a standard React SPA. No `manifest.json`, no service worker, no
@@ -35,3 +35,5 @@ offline support, no install-to-homescreen capability.
 A Progressive Web App manifest that allows users to install jiuwenswarm to their
 phone homescreen. Service worker for offline mode (read past conversations, queue
 messages to send when reconnected). Push notification support for task completion.
+
+---

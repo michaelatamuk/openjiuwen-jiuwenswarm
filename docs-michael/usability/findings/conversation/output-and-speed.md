@@ -1,14 +1,42 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §7 · Performance & Perceived Speed
+# Output & Perceived Speed
 
-*Does the system feel fast, and does it communicate when it is not?*
+*Shaping responses and signalling latency and progress.*
 
 ---
 
-## 7.1 No First-Token Latency Indicator
+## 1 No control over reply length or writing style
+
+**Current state.**
+There is no global setting or per-message instruction for response length or style.
+If the agent tends to be verbose, the user must add "be brief" to every message.
+
+**What good looks like.**
+A persistent preference (saved to MEMORY.md or user config) for response style:
+terse / standard / detailed. A per-message override via a small pill control next
+to the send button. The agent should read this preference from memory and apply it
+without being reminded.
+
+---
+
+## 2 Long agent replies have no structure aids
+
+**Current state.**
+`StreamingContent.tsx` renders text with simple whitespace-preserving display.
+For long agent responses with multiple sections, there is no table of contents, no
+jump-to-section, no folding.
+
+**What good looks like.**
+Auto-detect headers in agent output (`## Section`) and render a sticky mini-TOC
+at the top of the message panel for long responses. Collapsible sections for
+code blocks and lengthy reasoning chains.
+
+---
+
+## 3 Nothing is shown while waiting for the first token
 
 **Current state.**
 `StreamingContent.tsx` renders tokens as they arrive. But between submitting a
@@ -22,7 +50,7 @@ component already exists — it should be visible from the moment the user submi
 
 ---
 
-## 7.2 No Indication of Context Length Pressure
+## 4 No warning before the context limit drops early memory
 
 **Current state.**
 There is a proactive notification for "context limit reached" via WebSocket, but
@@ -36,7 +64,7 @@ new session before the agent starts forgetting early context.
 
 ---
 
-## 7.3 Skill Execution Has No Progress Feedback
+## 5 Long-running skills show no progress
 
 **Current state.**
 When a skill is executing (potentially for minutes), the user sees only a generic
@@ -47,3 +75,5 @@ Skills should be able to emit progress events that render as a live progress bar
 in the tool call card: "parse-invoice: processed 3 of 12 files…". This requires a
 lightweight progress protocol in the skill execution harness, but the UI infrastructure
 (`HarnessProgressBar`) already exists.
+
+---

@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §18 · Tools & Agent Factory
+# Tools & Agent Factory
 
-*Registering tools from a rail and creating agents programmatically.*
+*Registering tools and creating agents.*
 
 ---
 
-## 18.1 Tool Registration API Has No Developer Guide
+## 1 Registering tools from a rail has no developer guide
 
 **Current state.**
 Tools are registered in a rail's `init()` method via `agent.ability_manager.add(tool_card)`.
@@ -51,7 +51,7 @@ provides the Python that runs. This needs a diagram or a working end-to-end exam
 
 ---
 
-## 18.2 `create_deep_agent()` Has Too Many Parameters With No Defaults Explained
+## 2 The agent factory has too many undocumented parameters
 
 **Current state.**
 The primary factory function for creating an agent programmatically is `create_deep_agent()`.
@@ -76,3 +76,4 @@ A tiered guide: minimum invocation (5 lines), intermediate (add workspace and ra
 parameter enables. The docstring on `create_deep_agent()` should include all of this inline.
 
 ---
+

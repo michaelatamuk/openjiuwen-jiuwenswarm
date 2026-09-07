@@ -1,14 +1,14 @@
-[← Index](../README.md) · jiuwenswarm Usability Review
+[← Index](../../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# §23 · Integration & Local Development
+# Integration & Local Development
 
-*Custom channels, event notifications, and a sane local development loop.*
+*Custom channels, events and a local dev loop.*
 
 ---
 
-## 23.1 Custom Channel API Exists But Has No Developer Guide
+## 1 Writing a custom channel has no developer guide
 
 **Current state.**
 The `BaseChannel` abstract class in `jiuwenswarm/gateway/channel_manager/base.py` defines a
@@ -46,7 +46,7 @@ A `CHANNELS.md` guide covering:
 
 ---
 
-## 23.2 Webhook/Event Notification System Is Limited
+## 2 Only shell-command hooks exist; there's no real webhook delivery
 
 **Current state.**
 A `GatewayHookHandler` exists with four events:
@@ -103,7 +103,7 @@ request is authentic.
 
 ---
 
-## 23.3 No Local Development Mode
+## 3 No local stub or dev mode for testing integrations
 
 **Current state.**
 An application developer building against jiuwenswarm must run the full stack (agent server
@@ -135,3 +135,4 @@ And a Docker Compose file in the repo root that starts agentserver + gateway + w
 one command, for developers who want the real stack without manual process management.
 
 ---
+
