@@ -4,43 +4,27 @@
 
 # Personas
 
-Personas are grouped by how each person relates to the system — that relationship is what
-decides which findings matter to them. Each persona file lists the findings relevant to it
-as one-liners with links to the full finding text (see the [findings](../findings/) folders).
+Each persona file is a short **profile**: who this person is, and which concern folders matter to them (linking into the [findings](../findings/)). For the exhaustive finding-by-finding map, see [matrix.md](../matrix.md).
 
 ## Using — people who talk to the agent
 
-- [Web User](using/web-user.md) · **Covered** — the person who runs JiuwenSwarm and uses the
-  full Web UI / desktop app for their own tasks; when self-hosting, also the Instance Admin.
-- [IM User](using/im-user.md) · **Covered** — a person talking to a shared bot from a
-  Feishu/Telegram/WeChat group, with no Web UI; a limited Web User (shares the Web User findings).
-- [Developer](using/developer.md) · **Covered** — a technical Web User who drives the agent as a
-  coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting,
-  also the Instance Admin.
+- [Web User](using/web-user.md) — runs JiuwenSwarm and uses the full Web UI / desktop app; includes the developers who use it to code and automate (folded into this persona).
+- [IM User](using/im-user.md) — talks to a shared bot from a messaging app (Feishu/Telegram/WeChat group); no Web UI.
 
 ## Administering — people who run it
 
-- [Instance Admin](operating/instance-admin.md) · **Covered** — installs, configures, runs, and keeps
-  one JiuwenSwarm working (models, channels, tool-permission whitelists, memory, upgrades).
-- [Shared Bot Admin](operating/shared-bot-admin.md) · **Partial** — runs one instance that
-  a whole group uses through a chat bot; on top of instance admin duties, must keep each user's
-  session/memory separate and stop one user from taking the instance down.
+- [Instance Admin](operating/instance-admin.md) — the administrator (运维) of one instance: config, health, diagnostics, cost.
+- [Shared Bot Admin](operating/shared-bot-admin.md) — runs one instance that a group uses through a chat bot; adds per-user isolation and limits.
 
 ## Extending — people who build into the product
 
-- [Extension Developer](extending/extension-developer.md) · **Covered** — rails, tools, and
-  the Python SDK.
-- [Skill Author](extending/skill-author.md) · **Partial** — writes and packages skills
-  (`SKILL.md`, Python tools, prompt/instruction content).
+- [Extension Developer](extending/extension-developer.md) — rails, tools, and the Python SDK.
+- [Skill Author](extending/skill-author.md) — writes and packages skills.
 
-## Integrating — people who build on top as a backend
+## Integrating — people who build on top
 
-- [Application Developer](integrating/application-developer.md) · **Covered** — a custom
-  product on top of jiuwenswarm over the E2A/WebSocket API.
+- [Application Developer](integrating/application-developer.md) — a product on the E2A/WebSocket (or ACP) API.
 
 ---
 
-These are the roles JiuwenSwarm actually ships surfaces for: the desktop/CLI install, Web UI,
-TUI, IM channels, skill hubs, the rails/harness extension surface, and the E2A/ACP API.
-Oversight roles (audit, security, QA, analytics, support) have no shipped product surface
-yet, so they are not included as personas.
+These are the roles JiuwenSwarm actually ships surfaces for. Roles with no shipped surface (audit, security, QA, analytics, support) are not included.

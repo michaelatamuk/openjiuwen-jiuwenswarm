@@ -12,19 +12,18 @@ Quick reads: [00-overview — root cause & concern map](findings/00-overview.md)
 
 ### `personas/` — Start here if you are a specific role
 
-One file per persona. Each file lists every finding relevant to that persona as a
-one-liner with a link to the full finding text. Read only the file for your role.
+One file per persona. Each file is a short profile: who this person is and which concern
+folders matter to them (linking into the findings). Read the file for your role.
 
 | File | Persona | Status |
 |---|---|---|
-| [web-user.md](personas/using/web-user.md) | **Web User** | Covered · 44 findings |
-| [im-user.md](personas/using/im-user.md) | **IM User** | Covered · 5 findings |
-| [developer.md](personas/using/developer.md) | **Developer** | Covered · 9 findings |
-| [instance-admin.md](personas/operating/instance-admin.md) | **Instance Admin** | Covered · 26 findings |
-| [extension-developer.md](personas/extending/extension-developer.md) | **Extension Developer** | Covered · 12 findings |
-| [application-developer.md](personas/integrating/application-developer.md) | **Application Developer** | Covered · 11 findings |
-| [skill-author.md](personas/extending/skill-author.md) | **Skill Author** | Partial · 2 findings |
-| [shared-bot-admin.md](personas/operating/shared-bot-admin.md) | **Shared Bot Admin** | Partial · 5 findings |
+| [web-user.md](personas/using/web-user.md) | **Web User** | Covered |
+| [im-user.md](personas/using/im-user.md) | **IM User** | Covered |
+| [instance-admin.md](personas/operating/instance-admin.md) | **Instance Admin** | Covered |
+| [extension-developer.md](personas/extending/extension-developer.md) | **Extension Developer** | Covered |
+| [application-developer.md](personas/integrating/application-developer.md) | **Application Developer** | Covered |
+| [skill-author.md](personas/extending/skill-author.md) | **Skill Author** | Partial |
+| [shared-bot-admin.md](personas/operating/shared-bot-admin.md) | **Shared Bot Admin** | Partial |
 
 ---
 
@@ -100,34 +99,36 @@ of all findings × personas. Lives at the root alongside this file.
 ## Personas
 
 Personas are grouped by how each person relates to the system — that relationship is what
-decides which findings matter to them.
+decides which findings matter to them. Each persona file is a short **profile**: who this is
+and which concern folders affect it. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
 
 ### Using — people who talk to the agent
 
 | Persona | Who they are |
 |---|---|
-| [Web User](personas/using/web-user.md) · **Covered, 44 findings** | Runs JiuwenSwarm and uses the full Web UI / desktop app for their own tasks; when self-hosting, also the Instance Admin. |
-| [IM User](personas/using/im-user.md) · **Covered, 5 findings** | Talks to a shared bot from a Feishu/Telegram/WeChat group, with no Web UI — a limited Web User (shares the Web User findings). |
-| [Developer](personas/using/developer.md) · **Covered, 9 findings** | A technical Web User who drives the agent as a coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting, also the Instance Admin. |
+| [Web User](personas/using/web-user.md) · **Covered** | Runs JiuwenSwarm and uses the full Web UI / desktop app. JiuwenSwarm's users are developers and technical people, so the most common use — coding and automation — is folded into this persona. |
+| [IM User](personas/using/im-user.md) · **Covered** | Talks to a shared bot from a messaging app (Feishu/Telegram/WeChat group); no Web UI. |
 
 ### Administering — people who run it
 
 | Persona | Who they are |
 |---|---|
-| [Instance Admin](personas/operating/instance-admin.md) · **Covered, 26 findings** | The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm working — models, channels, tool-permission whitelists, memory, upgrades. |
-| [Shared Bot Admin](personas/operating/shared-bot-admin.md) · **Partial, 5 findings** | Runs one instance that a whole group uses through a chat bot; on top of instance-admin duties, keeps each user's session/memory separate and stops one user from taking the instance down. |
+| [Instance Admin](personas/operating/instance-admin.md) · **Covered** | The administrator (运维) of one instance: config, health, diagnostics, cost. |
+| [Shared Bot Admin](personas/operating/shared-bot-admin.md) · **Partial** | Runs one instance a group uses through a chat bot; adds per-user session isolation and limits. |
 
 ### Extending — people who build into the product
 
 | Persona | Who they are |
 |---|---|
-| [Extension Developer](personas/extending/extension-developer.md) · **Covered, 12 findings** | The engineer extending jiuwenswarm from inside: rails, tools, and the Python SDK. |
-| [Skill Author](personas/extending/skill-author.md) · **Partial, 2 findings** | The person who writes and packages skills for the marketplace — `SKILL.md`, Python tools, prompt/instruction content. |
+| [Extension Developer](personas/extending/extension-developer.md) · **Covered** | rails, tools, and the Python SDK. |
+| [Skill Author](personas/extending/skill-author.md) · **Partial** | writes and packages skills. |
 
 ### Integrating — people who build on top as a backend
 
 | Persona | Who they are |
 |---|---|
-| [Application Developer](personas/integrating/application-developer.md) · **Covered, 11 findings** | The engineer building their own product on jiuwenswarm as a backend, over the E2A/WebSocket API. |
+| [Application Developer](personas/integrating/application-developer.md) · **Covered** | a product on the E2A/WebSocket (or ACP) API. |
 
-Personas here are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM channels, skill hubs, rails/harness, E2A/ACP). Auditing/compliance/security/QA/analyst roles were considered but have no product surface yet, so they are not included.
+These are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM
+channels, skill hubs, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
+QA, analytics, support) are not included.
