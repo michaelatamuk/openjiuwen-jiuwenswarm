@@ -229,42 +229,123 @@ languages, ideally as separate config templates: `config.zh.yaml`, `config.en.ya
 
 ---
 
-## §4 · Reliability (Operator Perspective)
+## §4 · Reliability & Resilience
 
-*(Full findings → P1 chapter, §4)*
+*What operators experience when something goes wrong in the deployment.*
 
-Findings 4.1–4.4 are written from the user experience perspective but affect
-operators who are responsible for the reliability of the deployment:
+### 4.1 Graceful Degradation Is Silent
 
-- **4.1** Graceful Degradation Is Silent — operators should receive the same
-  health indicator in the startup log and a persistent alert channel (not just
-  the Web UI dot) when subsystems degrade.
-- **4.2** Session Recovery After Disconnect — operators need to understand the
-  server-side behavior: does the agent process continue after a WebSocket drop,
-  and how is state persisted?
-- **4.4** No Persistent State for In-Progress Tasks — the checkpoint system
-  should write to a configurable durable store, not just local disk.
+**Current state.**
+When a non-critical subsystem fails — memory provider down, OTel exporter
+unreachable, a channel fails to initialize — the system continues running but the
+user receives no notice. They may be operating under the assumption that memory is
+being saved when it is silently failing. `config.py:84` logs this at DEBUG level.
+
+**What good looks like.**
+A persistent health indicator in the Web UI — a small dot in the sidebar or bottom
+bar:
+- Green: all subsystems nominal.
+- Yellow: one or more non-critical subsystems degraded (click for details).
+- Red: agent is not reachable.
+
+On hover or click, a panel shows: "Memory: degraded (disk full). OTel: offline
+(exporter unreachable). All other services nominal." This is a 2-hour implementation
+that eliminates an entire class of silent failures.
+
+Additionally, the startup log should print subsystem health before serving the first request (see 2.1). Operators monitoring without the Web UI — via logs or alerting — need this information in the log stream, not only in the UI.
+
+### 4.2 Session Recovery After Disconnect Is Undefined
+
+**Current state.**
+If the browser tab closes or the WebSocket drops mid-task, it is not documented or
+visible whether the agent continues, stops, or is in an undefined state. There is
+no reconnect flow that shows what happened during the disconnect.
+
+**What good looks like.**
+On reconnect, the Web UI should immediately show what the agent did during the
+disconnect: "While you were away, the agent completed 4 steps and wrote 2 files.
+Here is what happened: [summary]." If the task is still running, show its current
+step. If it completed with an error, show the error prominently. The `useWebSocket`
+hook in `hooks/useWebSocket.ts` is the right place to implement reconnect + replay.
+
+From an operator's perspective: the server-side behavior during a disconnect (does the agent process continue? is state preserved?) should be documented. Currently it is not.
+
+### 4.3 Rate Limiting and API Failures Are Opaque
+
+**Current state.**
+When an API rate limit is hit or the model returns a 429 / 503, the user sees either
+a generic error message or the agent silently hangs. There is no exponential backoff
+indicator, no "retrying in 15s" message, no suggestion to switch to a different model.
+
+**What good looks like.**
+- A visible "Rate limited — retrying in 15s" countdown in the chat panel.
+- After 3 consecutive model errors, surface a prompt: "The model is repeatedly
+  failing. Try switching to deepseek-v3?" with a one-click model switch.
+- API errors should include the HTTP status code and the model's error message
+  verbatim, not a paraphrase.
+
+Operators need this surfaced in logs at WARNING level, not just in the Web UI, so that monitoring systems can detect model provider failures.
+
+### 4.4 No Persistent State for In-Progress Tasks
+
+**Current state.**
+If the `jiuwenswarm` process crashes mid-task, the task is lost. There is no
+checkpoint system — the agent cannot resume from step 3 of 5 after a restart.
+
+**What good looks like.**
+The todo system (`TaskPlanningRail`) already tracks task state. Persisting this to
+disk (a simple JSON file per session) would allow the agent to display "last session
+was interrupted at step 3: parse invoices. Resume?" on reconnect. This turns a
+frustrating failure mode into a recoverable one.
+
+For operators managing multi-user deployments, the checkpoint store should be configurable (local disk or external durable store) so that it survives process restarts in containerized environments.
 
 ---
 
-## §5 · Onboarding (Operator Perspective)
+## §5 · First-Run & Setup Experience
 
-*(Full findings → P1 chapter, §5)*
+*The operator's experience from install to a working, validated deployment.*
 
-Finding 5.1 (setup wizard) and 5.4 (CLI first-run) directly affect operators
-who perform the installation. The model credential testing (5.1 step 3) is an
-operator task. Finding 2.4 in the §P2 Operator Configuration section covers the
-same wizard from the operator's configuration angle.
+### 5.1 The Setup Wizard Ends Before Validation
+
+**Current state.**
+`ModelSetupGuide.tsx` has 3 steps: welcome → settings spotlight → models module
+spotlight. The wizard ends at the models panel. The operator must then figure out how
+to fill in provider credentials and validate them. If the model is misconfigured,
+the error only appears on the first chat.
+
+**What good looks like.**
+The wizard should not complete until the model is working. Suggested flow:
+1. Welcome — what jiuwenswarm does in 3 bullet points.
+2. Choose model provider — dropdown with logos (DeepSeek, OpenAI, Anthropic,
+   Huawei MaaS, Azure, Custom). Each option shows which fields are required.
+3. Enter credentials — with a "Test connection" button that makes a live API call.
+   Show: ✓ Connected (320ms) or ✗ Invalid API key — check your provider dashboard.
+4. (Optional) Enable a channel — Feishu, Telegram, etc., same test pattern.
+5. Send your first message — prefilled with a suggested starter task.
+
+The guide should be re-enterable at any time from the `?` icon, not just on first run.
+
+### 5.4 CLI First-Run Has No Guidance
+
+**Current state.**
+Running `jiuwenswarm` from the terminal with no config gives an unclear error. There
+is no `jiuwenswarm --help` output that walks through what to do first.
+
+**What good looks like.**
+```
+$ jiuwenswarm
+No config found at ~/.jiuwenswarm/config/config.yaml.
+Run 'jiuwenswarm-init' to set up your workspace, then 'jiuwenswarm-start'.
+```
+And `jiuwenswarm-init` should interactively prompt for the minimum required
+configuration (model provider, API key) before exiting.
 
 ---
 
 ## §9 · Economic UX
 
 *Token consumption, API costs, and resource awareness.*
-
-> Also affects: **P1** (end-users see their own token usage), **P12** (Data
-> Analysts need aggregate telemetry). The user-facing token counter (9.1) is
-> described here; P12 aggregate analytics is not yet covered.
 
 ### 9.1 No Token or Cost Visibility
 
@@ -301,10 +382,6 @@ skills →".
 ## §10 · Skill Ecosystem (Operator Perspective)
 
 *Discovering, installing, and managing skills across the instance.*
-
-> Also affects: **P1** (end-users discover and use skills), **P5** (Skill Authors
-> create and publish skills). End-user skill discovery is covered here; skill
-> authoring is in the P5 section.
 
 ### 10.1 Skill Marketplace Has No Quality Signals
 
@@ -359,37 +436,82 @@ captures this data — wiring it to a skill test UI is achievable.
 
 ---
 
-## §12 · Data & Privacy (Operator Perspective)
+## §12 · Data & Privacy
 
-*(Full findings → P1 chapter, §12)*
+*What data the instance stores and how long it is kept.*
 
-- **12.3** No Data Retention Policy UI — operators set the retention policy for
-  the whole instance. The settings panel described in 12.3 should distinguish
-  between instance-wide defaults (set by operator in config) and per-user
-  preferences (set by user in Web UI). Currently neither exists.
+### 12.3 No Data Retention Policy
 
----
+**Current state.**
+Memory and conversation history are stored indefinitely. There is a
+`trajectory_ui.retention_days` config option, but no equivalent for conversations
+or memory.
 
-## §13 · Help & Support (Operator Perspective)
-
-*(Full findings → P1 chapter, §13)*
-
-- **13.2** No Diagnostic Mode — the `jiuwenswarm diagnostics` command is
-  primarily an operator tool, used when supporting an end-user who reports a
-  problem.
-- **13.3** Error Messages Do Not Reference Log Files — especially important for
-  operators who monitor the system and need to correlate Web UI errors with
-  server-side log entries.
+**What good looks like.**
+A data retention settings panel with separate controls for the operator (instance-wide
+defaults) and the user (personal preferences, where applicable):
+- "Keep conversation history for: 30 / 90 / 365 / forever"
+- "Keep daily memory for: 7 / 30 / 90 / forever"
+- "Delete all data older than X"
+Automated expiration should run on startup. Operators should be able to set a maximum
+retention period that users cannot exceed.
 
 ---
 
-## §16 · Information Architecture (Operator Perspective)
+## §13 · Diagnostics & Support Tools
 
-*(Full findings → P1 chapter, §16)*
+*What operators have to diagnose failures and support users.*
 
-- **16.2** Settings Are Organized by Implementation, Not by User Task — this
-  affects operators who configure the system via the Web UI settings panels.
-  The goal-oriented reorganization proposed in 16.2 would reduce the time an
-  operator spends hunting for the right settings panel.
+### 13.2 No Diagnostic Collection Command
+
+**Current state.**
+When something goes wrong, the operator has no tool to collect diagnostic information
+in a single step. They would need to know to look in `~/.jiuwenswarm/agent/.logs/`,
+identify the relevant log directory, and know which log level to set.
+
+**What good looks like.**
+A `jiuwenswarm diagnostics` CLI command that:
+- Collects the last 100 lines of each log file.
+- Captures the config (with API keys redacted).
+- Captures system info (OS, Python version, package versions).
+- Writes a `jiuwenswarm-diagnostics-YYYY-MM-DD.txt` file.
+- Prints: "Diagnostics saved. Share this file when reporting an issue."
+
+### 13.3 Error Messages Do Not Reference Log Files
+
+**Current state.**
+When an error occurs, neither the user nor the operator is told where to look for
+more detail. The operator must know that logs exist, where they are, and how to read
+them — none of this is documented at the point of error.
+
+**What good looks like.**
+Every error message that has more detail in the log should end with:
+> "Full details in ~/.jiuwenswarm/agent/.logs/agent_server.log"
+
+In the Web UI, a "Show log" button that opens a scrollable log panel filtered
+to the current session and the last 60 seconds. For operators monitoring via CLI,
+errors written to stderr should include the log file path automatically.
+
+---
+
+## §16 · Settings Information Architecture
+
+*How the Web UI settings panels are organized.*
+
+### 16.2 Settings Are Organized by Implementation, Not by Operator Task
+
+**Current state.**
+Settings modules: General, Models, Channels, Agent, Browser, Experimental. This is
+organized by implementation component, not by what the operator is trying to do.
+An operator who wants to "change the agent's response language" must guess whether
+that is in General, Models, or Agent.
+
+**What good looks like.**
+Organize by operator goal:
+- **Getting started** — model setup, language, first skill.
+- **Communication channels** — Feishu, Telegram, Discord, etc.
+- **Memory & context** — memory settings, coding memory, context length.
+- **Agent behavior** — permissions, tools, mode defaults, response style.
+- **Advanced** — observability, debug traces, experimental features.
 
 ---

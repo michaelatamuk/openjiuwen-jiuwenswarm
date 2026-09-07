@@ -81,17 +81,58 @@ as the primary skill distribution mechanism.
 
 ---
 
-## §3 · Trust & Safety (Shared Deployment Perspective)
+## §3 · Trust & Safety
 
-*(Full findings → P1 chapter, §3)*
+*What group members can see about what the bot can do, and whether dangerous actions are confirmed.*
 
-- **3.1** No Visibility Into Agent Permissions — in a shared IM deployment, group
-  members have no way to know what the bot can do (read their files? send external
-  messages on their behalf?). The session capabilities banner (3.1) is a Web UI
-  feature; IM users get no equivalent.
-- **3.4** Destructive External Actions Have No Confirmation Layer — in a group
-  chat, a mistaken Feishu message sent by the bot is visible to everyone. The
-  confirm-before-send mode (3.4) matters more in a shared deployment than in a
-  private one.
+### 3.1 No Visibility Into Agent Permissions
+
+**Current state.**
+The agent can run bash commands, read and write files, send messages to Feishu,
+call web APIs, and spawn subagents. Before a session starts the user sees no
+summary of what the agent's current permissions are. The `PermissionWarningDialog`
+only appears as a generic "full access warning" — it does not list what is
+specifically permitted.
+
+In a shared IM deployment, this problem is compounded: group members have no Web UI
+access at all. They cannot see a permission banner even if one existed. They have
+no way to know that the bot they are chatting with in a Feishu group can send
+messages on their behalf to other channels, or read files on the server.
+
+**What good looks like.**
+A bot introduction message when first added to a group or when a user first interacts
+with the bot, listing what it can and cannot do in plain language:
+```
+Hi! I'm the team assistant. I can:
+· Read and summarize documents you share with me
+· Search the web and report back
+· Send Feishu messages (only in this group, and only when asked)
+
+I cannot access your personal files or send messages outside this group.
+```
+This is the IM-appropriate equivalent of the Web UI session capabilities banner.
+
+### 3.4 Destructive External Actions Have No Confirmation Layer
+
+**Current state.**
+The agent can send messages to Feishu groups, publish to external APIs, and call
+webhooks — all without a user confirmation step. The permission system can block
+tools entirely but cannot require per-call confirmation for sensitive actions.
+
+In a group chat context, this is especially risky: a mistaken `send_feishu_message`
+call triggered by an ambiguous user message could broadcast incorrect information
+to an entire team or organization.
+
+**What good looks like.**
+A "confirm before send" mode for external-impact tools. Before calling
+`send_feishu_message` or any external webhook, the agent shows the message content
+in the chat with Confirm / Edit / Cancel options. In an IM channel, this would be
+a follow-up message:
+```
+I'm about to send this to the #announcements group:
+"Q3 report is ready for review."
+Reply 'yes' to send, 'no' to cancel, or 'edit [your text]' to change it.
+```
+This is especially important for group messages where mistakes are visible to many people.
 
 ---

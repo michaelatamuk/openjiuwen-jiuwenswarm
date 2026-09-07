@@ -12,13 +12,19 @@ used in the prioritized backlog.
 
 | File | Persona | Findings |
 |---|---|---|
-| [p1-end-user.md](p1-end-user.md) | **P1 — End-User** | §1, §3–8, §12–16 · 38 findings |
-| [p2-operator.md](p2-operator.md) | **P2 — Operator** | §2, §9, §10 · 16 findings + cross-refs |
-| [p3-extension-dev.md](p3-extension-dev.md) | **P3 — Extension Developer** | §17 · 12 findings |
-| [p4-app-dev.md](p4-app-dev.md) | **P4 — Application Developer** | §18 · 10 findings |
-| [p5-skill-author.md](p5-skill-author.md) | **P5 — Skill Author** | §10 partial · 2 findings + gap list |
-| [p6-shared-deploy.md](p6-shared-deploy.md) | **P6 — Shared Deployment Operator** | §11 · 3 findings + gap list |
-| [stubs.md](stubs.md) | **P7–P13** | Not yet covered — definitions + key needs |
+| [end-user.md](end-user.md) | **P1 — End-User** | §1, §3–8, §12–16 · 38 findings |
+| [operator.md](operator.md) | **P2 — Operator** | §2, §9, §10 · 16 findings |
+| [extension-developer.md](extension-developer.md) | **P3 — Extension Developer** | §17 · 12 findings |
+| [application-developer.md](application-developer.md) | **P4 — Application Developer** | §18 · 10 findings |
+| [skill-author.md](skill-author.md) | **P5 — Skill Author** | §10 partial · 2 findings + gap list |
+| [shared-deployment-operator.md](shared-deployment-operator.md) | **P6 — Shared Deployment Operator** | §11 · 3 findings + gap list |
+| [auditor.md](auditor.md) | **P7 — Auditor / Compliance Officer** | Not yet covered |
+| [agent-evaluator.md](agent-evaluator.md) | **P8 — Agent QA / Evaluator** | Not yet covered |
+| [support-help-desk.md](support-help-desk.md) | **P9 — Support / Help Desk** | Not yet covered |
+| [prompt-engineer.md](prompt-engineer.md) | **P10 — AI / Prompt Engineer** | Not yet covered |
+| [security-researcher.md](security-researcher.md) | **P11 — Security Researcher** | Not yet covered |
+| [data-analyst.md](data-analyst.md) | **P12 — Data Analyst** | Not yet covered |
+| [im-channel-user.md](im-channel-user.md) | **P13 — IM Channel User** | Not yet covered |
 | [matrix.md](matrix.md) | All personas | Cross-reference: which findings affect which personas |
 | [core-problem.md](core-problem.md) | — | Top 5 highest-leverage fixes across all personas |
 
@@ -44,26 +50,26 @@ used in the prioritized backlog.
 
 ### Not yet covered
 
-See [stubs.md](stubs.md) for full definitions and key unmet needs.
+Each persona has its own file with a definition and key unmet needs. Findings will be added when the persona is formally investigated.
 
 | ID | Persona | Short description |
 |---|---|---|
-| **P7** | Auditor / Compliance Officer | Reviews agent activity for legal/regulatory purposes |
-| **P8** | Agent QA / Evaluator | Tests agent quality, runs benchmarks, catches regressions |
-| **P9** | Support / Help Desk | Diagnoses failures, resets user state, replays sessions |
-| **P10** | AI / Prompt Engineer | Crafts and optimizes prompts and skill descriptions |
-| **P11** | Security Researcher | Tests deployment security posture |
-| **P12** | Data Analyst | Analyzes aggregate agent behavior and usage patterns |
-| **P13** | IM Channel User | Talks to jiuwenswarm through Feishu/Telegram/WeChat with no Web UI access |
+| **P7** | [Auditor / Compliance Officer](auditor.md) | Reviews agent activity for legal/regulatory purposes |
+| **P8** | [Agent QA / Evaluator](agent-evaluator.md) | Tests agent quality, runs benchmarks, catches regressions |
+| **P9** | [Support / Help Desk](support-help-desk.md) | Diagnoses failures, resets user state, replays sessions |
+| **P10** | [AI / Prompt Engineer](prompt-engineer.md) | Crafts and optimizes prompts and skill descriptions |
+| **P11** | [Security Researcher](security-researcher.md) | Tests deployment security posture |
+| **P12** | [Data Analyst](data-analyst.md) | Analyzes aggregate agent behavior and usage patterns |
+| **P13** | [IM Channel User](im-channel-user.md) | Talks to jiuwenswarm through Feishu/Telegram/WeChat with no Web UI access |
 
 ---
 
 ## How findings are organized
 
-Each persona file is self-contained. Findings that affect multiple personas appear
-**in full** under the primary persona and as **brief navigational entries** under
-secondary ones — no content duplication, but each file has enough context to stand
-alone.
+Each persona file is fully self-contained. If a finding is relevant to a persona,
+the full finding text appears in that persona's file — not a pointer to another file.
+This means a finding that affects multiple personas will appear in full in each of
+their files. Read only the file for your persona.
 
 Use [matrix.md](matrix.md) to answer "which personas are affected by finding X.Y?"
 Use [core-problem.md](core-problem.md) for the executive summary and top 5 fixes.

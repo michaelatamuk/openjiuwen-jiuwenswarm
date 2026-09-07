@@ -194,10 +194,6 @@ code blocks and lengthy reasoning chains.
 
 *Does the user understand what the agent is about to do, and can they stop it?*
 
-> Also affects: **P2** (operators configure permission rules), **P6** (team admins
-> manage per-user permissions). See the P2 and P6 sections for the operator/admin
-> perspective on these findings.
-
 ### 3.1 No Visibility Into Agent Permissions Before the First Action
 
 **Current state.**
@@ -276,9 +272,6 @@ for group messages where mistakes are visible to many people.
 
 *What does the user experience when something goes wrong?*
 
-> Also affects: **P2** (operators are responsible for reliability configuration).
-> See §P2·§4 for the operator perspective.
-
 ### 4.1 Graceful Degradation Is Silent
 
 **Current state.**
@@ -343,9 +336,6 @@ frustrating failure mode into a recoverable one.
 ## §5 · Onboarding & First-Run Experience
 
 *The experience from `pip install` to first successful task.*
-
-> Also affects: **P2** (operators perform the installation and initial config).
-> See §P2·§5 for the operator-side first-run findings.
 
 ### 5.1 The Setup Wizard Ends Too Early
 
@@ -416,11 +406,6 @@ configuration (model provider, API key) before exiting.
 ## §6 · Agent Transparency & Explainability
 
 *Can the user understand what the agent is doing and why?*
-
-> Also affects: **P7** (Auditor needs structured activity logs), **P9** (Support
-> needs session replay). These personas are not yet fully covered — findings here
-> are written from the end-user perspective but will gain dedicated sections when
-> P7/P9 investigation is complete.
 
 ### 6.1 Thinking Display Is Hidden Behind the Trajectory Panel
 
@@ -535,9 +520,6 @@ lightweight progress protocol in the skill execution harness, but the UI infrast
 
 *How does the system communicate with users who are not watching?*
 
-> Also affects: **P4** (application developers need webhook events for async
-> task completion). See §P4·§8 for the developer perspective.
-
 ### 8.1 No Notification When Long-Running Tasks Complete
 
 **Current state.**
@@ -572,9 +554,6 @@ shows a processing state for the active session, but background sessions are sil
 ## §12 · Data & Privacy
 
 *What data is stored, where, and who can see it.*
-
-> Also affects: **P2** (operators set retention policies), **P7** (Auditors need
-> data lineage). See §P2·§12 for the operator perspective.
 
 ### 12.1 No Visibility Into What Is Stored in Memory
 
@@ -622,9 +601,6 @@ than X". Automated expiration should run on startup.
 ## §13 · Help & Support
 
 *What happens when the user gets stuck?*
-
-> Also affects: **P2** (operators need diagnostic tools), **P9** (Support staff
-> need session lookup). See §P2·§13 for the operator/support perspective.
 
 ### 13.1 No In-Context Help
 
@@ -750,9 +726,6 @@ messages to send when reconnected). Push notification support for task completio
 ## §16 · Information Architecture
 
 *Is the right information in the right place?*
-
-> Also affects: **P2** (operators navigate the same settings panels). See §P2·§16
-> for the operator perspective on settings organization.
 
 ### 16.1 Skills and Connectors Are Separate But Conceptually Similar
 

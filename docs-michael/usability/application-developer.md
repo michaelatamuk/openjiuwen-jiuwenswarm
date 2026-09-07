@@ -14,14 +14,34 @@ exposes.
 
 ---
 
-## §8 · Async Notifications (Application Developer Perspective)
+## §8 · Async Task Notifications
 
-*(Full findings → P1 chapter, §8)*
+*How application developers receive signals when long-running tasks complete.*
 
-Finding 8.1 (task completion notification) is especially important for application
-developers building automation workflows: the current in-browser notification
-approach doesn't serve server-side consumers. The webhook system described in **18.8**
-is the right solution for P4 — see §18.8 below.
+### 8.1 No Server-Side Task Completion Notification
+
+**Current state.**
+For tasks that run for minutes, there is no server-side mechanism to notify an
+application when the task completes. The only notification mechanisms are browser-side
+(Web Notifications API, tab badge) — which require the browser tab to be open. A
+server-side application or automation script has no push notification to listen for
+without keeping a WebSocket connection open for the full duration of the task.
+
+**What good looks like.**
+A native webhook system where application developers configure a URL to receive
+a POST request when a task completes:
+```yaml
+hooks:
+  on_task_complete:
+    - type: webhook
+      url: "https://myapp.example.com/jiuwenswarm-events"
+      secret: "whsec_abc123"
+      retry: 3
+```
+This is covered in full in finding 18.8 (Webhook/Event Notification System Is Limited).
+For application developers, the webhook approach is far preferable to polling or
+holding a WebSocket connection open: it works with serverless functions, scales
+independently, and doesn't require persistent connection management.
 
 ---
 
