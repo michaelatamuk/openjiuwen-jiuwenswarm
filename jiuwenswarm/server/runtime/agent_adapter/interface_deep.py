@@ -284,7 +284,7 @@ from jiuwenswarm.server.runtime import extension_package_manager as equipment
 # 时间戳与 live「答完再入列」对齐。按 session 暂存，跨同 session 的并发 stream 共享。
 _pending_goal_objective_history: dict[str, dict[str, Any]] = {}
 from jiuwenswarm.server.runtime.skill.skill_manager import SkillManager
-from jiuwenswarm.server.runtime.usage_cost import CostLimitExceededError
+from jiuwenswarm.server.runtime.usage_cost import CostLimitExceededError, raise_if_session_cost_limit_exceeded
 from jiuwenswarm.server.runtime.agent_adapter.evolution_helpers import (
     EVOLUTION_ACCEPT_LABELS,
     EVOLUTION_EXECUTE_LABELS,
@@ -425,6 +425,12 @@ from jiuwenswarm.agents.harness.common.plugins.rail_manager import get_rail_mana
 from jiuwenswarm.runtime.cron import CronTargetChannel
 from jiuwenswarm.common.schema.agent import AgentRequest, AgentResponse, AgentResponseChunk
 from jiuwenswarm.common.schema.message import ReqMethod
+from jiuwenswarm.common.playwright_mcp_runtime import (
+    clear_managed_launch_environment,
+    record_managed_launch_environment,
+    resolve_playwright_mcp_launch,
+    serialize_playwright_mcp_args,
+)
 from jiuwenswarm.common.utils import (
     apply_free_search_runtime_defaults,
     get_agent_skills_dir,
@@ -1584,6 +1590,9 @@ class JiuWenSwarmDeepAdapter:
         # interaction stream. A late user-round chat.final must not be demoted
         # just because a goal round already became active.
         self._stream_content_run_kind: str | None = None
+        # Set when this stream's 0-token empty-run guard (issue #1447) fires;
+        # suppresses the synthetic stream-end chat.final for that round only.
+        self._empty_run_guard_armed: bool = False
         # Run kind of the round that produced the chunks being consumed right
         # now, sampled once per round instead of per chunk (see
         # ``_track_round_output_boundary``).
@@ -3596,24 +3605,39 @@ class JiuWenSwarmDeepAdapter:
     def _sync_browser_runtime_environment(
         self,
         config_base: dict[str, Any] | None = None,
+        *,
+        runtime_enabled: bool | None = None,
     ) -> None:
         """Synchronize browser launch settings before browser runtimes are built."""
         headless = self._resolve_headless_from_config(config_base)
-        mcp_args_raw = (
-            os.getenv("PLAYWRIGHT_MCP_ARGS") or "-y @playwright/mcp@latest"
-        ).strip()
-        mcp_args = (
-            mcp_args_raw.split()
-            if mcp_args_raw
-            else ["-y", "@playwright/mcp@latest"]
+        browser_runtime_enabled = (
+            self._browser_runtime_enabled()
+            if runtime_enabled is None
+            else runtime_enabled
         )
-        mcp_args = [arg for arg in mcp_args if arg != "--headless"]
+        if browser_runtime_enabled:
+            launch = resolve_playwright_mcp_launch()
+            mcp_args = [arg for arg in launch.args if arg != "--headless"]
+            if headless:
+                mcp_args.append("--headless")
+            serialized_args = serialize_playwright_mcp_args(mcp_args)
+            os.environ["PLAYWRIGHT_MCP_COMMAND"] = launch.command
+            os.environ["PLAYWRIGHT_MCP_ARGS"] = serialized_args
+            record_managed_launch_environment(os.environ, launch, serialized_args)
+            logger.info(
+                "[%s] Playwright MCP launch: source=%s, version=%s, runtime=%s",
+                type(self).__name__,
+                launch.source,
+                launch.version,
+                launch.runtime_display_path or "external",
+            )
+        else:
+            clear_managed_launch_environment(os.environ)
+
         if headless:
-            mcp_args.append("--headless")
             os.environ["BROWSER_MANAGED_ARGS"] = "--headless=new"
         else:
             os.environ.pop("BROWSER_MANAGED_ARGS", None)
-        os.environ["PLAYWRIGHT_MCP_ARGS"] = " ".join(mcp_args)
         chrome_path = self._resolve_managed_browser_binary_from_config(config_base)
         if chrome_path:
             os.environ["BROWSER_MANAGED_BINARY"] = chrome_path
@@ -3766,17 +3790,21 @@ class JiuWenSwarmDeepAdapter:
             subagents_cfg.get("browser_agent") if isinstance(subagents_cfg, dict) else {}
         )
 
+        browser_enabled = self._browser_runtime_enabled()
         # Swarm members and the main browser subagent read these variables when
-        # their browser runtimes are built.
+        # their browser runtimes are built. Runtime extraction stays lazy when
+        # browser support is disabled.
         self._browser_runtime_settings = None
         self._browser_runtime_security_profile = None
-        self._sync_browser_runtime_environment(config_base)
+        self._sync_browser_runtime_environment(
+            config_base,
+            runtime_enabled=browser_enabled,
+        )
         # Skill-only MCPs' bundled scripts read tokens from os.environ (BashTool
         # inherits it). Sync now so a freshly built agent process has the
         # connected MCPs' tokens available before any skill runs.
         self._sync_mcp_credentials_environment()
 
-        browser_enabled = self._browser_runtime_enabled()
         if browser_enabled:
             if not str(os.getenv("BROWSER_DRIVER") or "").strip():
                 os.environ["BROWSER_DRIVER"] = "managed"
@@ -10715,7 +10743,52 @@ class JiuWenSwarmDeepAdapter:
         del had_assistant_output  # intentionally unused; see docstring
         if emitted_terminal_chat_final:
             return False
+        if getattr(self, "_empty_run_guard_armed", False):
+            # The 0-token empty-run guard emits chat.error below; a synthetic
+            # success final after it would contradict the error to the client.
+            return False
         return not self._goal_record_is_active()
+
+    def _detect_empty_llm_run(
+        self,
+        *,
+        session_id: str,
+        total_tokens: int,
+        had_assistant_output: bool,
+        run_failure: tuple[str, str] | None,
+        stream_consumer_cancelled: bool,
+        emitted_ask_user_request_ids: set[str],
+    ) -> bool:
+        """Whether a chat round ended without the LLM ever being called.
+
+        Upstream (agent-core) can reach a corrupted-interruption-state deadlock
+        where every request returns instantly with 0 tokens and no error (see
+        issue #1447). Detect that here — total 0 tokens, nothing streamed, no
+        terminal failure already surfaced, and none of the legitimate 0-token
+        exits (consumer cancel, HITL ask_user pending, an active goal round,
+        rail abort from user cancel/supplement).
+        """
+        if total_tokens > 0 or had_assistant_output:
+            return False
+        if run_failure is not None or stream_consumer_cancelled:
+            return False
+        if emitted_ask_user_request_ids:
+            # A HITL interrupt is waiting for the user's answer; the round
+            # legitimately ends without a model final.
+            return False
+        if self._goal_record_is_active() or self._has_active_goal_round():
+            return False
+        rail = self._stream_event_rail
+        if rail is not None:
+            try:
+                if rail.is_abort_requested(session_id=session_id):
+                    return False
+            except Exception:
+                logger.debug(
+                    "[JiuWenSwarmDeepAdapter] empty-run guard rail probe failed",
+                    exc_info=True,
+                )
+        return True
 
     @staticmethod
     def _resolve_input_dispatch_mode(params: Any) -> InputDispatchMode | None:
@@ -11921,11 +11994,13 @@ class JiuWenSwarmDeepAdapter:
             return "0"
 
     @staticmethod
-    def _format_cost_value(value: Any) -> str:
+    def _format_cost_value(value: Any, currency: Any = None) -> str:
         try:
-            return f"${float(value):.4f}"
+            amount = f"{float(value):.4f}"
         except (TypeError, ValueError):
-            return "$0.0000"
+            amount = "0.0000"
+        currency_text = str(currency or "").strip().upper()
+        return f"{amount} {currency_text}" if currency_text else amount
 
     def _format_usage_summary(self, summary: dict[str, Any]) -> str:
         lines = [
@@ -11933,10 +12008,14 @@ class JiuWenSwarmDeepAdapter:
             f"Output tokens: {self._format_count_value(summary.get('output_tokens'))}",
             f"Total tokens: {self._format_count_value(summary.get('total_tokens'))}",
         ]
-        if bool(summary.get("cost_available")):
-            lines.append(f"Total cost: {self._format_cost_value(summary.get('total_cost'))}")
+        if bool(summary.get("cost_feature_enabled")) and bool(summary.get("cost_available")):
+            currency = summary.get("currency")
+            lines.append(f"Cost source: {summary.get('cost_source') or 'provider_reported'}")
+            if currency:
+                lines.append(f"Currency: {currency}")
+            lines.append(f"Total cost: {self._format_cost_value(summary.get('total_cost'), currency)}")
             if summary.get("cost_limit") is not None:
-                lines.append(f"Cost limit: {self._format_cost_value(summary.get('cost_limit'))}")
+                lines.append(f"Cost limit: {self._format_cost_value(summary.get('cost_limit'), currency)}")
         return "\n".join(lines)
 
     def _handle_usage_slash_command(
@@ -11962,18 +12041,25 @@ class JiuWenSwarmDeepAdapter:
 
     def _format_limit_summary(self, summary: dict[str, Any]) -> str:
         limit = summary.get("cost_limit")
-        limit_text = "infinite" if limit is None else self._format_cost_value(limit)
+        currency = summary.get("currency")
+        limit_text = "infinite" if limit is None else self._format_cost_value(limit, currency)
         lines = [f"Cost limit: {limit_text}"]
+        if not bool(summary.get("cost_feature_enabled")):
+            lines.append("Cost visibility is disabled in config.yaml (usage_cost.enabled=false).")
+            return "\n".join(lines)
+        lines.append(f"Cost source: {summary.get('cost_source') or 'unavailable'}")
         if bool(summary.get("cost_available")):
             total = float(summary.get("total_cost", 0.0) or 0.0)
-            lines.append(f"Current cost: {self._format_cost_value(total)}")
+            if currency:
+                lines.append(f"Currency: {currency}")
+            lines.append(f"Current cost: {self._format_cost_value(total, currency)}")
             if limit is not None:
                 remaining = max(0.0, float(limit) - total)
-                lines.append(f"Remaining: {self._format_cost_value(remaining)}")
+                lines.append(f"Remaining: {self._format_cost_value(remaining, currency)}")
+            if not bool(summary.get("limit_enforcement_enabled")):
+                lines.append("Cost limit enforcement is disabled in config.yaml.")
         else:
             lines.append("Current cost: unavailable; provider has not returned cost metadata.")
-            if limit is not None:
-                lines.append("The limit will not be enforced until cost metadata is available.")
         return "\n".join(lines)
 
     def _handle_limit_slash_command(
@@ -12005,11 +12091,18 @@ class JiuWenSwarmDeepAdapter:
                 "output": self._format_limit_summary(summary),
             }
 
-        has_scope = args[0] in {"session", "task"}
+        usage_text = "Usage: /limit [cost <amount>|session cost <amount>|clear|session clear]"
+        has_scope = args[0] == "session"
         offset = 1 if has_scope else 0
-        scope = args[0] if has_scope else "session"
         command = args[offset] if len(args) > offset else ""
-        scope_label = "Current task/session" if scope == "task" else "Session"
+        if args[0] == "task":
+            return {
+                **result_base,
+                "result_type": "error",
+                "display_level": "error",
+                "error": "Task-scoped cost limits are not supported yet; use session scope.",
+                "output": "Task-scoped cost limits are not supported yet; use /limit session cost <amount>.",
+            }
 
         if command == "clear":
             summary = set_session_cost_limit(session_id, None)
@@ -12017,7 +12110,7 @@ class JiuWenSwarmDeepAdapter:
                 **result_base,
                 "result_type": "limit_updated",
                 "usage": summary,
-                "output": f"{scope_label} cost limit cleared (infinite).",
+                "output": "Session cost limit cleared (infinite).",
             }
 
         if command == "cost":
@@ -12032,26 +12125,34 @@ class JiuWenSwarmDeepAdapter:
                     **result_base,
                     "result_type": "error",
                     "display_level": "error",
-                    "error": "Usage: /limit [cost <amount>|session cost <amount>|task cost <amount>|clear]",
-                    "output": "Usage: /limit [cost <amount>|session cost <amount>|task cost <amount>|clear]",
+                    "error": usage_text,
+                    "output": usage_text,
                 }
-            summary = set_session_cost_limit(session_id, value)
-            suffix = ""
-            if not bool(summary.get("cost_available")):
-                suffix = " It will not be enforced until provider cost metadata is available."
+            try:
+                summary = set_session_cost_limit(session_id, value)
+            except ValueError as exc:
+                current = get_session_cost_summary(session_id)
+                return {
+                    **result_base,
+                    "result_type": "error",
+                    "display_level": "error",
+                    "usage": current,
+                    "error": str(exc),
+                    "output": str(exc),
+                }
             return {
                 **result_base,
                 "result_type": "limit_updated",
                 "usage": summary,
-                "output": f"{scope_label} cost limit set to {self._format_cost_value(value)}.{suffix}",
+                "output": f"Session cost limit set to {self._format_cost_value(value, summary.get('currency'))}.",
             }
 
         return {
             **result_base,
             "result_type": "error",
             "display_level": "error",
-            "error": "Usage: /limit [cost <amount>|session cost <amount>|task cost <amount>|clear]",
-            "output": "Usage: /limit [cost <amount>|session cost <amount>|task cost <amount>|clear]",
+            "error": usage_text,
+            "output": usage_text,
         }
 
     # Goal capability adapter -------------------------------------------------
@@ -13289,7 +13390,28 @@ class JiuWenSwarmDeepAdapter:
                     )
                 return
 
+        try:
+            raise_if_session_cost_limit_exceeded(session_id)
+        except CostLimitExceededError as exc:
+            yield AgentResponseChunk(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                payload={
+                    "event_type": "chat.error",
+                    "error": str(exc),
+                    "error_type": "CostLimitExceeded",
+                    "usage": exc.summary,
+                },
+                is_complete=True,
+            )
+            return
+        except Exception:
+            logger.debug("[JiuWenSwarmDeepAdapter] cost-limit preflight failed", exc_info=True)
+
         has_streamed_content = False
+        # Reset per-stream: the previous round's empty-run verdict must not
+        # suppress this round's stream-end chat.final.
+        self._empty_run_guard_armed = False
         accumulated_text = ""
         accumulated_reasoning = ""
         had_assistant_output = False
@@ -13315,6 +13437,70 @@ class JiuWenSwarmDeepAdapter:
         # deltas plus the terminal chat.final — see ``_assemble_run_answer``.
         run_answer_deltas: list[str] = []
         run_answer_final = ""
+        try:
+            from jiuwenswarm.server.runtime.usage_cost import get_usage_cost_settings
+
+            usage_cost_settings = get_usage_cost_settings(self._config_cache)
+        except Exception:
+            logger.debug("[JiuWenSwarmDeepAdapter] failed to load usage cost settings", exc_info=True)
+            usage_cost_settings = {"enabled": False, "enforce_limits": False}
+
+        def _accumulate_usage_metadata(
+            usage_meta: dict[str, Any],
+            source: str | None = None,
+        ) -> dict[str, Any] | None:
+            nonlocal cost_limit_exceeded_summary
+            if not isinstance(usage_meta, dict):
+                return None
+
+            def _number_value(name: str) -> float | None:
+                value = usage_meta.get(name)
+                if isinstance(value, bool):
+                    return None
+                if isinstance(value, (int, float)):
+                    return max(0.0, float(value))
+                return None
+
+            input_tokens = int(_number_value("input_tokens") or 0)
+            output_tokens = int(_number_value("output_tokens") or 0)
+            total_tokens_raw = _number_value("total_tokens")
+            total_tokens = int(total_tokens_raw if total_tokens_raw is not None else input_tokens + output_tokens)
+            usage_accumulator["input_tokens"] += input_tokens
+            usage_accumulator["output_tokens"] += output_tokens
+            usage_accumulator["total_tokens"] += total_tokens
+            # cache_tokens is provider-served prompt cache hits; develop tracks it
+            # apart from input/output and surfaces a hit rate in the usage summary.
+            cache_tokens = int(_number_value("cache_tokens") or 0)
+            usage_accumulator["cache_tokens"] += cache_tokens
+
+            def _cost_value(name: str) -> float | None:
+                return _number_value(name)
+
+            if bool(usage_cost_settings.get("enabled")):
+                input_cost = _cost_value("input_cost") or 0.0
+                output_cost = _cost_value("output_cost") or 0.0
+                total_cost = _cost_value("total_cost")
+                if any(_cost_value(name) is not None for name in ("input_cost", "output_cost", "total_cost")):
+                    usage_accumulator["cost_available"] = True
+                usage_accumulator["input_cost"] += input_cost
+                usage_accumulator["output_cost"] += output_cost
+                usage_accumulator["total_cost"] += (
+                    total_cost if total_cost is not None else input_cost + output_cost
+                ) or 0.0
+            try:
+                from jiuwenswarm.server.runtime.usage_cost import add_session_usage
+
+                session_cost = add_session_usage(session_id, usage_meta)
+                if session_cost.get("cost_limit_exceeded"):
+                    cost_limit_exceeded_summary = session_cost
+                    if source != "main":
+                        raise CostLimitExceededError(session_cost)
+                return session_cost
+            except CostLimitExceededError:
+                raise
+            except Exception:
+                logger.debug("[JiuWenSwarmDeepAdapter] failed to record session cost", exc_info=True)
+            return None
 
         def _accumulate_usage_metadata(
             usage_meta: dict[str, Any],
@@ -13503,12 +13689,13 @@ class JiuWenSwarmDeepAdapter:
             )
             if self._stream_event_rail is not None:
                 self._stream_event_rail.reset_abort(session_id)
-            try:
-                from jiuwenswarm.server.runtime.usage_cost import set_subagent_usage_sink
+            if bool(usage_cost_settings.get("enabled")):
+                try:
+                    from jiuwenswarm.server.runtime.usage_cost import set_subagent_usage_sink
 
-                usage_sink_token = set_subagent_usage_sink(_accumulate_usage_metadata)
-            except Exception:
-                logger.debug("[JiuWenSwarmDeepAdapter] failed to install usage sink", exc_info=True)
+                    usage_sink_token = set_subagent_usage_sink(_accumulate_usage_metadata)
+                except Exception:
+                    logger.debug("[JiuWenSwarmDeepAdapter] failed to install usage sink", exc_info=True)
             inputs = dict(inputs)
             inputs = self._prepare_multimodal_image_inputs(
                 request,
@@ -13975,22 +14162,6 @@ class JiuWenSwarmDeepAdapter:
                         else {}
                     )
                     if isinstance(usage_meta, dict):
-                        for token in (
-                            "input_tokens",
-                            "output_tokens",
-                            "total_tokens",
-                            "cache_tokens",
-                        ):
-                            usage_accumulator[token] += usage_meta.get(token, 0) or 0
-                        for cost in ("input_cost", "output_cost", "total_cost"):
-                            usage_accumulator[cost] += usage_meta.get(cost, 0.0) or 0.0
-                        # agent-core no longer serializes the prompt; carry the one
-                        # captured by the llm_call_start rail event so the final
-                        # prompt stays available for the LLM call.
-                        if last_llm_prompt and not usage_meta.get("prompt"):
-                            usage_meta = {**usage_meta, "prompt": last_llm_prompt}
-                            if isinstance(chunk.payload, dict):
-                                chunk.payload["usage_metadata"] = usage_meta
                         _accumulate_usage_metadata(usage_meta, "main")
                     yield AgentResponseChunk(
                         request_id=rid,
@@ -14004,6 +14175,7 @@ class JiuWenSwarmDeepAdapter:
                         is_complete=False,
                     )
                     if cost_limit_exceeded_summary is not None:
+                        currency = cost_limit_exceeded_summary.get("currency")
                         yield AgentResponseChunk(
                             request_id=rid,
                             channel_id=cid,
@@ -14011,8 +14183,16 @@ class JiuWenSwarmDeepAdapter:
                                 "event_type": "chat.error",
                                 "error": (
                                     "Cost limit exceeded: "
-                                    f"${float(cost_limit_exceeded_summary.get('total_cost', 0.0)):.4f} > "
-                                    f"${float(cost_limit_exceeded_summary.get('cost_limit', 0.0)):.4f}."
+                                    + self._format_cost_value(
+                                        cost_limit_exceeded_summary.get("total_cost"),
+                                        currency,
+                                    )
+                                    + " > "
+                                    + self._format_cost_value(
+                                        cost_limit_exceeded_summary.get("cost_limit"),
+                                        currency,
+                                    )
+                                    + "."
                                 ),
                                 "error_type": "CostLimitExceeded",
                                 "usage": cost_limit_exceeded_summary,
@@ -14210,6 +14390,43 @@ class JiuWenSwarmDeepAdapter:
                     is_complete=False,
                 )
 
+            # Issue #1447 guard: a round that consumed 0 tokens and streamed no
+            # assistant output means the LLM was never called (upstream corrupted
+            # interruption state makes this a persistent, silently failing state).
+            # Must run BEFORE the stream-end chat.final synthesis below so the
+            # guard can suppress the synthetic success final.
+            empty_llm_run = self._detect_empty_llm_run(
+                session_id=session_id,
+                total_tokens=usage_accumulator["total_tokens"],
+                had_assistant_output=had_assistant_output,
+                run_failure=run_failure,
+                stream_consumer_cancelled=stream_consumer_cancelled,
+                emitted_ask_user_request_ids=emitted_ask_user_request_ids,
+            )
+            if empty_llm_run:
+                self._empty_run_guard_armed = True
+                logger.warning(
+                    "[JiuWenSwarmDeepAdapter] 0-token empty run: LLM was never called "
+                    "and nothing was streamed — session state likely corrupted "
+                    "(upstream interruption deadlock, see issue #1447): "
+                    "request_id=%s session_id=%s",
+                    rid,
+                    session_id,
+                )
+                yield AgentResponseChunk(
+                    request_id=rid,
+                    channel_id=cid,
+                    payload={
+                        "event_type": "chat.error",
+                        "error": (
+                            "会话状态异常：本轮请求未调用模型且无任何输出，"
+                            "该会话可能已损坏，请新建会话重试。"
+                        ),
+                        "error_type": "EmptyLLMRun",
+                    },
+                    is_complete=False,
+                )
+
             # pause→clear (and similar): round cancelled, iterator ends without
             # a model chat.final. Synthesize a real final so the frontend can
             # stopStreaming; do not demote.
@@ -14376,6 +14593,10 @@ class JiuWenSwarmDeepAdapter:
             summary["input_cost"] = round(usage_accumulator["input_cost"], 6)
             summary["output_cost"] = round(usage_accumulator["output_cost"], 6)
             summary["total_cost"] = round(usage_accumulator["total_cost"], 6)
+            summary["cost_source"] = "provider_reported"
+            currency = usage_cost_settings.get("currency")
+            if currency:
+                summary["currency"] = currency
 
         logger.info(
             "[JiuWenSwarmDeepAdapter] llm_usage summary: request_id=%s session_id=%s usage=%s",
