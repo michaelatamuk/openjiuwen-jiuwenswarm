@@ -21,6 +21,8 @@ section evaluates how well jiuwenswarm supports that experience.
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *12 findings across 1 concern area.*
 
 ### §17 · Developer Usability

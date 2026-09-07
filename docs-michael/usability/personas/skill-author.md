@@ -15,6 +15,8 @@ investigation of the skill authoring workflow will produce additional findings.
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *2 findings across 1 concern area.*
 
 ### §10 · Skill Ecosystem

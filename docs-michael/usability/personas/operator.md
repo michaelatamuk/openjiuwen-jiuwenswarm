@@ -10,6 +10,8 @@
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *22 findings across 8 concern areas.*
 
 ### §2 · Operator Configuration & Setup

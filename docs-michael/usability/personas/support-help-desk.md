@@ -19,6 +19,8 @@ This persona is reactive — they arrive when a user reports a problem. They nee
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *Not yet investigated. The findings below are expected based on the current codebase state — they will be confirmed and detailed when this persona is formally covered.*
 
 ### Expected finding areas

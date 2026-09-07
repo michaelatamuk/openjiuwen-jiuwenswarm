@@ -34,6 +34,8 @@ exists; a dedicated investigation of the shared-deployment workflow is needed.
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *5 findings across 2 concern areas.*
 
 ### §3 · Trust & Safety

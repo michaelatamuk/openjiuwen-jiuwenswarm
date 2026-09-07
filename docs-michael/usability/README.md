@@ -1,13 +1,13 @@
 # jiuwenswarm — Usability Review
 
-Content is split across three subfolders with distinct purposes. Start here to
-orient yourself, then go directly to the folder that serves your need.
+Content is split across two subfolders plus two files at the root. Start here to
+orient yourself, then go directly to wherever you need.
 
 Finding IDs (e.g. **3.1**, **17.4**) are stable across document versions.
 
 ---
 
-## Three folders
+## Navigation
 
 ### `personas/` — Start here if you are a specific role
 
@@ -39,6 +39,7 @@ When a finding is updated or resolved, only this file changes.
 
 | File | Section | Findings |
 |---|---|---|
+| [00-overview.md](findings/00-overview.md) | **Root cause** | Why all these findings exist |
 | [01-core-usability.md](findings/01-core-usability.md) | §1 · Core Usability | 1.1–1.9 |
 | [02-operator-config.md](findings/02-operator-config.md) | §2 · Operator Config & Setup | 2.1–2.10 |
 | [03-trust-safety.md](findings/03-trust-safety.md) | §3 · Trust & Safety | 3.1–3.4 |
@@ -60,16 +61,10 @@ When a finding is updated or resolved, only this file changes.
 
 ---
 
-### `reference/` — Cross-cutting documents
+### `matrix.md` — Cross-reference
 
-Documents about the review itself, not tied to a specific persona or finding.
-
-| File | What it is |
-|---|---|
-| [core-problem.md](reference/core-problem.md) | Executive summary: root cause and top 5 highest-leverage fixes |
-| [matrix.md](reference/matrix.md) | Cross-reference table: which findings affect which personas |
-
-Future home for: `backlog.md`, `methodology.md`, `changelog.md`.
+[matrix.md](matrix.md) answers "which personas are affected by finding X.Y?" — a table
+of all findings × all personas. Lives at the root alongside this file.
 
 ---
 

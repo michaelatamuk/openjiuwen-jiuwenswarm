@@ -16,6 +16,8 @@ exposes.
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *11 findings across 2 concern areas.*
 
 ### §8 · Notification & Async

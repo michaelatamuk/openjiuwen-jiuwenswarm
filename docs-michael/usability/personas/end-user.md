@@ -34,6 +34,8 @@ use it through a channel (P1) without touching the config.
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *36 findings across 12 concern areas.*
 
 ### §1 · Core Usability

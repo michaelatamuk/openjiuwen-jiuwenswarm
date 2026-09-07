@@ -26,6 +26,8 @@ This is likely one of the most common end-user archetypes in Chinese enterprise 
 
 ## Findings
 
+> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../findings/00-overview.md)*
+
 *Not yet investigated. The findings below are expected based on the current codebase state — they will be confirmed and detailed when this persona is formally covered.*
 
 ### Expected finding areas
