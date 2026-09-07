@@ -10,7 +10,7 @@
 
 ## The problem today
 
-When an error occurs, jiuwenswarm shows a bare message that tells the user nothing they can act on. Two examples reached production:
+When an error occurs, jiuwenswarm shows a bare message that gives the user nothing to act on. Two examples reached production:
 
 ```python
 # channels/cli/render.py:200
@@ -25,14 +25,18 @@ raise ValueError("unable to parse response from gateway")
 No indication of whether this is a network issue, a protocol mismatch, or a bug.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor U as User
-    participant S as Agent (CLI/Web)
-    U->>S: asks for something
-    S-->>U: "unknown error"
-    U->>U: cannot tell what happened, why, or what to do
-    U->>U: ends stuck or files a useless bug report
+flowchart TD
+    classDef fail  fill:#FFCDD2,color:#1a1a1a,stroke:#C62828
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
+
+    START(["An error occurs while running a task"]):::plain
+    SHOW(["The UI/CLI shows a bare 'unknown error'"]):::plain
+
+    START --> SHOW
+    SHOW -->|"reason: no tool name / session id /
+    log reference / next step is captured"| STUCK(["The user can't tell
+    what happened, why, or what to do"]):::fail
+    STUCK --> DEAD(["User stays stuck; bug report has nothing useful"]):::fail
 ```
 
 ---
@@ -48,15 +52,20 @@ Every error surfaced to the user should answer three questions: what happened, w
 The CLI and Web UI should agree on the error format, and errors should carry a short machine-readable code (e.g. `ERR_GATEWAY_DISCONNECT`) so a user can search for it in docs or paste it into a support request.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor U as User
-    participant S as Agent (CLI/Web)
-    U->>S: asks for something
-    S->>S: route the failure
-    S-->>U: ERR_ code · what happened · why · what to do next
-    S-->>U: pointer to the log entry / "Show log"
-    U->>U: can act and can report the issue usefully
+flowchart TD
+    classDef ok    fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
+    classDef fix   fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
+    classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
+
+    START(["An error occurs while running a task"]):::plain
+    BUILD(["The error carries what happened,
+    why, a code, and the next step"]):::plain
+
+    START --> BUILD
+    BUILD -->|"reason: every error answers 3 questions
+    + ERR_ code + a pointer to the log"| CLEAR(["The user understands
+    the cause and the next step"]):::fix
+    CLEAR --> DONE(["User can act and can report it"]):::ok
 ```
 
-Related: [Errors don't point to the log entry with more detail](../../setup-and-operation/diagnostics-and-help.md#2-errors-dont-point-to-the-log-entry-with-more-detail).
+Related: [Errors don't point to the log entry with more detail](../../../setup-and-operation/diagnostics-and-help.md#2-errors-dont-point-to-the-log-entry-with-more-detail).
