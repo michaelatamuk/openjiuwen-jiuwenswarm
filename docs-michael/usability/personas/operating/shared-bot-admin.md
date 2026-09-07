@@ -35,17 +35,24 @@ exists; a dedicated investigation of the shared-deployment workflow is needed.
 
 ## Findings
 
-> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../../findings/00-overview.md)*
-
 *5 findings.*
 
-### Control
+### Messages, History & Notifications
 
-- **[Users aren't told what the agent is allowed to do before it acts](../../findings/control/permissions.md#1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts)** — Group members using the IM bot have no Web UI access and cannot see any permission banner; they have no way to know what the bot can do.
+- **[Conversations can only be shared as a flat image](../../findings/conversation/messages-and-history.md#4-conversations-can-only-be-shared-as-a-flat-image)** — There is no way to share a conversation as a link, Markdown, or JSON export — only a PNG screenshot.
+
+### Approval & Preview
+
 - **[Destructive external actions fire without confirmation](../../findings/control/approve-and-preview.md#2-destructive-external-actions-fire-without-confirmation)** — In a group chat, a mistaken `send_feishu_message` triggered by an ambiguous message could broadcast incorrect information to an entire team.
 
-### Collaboration & sharing
+### Permissions
+
+- **[Users aren't told what the agent is allowed to do before it acts](../../findings/control/permissions.md#1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts)** — Group members using the IM bot have no Web UI access and cannot see any permission banner; they have no way to know what the bot can do.
+
+### Identity & Isolation
 
 - **[All users share one identity, memory and permissions](../../findings/collaboration/identity-and-isolation.md#1-all-users-share-one-identity-memory-and-permissions)** — All users sharing an instance share the same memory and session space; per-user isolation is not available out of the box.
-- **[Conversations can only be shared as a flat image](../../findings/conversation/messages-and-history.md#4-conversations-can-only-be-shared-as-a-flat-image)** — There is no way to share a conversation as a link, Markdown, or JSON export — only a PNG screenshot.
+
+### Shared Skill Library
+
 - **[No shared skill library across instances](../../findings/collaboration/shared-library.md#1-no-shared-skill-library-across-instances)** — Skills are per-workspace; separate instances cannot share skills without manually copying files.

@@ -6,7 +6,7 @@
 
 Which findings affect which persona. Findings are identified per concern file; their local number and title are shown. Full text lives in the file linked from [README.md](README.md).
 
-| File | # | Title | End-User | Instance Admin | Extension | Application | Skill Author | Shared Bot Admin |
+| File | # | Title | Web User | Instance Admin | Extension | Application | Skill Author | Shared Bot Admin |
 |---|---|---|---|---|---|---|---|---|---|
 | errors-and-feedback | 1 | Error messages give no explanation or next step | ● |  |  |  |  |  |
 | errors-and-feedback | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |

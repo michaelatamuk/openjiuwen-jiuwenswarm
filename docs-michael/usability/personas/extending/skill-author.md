@@ -8,21 +8,22 @@
 packages Python tools, tests and submits skills.*
 
 Coverage is partial. The findings below are drawn from the skill-ecosystem concerns,
-which were investigated primarily from the Instance Admin and End-User perspective. A dedicated
+which were investigated primarily from the Instance Admin and Web User perspective. A dedicated
 investigation of the skill authoring workflow will produce additional findings.
 
 ---
 
 ## Findings
 
-> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../../findings/00-overview.md)*
-
 *2 findings.*
 
-### Skills
+### Skill Authoring & Dependencies
+
+- **[Skills can only be tested through a live chat](../../findings/skills/authoring-and-testing.md#3-skills-can-only-be-tested-through-a-live-chat)** — A skill author must trigger skills through a real chat session; there is no sandbox or "test this skill" panel to validate a `SKILL.md` before publishing.
+
+### Skill Versioning
 
 - **[Skill updates can't be reviewed or rolled back](../../findings/skills/versioning.md#1-skill-updates-cant-be-reviewed-or-rolled-back)** — When the evolution system auto-modifies a skill, there is no diff-for-approval step and no way to recover the previous version.
-- **[Skills can only be tested through a live chat](../../findings/skills/authoring-and-testing.md#3-skills-can-only-be-tested-through-a-live-chat)** — A skill author must trigger skills through a real chat session; there is no sandbox or "test this skill" panel to validate a `SKILL.md` before publishing.
 
 ### Gaps
 

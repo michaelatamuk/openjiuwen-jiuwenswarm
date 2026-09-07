@@ -10,9 +10,11 @@ as one-liners with links to the full finding text (see the [findings](../finding
 
 ## Using — people who talk to the agent
 
-- [End-User](using/end-user.md) · **Covered** — converses with the agent day to day over the
-  Web UI or an IM channel; not someone who configures or builds.
-- [Developer](using/developer.md) · **Covered** — a technical user who drives the agent as a
+- [Web User](using/web-user.md) · **Covered** — the person who runs JiuwenSwarm and uses the
+  full Web UI / desktop app for their own tasks; when self-hosting, also the Instance Admin.
+- [IM User](using/im-user.md) · **Covered** — a person talking to a shared bot from a
+  Feishu/Telegram/WeChat group, with no Web UI; a limited Web User (shares the Web User findings).
+- [Developer](using/developer.md) · **Covered** — a technical Web User who drives the agent as a
   coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting,
   also the Instance Admin.
 

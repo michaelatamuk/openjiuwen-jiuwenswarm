@@ -17,7 +17,8 @@ one-liner with a link to the full finding text. Read only the file for your role
 
 | File | Persona | Status |
 |---|---|---|
-| [end-user.md](personas/using/end-user.md) | **End-User** | Covered · 44 findings |
+| [web-user.md](personas/using/web-user.md) | **Web User** | Covered · 44 findings |
+| [im-user.md](personas/using/im-user.md) | **IM User** | Covered · 5 findings |
 | [developer.md](personas/using/developer.md) | **Developer** | Covered · 9 findings |
 | [instance-admin.md](personas/operating/instance-admin.md) | **Instance Admin** | Covered · 26 findings |
 | [extension-developer.md](personas/extending/extension-developer.md) | **Extension Developer** | Covered · 12 findings |
@@ -105,8 +106,9 @@ decides which findings matter to them.
 
 | Persona | Who they are |
 |---|---|
-| [End-User](personas/using/end-user.md) · **Covered, 44 findings** | Converses with the agent day to day over the Web UI or an IM channel; not someone who configures or builds. |
-| [Developer](personas/using/developer.md) · **Covered, 9 findings** | A technical user driving the agent as a coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting, also the Instance Admin. |
+| [Web User](personas/using/web-user.md) · **Covered, 44 findings** | Runs JiuwenSwarm and uses the full Web UI / desktop app for their own tasks; when self-hosting, also the Instance Admin. |
+| [IM User](personas/using/im-user.md) · **Covered, 5 findings** | Talks to a shared bot from a Feishu/Telegram/WeChat group, with no Web UI — a limited Web User (shares the Web User findings). |
+| [Developer](personas/using/developer.md) · **Covered, 9 findings** | A technical Web User who drives the agent as a coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting, also the Instance Admin. |
 
 ### Administering — people who run it
 

@@ -20,11 +20,14 @@ composing custom agents, and integrating jiuwenswarm into their own product.
 
 ## Findings
 
-> *The findings in this file are symptoms of a single systemic issue. [Read the root cause →](../../findings/00-overview.md)*
-
 *12 findings.*
 
-### §17 · Rails & Context API
+### Extension Documentation & Stability
+
+- **[The examples directory is undiscoverable and inconsistent](../../findings/extension-surface/documentation-and-stability.md#1-the-examples-directory-is-undiscoverable-and-inconsistent)** — No index, mixed base class usage, and no "hello world" rail that runs without external dependencies.
+- **[No stable public API or semantic-versioning contract](../../findings/extension-surface/documentation-and-stability.md#2-no-stable-public-api-or-semantic-versioning-contract)** — Any import path can change without notice; developers cannot build with confidence on a 0.x codebase with no public API declaration.
+
+### Rails & Context API
 
 - **[The rail extension API has no public documentation](../../findings/extension-surface/rails-and-context-api.md#1-the-rail-extension-api-has-no-public-documentation)** — The primary extension point has no public reference page, no English README, and no lifecycle overview.
 - **[Rail hook execution order can only be learned from source](../../findings/extension-surface/rails-and-context-api.md#2-rail-hook-execution-order-can-only-be-learned-from-source)** — A developer cannot know whether `before_model_call` fires before or after prompt assembly without reading the agent loop source.
@@ -32,20 +35,15 @@ composing custom agents, and integrating jiuwenswarm into their own product.
 - **[Adding prompt content from a rail is an undocumented hidden API](../../findings/extension-surface/rails-and-context-api.md#4-adding-prompt-content-from-a-rail-is-an-undocumented-hidden-api)** — Adding custom content to the system prompt — the most common extension use case — has zero documentation.
 - **[The structured error API isn't documented for rail authors](../../findings/extension-surface/rails-and-context-api.md#5-the-structured-error-api-isnt-documented-for-rail-authors)** — The structured error framework exists and is well-designed but is never mentioned in any developer documentation.
 
-### §18 · Tools & Agent Factory
-
-- **[Registering tools from a rail has no developer guide](../../findings/extension-surface/tools-and-agent-factory.md#1-registering-tools-from-a-rail-has-no-developer-guide)** — The pattern for registering and cleaning up tools from a rail exists only in internal test files.
-- **[The agent factory has too many undocumented parameters](../../findings/extension-surface/tools-and-agent-factory.md#2-the-agent-factory-has-too-many-undocumented-parameters)** — 15+ parameters with no documentation of which are required, what each does, or what the minimum viable call looks like.
-
-### §19 · Testing & Tooling
+### Extension Testing & Tooling
 
 - **[Writing a rail test requires reverse-engineering mock infrastructure](../../findings/extension-surface/testing-and-tooling.md#1-writing-a-rail-test-requires-reverse-engineering-mock-infrastructure)** — The excellent mock test infrastructure is entirely undocumented and reachable only by reading internal test source.
 - **[No CLI to scaffold a new rail or skill](../../findings/extension-surface/testing-and-tooling.md#2-no-cli-to-scaffold-a-new-rail-or-skill)** — No scaffold command, no template directory; every developer starts from a blank file.
 - **[No integration test layer between unit tests and a full system](../../findings/extension-surface/testing-and-tooling.md#3-no-integration-test-layer-between-unit-tests-and-a-full-system)** — There is no mid-level test helper for testing a rail that interacts with the prompt builder and tools together.
 
-### §20 · Documentation & API Stability
+### Tools & Agent Factory
 
-- **[The examples directory is undiscoverable and inconsistent](../../findings/extension-surface/documentation-and-stability.md#1-the-examples-directory-is-undiscoverable-and-inconsistent)** — No index, mixed base class usage, and no "hello world" rail that runs without external dependencies.
-- **[No stable public API or semantic-versioning contract](../../findings/extension-surface/documentation-and-stability.md#2-no-stable-public-api-or-semantic-versioning-contract)** — Any import path can change without notice; developers cannot build with confidence on a 0.x codebase with no public API declaration.
+- **[Registering tools from a rail has no developer guide](../../findings/extension-surface/tools-and-agent-factory.md#1-registering-tools-from-a-rail-has-no-developer-guide)** — The pattern for registering and cleaning up tools from a rail exists only in internal test files.
+- **[The agent factory has too many undocumented parameters](../../findings/extension-surface/tools-and-agent-factory.md#2-the-agent-factory-has-too-many-undocumented-parameters)** — 15+ parameters with no documentation of which are required, what each does, or what the minimum viable call looks like.
 
 ---
