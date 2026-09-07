@@ -49,7 +49,7 @@
 ### Stop, Resume & Undo
 
 - **[No stop button that safely interrupts the agent](../../findings/control/stop-resume-undo/1-no-stop-button-that-safely-interrupts-the-agent.md)**
-- **[Agent file writes and sends can't be undone](../../findings/control/stop-resume-undo/2-agent-file-writes-and-sends-cant-be-undone.md)**
+- **[Sent messages and API calls can't be undone](../../findings/control/stop-resume-undo/2-sent-messages-and-api-calls-cant-be-undone.md)**
 - **[Unclear what the agent does when a session disconnects](../../findings/control/stop-resume-undo/3-unclear-what-the-agent-does-when-a-session-disconnects.md)**
 - **[A crash loses in-progress tasks with no way to resume](../../findings/control/stop-resume-undo/4-a-crash-loses-in-progress-tasks-with-no-way-to-resume.md)**
 
@@ -66,7 +66,7 @@
 
 ### Health & Degradation
 
-- **[Degraded subsystems fail silently and users assume all is fine](../../findings/setup-and-operation/health-and-degradation/1-degraded-subsystems-fail-silently-and-users-assume-all-is-fine.md)**
+- **[You aren't told when a subsystem fails](../../findings/setup-and-operation/health-and-degradation/1-you-arent-told-when-a-subsystem-fails.md)**
 - **[Rate limits and API failures hang or show nothing useful](../../findings/setup-and-operation/health-and-degradation/2-rate-limits-and-api-failures-hang-or-show-nothing-useful.md)**
 
 ### Empty States & Choosing a Mode

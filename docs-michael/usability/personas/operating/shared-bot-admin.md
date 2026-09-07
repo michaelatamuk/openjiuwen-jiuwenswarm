@@ -12,7 +12,7 @@
 
 ### Identity & Isolation
 
-- **[All users share one identity, memory and permissions](../../findings/collaboration/identity-and-isolation/1-all-users-share-one-identity-memory-and-permissions.md)**
+- **[No login on the Web UI: local Web users share one identity](../../findings/collaboration/identity-and-isolation/1-no-login-on-the-web-ui-local-web-users-share-one-identity.md)**
 - **[No multi-tenancy: every user shares one workspace](../../findings/collaboration/identity-and-isolation/2-no-multi-tenancy-every-user-shares-one-workspace.md)**
 
 ### Shared Skill Library

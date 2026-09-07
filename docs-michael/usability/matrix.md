@@ -27,7 +27,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 2-destructive-external-actions-fire-without-confirmation | 2 | Destructive external actions fire without confirmation | ● | ○ |  |  |  | ○ |
 | 1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts | 1 | Users aren't told what the agent is allowed to do before it acts | ● | ○ |  |  |  | ○ |
 | 1-no-stop-button-that-safely-interrupts-the-agent | 1 | No stop button that safely interrupts the agent | ● |  |  |  |  |  |
-| 2-agent-file-writes-and-sends-cant-be-undone | 2 | Agent file writes and sends can't be undone | ● |  |  |  |  |  |
+| 2-sent-messages-and-api-calls-cant-be-undone | 2 | Sent messages and API calls can't be undone | ● |  |  |  |  |  |
 | 3-unclear-what-the-agent-does-when-a-session-disconnects | 3 | Unclear what the agent does when a session disconnects | ● | ○ |  |  |  |  |
 | 4-a-crash-loses-in-progress-tasks-with-no-way-to-resume | 4 | A crash loses in-progress tasks with no way to resume | ● | ○ |  |  |  |  |
 | 1-users-cant-see-what-the-agent-has-remembered | 1 | Users can't see what the agent has remembered | ● |  |  |  |  |  |
@@ -39,7 +39,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 1-no-visibility-into-token-usage-or-session-cost | 1 | No visibility into token usage or session cost | ○ | ● |  |  |  |  |
 | 2-no-hints-about-what-is-consuming-the-context | 2 | No hints about what is consuming the context | ○ | ● |  |  |  |  |
 | 3-trivial-prompts-still-build-the-full-context | 1 | Trivial prompts still build the full context | ○ | ● |  |  |  |  |
-| 1-degraded-subsystems-fail-silently-and-users-assume-all-is-fine | 1 | Degraded subsystems fail silently and users assume all is fine | ● | ○ |  |  |  |  |
+| 1-you-arent-told-when-a-subsystem-fails | 1 | You aren't told when a subsystem fails | ● | ○ |  |  |  |  |
 | 2-rate-limits-and-api-failures-hang-or-show-nothing-useful | 2 | Rate limits and API failures hang or show nothing useful | ● |  |  |  |  |  |
 | 1-no-visibility-into-which-ports-and-urls-are-in-use | 1 | No visibility into which ports and URLs are in use |  | ● |  |  |  |  |
 | 2-powerful-features-exist-but-are-never-surfaced | 2 | Powerful features exist but are never surfaced |  | ● |  |  |  |  |
@@ -71,7 +71,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 3-skills-can-only-be-tested-through-a-live-chat | 3 | Skills can only be tested through a live chat |  | ○ |  |  | ● |  |
 | 1-marketplace-shows-no-ratings-usage-or-freshness | 1 | Marketplace shows no ratings, usage or freshness | ○ | ● |  |  | ● |  |
 | 1-skill-updates-cant-be-reviewed-or-rolled-back | 1 | Skill updates can't be reviewed or rolled back |  | ● |  |  | ● |  |
-| 1-all-users-share-one-identity-memory-and-permissions | 1 | All users share one identity, memory and permissions | ○ | ○ |  | ○ |  | ● |
+| 1-no-login-on-the-web-ui-local-web-users-share-one-identity | 1 | No login on the Web UI: local Web users share one identity | ○ | ○ |  | ○ |  | ● |
 | 2-no-multi-tenancy-every-user-shares-one-workspace | 2 | No multi-tenancy: every user shares one workspace |  |  |  | ● |  | ● |
 | 1-no-shared-skill-library-across-instances | 1 | No shared skill library across instances |  | ○ |  |  | ○ | ● |
 | 1-the-examples-directory-is-undiscoverable-and-inconsistent | 1 | The examples directory is undiscoverable and inconsistent |  |  | ● |  |  |  |
@@ -89,7 +89,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 1-writing-a-custom-channel-has-no-developer-guide | 1 | Writing a custom channel has no developer guide |  |  |  | ● |  |  |
 | 2-only-shell-command-hooks-exist-theres-no-real-webhook-delivery | 2 | Only shell-command hooks exist; there's no real webhook delivery |  |  |  | ● |  |  |
 | 3-no-local-stub-or-dev-mode-for-testing-integrations | 3 | No local stub or dev mode for testing integrations |  |  |  | ● |  |  |
-| 1-the-api-has-no-authentication-and-is-open-by-default | 1 | The API has no authentication and is open by default |  | ○ |  | ● |  |  |
+| 1-no-api-authentication-fine-locally-a-risk-once-exposed | 1 | No API authentication: fine locally, a real risk once exposed |  | ○ |  | ● |  |  |
 | 2-websocket-origin-checks-are-off-by-default-and-undocumented | 2 | WebSocket origin checks are off by default and undocumented |  | ○ |  | ● |  |  |
 | 1-external-apps-can-only-reach-the-agent-over-websocket-with-no-rest | 1 | External apps can only reach the agent over WebSocket, with no REST |  |  |  | ● |  |  |
 | 2-the-e2a-protocol-spec-is-prose-not-a-machine-readable-schema | 2 | The E2A protocol spec is prose, not a machine-readable schema |  |  |  | ● |  |  |

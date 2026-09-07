@@ -2,7 +2,7 @@
 
 ---
 
-# All users share one identity, memory and permissions
+# No login on the Web UI: local Web users share one identity
 
 *Concern: Identity & Isolation*
 
@@ -10,7 +10,7 @@
 
 ## The problem today
 
-The Web UI has no login — everyone shares one identity, memory, and skills; there's no "this belongs to user A, not B."
+The Web UI has no login, so everyone who uses a given Web UI instance shares the same (empty) identity, its sessions, and its memory. This is not true across the system as a whole: channel users (Feishu/Telegram/WeChat) are carried with distinct `user_id`s, which the server scopes sessions and memory by. The gap is specifically the no-login Web surface — it becomes a problem only when more than one person uses the same Web instance.
 
 ```mermaid
 flowchart TD

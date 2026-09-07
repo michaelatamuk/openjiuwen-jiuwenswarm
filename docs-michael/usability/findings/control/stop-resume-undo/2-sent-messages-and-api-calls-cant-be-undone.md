@@ -2,7 +2,7 @@
 
 ---
 
-# Agent file writes and sends can't be undone
+# Sent messages and API calls can't be undone
 
 *Concern: Stop, Resume & Undo*
 
@@ -10,7 +10,7 @@
 
 ## The problem today
 
-The agent can write files, send Feishu messages, delete files, and call external APIs. None of these can be undone from the UI — once done, they are done.
+The agent can send Feishu messages, call external APIs, and fire webhooks — none of these can be undone from the UI; once sent, they are sent. File edits are a partial exception: applied **code-mode** changes appear as per-turn change cards that can be *discarded* (reverted) or re-applied, but there is no general "undo last action" that spans all agent actions, and non-code file writes and external sends have no reversal path.
 
 ```mermaid
 flowchart TD

@@ -2,7 +2,7 @@
 
 ---
 
-# Degraded subsystems fail silently and users assume all is fine
+# You aren't told when a subsystem fails
 
 *Concern: Health & Degradation*
 

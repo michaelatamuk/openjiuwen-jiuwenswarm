@@ -2,7 +2,7 @@
 
 ---
 
-# The API has no authentication and is open by default
+# No API authentication: fine locally, a real risk once exposed
 
 *Concern: Connection Security*
 
@@ -10,7 +10,7 @@
 
 ## The problem today
 
-`E2AAuth` is carried but never validated — anyone reaching the WebSocket port can send any request; the only protection is not exposing the port.
+`E2AAuth` is carried but never validated — anyone reaching the WebSocket port can send any request. This is acceptable for a personal agent installed on your own machine, where the only protection needed is not exposing the port; it becomes a real risk only once the instance is reachable beyond localhost (a shared bot, a deployed or multi-user instance, or another device on the network).
 
 ```mermaid
 flowchart TD

@@ -8,7 +8,7 @@ concern file and a short, self-explanatory title.
 
 ## Navigation
 
-Quick reads: [00-overview — root cause & concern map](findings/00-overview.md) · [matrix — findings × personas](matrix.md)
+Quick reads: [engineering-leads summary](engineering-summary.md) · [00-overview — root cause & concern map](findings/00-overview.md) · [matrix — findings × personas](matrix.md)
 
 ### `personas/` — Start here if you are a specific role
 

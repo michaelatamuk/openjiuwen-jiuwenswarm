@@ -22,7 +22,7 @@
 
 ### Connection Security
 
-- **[The API has no authentication and is open by default](../../findings/application-api/security-and-isolation/1-the-api-has-no-authentication-and-is-open-by-default.md)**
+- **[No API authentication: fine locally, a real risk once exposed](../../findings/application-api/security-and-isolation/1-no-api-authentication-fine-locally-a-risk-once-exposed.md)**
 - **[WebSocket origin checks are off by default and undocumented](../../findings/application-api/security-and-isolation/2-websocket-origin-checks-are-off-by-default-and-undocumented.md)**
 
 ### Transport & Protocol
