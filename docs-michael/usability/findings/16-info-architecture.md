@@ -6,8 +6,6 @@
 
 *Is the right information in the right place?*
 
-*Primary persona: P1. Also relevant to: P2.*
-
 ---
 
 ## 16.1 Skills and Connectors Are Separate But Conceptually Similar
@@ -38,8 +36,9 @@ Organize by user goal:
 - **Agent behavior** — permissions, tools, mode defaults, response style.
 - **Advanced** — observability, debug traces, experimental features.
 
-**Operator note.**
-An operator who wants to "change the agent's response language" must guess whether that is in General, Models, or Agent. The same reorganization by goal applies for operators: the proposed structure above serves both end-users browsing settings and operators configuring a deployment.
+The goal-based structure serves everyone configuring a deployment, not only browsing
+end-users — e.g. changing the agent's response language should not require guessing
+between "General", "Models", and "Agent".
 
 ---
 

@@ -6,8 +6,6 @@
 
 *Can the user understand what the agent is doing and why?*
 
-*Primary persona: P1. Also relevant to: P13.*
-
 ---
 
 ## 6.1 Thinking Display Is Hidden Behind the Trajectory Panel

@@ -6,8 +6,6 @@
 
 *Does the user understand what the agent is about to do, and can they stop it?*
 
-*Primary persona: P1. Also relevant to: P6, P13.*
-
 ---
 
 ## 3.1 No Visibility Into Agent Permissions Before the First Action

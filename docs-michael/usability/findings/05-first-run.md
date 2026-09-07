@@ -6,8 +6,6 @@
 
 *The experience from `pip install` to first successful task.*
 
-*Primary persona: P1. Also relevant to: P2.*
-
 ---
 
 ## 5.1 The Setup Wizard Ends Too Early
@@ -29,8 +27,7 @@ step should be testable inline. Suggested flow:
 4. (Optional) Enable a channel — Feishu, Telegram, etc., same test pattern.
 5. Send your first message — prefilled with a suggested starter task.
 
-**Operator note.**
-The guide should be re-enterable at any time from the `?` icon, not just on first run. The setup guide should not end until the model is working, and the operator variant of this flow includes an inline credential test ("Test" button) and a final confirmation step.
+The guide should be re-enterable at any time (e.g. from a `?` icon), not just on first run.
 
 ---
 

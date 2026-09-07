@@ -6,8 +6,6 @@
 
 *Direct interaction quality: errors, modes, feedback, conversation management.*
 
-*Primary persona: P1. Also relevant to: P13.*
-
 ---
 
 ## 1.1 Error Messages Give Users Nothing to Act On

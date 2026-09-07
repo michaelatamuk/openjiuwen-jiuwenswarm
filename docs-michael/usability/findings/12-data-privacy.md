@@ -6,8 +6,6 @@
 
 *What data is stored, where, and who can see it.*
 
-*Primary persona: P1. Also relevant to: P2, P7.*
-
 ---
 
 ## 12.1 No Visibility Into What Is Stored in Memory
@@ -51,14 +49,12 @@ Memory and conversation history are stored indefinitely. There is a
 or memory.
 
 **What good looks like.**
-A data retention settings panel: "Keep conversation history for: 30 / 90 / 365 /
-forever". "Keep daily memory for: 7 / 30 / 90 / forever". "Delete all data older
-than X". Automated expiration should run on startup.
-
-**Operator note.**
-A data retention settings panel with separate controls for the operator (instance-wide defaults) and the user (personal preferences, where applicable):
+A data retention settings panel with separate controls for instance-wide defaults
+and per-user preferences (where applicable):
 - "Keep conversation history for: 30 / 90 / 365 / forever"
 - "Keep daily memory for: 7 / 30 / 90 / forever"
 - "Delete all data older than X"
 
-Automated expiration should run on startup. Operators should be able to set a maximum retention period that users cannot exceed.
+Automated expiration should run on startup. In shared deployments, instance
+administrators should be able to set a maximum retention period that individual
+users cannot exceed.

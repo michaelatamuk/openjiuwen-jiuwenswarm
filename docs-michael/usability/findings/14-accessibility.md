@@ -6,8 +6,6 @@
 
 *Can all users operate the product regardless of ability?*
 
-*Primary persona: P1.*
-
 ---
 
 ## 14.1 No Keyboard Navigation Across the UI

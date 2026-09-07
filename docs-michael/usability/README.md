@@ -34,7 +34,7 @@ one-liner with a link to the full finding text. Read only the file for your role
 
 ### `findings/` — Single source of truth for each finding
 
-One file per concern area (§1–§18). Full finding text lives here — exactly once.
+One file per concern area (§1–§23). Full finding text lives here — exactly once.
 When a finding is updated or resolved, only this file changes.
 
 | File | Section | Findings |
@@ -56,8 +56,13 @@ When a finding is updated or resolved, only this file changes.
 | [14-accessibility.md](findings/14-accessibility.md) | §14 · Accessibility | 14.1–14.3 |
 | [15-mobile.md](findings/15-mobile.md) | §15 · Mobile & Cross-Platform | 15.1–15.2 |
 | [16-info-architecture.md](findings/16-info-architecture.md) | §16 · Information Architecture | 16.1–16.3 |
-| [17-developer-usability.md](findings/17-developer-usability.md) | §17 · Developer Usability | 17.1–17.12 |
-| [18-app-developer.md](findings/18-app-developer.md) | §18 · Application Developer Usability | 18.1–18.10 |
+| [17-rails-and-context-api.md](findings/17-rails-and-context-api.md) | §17 · Rails & Context API | 17.1–17.5 |
+| [18-tools-and-agent-factory.md](findings/18-tools-and-agent-factory.md) | §18 · Tools & Agent Factory | 18.1–18.2 |
+| [19-testing-and-tooling.md](findings/19-testing-and-tooling.md) | §19 · Testing & Tooling | 19.1–19.3 |
+| [20-documentation-and-api-stability.md](findings/20-documentation-and-api-stability.md) | §20 · Documentation & API Stability | 20.1–20.2 |
+| [21-transport-and-protocol.md](findings/21-transport-and-protocol.md) | §21 · Transport & Protocol | 21.1–21.4 |
+| [22-security-and-isolation.md](findings/22-security-and-isolation.md) | §22 · Security & Isolation | 22.1–22.3 |
+| [23-integration-and-local-development.md](findings/23-integration-and-local-development.md) | §23 · Integration & Local Development | 23.1–23.3 |
 
 ---
 

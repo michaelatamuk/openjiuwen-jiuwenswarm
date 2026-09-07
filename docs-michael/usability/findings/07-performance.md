@@ -6,8 +6,6 @@
 
 *Does the system feel fast, and does it communicate when it is not?*
 
-*Primary persona: P1. Also relevant to: P13.*
-
 ---
 
 ## 7.1 No First-Token Latency Indicator

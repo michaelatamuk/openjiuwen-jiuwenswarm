@@ -6,8 +6,6 @@
 
 *More than one person using the same instance.*
 
-*Primary persona: P6. Also relevant to: P1, P4.*
-
 ---
 
 ## 11.1 No User Identity or Access Control

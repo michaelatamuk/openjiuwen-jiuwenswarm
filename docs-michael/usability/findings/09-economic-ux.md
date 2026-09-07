@@ -6,8 +6,6 @@
 
 *Token consumption, API costs, and resource awareness.*
 
-*Primary persona: P2.*
-
 ---
 
 ## 9.1 No Token or Cost Visibility

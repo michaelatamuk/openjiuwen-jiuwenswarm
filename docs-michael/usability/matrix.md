@@ -75,25 +75,25 @@ Full content is in the persona files linked in [README.md](README.md).
 | **17.1** | Rail API undocumented | | | ● | | | | |
 | **17.2** | Hook execution order not discoverable | | | ● | | | | |
 | **17.3** | AgentCallbackContext has no type stubs | | | ● | | | | |
-| **17.4** | Tool registration has no developer guide | | | ● | | | | |
-| **17.5** | create_deep_agent() too many undocumented params | | | ● | | | | |
-| **17.6** | Examples directory not discoverable | | | ● | | | | |
-| **17.7** | Testing a rail requires undocumented mock infra | | | ● | | | | |
-| **17.8** | No stable public API / no semver contract | | | ● | ○ | | | |
-| **17.9** | Prompt section API is hidden | | | ● | | | | |
-| **17.10** | No scaffold CLI for new rail | | | ● | | | | |
-| **17.11** | Error framework not exposed as developer API | | | ● | | | | |
-| **17.12** | No integration test layer | | | ● | | | | |
-| **18.1** | WebSocket-only API, no REST fallback | | | | ● | | | |
-| **18.2** | E2A protocol in markdown, not machine-readable | | | | ● | | | |
-| **18.3** | No published client SDK | | | | ● | | | |
-| **18.4** | Authentication not enforced — open by default | | ○ | | ● | | | |
-| **18.5** | WebSocket origin checking disabled by default | | ○ | | ● | | | |
-| **18.6** | No multi-tenancy | | | | ● | | ● | |
-| **18.7** | Custom channel API has no developer guide | | | | ● | | | |
-| **18.8** | Webhook/event system is limited | | | | ● | | | |
-| **18.9** | Session API has no documented response shapes | | | | ● | | | |
-| **18.10** | No local development mode | | | | ● | | | |
+| **17.4** | Prompt section API is hidden | | | ● | | | | |
+| **17.5** | Error framework not exposed as developer API | | | ● | | | | |
+| **18.1** | Tool registration has no developer guide | | | ● | | | | |
+| **18.2** | create_deep_agent() too many undocumented params | | | ● | | | | |
+| **19.1** | Testing a rail requires undocumented mock infra | | | ● | | | | |
+| **19.2** | No scaffold CLI for new rail | | | ● | | | | |
+| **19.3** | No integration test layer | | | ● | | | | |
+| **20.1** | Examples directory not discoverable | | | ● | | | | |
+| **20.2** | No stable public API / no semver contract | | | ● | ○ | | | |
+| **21.1** | WebSocket-only API, no REST fallback | | | | ● | | | |
+| **21.2** | E2A protocol in markdown, not machine-readable | | | | ● | | | |
+| **21.3** | No published client SDK | | | | ● | | | |
+| **21.4** | Session API has no documented response shapes | | | | ● | | | |
+| **22.1** | Authentication not enforced — open by default | | ○ | | ● | | | |
+| **22.2** | WebSocket origin checking disabled by default | | ○ | | ● | | | |
+| **22.3** | No multi-tenancy | | | | ● | | ● | |
+| **23.1** | Custom channel API has no developer guide | | | | ● | | | |
+| **23.2** | Webhook/event system is limited | | | | ● | | | |
+| **23.3** | No local development mode | | | | ● | | | |
 
 **Legend:** ● primary persona (full content in their section) · ○ secondary persona (affected, pointer in their section)
 

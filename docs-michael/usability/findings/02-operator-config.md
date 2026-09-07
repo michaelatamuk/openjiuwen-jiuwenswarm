@@ -6,8 +6,6 @@
 
 *Installation, configuration, and day-to-day system management.*
 
-*Primary persona: P2.*
-
 ---
 
 ## 2.1 No Startup Validation — Failures Surface on First Use

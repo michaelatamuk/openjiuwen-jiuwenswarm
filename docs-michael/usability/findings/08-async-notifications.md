@@ -6,8 +6,6 @@
 
 *How does the system communicate with users who are not watching?*
 
-*Primary persona: P1. Also relevant to: P4.*
-
 ---
 
 ## 8.1 No Notification When Long-Running Tasks Complete
@@ -25,9 +23,6 @@ completes. The only notifications found are in-app toasts.
 - **Channel self-notification:** Option to send the result summary to the user's own
   Feishu/Telegram account on completion. Given that channels are already integrated,
   this is a small addition.
-
-**Application developer note.**
-For tasks that run for minutes, there is no server-side mechanism to notify an application when the task completes. The only notification mechanisms are browser-side (Web Notifications API, tab badge) — which require the browser tab to be open. A server-side application or automation script has no push notification to listen for without keeping a WebSocket connection open for the full duration of the task. A native webhook system where application developers configure a URL to receive a POST request when a task completes is the preferred solution for this use case (see finding 18.8).
 
 ---
 

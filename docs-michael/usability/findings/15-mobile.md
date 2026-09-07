@@ -6,8 +6,6 @@
 
 *Using jiuwenswarm on a phone or tablet.*
 
-*Primary persona: P1. Also relevant to: P13.*
-
 ---
 
 ## 15.1 Mobile Layout Exists But Is Not a First-Class Experience
