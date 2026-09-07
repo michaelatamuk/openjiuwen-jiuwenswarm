@@ -1,27 +1,16 @@
-[← Index](README.md) · jiuwenswarm Usability Review
+[← Index](../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# P3 — Extension Developer
+# §17 · Developer Usability
 
-*The engineer extending jiuwenswarm from inside: writing custom rails, registering
-tools, working within the Python SDK.*
+*How well does jiuwenswarm support engineers who extend it from inside: writing custom rails, registering tools, working within the Python SDK.*
 
-This audience is distinct from the operator (who installs and runs jiuwenswarm) and
-from the end-user (who chats with the agent). The extension developer writes Python
-code that participates in the agent lifecycle — adding new rails, registering tools,
-composing custom agents, and integrating jiuwenswarm into their own product. This
-section evaluates how well jiuwenswarm supports that experience.
-
-> Also relevant: **P10 (AI / Prompt Engineer)** works with the prompt section API
-> (17.9) and the examples directory (17.6). P10 coverage will expand in a future
-> dedicated section.
+*Primary persona: P3. Also relevant to: P10.*
 
 ---
 
-## §17 · Developer Usability
-
-### 17.1 Rail Extension API Is Undocumented at the Public Surface
+## 17.1 Rail Extension API Is Undocumented at the Public Surface
 
 **Current state.**
 The rail system is the primary extension point for developers. The base class hierarchy is:
@@ -50,7 +39,7 @@ developer reading only `DeepAgentRail` does not know the 10 `AgentRail` hooks ex
 
 ---
 
-### 17.2 Hook Execution Order Is Not Discoverable
+## 17.2 Hook Execution Order Is Not Discoverable
 
 **Current state.**
 Twelve hooks exist across two base classes. A developer writing a rail that interacts with
@@ -111,7 +100,7 @@ This takes under an hour to write and saves every new developer from reading the
 
 ---
 
-### 17.3 `AgentCallbackContext` Has No Type Stubs or Usage Examples
+## 17.3 `AgentCallbackContext` Has No Type Stubs or Usage Examples
 
 **Current state.**
 Every hook receives `ctx: AgentCallbackContext`. This object carries the current agent state:
@@ -142,7 +131,7 @@ whether `ctx.messages` reflects the assembled prompt or the raw conversation his
 
 ---
 
-### 17.4 Tool Registration API Has No Developer Guide
+## 17.4 Tool Registration API Has No Developer Guide
 
 **Current state.**
 Tools are registered in a rail's `init()` method via `agent.ability_manager.add(tool_card)`.
@@ -185,7 +174,7 @@ provides the Python that runs. This needs a diagram or a working end-to-end exam
 
 ---
 
-### 17.5 `create_deep_agent()` Has Too Many Parameters With No Defaults Explained
+## 17.5 `create_deep_agent()` Has Too Many Parameters With No Defaults Explained
 
 **Current state.**
 The primary factory function for creating an agent programmatically is `create_deep_agent()`.
@@ -211,7 +200,7 @@ parameter enables. The docstring on `create_deep_agent()` should include all of 
 
 ---
 
-### 17.6 Examples Directory Is Not Discoverable and Inconsistently Structured
+## 17.6 Examples Directory Is Not Discoverable and Inconsistently Structured
 
 **Current state.**
 Working examples live in `agent-core/examples/`. This directory contains:
@@ -247,7 +236,7 @@ every developer needs but currently does not exist.
 
 ---
 
-### 17.7 Testing a Custom Rail Requires Knowing About Mock Infrastructure
+## 17.7 Testing a Custom Rail Requires Knowing About Mock Infrastructure
 
 **Current state.**
 The testing infrastructure for rails is excellent — `MockLLMModel`, `create_text_response()`,
@@ -290,7 +279,7 @@ the internal test infrastructure.
 
 ---
 
-### 17.8 No Stable Public API / No Semver Contract
+## 17.8 No Stable Public API / No Semver Contract
 
 **Current state.**
 `agent-core` is at version `0.1.17`. `jiuwenswarm` (`workswarm`) is at `0.2.5.beta1`. The
@@ -315,7 +304,7 @@ they get no bug fixes. If they don't pin, any update may break their rail.
 
 ---
 
-### 17.9 Prompt Section API for Rails Is Hidden
+## 17.9 Prompt Section API for Rails Is Hidden
 
 **Current state.**
 Rails inject content into the LLM system prompt by calling `add_section()` or
@@ -354,7 +343,7 @@ use for custom content without colliding with built-in sections.
 
 ---
 
-### 17.10 No CLI Tool to Scaffold a New Rail or Skill
+## 17.10 No CLI Tool to Scaffold a New Rail or Skill
 
 **Current state.**
 Creating a new rail requires: creating a Python file, writing the class boilerplate, choosing
@@ -380,7 +369,7 @@ generated files serve as a living example of the correct patterns.
 
 ---
 
-### 17.11 Error Framework Is Not Exposed as a Developer API
+## 17.11 Error Framework Is Not Exposed as a Developer API
 
 **Current state.**
 The error framework (`openjiuwen/core/common/exception/errors.py`) is well-designed:
@@ -425,7 +414,7 @@ This is the correct API for rail authors to signal intent — but nobody knows i
 
 ---
 
-### 17.12 No Integration Test Layer Between Unit Tests and Full System
+## 17.12 No Integration Test Layer Between Unit Tests and Full System
 
 **Current state.**
 The test suite has unit tests (mocked LLM, isolated rails) and manual end-to-end tests (full
@@ -458,7 +447,7 @@ testing their rail's behavior, not the test framework mechanics.
 
 ---
 
-### Summary: Developer Usability at a Glance
+## Summary: Developer Usability at a Glance
 
 The rail and tool extension system is architecturally sound — the hook model, priority system,
 and tool registration are clean and well-implemented. The gap is entirely in the developer
@@ -482,5 +471,3 @@ can figure it out. A developer who relies on documentation cannot start.
 
 5. **Publish a `PUBLIC_API.md`** — list which classes are stable API. Developers cannot
    build with confidence on a codebase where any class can move or be renamed without notice.
-
----

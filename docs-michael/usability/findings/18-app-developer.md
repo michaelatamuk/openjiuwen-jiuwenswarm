@@ -1,53 +1,16 @@
-[← Index](README.md) · jiuwenswarm Usability Review
+[← Index](../README.md) · jiuwenswarm Usability Review
 
 ---
 
-# P4 — Application Developer
+# §18 · Application Developer Usability
 
-*The engineer building their own product, app, or service on top of jiuwenswarm as a backend.*
+*How well does jiuwenswarm support engineers building their own product, app, or service on top of jiuwenswarm as a backend.*
 
-This audience is distinct from the extension developer in §P3 (who works inside the jiuwenswarm
-codebase, writing rails and tools). The application developer treats jiuwenswarm as a black
-box: they stand it up, connect to it over a network, and build their own frontend, workflow,
-or integration on top of it. Their only contact with jiuwenswarm is the external API it
-exposes.
+*Primary persona: P4. Also relevant to: P6.*
 
 ---
 
-## §8 · Async Task Notifications
-
-*How application developers receive signals when long-running tasks complete.*
-
-### 8.1 No Server-Side Task Completion Notification
-
-**Current state.**
-For tasks that run for minutes, there is no server-side mechanism to notify an
-application when the task completes. The only notification mechanisms are browser-side
-(Web Notifications API, tab badge) — which require the browser tab to be open. A
-server-side application or automation script has no push notification to listen for
-without keeping a WebSocket connection open for the full duration of the task.
-
-**What good looks like.**
-A native webhook system where application developers configure a URL to receive
-a POST request when a task completes:
-```yaml
-hooks:
-  on_task_complete:
-    - type: webhook
-      url: "https://myapp.example.com/jiuwenswarm-events"
-      secret: "whsec_abc123"
-      retry: 3
-```
-This is covered in full in finding 18.8 (Webhook/Event Notification System Is Limited).
-For application developers, the webhook approach is far preferable to polling or
-holding a WebSocket connection open: it works with serverless functions, scales
-independently, and doesn't require persistent connection management.
-
----
-
-## §18 · Application Developer Usability
-
-### 18.1 The Primary API Is WebSocket-Only — No REST Fallback
+## 18.1 The Primary API Is WebSocket-Only — No REST Fallback
 
 **Current state.**
 jiuwenswarm's external interface is the E2A (Everything-to-Agent) protocol, carried over
@@ -89,7 +52,7 @@ REST requests into E2A envelopes and returns the final response.
 
 ---
 
-### 18.2 E2A Protocol Is Documented in Markdown, Not in a Machine-Readable Format
+## 18.2 E2A Protocol Is Documented in Markdown, Not in a Machine-Readable Format
 
 **Current state.**
 The E2A protocol specification lives in two Markdown files:
@@ -123,7 +86,7 @@ It is also the ground truth that prevents spec-code drift.
 
 ---
 
-### 18.3 No Published Client SDK — Every App Reimplements the Protocol
+## 18.3 No Published Client SDK — Every App Reimplements the Protocol
 
 **Current state.**
 A `WebSocketAgentServerClient` class exists in:
@@ -173,7 +136,7 @@ protocol automatically.
 
 ---
 
-### 18.4 Authentication Has No Enforcement — APIs Are Open by Default
+## 18.4 Authentication Has No Enforcement — APIs Are Open by Default
 
 **Current state.**
 The `E2AAuth` structure exists in the protocol:
@@ -220,7 +183,7 @@ upgrade, not a connected-then-rejected response.
 
 ---
 
-### 18.5 WebSocket Origin Checking Is Disabled by Default and Undocumented
+## 18.5 WebSocket Origin Checking Is Disabled by Default and Undocumented
 
 **Current state.**
 WebSocket origin validation is controlled by two environment variables:
@@ -254,7 +217,7 @@ bound to loopback: "⚠ WebSocket origin validation is disabled. Set
 
 ---
 
-### 18.6 No Multi-Tenancy — One Workspace, One User Namespace
+## 18.6 No Multi-Tenancy — One Workspace, One User Namespace
 
 **Current state.**
 jiuwenswarm is a single-workspace system. All sessions, memory, and skills belong to one
@@ -280,7 +243,7 @@ and memory paths: `~/.jiuwenswarm/users/{user_id}/sessions/` instead of
 
 ---
 
-### 18.7 Custom Channel API Exists But Has No Developer Guide
+## 18.7 Custom Channel API Exists But Has No Developer Guide
 
 **Current state.**
 The `BaseChannel` abstract class in `jiuwenswarm/gateway/channel_manager/base.py` defines a
@@ -318,7 +281,7 @@ A `CHANNELS.md` guide covering:
 
 ---
 
-### 18.8 Webhook/Event Notification System Is Limited
+## 18.8 Webhook/Event Notification System Is Limited
 
 **Current state.**
 A `GatewayHookHandler` exists with four events:
@@ -375,7 +338,7 @@ request is authentic.
 
 ---
 
-### 18.9 Session API Is Full-Featured But Has No Documented Response Shapes
+## 18.9 Session API Is Full-Featured But Has No Documented Response Shapes
 
 **Current state.**
 The E2A protocol supports a complete session lifecycle:
@@ -413,7 +376,7 @@ reading for every application developer.
 
 ---
 
-### 18.10 No Local Development Mode for Application Developers
+## 18.10 No Local Development Mode for Application Developers
 
 **Current state.**
 An application developer building against jiuwenswarm must run the full stack (agent server
@@ -446,7 +409,7 @@ one command, for developers who want the real stack without manual process manag
 
 ---
 
-### Summary: Application Developer Usability at a Glance
+## Summary: Application Developer Usability at a Glance
 
 The E2A protocol is well-designed internally: it has a consistent envelope format, a clean
 method namespace, streaming support, and a full session lifecycle. The problem is the same
@@ -472,5 +435,3 @@ jiuwenswarm from the outside sees a WebSocket port, a Markdown file, and no SDK.
 5. **Add user-scoped session isolation.** Route `session.list`, session memory, and
    session history through `user_id`. Unblocks every multi-user product built on top
    of jiuwenswarm.
-
----
