@@ -36,7 +36,7 @@ short, self-explanatory title. When a finding is updated or resolved, only that 
 Start with [00-overview.md](findings/00-overview.md) for the root cause and a theme → folder map.
 
 **`conversation/`** — the day-to-day chat experience
-- [errors-and-feedback.md](findings/conversation/errors-and-feedback.md) — Errors & Feedback · 2 findings
+- [errors-and-feedback](findings/conversation/errors-and-feedback/) — Errors & Feedback · 2 findings
 - [output-and-speed.md](findings/conversation/output-and-speed.md) — Output & Perceived Speed · 5 findings
 - [explanation.md](findings/conversation/explanation.md) — Agent Explanation · 4 findings
 - [messages-and-history.md](findings/conversation/messages-and-history.md) — Messages, History & Notifications · 4 findings

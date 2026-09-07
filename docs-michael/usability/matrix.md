@@ -8,8 +8,8 @@ Which findings affect which persona. Findings are identified per concern file; t
 
 | File | # | Title | Web User | Instance Admin | Extension | Application | Skill Author | Shared Bot Admin |
 |---|---|---|---|---|---|---|---|---|---|
-| errors-and-feedback | 1 | Error messages give no explanation or next step | ● |  |  |  |  |  |
-| errors-and-feedback | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |
+| 1-error-messages-give-no-explanation-or-next-step | 1 | Error messages give no explanation or next step | ● |  |  |  |  |  |
+| 2-no-way-to-rate-retry-or-correct-an-agent-answer | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |
 | explanation | 1 | Agent reasoning is hidden in a separate panel | ● |  |  |  |  |  |
 | explanation | 2 | Tool calls show what ran but not why | ● |  |  |  |  |  |
 | explanation | 3 | Subagents work invisibly with no progress view | ● |  |  |  |  |  |

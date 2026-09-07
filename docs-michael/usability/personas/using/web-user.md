@@ -12,8 +12,8 @@
 
 ### Errors & Feedback
 
-- **[Error messages give no explanation or next step](../../findings/conversation/errors-and-feedback.md#1-error-messages-give-no-explanation-or-next-step)**
-- **[No way to rate, retry or correct an agent answer](../../findings/conversation/errors-and-feedback.md#2-no-way-to-rate-retry-or-correct-an-agent-answer)**
+- **[Error messages give no explanation or next step](../../findings/conversation/errors-and-feedback/1-error-messages-give-no-explanation-or-next-step.md)**
+- **[No way to rate, retry or correct an agent answer](../../findings/conversation/errors-and-feedback/2-no-way-to-rate-retry-or-correct-an-agent-answer.md)**
 
 ### Agent Explanation
 

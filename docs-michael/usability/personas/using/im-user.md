@@ -14,7 +14,7 @@ Shares the Web User's general findings, but can only act through chat: no settin
 
 ### Errors & Feedback
 
-- **[Error messages give no explanation or next step](../../findings/conversation/errors-and-feedback.md#1-error-messages-give-no-explanation-or-next-step)**
+- **[Error messages give no explanation or next step](../../findings/conversation/errors-and-feedback/1-error-messages-give-no-explanation-or-next-step.md)**
 
 ### Messages, History & Notifications
 
