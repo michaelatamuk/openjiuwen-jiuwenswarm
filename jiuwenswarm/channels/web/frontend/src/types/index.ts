@@ -46,6 +46,12 @@ export interface Session {
   round_id?: number;           // LLM 轮次/回合数
   total_tokens?: number;       // 累计 token 消耗
   cron_id?: string;            // 定时任务ID；非空表示 cron 触发的会话，侧栏仅归属定时任务分组
+  /** 后端保存的会话级装备快照，用于刷新页面后恢复插件/MCP选择。 */
+  session_equipment?: {
+    agent_template_name?: string;
+    plugin_names?: string[];
+    mcp?: string[];
+  };
 }
 
 export type AgentMode =
