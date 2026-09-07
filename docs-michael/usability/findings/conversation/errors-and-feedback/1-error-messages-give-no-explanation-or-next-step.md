@@ -16,13 +16,7 @@ When an error occurs, jiuwenswarm shows a bare message that gives the user nothi
 # channels/cli/render.py:200
 error = payload.get("error") or payload.get("message", "unknown error")
 ```
-When neither field is present, the user sees `unknown error` — no tool name, no session id, no log reference, no next step.
-
-```python
-# channels/cli/chat.py:292
-raise ValueError("unable to parse response from gateway")
-```
-No indication of whether this is a network issue, a protocol mismatch, or a bug.
+When neither field is present, the user sees `unknown error` — no tool name, no session id, no log reference, no next step. The same pattern repeats elsewhere: failures surface without saying whether the cause was a network issue, a protocol mismatch, or a bug, so the user cannot tell what went wrong or what to do about it.
 
 ```mermaid
 flowchart TD

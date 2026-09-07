@@ -10,7 +10,7 @@
 
 ## The problem today
 
-`ToolCallDisplay.tsx` shows the tool name, arguments (expandable), and success/failure. The schema has a description field that is never shown. So the user sees `read_file("/data/invoices/inv_001.pdf")` but not why the agent read it.
+`ToolCallDisplay.tsx` shows the tool name, arguments (expandable), success/failure, and a short description when one is set. What it does not show is the *reason* the agent chose this tool. So the user sees `read_file("/data/invoices/inv_001.pdf")` (and its description) but not why the agent read it.
 
 ```mermaid
 flowchart TD

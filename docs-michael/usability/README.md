@@ -52,10 +52,10 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 
 **`setup-and-operation/`** — run & administer the instance
 - [startup-and-config](findings/setup-and-operation/startup-and-config/) — Startup & Configuration · 4 findings
-- [run-and-manage](findings/setup-and-operation/run-and-manage/) — Running & Managing the Instance · 6 findings
+- [run-and-manage](findings/setup-and-operation/run-and-manage/) — Running & Managing the Instance · 7 findings
 - [health-and-degradation](findings/setup-and-operation/health-and-degradation/) — Health & Degradation · 2 findings
 - [diagnostics-and-help](findings/setup-and-operation/diagnostics-and-help/) — Diagnostics & Support · 3 findings
-- [economics](findings/setup-and-operation/economics/) — Cost & Token Economics · 2 findings
+- [economics](findings/setup-and-operation/economics/) — Cost & Token Economics · 3 findings
 
 **`onboarding/`** — first run, empty states & gradual discovery
 - [first-run](findings/onboarding/first-run/) — First Run · 2 findings

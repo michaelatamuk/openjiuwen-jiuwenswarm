@@ -15,11 +15,13 @@
 - **[Data is kept indefinitely with no expiry controls](../../findings/memory-and-privacy/retention/1-data-is-kept-indefinitely-with-no-expiry-controls.md)**
 
 ### Cost & Token Economics
+  - **Trivial prompts still build the full context** — [open](../../findings/setup-and-operation/economics/3-trivial-prompts-still-build-the-full-context.md)
 
 - **[No visibility into token usage or session cost](../../findings/setup-and-operation/economics/1-no-visibility-into-token-usage-or-session-cost.md)**
 - **[No hints about what is consuming the context](../../findings/setup-and-operation/economics/2-no-hints-about-what-is-consuming-the-context.md)**
 
 ### Running & Managing the Instance
+  - **GUI text is not fully translated** — [open](../../findings/setup-and-operation/run-and-manage/7-gui-text-is-not-fully-translated.md)
 
 - **[No visibility into which ports and URLs are in use](../../findings/setup-and-operation/run-and-manage/1-no-visibility-into-which-ports-and-urls-are-in-use.md)**
 - **[Powerful features exist but are never surfaced](../../findings/setup-and-operation/run-and-manage/2-powerful-features-exist-but-are-never-surfaced.md)**

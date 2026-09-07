@@ -38,6 +38,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 3-no-help-or-tooltips-at-the-point-of-confusion | 3 | No help or tooltips at the point of confusion | ● |  |  |  |  |  |
 | 1-no-visibility-into-token-usage-or-session-cost | 1 | No visibility into token usage or session cost | ○ | ● |  |  |  |  |
 | 2-no-hints-about-what-is-consuming-the-context | 2 | No hints about what is consuming the context | ○ | ● |  |  |  |  |
+| 3-trivial-prompts-still-build-the-full-context | 1 | Trivial prompts still build the full context | ○ | ● |  |  |  |  |
 | 1-degraded-subsystems-fail-silently-and-users-assume-all-is-fine | 1 | Degraded subsystems fail silently and users assume all is fine | ● | ○ |  |  |  |  |
 | 2-rate-limits-and-api-failures-hang-or-show-nothing-useful | 2 | Rate limits and API failures hang or show nothing useful | ● |  |  |  |  |  |
 | 1-no-visibility-into-which-ports-and-urls-are-in-use | 1 | No visibility into which ports and URLs are in use |  | ● |  |  |  |  |
@@ -46,6 +47,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 4-upgrading-can-silently-break-an-existing-config | 4 | Upgrading can silently break an existing config |  | ● |  |  |  |  |
 | 5-documentation-is-scattered-with-no-guide-for-common-tasks | 5 | Documentation is scattered with no guide for common tasks |  | ● |  |  |  |  |
 | 6-permission-rules-can-only-be-edited-in-raw-yaml | 6 | Permission rules can only be edited in raw YAML |  | ● |  | ○ |  | ○ |
+| 7-gui-text-is-not-fully-translated | 1 | GUI text is not fully translated |  | ● |  |  |  |  |
 | 1-wrong-credentials-surface-only-on-the-first-chat-never-at-startup | 1 | Wrong credentials surface only on the first chat, never at startup |  | ● |  |  |  |  |
 | 2-the-config-file-has-no-validation-or-check-tool | 2 | The config file has no validation or check tool |  | ● |  |  |  |  |
 | 3-missing-optional-extras-fail-when-used-not-at-startup | 3 | Missing optional extras fail when used, not at startup |  | ● |  |  |  |  |

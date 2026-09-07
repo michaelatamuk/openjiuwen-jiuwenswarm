@@ -14,3 +14,4 @@ Each finding is its own file, with the problem today and the proposed fix.
 - [4 · Upgrading can silently break an existing config](4-upgrading-can-silently-break-an-existing-config.md)
 - [5 · Documentation is scattered with no guide for common tasks](5-documentation-is-scattered-with-no-guide-for-common-tasks.md)
 - [6 · Permission rules can only be edited in raw YAML](6-permission-rules-can-only-be-edited-in-raw-yaml.md)
+- [7 · GUI text is not fully translated](7-gui-text-is-not-fully-translated.md)
