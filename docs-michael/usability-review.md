@@ -31,7 +31,7 @@ be attributed correctly and so that gaps in coverage are explicit.
 | ID | Persona | Who they are | Section in this document |
 |---|---|---|---|
 | **P5** | **Skill Author** | Creates skills to publish to the marketplace for others to install — writes `SKILL.md`, packages Python tools, tests and submits skills | §P5 (partial) |
-| **P6** | **Team Admin** | Manages a shared jiuwenswarm instance on behalf of a team — sets per-user permissions, manages shared memory and skills, reviews activity | §P6 (partial) |
+| **P6** | **Shared Deployment Operator** | Deploys jiuwenswarm as a shared IM bot for a group or team — configures channel access, manages session isolation between users, monitors usage across the group | §P6 (partial) |
 
 ### Personas with no dedicated coverage yet
 
@@ -46,6 +46,7 @@ They are defined here so that future sections can be attributed to them.
 | **P10** | **AI / Prompt Engineer** | Crafts and optimizes the system prompts, persona instructions, and skill descriptions that shape agent behavior — iterates on prompt text to improve output quality | Prompt testing sandbox, A/B comparison, version history for prompts, live prompt inspector |
 | **P11** | **Security Researcher** | Tests the security posture of a jiuwenswarm deployment: prompt injection, permission bypass, authentication gaps, data leakage | Documented threat model, security config guide, test harness for attack patterns |
 | **P12** | **Data Analyst** | Analyzes aggregate agent behavior: usage patterns, task success rates, most-used skills, failure modes — to inform product decisions | Structured telemetry export, usage dashboards, per-session metrics |
+| **P13** | **IM Channel User** | Encounters jiuwenswarm as a bot in a Feishu group, Telegram channel, WeChat workspace, or similar — uses the IM app as the only interface, has no access to Web UI or config, may not know they are talking to jiuwenswarm | Bot response format for IM constraints (message length, threading, @mention), inability to stop a running task from chat, no memory visibility, no mode selection, onboarding experience for an unsolicited bot in a group |
 
 ---
 
@@ -54,8 +55,28 @@ They are defined here so that future sections can be attributed to them.
 *The person chatting with the agent day to day.*
 
 This is the largest section because end-users are the primary audience for most
-of jiuwenswarm's surface area. Operators, developers, and admins configure the
-system; end-users experience everything that results from those choices.
+of jiuwenswarm's surface area.
+
+**Two meaningfully different variants of P1 exist:**
+
+- **Web UI user** — opens `localhost:5173` directly, has full access to the chat
+  panel, settings, skill panel, and trajectory view. This is also the most common
+  deployment: the person who installed jiuwenswarm and uses it for themselves
+  (see note on P1/P2 overlap below).
+- **IM channel user (P13)** — encounters jiuwenswarm through a Feishu group, Telegram
+  channel, WeChat bot, or similar. They use their IM app as the interface; they have
+  no access to the Web UI, cannot change settings, cannot stop a running task, and
+  may not know they are talking to jiuwenswarm. This persona is defined separately as
+  P13 and is not yet fully covered.
+
+The findings in this section are written for the Web UI user. Several (keyboard
+shortcuts, trajectory panel, settings) do not apply to IM channel users at all.
+
+**Note on P1/P2 overlap:** In the dominant deployment pattern — a developer or
+technical individual who self-hosts jiuwenswarm — the installer and the user are the
+same person. P1 and P2 collapse into one. The P1/P2 split is meaningful only when
+jiuwenswarm is deployed as a shared IM bot: one person configured it (P2), others
+use it through a channel (P1) without touching the config.
 
 ---
 
@@ -2194,13 +2215,33 @@ The following aspects of skill authoring have not been investigated yet:
 
 ---
 
-# P6 — Team Admin
+# P6 — Shared Deployment Operator
 
-*Manages a shared jiuwenswarm instance on behalf of a team — sets per-user
-permissions, manages shared memory and skills, reviews activity.*
+*Deploys jiuwenswarm as a shared IM bot for a group or team.*
 
-Coverage for P6 is partial. The findings below cover multi-user collaboration,
-which is where team admin needs most clearly surface.
+**What this persona actually is.** jiuwenswarm has no human team management system —
+no user accounts, no admin dashboard, no per-user permissions UI. The word "team" in
+the product refers to multi-agent configurations (a Leader Agent coordinating Teammate
+Agents in `config.yaml`), not to human teams.
+
+P6 is the person who deploys jiuwenswarm as a shared IM bot — e.g. connecting it to
+a Feishu group, a Telegram channel, or a WeCom workspace so that multiple people in
+the group can chat with it. This person is an operator (§P2) by background, but has
+a different primary concern: making the shared deployment work correctly for multiple
+simultaneous users, none of whom have access to the config.
+
+Their practical problems are:
+- Sessions bleeding between users (mitigated by `gateway.session_map_scope:
+  per_chat_bot_user`, but this config field is undocumented in any guide)
+- No visibility into which users are active or what tasks they have running
+- No way to reset a specific user's session without restarting the whole instance
+- No rate limiting per user — one heavy user can consume all model capacity
+- No way to selectively disable tools for specific users or user groups
+- The IM bot appears to all group members at once; there is no way to make it
+  visible only to specific members
+
+Coverage for P6 is partial. The §11 findings below are the closest coverage that
+exists; a dedicated investigation of the shared-deployment workflow is needed.
 
 ---
 
@@ -2253,20 +2294,22 @@ as the primary skill distribution mechanism.
 
 ---
 
-## §3 · Trust & Safety (Team Admin Perspective)
+## §3 · Trust & Safety (Shared Deployment Perspective)
 
 *(Full findings → P1 chapter, §3)*
 
-- **3.1** No Visibility Into Agent Permissions — team admins are the ones who
-  configure per-user permission rules. Finding 2.6 (no GUI for permission system)
-  in the P2 chapter is the operator-side view of the same problem.
-- **3.4** Destructive External Actions Have No Confirmation Layer — team admins
-  may want to enable confirmation for specific users (e.g. newer team members)
-  while allowing trusted users to bypass it.
+- **3.1** No Visibility Into Agent Permissions — in a shared IM deployment, group
+  members have no way to know what the bot can do (read their files? send external
+  messages on their behalf?). The session capabilities banner (3.1) is a Web UI
+  feature; IM users get no equivalent.
+- **3.4** Destructive External Actions Have No Confirmation Layer — in a group
+  chat, a mistaken Feishu message sent by the bot is visible to everyone. The
+  confirm-before-send mode (3.4) matters more in a shared deployment than in a
+  private one.
 
 ---
 
-# P7–P12 — Not Yet Covered
+# P7–P13 — Not Yet Covered
 
 The following personas have been defined and their key needs identified, but no
 dedicated findings investigation has been completed. Sections will be added as
@@ -2280,6 +2323,7 @@ investigation proceeds.
 | **P10 — AI / Prompt Engineer** | Prompt section inspector (live, per-request), A/B comparison for prompts, version history |
 | **P11 — Security Researcher** | Documented threat model, security config hardening guide, test harness for injection patterns |
 | **P12 — Data Analyst** | Structured telemetry export (Parquet/JSON), usage dashboard, per-session metrics API |
+| **P13 — IM Channel User** | Bot response format for IM constraints, task interruption from chat, memory visibility, unsolicited group-bot onboarding |
 
 ---
 
@@ -2288,95 +2332,98 @@ investigation proceeds.
 Quick-reference table for cross-persona navigation. Each finding ID is stable.
 Full content is in the persona section above.
 
-| Finding | Title | P1 | P2 | P3 | P4 | P5 | P6 |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **1.1** | Error messages give users nothing to act on | ● | | | | | |
-| **1.2** | Mode naming is system-centric | ● | | | | | |
-| **1.3** | No structured feedback on responses | ● | | | | | |
-| **1.4** | Skill creation entry point not obvious | ● | | | | | |
-| **1.5** | Conversation history not searchable | ● | | | | | |
-| **1.6** | No keyboard shortcuts | ● | | | | | |
-| **1.7** | No output length/style controls | ● | | | | | |
-| **1.8** | No undo for agent actions | ● | | | | | |
-| **1.9** | Long messages lack structure aids | ● | | | | | |
-| **2.1** | No startup validation | | ● | | | | |
-| **2.2** | Config file has no validation tool | | ● | | | | |
-| **2.3** | Powerful features invisible by default | | ● | | | | |
-| **2.4** | Onboarding ends before hard part | | ● | | | | |
-| **2.5** | Instance/port management confusing | | ● | | | | |
-| **2.6** | Permission system has no GUI | | ● | | ○ | | ○ |
-| **2.7** | Optional deps fail at runtime | | ● | | | | |
-| **2.8** | Documentation scattered | | ● | | | | |
-| **2.9** | Upgrade experience undefined | | ● | | | | |
-| **2.10** | Internationalization inconsistent | | ● | | | | |
-| **3.1** | No agent permission visibility before first action | ● | ○ | | | | ○ |
-| **3.2** | No diff/preview before file modify | ● | | | | | |
-| **3.3** | No task cancellation with defined semantics | ● | | | | | |
-| **3.4** | No confirmation for destructive external actions | ● | ○ | | | | ○ |
-| **4.1** | Graceful degradation is silent | ● | ○ | | | | |
-| **4.2** | Session recovery after disconnect undefined | ● | ○ | | | | |
-| **4.3** | Rate limiting and API failures opaque | ● | | | | | |
-| **4.4** | No persistent state for in-progress tasks | ● | ○ | | | | |
-| **5.1** | Setup wizard ends too early | ● | ○ | | | | |
-| **5.2** | Empty state has no direction | ● | | | | | |
-| **5.3** | No progressive onboarding after first use | ● | | | | | |
-| **5.4** | CLI first-run has no guidance | ● | ○ | | | | |
-| **6.1** | Thinking display hidden behind trajectory panel | ● | | | | | |
-| **6.2** | Tool calls shown but not explained | ● | | | | | |
-| **6.3** | Subagent activity not visible | ● | | | | | |
-| **6.4** | No explanation of why agent asked a question | ● | | | | | |
-| **7.1** | No first-token latency indicator | ● | | | | | |
-| **7.2** | No indication of context length pressure | ● | | | | | |
-| **7.3** | Skill execution has no progress feedback | ● | | | | | |
-| **8.1** | No notification when long tasks complete | ● | | | ○ | | |
-| **8.2** | No background task management | ● | | | | | |
-| **9.1** | No token or cost visibility | ○ | ● | | | | |
-| **9.2** | No optimization hints | ○ | ● | | | | |
-| **10.1** | Skill marketplace has no quality signals | ○ | ● | | | ● | |
-| **10.2** | No skill dependency management | | ● | | | ○ | |
-| **10.3** | No skill version management or rollback | | ● | | | ● | |
-| **10.4** | Skill testing has no infrastructure | | ○ | | | ● | |
-| **11.1** | No user identity or access control | ○ | ○ | | ○ | | ● |
-| **11.2** | Conversation sharing is image-only | ● | | | | | ○ |
-| **11.3** | No shared skill library for teams | | ○ | | | ○ | ● |
-| **12.1** | No visibility into what is stored in memory | ● | | | | | |
-| **12.2** | No indication of what agent sends to LLM | ● | | | | | |
-| **12.3** | No data retention policy UI | ○ | ● | | | | |
-| **13.1** | No in-context help | ● | | | | | |
-| **13.2** | No diagnostic mode | ● | ○ | | | | |
-| **13.3** | Error messages don't reference log files | ● | ○ | | | | |
-| **14.1** | No keyboard navigation across the UI | ● | | | | | |
-| **14.2** | No screen reader support audit | ● | | | | | |
-| **14.3** | No high-contrast or large-text mode | ● | | | | | |
-| **15.1** | Mobile layout not first-class | ● | | | | | |
-| **15.2** | No PWA support | ● | | | | | |
-| **16.1** | Skills and connectors separate but similar | ● | | | | | |
-| **16.2** | Settings organized by implementation not task | ● | ● | | | | |
-| **16.3** | Trajectory panel hidden and unnamed | ● | | | | | |
-| **17.1** | Rail API undocumented | | | ● | | | |
-| **17.2** | Hook execution order not discoverable | | | ● | | | |
-| **17.3** | AgentCallbackContext has no type stubs | | | ● | | | |
-| **17.4** | Tool registration has no developer guide | | | ● | | | |
-| **17.5** | create_deep_agent() too many undocumented params | | | ● | | | |
-| **17.6** | Examples directory not discoverable | | | ● | | | |
-| **17.7** | Testing a rail requires undocumented mock infra | | | ● | | | |
-| **17.8** | No stable public API / no semver contract | | | ● | ○ | | |
-| **17.9** | Prompt section API is hidden | | | ● | | | |
-| **17.10** | No scaffold CLI for new rail | | | ● | | | |
-| **17.11** | Error framework not exposed as developer API | | | ● | | | |
-| **17.12** | No integration test layer | | | ● | | | |
-| **18.1** | WebSocket-only API, no REST fallback | | | | ● | | |
-| **18.2** | E2A protocol in markdown, not machine-readable | | | | ● | | |
-| **18.3** | No published client SDK | | | | ● | | |
-| **18.4** | Authentication not enforced — open by default | | ○ | | ● | | |
-| **18.5** | WebSocket origin checking disabled by default | | ○ | | ● | | |
-| **18.6** | No multi-tenancy | | | | ● | | ● |
-| **18.7** | Custom channel API has no developer guide | | | | ● | | |
-| **18.8** | Webhook/event system is limited | | | | ● | | |
-| **18.9** | Session API has no documented response shapes | | | | ● | | |
-| **18.10** | No local development mode | | | | ● | | |
+| Finding | Title | P1 | P2 | P3 | P4 | P5 | P6¹ | P13² |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1.1** | Error messages give users nothing to act on | ● | | | | | | ○ |
+| **1.2** | Mode naming is system-centric | ● | | | | | | |
+| **1.3** | No structured feedback on responses | ● | | | | | | ○ |
+| **1.4** | Skill creation entry point not obvious | ● | | | | | | |
+| **1.5** | Conversation history not searchable | ● | | | | | | |
+| **1.6** | No keyboard shortcuts | ● | | | | | | |
+| **1.7** | No output length/style controls | ● | | | | | | |
+| **1.8** | No undo for agent actions | ● | | | | | | |
+| **1.9** | Long messages lack structure aids | ● | | | | | | |
+| **2.1** | No startup validation | | ● | | | | | |
+| **2.2** | Config file has no validation tool | | ● | | | | | |
+| **2.3** | Powerful features invisible by default | | ● | | | | | |
+| **2.4** | Onboarding ends before hard part | | ● | | | | | |
+| **2.5** | Instance/port management confusing | | ● | | | | | |
+| **2.6** | Permission system has no GUI | | ● | | ○ | | ○ | |
+| **2.7** | Optional deps fail at runtime | | ● | | | | | |
+| **2.8** | Documentation scattered | | ● | | | | | |
+| **2.9** | Upgrade experience undefined | | ● | | | | | |
+| **2.10** | Internationalization inconsistent | | ● | | | | | |
+| **3.1** | No agent permission visibility before first action | ● | ○ | | | | ○ | |
+| **3.2** | No diff/preview before file modify | ● | | | | | | |
+| **3.3** | No task cancellation with defined semantics | ● | | | | | | ○ |
+| **3.4** | No confirmation for destructive external actions | ● | ○ | | | | ○ | ○ |
+| **4.1** | Graceful degradation is silent | ● | ○ | | | | | ○ |
+| **4.2** | Session recovery after disconnect undefined | ● | ○ | | | | | ○ |
+| **4.3** | Rate limiting and API failures opaque | ● | | | | | | |
+| **4.4** | No persistent state for in-progress tasks | ● | ○ | | | | | |
+| **5.1** | Setup wizard ends too early | ● | ○ | | | | | |
+| **5.2** | Empty state has no direction | ● | | | | | | |
+| **5.3** | No progressive onboarding after first use | ● | | | | | | |
+| **5.4** | CLI first-run has no guidance | ● | ○ | | | | | |
+| **6.1** | Thinking display hidden behind trajectory panel | ● | | | | | | |
+| **6.2** | Tool calls shown but not explained | ● | | | | | | |
+| **6.3** | Subagent activity not visible | ● | | | | | | |
+| **6.4** | No explanation of why agent asked a question | ● | | | | | | ○ |
+| **7.1** | No first-token latency indicator | ● | | | | | | ○ |
+| **7.2** | No indication of context length pressure | ● | | | | | | |
+| **7.3** | Skill execution has no progress feedback | ● | | | | | | |
+| **8.1** | No notification when long tasks complete | ● | | | ○ | | | |
+| **8.2** | No background task management | ● | | | | | | |
+| **9.1** | No token or cost visibility | ○ | ● | | | | | |
+| **9.2** | No optimization hints | ○ | ● | | | | | |
+| **10.1** | Skill marketplace has no quality signals | ○ | ● | | | ● | | |
+| **10.2** | No skill dependency management | | ● | | | ○ | | |
+| **10.3** | No skill version management or rollback | | ● | | | ● | | |
+| **10.4** | Skill testing has no infrastructure | | ○ | | | ● | | |
+| **11.1** | No user identity or access control | ○ | ○ | | ○ | | ● | ○ |
+| **11.2** | Conversation sharing is image-only | ● | | | | | ○ | |
+| **11.3** | No shared skill library for teams | | ○ | | | ○ | ● | |
+| **12.1** | No visibility into what is stored in memory | ● | | | | | | ○ |
+| **12.2** | No indication of what agent sends to LLM | ● | | | | | | |
+| **12.3** | No data retention policy UI | ○ | ● | | | | | |
+| **13.1** | No in-context help | ● | | | | | | ○ |
+| **13.2** | No diagnostic mode | ● | ○ | | | | | |
+| **13.3** | Error messages don't reference log files | ● | ○ | | | | | ○ |
+| **14.1** | No keyboard navigation across the UI | ● | | | | | | |
+| **14.2** | No screen reader support audit | ● | | | | | | |
+| **14.3** | No high-contrast or large-text mode | ● | | | | | | |
+| **15.1** | Mobile layout not first-class | ● | | | | | | |
+| **15.2** | No PWA support | ● | | | | | | |
+| **16.1** | Skills and connectors separate but similar | ● | | | | | | |
+| **16.2** | Settings organized by implementation not task | ● | ● | | | | | |
+| **16.3** | Trajectory panel hidden and unnamed | ● | | | | | | |
+| **17.1** | Rail API undocumented | | | ● | | | | |
+| **17.2** | Hook execution order not discoverable | | | ● | | | | |
+| **17.3** | AgentCallbackContext has no type stubs | | | ● | | | | |
+| **17.4** | Tool registration has no developer guide | | | ● | | | | |
+| **17.5** | create_deep_agent() too many undocumented params | | | ● | | | | |
+| **17.6** | Examples directory not discoverable | | | ● | | | | |
+| **17.7** | Testing a rail requires undocumented mock infra | | | ● | | | | |
+| **17.8** | No stable public API / no semver contract | | | ● | ○ | | | |
+| **17.9** | Prompt section API is hidden | | | ● | | | | |
+| **17.10** | No scaffold CLI for new rail | | | ● | | | | |
+| **17.11** | Error framework not exposed as developer API | | | ● | | | | |
+| **17.12** | No integration test layer | | | ● | | | | |
+| **18.1** | WebSocket-only API, no REST fallback | | | | ● | | | |
+| **18.2** | E2A protocol in markdown, not machine-readable | | | | ● | | | |
+| **18.3** | No published client SDK | | | | ● | | | |
+| **18.4** | Authentication not enforced — open by default | | ○ | | ● | | | |
+| **18.5** | WebSocket origin checking disabled by default | | ○ | | ● | | | |
+| **18.6** | No multi-tenancy | | | | ● | | ● | |
+| **18.7** | Custom channel API has no developer guide | | | | ● | | | |
+| **18.8** | Webhook/event system is limited | | | | ● | | | |
+| **18.9** | Session API has no documented response shapes | | | | ● | | | |
+| **18.10** | No local development mode | | | | ● | | | |
 
 **Legend:** ● primary persona (full content in their section) · ○ secondary persona (affected, pointer in their section)
+
+¹ **P6 — Shared Deployment Operator**: person who deploys jiuwenswarm as a shared IM bot for others. Not a "team admin" — jiuwenswarm has no human team management system.
+² **P13 — IM Channel User**: person who talks to jiuwenswarm through Feishu/Telegram/WeChat without Web UI access. Not yet fully covered; marked ○ where existing findings apply.
 
 ---
 
