@@ -17,19 +17,13 @@ one-liner with a link to the full finding text. Read only the file for your role
 
 | File | Persona | Status |
 |---|---|---|
-| [end-user.md](personas/end-user.md) | **P1 — End-User** | Covered · 36 findings |
-| [operator.md](personas/operator.md) | **P2 — Operator** | Covered · 22 findings |
-| [extension-developer.md](personas/extension-developer.md) | **P3 — Extension Developer** | Covered · 12 findings |
-| [application-developer.md](personas/application-developer.md) | **P4 — Application Developer** | Covered · 11 findings |
-| [skill-author.md](personas/skill-author.md) | **P5 — Skill Author** | Partial |
-| [shared-deployment-operator.md](personas/shared-deployment-operator.md) | **P6 — Shared Deployment Operator** | Partial |
-| [auditor.md](personas/auditor.md) | **P7 — Auditor / Compliance Officer** | Not yet covered |
-| [agent-evaluator.md](personas/agent-evaluator.md) | **P8 — Agent QA / Evaluator** | Not yet covered |
-| [support-help-desk.md](personas/support-help-desk.md) | **P9 — Support / Help Desk** | Not yet covered |
-| [prompt-engineer.md](personas/prompt-engineer.md) | **P10 — AI / Prompt Engineer** | Not yet covered |
-| [security-researcher.md](personas/security-researcher.md) | **P11 — Security Researcher** | Not yet covered |
-| [data-analyst.md](personas/data-analyst.md) | **P12 — Data Analyst** | Not yet covered |
-| [im-channel-user.md](personas/im-channel-user.md) | **P13 — IM Channel User** | Not yet covered |
+| [end-user.md](personas/using/end-user.md) | **End-User** | Covered · 44 findings |
+| [developer.md](personas/using/developer.md) | **Developer** | Covered · 9 findings |
+| [instance-admin.md](personas/operating/instance-admin.md) | **Instance Admin** | Covered · 26 findings |
+| [extension-developer.md](personas/extending/extension-developer.md) | **Extension Developer** | Covered · 12 findings |
+| [application-developer.md](personas/integrating/application-developer.md) | **Application Developer** | Covered · 11 findings |
+| [skill-author.md](personas/extending/skill-author.md) | **Skill Author** | Partial · 2 findings |
+| [shared-bot-admin.md](personas/operating/shared-bot-admin.md) | **Shared Bot Admin** | Partial · 5 findings |
 
 ---
 
@@ -97,37 +91,41 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 
 ### `matrix.md` — Cross-reference
 
-[matrix.md](matrix.md) answers "which personas are affected by finding X.Y?" — a table
-of all findings × all personas. Lives at the root alongside this file.
+[matrix.md](matrix.md) answers "which finding matters to which persona" — a table
+of all findings × personas. Lives at the root alongside this file.
 
 ---
 
 ## Personas
 
-### Fully covered
+Personas are grouped by how each person relates to the system — that relationship is what
+decides which findings matter to them.
 
-| ID | Persona | Who they are |
-|---|---|---|
-| **P1** | **End-User** | The person chatting with the agent day to day. **Two variants:** Web UI user (full access) and IM channel user (Feishu/Telegram/WeChat, no Web UI — see P13). In self-hosted individual deployments, P1 and P2 are the same person. |
-| **P2** | **Operator** | The person who installs, configures, and maintains the instance. |
-| **P3** | **Extension Developer** | The engineer who extends jiuwenswarm from inside: writes custom rails, registers tools, works within the Python SDK. |
-| **P4** | **Application Developer** | The engineer who builds their own product on top of jiuwenswarm as a backend: connects via E2A/WebSocket, builds a custom frontend or automation. |
+### Using — people who talk to the agent
 
-### Partially covered
+| Persona | Who they are |
+|---|---|
+| [End-User](personas/using/end-user.md) · **Covered, 44 findings** | Converses with the agent day to day over the Web UI or an IM channel; not someone who configures or builds. |
+| [Developer](personas/using/developer.md) · **Covered, 9 findings** | A technical user driving the agent as a coding and automation assistant (Code workspace, IDE, terminal/TUI, CLI); when self-hosting, also the Instance Admin. |
 
-| ID | Persona | Who they are |
-|---|---|---|
-| **P5** | **Skill Author** | Creates skills for the marketplace — writes `SKILL.md`, packages Python tools, tests and submits skills. |
-| **P6** | **Shared Deployment Operator** | Deploys jiuwenswarm as a shared IM bot for a group. **Note:** jiuwenswarm has no human team management system. "Team" in the product = multi-agent configs (Leader Agent + Teammate Agents). P6's concerns are session isolation between users, per-user visibility, and rate limiting. |
+### Administering — people who run it
 
-### Not yet covered
+| Persona | Who they are |
+|---|---|
+| [Instance Admin](personas/operating/instance-admin.md) · **Covered, 26 findings** | The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm working — models, channels, tool-permission whitelists, memory, upgrades. |
+| [Shared Bot Admin](personas/operating/shared-bot-admin.md) · **Partial, 5 findings** | Runs one instance that a whole group uses through a chat bot; on top of instance-admin duties, keeps each user's session/memory separate and stops one user from taking the instance down. |
 
-| ID | Persona | Short description |
-|---|---|---|
-| **P7** | [Auditor / Compliance Officer](personas/auditor.md) | Reviews agent activity for legal/regulatory purposes |
-| **P8** | [Agent QA / Evaluator](personas/agent-evaluator.md) | Tests agent quality, runs benchmarks, catches regressions |
-| **P9** | [Support / Help Desk](personas/support-help-desk.md) | Diagnoses failures, resets user state, replays sessions |
-| **P10** | [AI / Prompt Engineer](personas/prompt-engineer.md) | Crafts and optimizes prompts and skill descriptions |
-| **P11** | [Security Researcher](personas/security-researcher.md) | Tests deployment security posture |
-| **P12** | [Data Analyst](personas/data-analyst.md) | Analyzes aggregate agent behavior and usage patterns |
-| **P13** | [IM Channel User](personas/im-channel-user.md) | Talks to jiuwenswarm through Feishu/Telegram/WeChat with no Web UI access |
+### Extending — people who build into the product
+
+| Persona | Who they are |
+|---|---|
+| [Extension Developer](personas/extending/extension-developer.md) · **Covered, 12 findings** | The engineer extending jiuwenswarm from inside: rails, tools, and the Python SDK. |
+| [Skill Author](personas/extending/skill-author.md) · **Partial, 2 findings** | The person who writes and packages skills for the marketplace — `SKILL.md`, Python tools, prompt/instruction content. |
+
+### Integrating — people who build on top as a backend
+
+| Persona | Who they are |
+|---|---|
+| [Application Developer](personas/integrating/application-developer.md) · **Covered, 11 findings** | The engineer building their own product on jiuwenswarm as a backend, over the E2A/WebSocket API. |
+
+Personas here are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM channels, skill hubs, rails/harness, E2A/ACP). Auditing/compliance/security/QA/analyst roles were considered but have no product surface yet, so they are not included.
