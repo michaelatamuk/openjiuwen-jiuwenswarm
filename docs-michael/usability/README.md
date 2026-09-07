@@ -1,13 +1,14 @@
 # jiuwenswarm — Usability Review
 
 Content is split across two subfolders plus two files at the root. Start here to
-orient yourself, then go directly to wherever you need.
-
-Finding IDs (e.g. **3.1**, **17.4**) are stable across document versions.
+orient yourself, then go directly to wherever you need. Each finding is identified by its
+concern file and a short, self-explanatory title.
 
 ---
 
 ## Navigation
+
+Quick reads: [00-overview — root cause & concern map](findings/00-overview.md) · [matrix — findings × personas](matrix.md)
 
 ### `personas/` — Start here if you are a specific role
 
@@ -34,35 +35,63 @@ one-liner with a link to the full finding text. Read only the file for your role
 
 ### `findings/` — Single source of truth for each finding
 
-One file per concern area (§1–§23). Full finding text lives here — exactly once.
-When a finding is updated or resolved, only this file changes.
+Findings are grouped into **theme folders**, each containing single-source concern files.
+Each finding lives exactly once, in exactly one file, numbered within that file and given a
+short, self-explanatory title. When a finding is updated or resolved, only that file changes.
 
-| File | Section | Findings |
-|---|---|---|
-| [00-overview.md](findings/00-overview.md) | **Root cause** | Why all these findings exist |
-| [01-core-usability.md](findings/01-core-usability.md) | §1 · Core Usability | 1.1–1.9 |
-| [02-operator-config.md](findings/02-operator-config.md) | §2 · Operator Config & Setup | 2.1–2.10 |
-| [03-trust-safety.md](findings/03-trust-safety.md) | §3 · Trust & Safety | 3.1–3.4 |
-| [04-reliability.md](findings/04-reliability.md) | §4 · Reliability & Resilience | 4.1–4.4 |
-| [05-first-run.md](findings/05-first-run.md) | §5 · First-Run Experience | 5.1–5.4 |
-| [06-transparency.md](findings/06-transparency.md) | §6 · Agent Transparency | 6.1–6.4 |
-| [07-performance.md](findings/07-performance.md) | §7 · Performance & Perceived Speed | 7.1–7.3 |
-| [08-async-notifications.md](findings/08-async-notifications.md) | §8 · Async Notifications | 8.1–8.2 |
-| [09-economic-ux.md](findings/09-economic-ux.md) | §9 · Economic UX | 9.1–9.2 |
-| [10-skill-ecosystem.md](findings/10-skill-ecosystem.md) | §10 · Skill Ecosystem | 10.1–10.4 |
-| [11-multi-user.md](findings/11-multi-user.md) | §11 · Multi-User & Collaboration | 11.1–11.3 |
-| [12-data-privacy.md](findings/12-data-privacy.md) | §12 · Data & Privacy | 12.1–12.3 |
-| [13-help-support.md](findings/13-help-support.md) | §13 · Help & Support | 13.1–13.3 |
-| [14-accessibility.md](findings/14-accessibility.md) | §14 · Accessibility | 14.1–14.3 |
-| [15-mobile.md](findings/15-mobile.md) | §15 · Mobile & Cross-Platform | 15.1–15.2 |
-| [16-info-architecture.md](findings/16-info-architecture.md) | §16 · Information Architecture | 16.1–16.3 |
-| [17-rails-and-context-api.md](findings/17-rails-and-context-api.md) | §17 · Rails & Context API | 17.1–17.5 |
-| [18-tools-and-agent-factory.md](findings/18-tools-and-agent-factory.md) | §18 · Tools & Agent Factory | 18.1–18.2 |
-| [19-testing-and-tooling.md](findings/19-testing-and-tooling.md) | §19 · Testing & Tooling | 19.1–19.3 |
-| [20-documentation-and-api-stability.md](findings/20-documentation-and-api-stability.md) | §20 · Documentation & API Stability | 20.1–20.2 |
-| [21-transport-and-protocol.md](findings/21-transport-and-protocol.md) | §21 · Transport & Protocol | 21.1–21.4 |
-| [22-security-and-isolation.md](findings/22-security-and-isolation.md) | §22 · Security & Isolation | 22.1–22.3 |
-| [23-integration-and-local-development.md](findings/23-integration-and-local-development.md) | §23 · Integration & Local Development | 23.1–23.3 |
+Start with [00-overview.md](findings/00-overview.md) for the root cause and a theme → folder map.
+
+**`conversation/`** — the day-to-day chat experience
+- [errors-and-feedback.md](findings/conversation/errors-and-feedback.md) — Errors & Feedback · 2 findings
+- [output-and-speed.md](findings/conversation/output-and-speed.md) — Output & Perceived Speed · 5 findings
+- [explanation.md](findings/conversation/explanation.md) — Agent Explanation · 4 findings
+- [messages-and-history.md](findings/conversation/messages-and-history.md) — Messages, History & Notifications · 4 findings
+
+**`control/`** — capability boundaries, approval, stopping & undoing
+- [permissions.md](findings/control/permissions.md) — Permissions · 1 findings
+- [approve-and-preview.md](findings/control/approve-and-preview.md) — Approval & Preview · 2 findings
+- [stop-resume-undo.md](findings/control/stop-resume-undo.md) — Stop, Resume & Undo · 4 findings
+
+**`memory-and-privacy/`** — what is remembered, sent out and kept
+- [memory-visibility.md](findings/memory-and-privacy/memory-visibility.md) — Memory Visibility · 2 findings
+- [retention.md](findings/memory-and-privacy/retention.md) — Data Retention · 1 findings
+
+**`setup-and-operation/`** — run & administer the instance
+- [startup-and-config.md](findings/setup-and-operation/startup-and-config.md) — Startup & Configuration · 4 findings
+- [run-and-manage.md](findings/setup-and-operation/run-and-manage.md) — Running & Managing the Instance · 6 findings
+- [health-and-degradation.md](findings/setup-and-operation/health-and-degradation.md) — Health & Degradation · 2 findings
+- [diagnostics-and-help.md](findings/setup-and-operation/diagnostics-and-help.md) — Diagnostics & Support · 3 findings
+- [economics.md](findings/setup-and-operation/economics.md) — Cost & Token Economics · 2 findings
+
+**`onboarding/`** — first run, empty states & gradual discovery
+- [first-run.md](findings/onboarding/first-run.md) — First Run · 2 findings
+- [empty-state-and-choosing.md](findings/onboarding/empty-state-and-choosing.md) — Empty States & Choosing a Mode · 2 findings
+- [progressive.md](findings/onboarding/progressive.md) — Progressive Discovery · 1 findings
+- [navigation-and-settings.md](findings/onboarding/navigation-and-settings.md) — Navigation & Settings · 3 findings
+
+**`platform/`** — accessibility & cross-device
+- [accessibility.md](findings/platform/accessibility.md) — Accessibility & Keyboard · 4 findings
+- [mobile.md](findings/platform/mobile.md) — Mobile & Cross-Device · 2 findings
+
+**`skills/`** — marketplace, authoring, versioning
+- [marketplace.md](findings/skills/marketplace.md) — Skill Marketplace · 1 findings
+- [authoring-and-testing.md](findings/skills/authoring-and-testing.md) — Skill Authoring & Dependencies · 3 findings
+- [versioning.md](findings/skills/versioning.md) — Skill Versioning · 1 findings
+
+**`collaboration/`** — multi-user & sharing
+- [identity-and-isolation.md](findings/collaboration/identity-and-isolation.md) — Identity & Isolation · 2 findings
+- [shared-library.md](findings/collaboration/shared-library.md) — Shared Skill Library · 1 findings
+
+**`extension-surface/`** — building behaviour into jiuwenswarm (rails, tools, SDK)
+- [rails-and-context-api.md](findings/extension-surface/rails-and-context-api.md) — Rails & Context API · 5 findings
+- [tools-and-agent-factory.md](findings/extension-surface/tools-and-agent-factory.md) — Tools & Agent Factory · 2 findings
+- [testing-and-tooling.md](findings/extension-surface/testing-and-tooling.md) — Extension Testing & Tooling · 3 findings
+- [documentation-and-stability.md](findings/extension-surface/documentation-and-stability.md) — Extension Documentation & Stability · 2 findings
+
+**`application-api/`** — building a product on top of jiuwenswarm as a backend
+- [transport-and-protocol.md](findings/application-api/transport-and-protocol.md) — Transport & Protocol · 4 findings
+- [security-and-isolation.md](findings/application-api/security-and-isolation.md) — Connection Security · 2 findings
+- [integration-and-local-development.md](findings/application-api/integration-and-local-development.md) — Integration & Local Development · 3 findings
 
 ---
 

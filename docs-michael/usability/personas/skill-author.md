@@ -21,8 +21,8 @@ investigation of the skill authoring workflow will produce additional findings.
 
 ### §10 · Skill Ecosystem
 
-- **[10.3 No Skill Version Management or Rollback](../findings/10-skill-ecosystem.md#103-no-skill-version-management-or-rollback)** — When the evolution system auto-modifies a skill, there is no diff-for-approval step and no way to recover the previous version.
-- **[10.4 Skill Testing Has No Infrastructure](../findings/10-skill-ecosystem.md#104-skill-testing-has-no-infrastructure)** — A skill author must trigger skills through a real chat session; there is no sandbox or "test this skill" panel to validate a `SKILL.md` before publishing.
+- **[Skill updates can't be reviewed or rolled back](../findings/skills/versioning.md#1-skill-updates-cant-be-reviewed-or-rolled-back)** — When the evolution system auto-modifies a skill, there is no diff-for-approval step and no way to recover the previous version.
+- **[Skills can only be tested through a live chat](../findings/skills/authoring-and-testing.md#3-skills-can-only-be-tested-through-a-live-chat)** — A skill author must trigger skills through a real chat session; there is no sandbox or "test this skill" panel to validate a `SKILL.md` before publishing.
 
 ### P5 Gaps
 

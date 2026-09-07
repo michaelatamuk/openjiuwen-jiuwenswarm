@@ -29,7 +29,7 @@ This persona works with data, not with the agent directly. They want structured,
 
 **No usage dashboard** — There is no built-in dashboard showing aggregate metrics: session count, skill usage, failure rates, token consumption by session. The Web UI shows per-session trajectory but no cross-session aggregation.
 
-**OTel tracing is opt-in and undiscovered** — The OpenTelemetry integration (`team_observability.enabled`) could feed a metrics backend, but it is disabled by default and not documented in any operator guide. (Related: finding 2.3 in [operator.md](operator.md).)
+**OTel tracing is opt-in and undiscovered** — The OpenTelemetry integration (`team_observability.enabled`) could feed a metrics backend, but it is disabled by default and not documented in any operator guide. (Related: see [operator.md](operator.md).)
 
 **No per-user metrics in shared deployments** — Even with session isolation enabled, there is no API to query "how many sessions did user X have this week?" The `user_id` field is stored but not exposed in any query interface.
 

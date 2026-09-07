@@ -40,11 +40,11 @@ exists; a dedicated investigation of the shared-deployment workflow is needed.
 
 ### §3 · Trust & Safety
 
-- **[3.1 No Visibility Into Agent Permissions Before the First Action](../findings/03-trust-safety.md#31-no-visibility-into-agent-permissions-before-the-first-action)** — Group members using the IM bot have no Web UI access and cannot see any permission banner; they have no way to know what the bot can do.
-- **[3.4 Destructive External Actions Have No Confirmation Layer](../findings/03-trust-safety.md#34-destructive-external-actions-have-no-confirmation-layer)** — In a group chat, a mistaken `send_feishu_message` triggered by an ambiguous message could broadcast incorrect information to an entire team.
+- **[Users aren't told what the agent is allowed to do before it acts](../findings/control/permissions.md#1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts)** — Group members using the IM bot have no Web UI access and cannot see any permission banner; they have no way to know what the bot can do.
+- **[Destructive external actions fire without confirmation](../findings/control/approve-and-preview.md#2-destructive-external-actions-fire-without-confirmation)** — In a group chat, a mistaken `send_feishu_message` triggered by an ambiguous message could broadcast incorrect information to an entire team.
 
 ### §11 · Multi-User & Collaboration
 
-- **[11.1 No User Identity or Access Control](../findings/11-multi-user.md#111-no-user-identity-or-access-control)** — All users sharing an instance share the same memory and session space; per-user isolation is not available out of the box.
-- **[11.2 Conversation Sharing Is Image-Only](../findings/11-multi-user.md#112-conversation-sharing-is-image-only)** — There is no way to share a conversation as a link, Markdown, or JSON export — only a PNG screenshot.
-- **[11.3 No Shared Skill Library for Teams](../findings/11-multi-user.md#113-no-shared-skill-library-for-teams)** — Skills are per-workspace; separate instances cannot share skills without manually copying files.
+- **[All users share one identity, memory and permissions](../findings/collaboration/identity-and-isolation.md#1-all-users-share-one-identity-memory-and-permissions)** — All users sharing an instance share the same memory and session space; per-user isolation is not available out of the box.
+- **[Conversations can only be shared as a flat image](../findings/conversation/messages-and-history.md#4-conversations-can-only-be-shared-as-a-flat-image)** — There is no way to share a conversation as a link, Markdown, or JSON export — only a PNG screenshot.
+- **[No shared skill library across instances](../findings/collaboration/shared-library.md#1-no-shared-skill-library-across-instances)** — Skills are per-workspace; separate instances cannot share skills without manually copying files.

@@ -33,4 +33,4 @@ This persona is reactive — they arrive when a user reports a problem. They nee
 
 **Log correlation is manual** — Matching a user report ("it failed around 3pm") to the right log file and line requires knowing the log file structure, which is undocumented.
 
-**Error messages don't carry session context** — When a user pastes an error message to support, the message contains no session ID, no timestamp, no correlation ID that would let support staff find the relevant log entry quickly. (Related: finding 1.1 in [end-user.md](end-user.md).)
+**Error messages don't carry session context** — When a user pastes an error message to support, the message contains no session ID, no timestamp, no correlation ID that would let support staff find the relevant log entry quickly. (Related: see [end-user.md](end-user.md).)

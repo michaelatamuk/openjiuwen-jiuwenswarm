@@ -40,80 +40,80 @@ use it through a channel (P1) without touching the config.
 
 ### §1 · Core Usability
 
-- **[1.1 Error Messages Give Users Nothing to Act On](../findings/01-core-usability.md#11-error-messages-give-users-nothing-to-act-on)** — When something fails, the user sees "unknown error" with no context, no next step, no log reference.
-- **[1.2 Mode Naming Is System-Centric, Not User-Centric](../findings/01-core-usability.md#12-mode-naming-is-system-centric-not-user-centric)** — Mode selector has no descriptions; new users cannot make an informed choice.
-- **[1.3 No Structured Feedback Mechanism for Agent Responses](../findings/01-core-usability.md#13-no-structured-feedback-mechanism-for-agent-responses)** — No thumbs down, no regenerate, no inline correction on any assistant message.
-- **[1.4 Skill Creation Entry Point Is Not Obvious](../findings/01-core-usability.md#14-skill-creation-entry-point-is-not-obvious)** — No guided entry point; the routing logic is buried inside a skill's own prompt.
-- **[1.5 Conversation History Is Not Searchable](../findings/01-core-usability.md#15-conversation-history-is-not-searchable)** — Finding a past conversation requires scrolling; there is no search box.
-- **[1.6 No Keyboard Shortcuts for Core Actions](../findings/01-core-usability.md#16-no-keyboard-shortcuts-for-core-actions)** — New conversation, stop agent, open settings — none have keyboard access.
-- **[1.7 Agent Output Has No Length or Style Controls](../findings/01-core-usability.md#17-agent-output-has-no-length-or-style-controls)** — No global preference for response verbosity; users must repeat "be brief" every time.
-- **[1.8 No "Undo" for Agent Actions](../findings/01-core-usability.md#18-no-undo-for-agent-actions)** — File writes, sent messages, API calls — none can be reversed from the UI.
-- **[1.9 Long Messages Lack Structure Aids](../findings/01-core-usability.md#19-long-messages-lack-structure-aids)** — Long agent responses have no table of contents, jump-to-section, or collapsible sections.
+- **[Error messages give no explanation or next step](../findings/conversation/errors-and-feedback.md#1-error-messages-give-no-explanation-or-next-step)** — When something fails, the user sees "unknown error" with no context, no next step, no log reference.
+- **[Agent modes have no user-facing names or descriptions](../findings/onboarding/empty-state-and-choosing.md#2-agent-modes-have-no-user-facing-names-or-descriptions)** — Mode selector has no descriptions; new users cannot make an informed choice.
+- **[No way to rate, retry or correct an agent answer](../findings/conversation/errors-and-feedback.md#2-no-way-to-rate-retry-or-correct-an-agent-answer)** — No thumbs down, no regenerate, no inline correction on any assistant message.
+- **[Creating a skill has no clear entry point](../findings/skills/authoring-and-testing.md#1-creating-a-skill-has-no-clear-entry-point)** — No guided entry point; the routing logic is buried inside a skill's own prompt.
+- **[Past conversations can't be searched](../findings/conversation/messages-and-history.md#1-past-conversations-cant-be-searched)** — Finding a past conversation requires scrolling; there is no search box.
+- **[Core actions have no keyboard shortcuts](../findings/platform/accessibility.md#4-core-actions-have-no-keyboard-shortcuts)** — New conversation, stop agent, open settings — none have keyboard access.
+- **[No control over reply length or writing style](../findings/conversation/output-and-speed.md#1-no-control-over-reply-length-or-writing-style)** — No global preference for response verbosity; users must repeat "be brief" every time.
+- **[Agent file writes and sends can't be undone](../findings/control/stop-resume-undo.md#2-agent-file-writes-and-sends-cant-be-undone)** — File writes, sent messages, API calls — none can be reversed from the UI.
+- **[Long agent replies have no structure aids](../findings/conversation/output-and-speed.md#2-long-agent-replies-have-no-structure-aids)** — Long agent responses have no table of contents, jump-to-section, or collapsible sections.
 
 ### §3 · Trust & Safety
 
-- **[3.1 No Visibility Into Agent Permissions Before the First Action](../findings/03-trust-safety.md#31-no-visibility-into-agent-permissions-before-the-first-action)** — The user has no summary of what the agent can do before it starts acting.
-- **[3.2 No Diff/Preview Before the Agent Modifies Files](../findings/03-trust-safety.md#32-no-diffpreview-before-the-agent-modifies-files)** — Files can be created, edited, or deleted without any preview or approval step.
-- **[3.3 No Task Cancellation With Defined Semantics](../findings/03-trust-safety.md#33-no-task-cancellation-with-defined-semantics)** — Closing the tab may leave the agent running on the server in an unknown state.
-- **[3.4 Destructive External Actions Have No Confirmation Layer](../findings/03-trust-safety.md#34-destructive-external-actions-have-no-confirmation-layer)** — Feishu messages and API calls fire without the user being able to review or cancel them.
+- **[Users aren't told what the agent is allowed to do before it acts](../findings/control/permissions.md#1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts)** — The user has no summary of what the agent can do before it starts acting.
+- **[File changes are applied with no preview or approval](../findings/control/approve-and-preview.md#1-file-changes-are-applied-with-no-preview-or-approval)** — Files can be created, edited, or deleted without any preview or approval step.
+- **[No stop button that safely interrupts the agent](../findings/control/stop-resume-undo.md#1-no-stop-button-that-safely-interrupts-the-agent)** — Closing the tab may leave the agent running on the server in an unknown state.
+- **[Destructive external actions fire without confirmation](../findings/control/approve-and-preview.md#2-destructive-external-actions-fire-without-confirmation)** — Feishu messages and API calls fire without the user being able to review or cancel them.
 
 ### §4 · Reliability & Resilience
 
-- **[4.1 Graceful Degradation Is Silent](../findings/04-reliability.md#41-graceful-degradation-is-silent)** — Memory or OTel failing silently means the user operates under false assumptions.
-- **[4.2 Session Recovery After Disconnect Is Undefined](../findings/04-reliability.md#42-session-recovery-after-disconnect-is-undefined)** — After a tab close or WebSocket drop, there is no reconnect flow showing what the agent did.
-- **[4.3 Rate Limiting and API Failures Are Opaque](../findings/04-reliability.md#43-rate-limiting-and-api-failures-are-opaque)** — Rate limit hits cause silent hangs or generic errors with no retry countdown.
-- **[4.4 No Persistent State for In-Progress Tasks](../findings/04-reliability.md#44-no-persistent-state-for-in-progress-tasks)** — A process crash loses the task completely; there is no checkpoint to resume from.
+- **[Degraded subsystems fail silently and users assume all is fine](../findings/setup-and-operation/health-and-degradation.md#1-degraded-subsystems-fail-silently-and-users-assume-all-is-fine)** — Memory or OTel failing silently means the user operates under false assumptions.
+- **[Unclear what the agent does when a session disconnects](../findings/control/stop-resume-undo.md#3-unclear-what-the-agent-does-when-a-session-disconnects)** — After a tab close or WebSocket drop, there is no reconnect flow showing what the agent did.
+- **[Rate limits and API failures hang or show nothing useful](../findings/setup-and-operation/health-and-degradation.md#2-rate-limits-and-api-failures-hang-or-show-nothing-useful)** — Rate limit hits cause silent hangs or generic errors with no retry countdown.
+- **[A crash loses in-progress tasks with no way to resume](../findings/control/stop-resume-undo.md#4-a-crash-loses-in-progress-tasks-with-no-way-to-resume)** — A process crash loses the task completely; there is no checkpoint to resume from.
 
 ### §5 · Onboarding & First-Run Experience
 
-- **[5.1 The Setup Wizard Ends Too Early](../findings/05-first-run.md#51-the-setup-wizard-ends-too-early)** — The wizard stops at the model panel; the user must figure out credentials and validation alone.
-- **[5.2 Empty State Has No Direction](../findings/05-first-run.md#52-empty-state-has-no-direction)** — An empty conversation shows a blank input with no example tasks or guidance.
-- **[5.3 No Progressive Onboarding After First Use](../findings/05-first-run.md#53-no-progressive-onboarding-after-first-use)** — Trajectory, skills, team mode, and memory are never introduced after setup.
-- **[5.4 CLI First-Run Has No Guidance](../findings/05-first-run.md#54-cli-first-run-has-no-guidance)** — Running jiuwenswarm with no config produces an unclear error and no next step.
+- **[Setup wizard ends before the model is confirmed working](../findings/onboarding/first-run.md#1-setup-wizard-ends-before-the-model-is-confirmed-working)** — The wizard stops at the model panel; the user must figure out credentials and validation alone.
+- **[Empty screen offers no example or next step](../findings/onboarding/empty-state-and-choosing.md#1-empty-screen-offers-no-example-or-next-step)** — An empty conversation shows a blank input with no example tasks or guidance.
+- **[No guidance introduces features after first run](../findings/onboarding/progressive.md#1-no-guidance-introduces-features-after-first-run)** — Trajectory, skills, team mode, and memory are never introduced after setup.
+- **[Running the CLI without config gives no next step](../findings/onboarding/first-run.md#2-running-the-cli-without-config-gives-no-next-step)** — Running jiuwenswarm with no config produces an unclear error and no next step.
 
 ### §6 · Agent Transparency & Explainability
 
-- **[6.1 Thinking Display Is Hidden Behind the Trajectory Panel](../findings/06-transparency.md#61-thinking-display-is-hidden-behind-the-trajectory-panel)** — The agent's reasoning is only visible in a separate panel users must know to open.
-- **[6.2 Tool Calls Are Shown But Not Explained](../findings/06-transparency.md#62-tool-calls-are-shown-but-not-explained)** — Users see what tool ran but not why the agent chose to call it.
-- **[6.3 Subagent Activity Is Not Visible to the User](../findings/06-transparency.md#63-subagent-activity-is-not-visible-to-the-user)** — Spawned subagents run invisibly; the user has no view of their progress or failures.
-- **[6.4 No Explanation of Why the Agent Asked a Question](../findings/06-transparency.md#64-no-explanation-of-why-the-agent-asked-a-question)** — Clarification requests appear without context about what the agent was trying to do.
+- **[Agent reasoning is hidden in a separate panel](../findings/conversation/explanation.md#1-agent-reasoning-is-hidden-in-a-separate-panel)** — The agent's reasoning is only visible in a separate panel users must know to open.
+- **[Tool calls show what ran but not why](../findings/conversation/explanation.md#2-tool-calls-show-what-ran-but-not-why)** — Users see what tool ran but not why the agent chose to call it.
+- **[Subagents work invisibly with no progress view](../findings/conversation/explanation.md#3-subagents-work-invisibly-with-no-progress-view)** — Spawned subagents run invisibly; the user has no view of their progress or failures.
+- **[Clarification questions appear with no context](../findings/conversation/explanation.md#4-clarification-questions-appear-with-no-context)** — Clarification requests appear without context about what the agent was trying to do.
 
 ### §7 · Performance & Perceived Speed
 
-- **[7.1 No First-Token Latency Indicator](../findings/07-performance.md#71-no-first-token-latency-indicator)** — The gap between sending a message and receiving the first token shows nothing — no spinner, no progress.
-- **[7.2 No Indication of Context Length Pressure](../findings/07-performance.md#72-no-indication-of-context-length-pressure)** — Users have no warning before the context limit is reached and the agent starts losing early context.
-- **[7.3 Skill Execution Has No Progress Feedback](../findings/07-performance.md#73-skill-execution-has-no-progress-feedback)** — A skill running for minutes shows only a generic tool call card with no step count.
+- **[Nothing is shown while waiting for the first token](../findings/conversation/output-and-speed.md#3-nothing-is-shown-while-waiting-for-the-first-token)** — The gap between sending a message and receiving the first token shows nothing — no spinner, no progress.
+- **[No warning before the context limit drops early memory](../findings/conversation/output-and-speed.md#4-no-warning-before-the-context-limit-drops-early-memory)** — Users have no warning before the context limit is reached and the agent starts losing early context.
+- **[Long-running skills show no progress](../findings/conversation/output-and-speed.md#5-long-running-skills-show-no-progress)** — A skill running for minutes shows only a generic tool call card with no step count.
 
 ### §8 · Notification & Async
 
-- **[8.1 No Notification When Long-Running Tasks Complete](../findings/08-async-notifications.md#81-no-notification-when-long-running-tasks-complete)** — Users must keep the Web UI open and watch; there is no browser notification or tab badge.
-- **[8.2 No Background Task Management](../findings/08-async-notifications.md#82-no-background-task-management)** — Sessions running tasks in the background are indistinguishable from idle sessions in the sidebar.
+- **[No notification when a long task finishes](../findings/conversation/messages-and-history.md#2-no-notification-when-a-long-task-finishes)** — Users must keep the Web UI open and watch; there is no browser notification or tab badge.
+- **[Background tasks look identical to idle sessions](../findings/conversation/messages-and-history.md#3-background-tasks-look-identical-to-idle-sessions)** — Sessions running tasks in the background are indistinguishable from idle sessions in the sidebar.
 
 ### §12 · Data & Privacy
 
-- **[12.1 No Visibility Into What Is Stored in Memory](../findings/12-data-privacy.md#121-no-visibility-into-what-is-stored-in-memory)** — Users cannot browse, search, edit, or delete what the agent has remembered about them.
-- **[12.2 No Indication of What the Agent Sends to the LLM](../findings/12-data-privacy.md#122-no-indication-of-what-the-agent-sends-to-the-llm)** — The full prompt — including memory and personal data — is invisible before it is sent to an external API.
-- **[12.3 No Data Retention Policy UI](../findings/12-data-privacy.md#123-no-data-retention-policy-ui)** — Memory and conversation history are stored indefinitely with no expiry controls.
+- **[Users can't see what the agent has remembered](../findings/memory-and-privacy/memory-visibility.md#1-users-cant-see-what-the-agent-has-remembered)** — Users cannot browse, search, edit, or delete what the agent has remembered about them.
+- **[No way to see what personal data is sent to the model](../findings/memory-and-privacy/memory-visibility.md#2-no-way-to-see-what-personal-data-is-sent-to-the-model)** — The full prompt — including memory and personal data — is invisible before it is sent to an external API.
+- **[Data is kept indefinitely with no expiry controls](../findings/memory-and-privacy/retention.md#1-data-is-kept-indefinitely-with-no-expiry-controls)** — Memory and conversation history are stored indefinitely with no expiry controls.
 
 ### §13 · Help & Support
 
-- **[13.1 No In-Context Help](../findings/13-help-support.md#131-no-in-context-help)** — Settings fields with non-obvious values have no tooltips or inline documentation.
-- **[13.2 No Diagnostic Mode for Users](../findings/13-help-support.md#132-no-diagnostic-mode-for-users)** — When something goes wrong, there is no command to collect and package diagnostic information.
-- **[13.3 Error Messages Do Not Reference Log Files](../findings/13-help-support.md#133-error-messages-do-not-reference-log-files)** — Errors never tell users where to find more detail in the logs.
+- **[No help or tooltips at the point of confusion](../findings/setup-and-operation/diagnostics-and-help.md#3-no-help-or-tooltips-at-the-point-of-confusion)** — Settings fields with non-obvious values have no tooltips or inline documentation.
+- **[No single command to gather diagnostics for a bug report](../findings/setup-and-operation/diagnostics-and-help.md#1-no-single-command-to-gather-diagnostics-for-a-bug-report)** — When something goes wrong, there is no command to collect and package diagnostic information.
+- **[Errors don't point to the log entry with more detail](../findings/setup-and-operation/diagnostics-and-help.md#2-errors-dont-point-to-the-log-entry-with-more-detail)** — Errors never tell users where to find more detail in the logs.
 
 ### §14 · Accessibility
 
-- **[14.1 No Keyboard Navigation Across the UI](../findings/14-accessibility.md#141-no-keyboard-navigation-across-the-ui)** — Tab traversal, arrow-key navigation, and keyboard activation of interactive elements have not been verified.
-- **[14.2 No Screen Reader Support Audit](../findings/14-accessibility.md#142-no-screen-reader-support-audit)** — Streaming content has no aria-live region; screen readers do not announce new output.
-- **[14.3 No High-Contrast or Large-Text Mode](../findings/14-accessibility.md#143-no-high-contrast-or-large-text-mode)** — No high-contrast theme; OS accessibility preferences are not respected.
+- **[The UI can't be driven fully by keyboard](../findings/platform/accessibility.md#1-the-ui-cant-be-driven-fully-by-keyboard)** — Tab traversal, arrow-key navigation, and keyboard activation of interactive elements have not been verified.
+- **[No screen-reader support; streaming output isn't announced](../findings/platform/accessibility.md#2-no-screen-reader-support-streaming-output-isnt-announced)** — Streaming content has no aria-live region; screen readers do not announce new output.
+- **[No high-contrast or large-text option](../findings/platform/accessibility.md#3-no-high-contrast-or-large-text-option)** — No high-contrast theme; OS accessibility preferences are not respected.
 
 ### §15 · Mobile & Cross-Platform
 
-- **[15.1 Mobile Layout Exists But Is Not a First-Class Experience](../findings/15-mobile.md#151-mobile-layout-exists-but-is-not-a-first-class-experience)** — The panel architecture collapses poorly to mobile; the layout was not designed for 375px viewports.
-- **[15.2 No Native App (PWA) Support](../findings/15-mobile.md#152-no-native-app-pwa-support)** — No manifest, no service worker, no install-to-homescreen, no offline mode.
+- **[The web UI isn't usable as a proper mobile experience](../findings/platform/mobile.md#1-the-web-ui-isnt-usable-as-a-proper-mobile-experience)** — The panel architecture collapses poorly to mobile; the layout was not designed for 375px viewports.
+- **[No installable or offline (PWA) version](../findings/platform/mobile.md#2-no-installable-or-offline-pwa-version)** — No manifest, no service worker, no install-to-homescreen, no offline mode.
 
 ### §16 · Information Architecture
 
-- **[16.1 Skills and Connectors Are Separate But Conceptually Similar](../findings/16-info-architecture.md#161-skills-and-connectors-are-separate-but-conceptually-similar)** — Skills and MCP/plugins are split into separate nav sections though users think of them the same way.
-- **[16.2 Settings Are Organized by Implementation, Not by User Task](../findings/16-info-architecture.md#162-settings-are-organized-by-implementation-not-by-user-task)** — The settings structure mirrors the codebase, not the user's goals.
-- **[16.3 Trajectory / Trace Panel Is Hidden and Unnamed](../findings/16-info-architecture.md#163-trajectory--trace-panel-is-hidden-and-unnamed)** — The panel is labeled "TraceHound" — a name that means nothing to a new user.
+- **[Skills and connectors are split apart though they're the same kind of thing](../findings/onboarding/navigation-and-settings.md#1-skills-and-connectors-are-split-apart-though-theyre-the-same-kind-of-thing)** — Skills and MCP/plugins are split into separate nav sections though users think of them the same way.
+- **[Settings are organized by code module, not by user task](../findings/onboarding/navigation-and-settings.md#2-settings-are-organized-by-code-module-not-by-user-task)** — The settings structure mirrors the codebase, not the user's goals.
+- **[The activity view is hidden behind an unclear name](../findings/onboarding/navigation-and-settings.md#3-the-activity-view-is-hidden-behind-an-unclear-name)** — The panel is labeled "TraceHound" — a name that means nothing to a new user.

@@ -44,7 +44,7 @@ This is likely one of the most common end-user archetypes in Chinese enterprise 
 
 **No session visibility** — IM users cannot see their session list, cannot rename sessions, cannot search past conversations. Everything is buried in the IM thread history.
 
-**Error messages are raw** — When something fails, the user receives the raw error text (or nothing). There is no IM-appropriate error format: short, actionable, without code snippets or log references that are meaningless in a chat context. (Related: finding 1.1 in [end-user.md](end-user.md).)
+**Error messages are raw** — When something fails, the user receives the raw error text (or nothing). There is no IM-appropriate error format: short, actionable, without code snippets or log references that are meaningless in a chat context. (Related: see [end-user.md](end-user.md).)
 
 **Memory is invisible** — IM users cannot see what the agent has remembered about them, cannot delete facts, and cannot tell the agent to forget something — because all of these actions require the Web UI memory panel.
 

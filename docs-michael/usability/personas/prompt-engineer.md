@@ -35,6 +35,6 @@ In jiuwenswarm, prompt content comes from multiple sources: the `config.yaml` sy
 
 **No version history for prompt sources** — Changes to `SKILL.md`, the config system prompt, and `MEMORY.md` are not versioned. A prompt engineer who makes a change that degrades quality cannot roll back without manually tracking the previous text.
 
-**Prompt section API is undocumented** — Rails can inject prompt sections at runtime (via `system_prompt_builder.add_section()`), but this mechanism is not documented. A prompt engineer working with a developer to inject dynamic context has no reference for how this works. (Related: finding 17.4 in [extension-developer.md](extension-developer.md).)
+**Prompt section API is undocumented** — Rails can inject prompt sections at runtime (via `system_prompt_builder.add_section()`), but this mechanism is not documented. A prompt engineer working with a developer to inject dynamic context has no reference for how this works. (Related: see [extension-developer.md](extension-developer.md).)
 
 **Priority system is opaque** — Multiple prompt sections from different sources (config, skills, rails, memory) are assembled in priority order. The priority values and what they mean are not documented for non-developer prompt engineers.
