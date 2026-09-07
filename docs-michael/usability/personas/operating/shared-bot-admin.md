@@ -12,9 +12,9 @@
 
 ### Identity & Isolation
 
-- **[All users share one identity, memory and permissions](../../findings/collaboration/identity-and-isolation.md#1-all-users-share-one-identity-memory-and-permissions)**
-- **[No multi-tenancy: every user shares one workspace](../../findings/collaboration/identity-and-isolation.md#2-no-multi-tenancy-every-user-shares-one-workspace)**
+- **[All users share one identity, memory and permissions](../../findings/collaboration/identity-and-isolation/1-all-users-share-one-identity-memory-and-permissions.md)**
+- **[No multi-tenancy: every user shares one workspace](../../findings/collaboration/identity-and-isolation/2-no-multi-tenancy-every-user-shares-one-workspace.md)**
 
 ### Shared Skill Library
 
-- **[No shared skill library across instances](../../findings/collaboration/shared-library.md#1-no-shared-skill-library-across-instances)**
+- **[No shared skill library across instances](../../findings/collaboration/shared-library/1-no-shared-skill-library-across-instances.md)**

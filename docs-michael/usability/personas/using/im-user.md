@@ -18,10 +18,10 @@ Shares the Web User's general findings, but can only act through chat: no settin
 
 ### Messages, History & Notifications
 
-- **[No notification when a long task finishes](../../findings/conversation/messages-and-history.md#2-no-notification-when-a-long-task-finishes)**
-- **[Background tasks look identical to idle sessions](../../findings/conversation/messages-and-history.md#3-background-tasks-look-identical-to-idle-sessions)**
-- **[Conversations can only be shared as a flat image](../../findings/conversation/messages-and-history.md#4-conversations-can-only-be-shared-as-a-flat-image)**
+- **[No notification when a long task finishes](../../findings/conversation/messages-and-history/2-no-notification-when-a-long-task-finishes.md)**
+- **[Background tasks look identical to idle sessions](../../findings/conversation/messages-and-history/3-background-tasks-look-identical-to-idle-sessions.md)**
+- **[Conversations can only be shared as a flat image](../../findings/conversation/messages-and-history/4-conversations-can-only-be-shared-as-a-flat-image.md)**
 
 ### Stop, Resume & Undo
 
-- **[No stop button that safely interrupts the agent](../../findings/control/stop-resume-undo.md#1-no-stop-button-that-safely-interrupts-the-agent)**
+- **[No stop button that safely interrupts the agent](../../findings/control/stop-resume-undo/1-no-stop-button-that-safely-interrupts-the-agent.md)**

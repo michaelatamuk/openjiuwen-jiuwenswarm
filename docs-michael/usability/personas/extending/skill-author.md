@@ -12,12 +12,12 @@
 
 ### Skill Authoring & Dependencies
 
-- **[Skills can only be tested through a live chat](../../findings/skills/authoring-and-testing.md#3-skills-can-only-be-tested-through-a-live-chat)**
+- **[Skills can only be tested through a live chat](../../findings/skills/authoring-and-testing/3-skills-can-only-be-tested-through-a-live-chat.md)**
 
 ### Skill Marketplace
 
-- **[Marketplace shows no ratings, usage or freshness](../../findings/skills/marketplace.md#1-marketplace-shows-no-ratings-usage-or-freshness)**
+- **[Marketplace shows no ratings, usage or freshness](../../findings/skills/marketplace/1-marketplace-shows-no-ratings-usage-or-freshness.md)**
 
 ### Skill Versioning
 
-- **[Skill updates can't be reviewed or rolled back](../../findings/skills/versioning.md#1-skill-updates-cant-be-reviewed-or-rolled-back)**
+- **[Skill updates can't be reviewed or rolled back](../../findings/skills/versioning/1-skill-updates-cant-be-reviewed-or-rolled-back.md)**

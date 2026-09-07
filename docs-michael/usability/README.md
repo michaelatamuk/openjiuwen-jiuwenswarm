@@ -37,55 +37,55 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 
 **`conversation/`** — the day-to-day chat experience
 - [errors-and-feedback](findings/conversation/errors-and-feedback/) — Errors & Feedback · 2 findings
-- [output-and-speed.md](findings/conversation/output-and-speed.md) — Output & Perceived Speed · 5 findings
-- [explanation.md](findings/conversation/explanation.md) — Agent Explanation · 4 findings
-- [messages-and-history.md](findings/conversation/messages-and-history.md) — Messages, History & Notifications · 4 findings
+- [output-and-speed](findings/conversation/output-and-speed/) — Output & Perceived Speed · 5 findings
+- [explanation](findings/conversation/explanation/) — Agent Explanation · 4 findings
+- [messages-and-history](findings/conversation/messages-and-history/) — Messages, History & Notifications · 4 findings
 
 **`control/`** — capability boundaries, approval, stopping & undoing
-- [permissions.md](findings/control/permissions.md) — Permissions · 1 findings
-- [approve-and-preview.md](findings/control/approve-and-preview.md) — Approval & Preview · 2 findings
-- [stop-resume-undo.md](findings/control/stop-resume-undo.md) — Stop, Resume & Undo · 4 findings
+- [permissions](findings/control/permissions/) — Permissions · 1 findings
+- [approve-and-preview](findings/control/approve-and-preview/) — Approval & Preview · 2 findings
+- [stop-resume-undo](findings/control/stop-resume-undo/) — Stop, Resume & Undo · 4 findings
 
 **`memory-and-privacy/`** — what is remembered, sent out and kept
-- [memory-visibility.md](findings/memory-and-privacy/memory-visibility.md) — Memory Visibility · 2 findings
-- [retention.md](findings/memory-and-privacy/retention.md) — Data Retention · 1 findings
+- [memory-visibility](findings/memory-and-privacy/memory-visibility/) — Memory Visibility · 2 findings
+- [retention](findings/memory-and-privacy/retention/) — Data Retention · 1 findings
 
 **`setup-and-operation/`** — run & administer the instance
-- [startup-and-config.md](findings/setup-and-operation/startup-and-config.md) — Startup & Configuration · 4 findings
-- [run-and-manage.md](findings/setup-and-operation/run-and-manage.md) — Running & Managing the Instance · 6 findings
-- [health-and-degradation.md](findings/setup-and-operation/health-and-degradation.md) — Health & Degradation · 2 findings
-- [diagnostics-and-help.md](findings/setup-and-operation/diagnostics-and-help.md) — Diagnostics & Support · 3 findings
-- [economics.md](findings/setup-and-operation/economics.md) — Cost & Token Economics · 2 findings
+- [startup-and-config](findings/setup-and-operation/startup-and-config/) — Startup & Configuration · 4 findings
+- [run-and-manage](findings/setup-and-operation/run-and-manage/) — Running & Managing the Instance · 6 findings
+- [health-and-degradation](findings/setup-and-operation/health-and-degradation/) — Health & Degradation · 2 findings
+- [diagnostics-and-help](findings/setup-and-operation/diagnostics-and-help/) — Diagnostics & Support · 3 findings
+- [economics](findings/setup-and-operation/economics/) — Cost & Token Economics · 2 findings
 
 **`onboarding/`** — first run, empty states & gradual discovery
-- [first-run.md](findings/onboarding/first-run.md) — First Run · 2 findings
-- [empty-state-and-choosing.md](findings/onboarding/empty-state-and-choosing.md) — Empty States & Choosing a Mode · 2 findings
-- [progressive.md](findings/onboarding/progressive.md) — Progressive Discovery · 1 findings
-- [navigation-and-settings.md](findings/onboarding/navigation-and-settings.md) — Navigation & Settings · 3 findings
+- [first-run](findings/onboarding/first-run/) — First Run · 2 findings
+- [empty-state-and-choosing](findings/onboarding/empty-state-and-choosing/) — Empty States & Choosing a Mode · 2 findings
+- [progressive](findings/onboarding/progressive/) — Progressive Discovery · 1 findings
+- [navigation-and-settings](findings/onboarding/navigation-and-settings/) — Navigation & Settings · 3 findings
 
 **`platform/`** — accessibility & cross-device
-- [accessibility.md](findings/platform/accessibility.md) — Accessibility & Keyboard · 4 findings
-- [mobile.md](findings/platform/mobile.md) — Mobile & Cross-Device · 2 findings
+- [accessibility](findings/platform/accessibility/) — Accessibility & Keyboard · 4 findings
+- [mobile](findings/platform/mobile/) — Mobile & Cross-Device · 2 findings
 
 **`skills/`** — marketplace, authoring, versioning
-- [marketplace.md](findings/skills/marketplace.md) — Skill Marketplace · 1 findings
-- [authoring-and-testing.md](findings/skills/authoring-and-testing.md) — Skill Authoring & Dependencies · 3 findings
-- [versioning.md](findings/skills/versioning.md) — Skill Versioning · 1 findings
+- [marketplace](findings/skills/marketplace/) — Skill Marketplace · 1 findings
+- [authoring-and-testing](findings/skills/authoring-and-testing/) — Skill Authoring & Dependencies · 3 findings
+- [versioning](findings/skills/versioning/) — Skill Versioning · 1 findings
 
 **`collaboration/`** — multi-user & sharing
-- [identity-and-isolation.md](findings/collaboration/identity-and-isolation.md) — Identity & Isolation · 2 findings
-- [shared-library.md](findings/collaboration/shared-library.md) — Shared Skill Library · 1 findings
+- [identity-and-isolation](findings/collaboration/identity-and-isolation/) — Identity & Isolation · 2 findings
+- [shared-library](findings/collaboration/shared-library/) — Shared Skill Library · 1 findings
 
 **`extension-surface/`** — building behaviour into jiuwenswarm (rails, tools, SDK)
-- [rails-and-context-api.md](findings/extension-surface/rails-and-context-api.md) — Rails & Context API · 5 findings
-- [tools-and-agent-factory.md](findings/extension-surface/tools-and-agent-factory.md) — Tools & Agent Factory · 2 findings
-- [testing-and-tooling.md](findings/extension-surface/testing-and-tooling.md) — Extension Testing & Tooling · 3 findings
-- [documentation-and-stability.md](findings/extension-surface/documentation-and-stability.md) — Extension Documentation & Stability · 2 findings
+- [rails-and-context-api](findings/extension-surface/rails-and-context-api/) — Rails & Context API · 5 findings
+- [tools-and-agent-factory](findings/extension-surface/tools-and-agent-factory/) — Tools & Agent Factory · 2 findings
+- [testing-and-tooling](findings/extension-surface/testing-and-tooling/) — Extension Testing & Tooling · 3 findings
+- [documentation-and-stability](findings/extension-surface/documentation-and-stability/) — Extension Documentation & Stability · 2 findings
 
 **`application-api/`** — building a product on top of jiuwenswarm as a backend
-- [transport-and-protocol.md](findings/application-api/transport-and-protocol.md) — Transport & Protocol · 4 findings
-- [security-and-isolation.md](findings/application-api/security-and-isolation.md) — Connection Security · 2 findings
-- [integration-and-local-development.md](findings/application-api/integration-and-local-development.md) — Integration & Local Development · 3 findings
+- [transport-and-protocol](findings/application-api/transport-and-protocol/) — Transport & Protocol · 4 findings
+- [security-and-isolation](findings/application-api/security-and-isolation/) — Connection Security · 2 findings
+- [integration-and-local-development](findings/application-api/integration-and-local-development/) — Integration & Local Development · 3 findings
 
 ---
 

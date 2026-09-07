@@ -10,88 +10,88 @@ Which findings affect which persona. Findings are identified per concern file; t
 |---|---|---|---|---|---|---|---|---|---|
 | 1-error-messages-give-no-explanation-or-next-step | 1 | Error messages give no explanation or next step | ● |  |  |  |  |  |
 | 2-no-way-to-rate-retry-or-correct-an-agent-answer | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |
-| explanation | 1 | Agent reasoning is hidden in a separate panel | ● |  |  |  |  |  |
-| explanation | 2 | Tool calls show what ran but not why | ● |  |  |  |  |  |
-| explanation | 3 | Subagents work invisibly with no progress view | ● |  |  |  |  |  |
-| explanation | 4 | Clarification questions appear with no context | ● |  |  |  |  |  |
-| messages-and-history | 1 | Past conversations can't be searched | ● |  |  |  |  |  |
-| messages-and-history | 2 | No notification when a long task finishes | ● |  |  | ○ |  |  |
-| messages-and-history | 3 | Background tasks look identical to idle sessions | ● |  |  |  |  |  |
-| messages-and-history | 4 | Conversations can only be shared as a flat image | ● |  |  |  |  | ○ |
-| output-and-speed | 1 | No control over reply length or writing style | ● |  |  |  |  |  |
-| output-and-speed | 2 | Long agent replies have no structure aids | ● |  |  |  |  |  |
-| output-and-speed | 3 | Nothing is shown while waiting for the first token | ● |  |  |  |  |  |
-| output-and-speed | 4 | No warning before the context limit drops early memory | ● |  |  |  |  |  |
-| output-and-speed | 5 | Long-running skills show no progress | ● |  |  |  |  |  |
-| approve-and-preview | 1 | File changes are applied with no preview or approval | ● |  |  |  |  |  |
-| approve-and-preview | 2 | Destructive external actions fire without confirmation | ● | ○ |  |  |  | ○ |
-| permissions | 1 | Users aren't told what the agent is allowed to do before it acts | ● | ○ |  |  |  | ○ |
-| stop-resume-undo | 1 | No stop button that safely interrupts the agent | ● |  |  |  |  |  |
-| stop-resume-undo | 2 | Agent file writes and sends can't be undone | ● |  |  |  |  |  |
-| stop-resume-undo | 3 | Unclear what the agent does when a session disconnects | ● | ○ |  |  |  |  |
-| stop-resume-undo | 4 | A crash loses in-progress tasks with no way to resume | ● | ○ |  |  |  |  |
-| memory-visibility | 1 | Users can't see what the agent has remembered | ● |  |  |  |  |  |
-| memory-visibility | 2 | No way to see what personal data is sent to the model | ● |  |  |  |  |  |
-| retention | 1 | Data is kept indefinitely with no expiry controls | ○ | ● |  |  |  |  |
-| diagnostics-and-help | 1 | No single command to gather diagnostics for a bug report | ● | ○ |  |  |  |  |
-| diagnostics-and-help | 2 | Errors don't point to the log entry with more detail | ● | ○ |  |  |  |  |
-| diagnostics-and-help | 3 | No help or tooltips at the point of confusion | ● |  |  |  |  |  |
-| economics | 1 | No visibility into token usage or session cost | ○ | ● |  |  |  |  |
-| economics | 2 | No hints about what is consuming the context | ○ | ● |  |  |  |  |
-| health-and-degradation | 1 | Degraded subsystems fail silently and users assume all is fine | ● | ○ |  |  |  |  |
-| health-and-degradation | 2 | Rate limits and API failures hang or show nothing useful | ● |  |  |  |  |  |
-| run-and-manage | 1 | No visibility into which ports and URLs are in use |  | ● |  |  |  |  |
-| run-and-manage | 2 | Powerful features exist but are never surfaced |  | ● |  |  |  |  |
-| run-and-manage | 3 | Logs and config mix languages unpredictably |  | ● |  |  |  |  |
-| run-and-manage | 4 | Upgrading can silently break an existing config |  | ● |  |  |  |  |
-| run-and-manage | 5 | Documentation is scattered with no guide for common tasks |  | ● |  |  |  |  |
-| run-and-manage | 6 | Permission rules can only be edited in raw YAML |  | ● |  | ○ |  | ○ |
-| startup-and-config | 1 | Wrong credentials surface only on the first chat, never at startup |  | ● |  |  |  |  |
-| startup-and-config | 2 | The config file has no validation or check tool |  | ● |  |  |  |  |
-| startup-and-config | 3 | Missing optional extras fail when used, not at startup |  | ● |  |  |  |  |
-| startup-and-config | 4 | Setup ends before credentials are tested |  | ● |  |  |  |  |
-| empty-state-and-choosing | 1 | Empty screen offers no example or next step | ● |  |  |  |  |  |
-| empty-state-and-choosing | 2 | Agent modes have no user-facing names or descriptions | ● |  |  |  |  |  |
-| first-run | 1 | Setup wizard ends before the model is confirmed working | ● | ○ |  |  |  |  |
-| first-run | 2 | Running the CLI without config gives no next step | ● | ○ |  |  |  |  |
-| navigation-and-settings | 1 | Skills and connectors are split apart though they're the same kind of thing | ● |  |  |  |  |  |
-| navigation-and-settings | 2 | Settings are organized by code module, not by user task | ● | ● |  |  |  |  |
-| navigation-and-settings | 3 | The activity view is hidden behind an unclear name | ● |  |  |  |  |  |
-| progressive | 1 | No guidance introduces features after first run | ● |  |  |  |  |  |
-| accessibility | 1 | The UI can't be driven fully by keyboard | ● |  |  |  |  |  |
-| accessibility | 2 | No screen-reader support; streaming output isn't announced | ● |  |  |  |  |  |
-| accessibility | 3 | No high-contrast or large-text option | ● |  |  |  |  |  |
-| accessibility | 4 | Core actions have no keyboard shortcuts | ● |  |  |  |  |  |
-| mobile | 1 | The web UI isn't usable as a proper mobile experience | ● |  |  |  |  |  |
-| mobile | 2 | No installable or offline (PWA) version | ● |  |  |  |  |  |
-| authoring-and-testing | 1 | Creating a skill has no clear entry point | ● |  |  |  |  |  |
-| authoring-and-testing | 2 | Skill Python dependencies and conflicts are invisible |  | ● |  |  | ○ |  |
-| authoring-and-testing | 3 | Skills can only be tested through a live chat |  | ○ |  |  | ● |  |
-| marketplace | 1 | Marketplace shows no ratings, usage or freshness | ○ | ● |  |  | ● |  |
-| versioning | 1 | Skill updates can't be reviewed or rolled back |  | ● |  |  | ● |  |
-| identity-and-isolation | 1 | All users share one identity, memory and permissions | ○ | ○ |  | ○ |  | ● |
-| identity-and-isolation | 2 | No multi-tenancy: every user shares one workspace |  |  |  | ● |  | ● |
-| shared-library | 1 | No shared skill library across instances |  | ○ |  |  | ○ | ● |
-| documentation-and-stability | 1 | The examples directory is undiscoverable and inconsistent |  |  | ● |  |  |  |
-| documentation-and-stability | 2 | No stable public API or semantic-versioning contract |  |  | ● | ○ |  |  |
-| rails-and-context-api | 1 | The rail extension API has no public documentation |  |  | ● |  |  |  |
-| rails-and-context-api | 2 | Rail hook execution order can only be learned from source |  |  | ● |  |  |  |
-| rails-and-context-api | 3 | The hook context object is undocumented and untyped |  |  | ● |  |  |  |
-| rails-and-context-api | 4 | Adding prompt content from a rail is an undocumented hidden API |  |  | ● |  |  |  |
-| rails-and-context-api | 5 | The structured error API isn't documented for rail authors |  |  | ● |  |  |  |
-| testing-and-tooling | 1 | Writing a rail test requires reverse-engineering mock infrastructure |  |  | ● |  |  |  |
-| testing-and-tooling | 2 | No CLI to scaffold a new rail or skill |  |  | ● |  |  |  |
-| testing-and-tooling | 3 | No integration test layer between unit tests and a full system |  |  | ● |  |  |  |
-| tools-and-agent-factory | 1 | Registering tools from a rail has no developer guide |  |  | ● |  |  |  |
-| tools-and-agent-factory | 2 | The agent factory has too many undocumented parameters |  |  | ● |  |  |  |
-| integration-and-local-development | 1 | Writing a custom channel has no developer guide |  |  |  | ● |  |  |
-| integration-and-local-development | 2 | Only shell-command hooks exist; there's no real webhook delivery |  |  |  | ● |  |  |
-| integration-and-local-development | 3 | No local stub or dev mode for testing integrations |  |  |  | ● |  |  |
-| security-and-isolation | 1 | The API has no authentication and is open by default |  | ○ |  | ● |  |  |
-| security-and-isolation | 2 | WebSocket origin checks are off by default and undocumented |  | ○ |  | ● |  |  |
-| transport-and-protocol | 1 | External apps can only reach the agent over WebSocket, with no REST |  |  |  | ● |  |  |
-| transport-and-protocol | 2 | The E2A protocol spec is prose, not a machine-readable schema |  |  |  | ● |  |  |
-| transport-and-protocol | 3 | No published client SDK, so every app re-implements the protocol |  |  |  | ● |  |  |
-| transport-and-protocol | 4 | Session API methods have no documented response shapes |  |  |  | ● |  |  |
+| 1-agent-reasoning-is-hidden-in-a-separate-panel | 1 | Agent reasoning is hidden in a separate panel | ● |  |  |  |  |  |
+| 2-tool-calls-show-what-ran-but-not-why | 2 | Tool calls show what ran but not why | ● |  |  |  |  |  |
+| 3-subagents-work-invisibly-with-no-progress-view | 3 | Subagents work invisibly with no progress view | ● |  |  |  |  |  |
+| 4-clarification-questions-appear-with-no-context | 4 | Clarification questions appear with no context | ● |  |  |  |  |  |
+| 1-past-conversations-cant-be-searched | 1 | Past conversations can't be searched | ● |  |  |  |  |  |
+| 2-no-notification-when-a-long-task-finishes | 2 | No notification when a long task finishes | ● |  |  | ○ |  |  |
+| 3-background-tasks-look-identical-to-idle-sessions | 3 | Background tasks look identical to idle sessions | ● |  |  |  |  |  |
+| 4-conversations-can-only-be-shared-as-a-flat-image | 4 | Conversations can only be shared as a flat image | ● |  |  |  |  | ○ |
+| 1-no-control-over-reply-length-or-writing-style | 1 | No control over reply length or writing style | ● |  |  |  |  |  |
+| 2-long-agent-replies-have-no-structure-aids | 2 | Long agent replies have no structure aids | ● |  |  |  |  |  |
+| 3-nothing-is-shown-while-waiting-for-the-first-token | 3 | Nothing is shown while waiting for the first token | ● |  |  |  |  |  |
+| 4-no-warning-before-the-context-limit-drops-early-memory | 4 | No warning before the context limit drops early memory | ● |  |  |  |  |  |
+| 5-long-running-skills-show-no-progress | 5 | Long-running skills show no progress | ● |  |  |  |  |  |
+| 1-file-changes-are-applied-with-no-preview-or-approval | 1 | File changes are applied with no preview or approval | ● |  |  |  |  |  |
+| 2-destructive-external-actions-fire-without-confirmation | 2 | Destructive external actions fire without confirmation | ● | ○ |  |  |  | ○ |
+| 1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts | 1 | Users aren't told what the agent is allowed to do before it acts | ● | ○ |  |  |  | ○ |
+| 1-no-stop-button-that-safely-interrupts-the-agent | 1 | No stop button that safely interrupts the agent | ● |  |  |  |  |  |
+| 2-agent-file-writes-and-sends-cant-be-undone | 2 | Agent file writes and sends can't be undone | ● |  |  |  |  |  |
+| 3-unclear-what-the-agent-does-when-a-session-disconnects | 3 | Unclear what the agent does when a session disconnects | ● | ○ |  |  |  |  |
+| 4-a-crash-loses-in-progress-tasks-with-no-way-to-resume | 4 | A crash loses in-progress tasks with no way to resume | ● | ○ |  |  |  |  |
+| 1-users-cant-see-what-the-agent-has-remembered | 1 | Users can't see what the agent has remembered | ● |  |  |  |  |  |
+| 2-no-way-to-see-what-personal-data-is-sent-to-the-model | 2 | No way to see what personal data is sent to the model | ● |  |  |  |  |  |
+| 1-data-is-kept-indefinitely-with-no-expiry-controls | 1 | Data is kept indefinitely with no expiry controls | ○ | ● |  |  |  |  |
+| 1-no-single-command-to-gather-diagnostics-for-a-bug-report | 1 | No single command to gather diagnostics for a bug report | ● | ○ |  |  |  |  |
+| 2-errors-dont-point-to-the-log-entry-with-more-detail | 2 | Errors don't point to the log entry with more detail | ● | ○ |  |  |  |  |
+| 3-no-help-or-tooltips-at-the-point-of-confusion | 3 | No help or tooltips at the point of confusion | ● |  |  |  |  |  |
+| 1-no-visibility-into-token-usage-or-session-cost | 1 | No visibility into token usage or session cost | ○ | ● |  |  |  |  |
+| 2-no-hints-about-what-is-consuming-the-context | 2 | No hints about what is consuming the context | ○ | ● |  |  |  |  |
+| 1-degraded-subsystems-fail-silently-and-users-assume-all-is-fine | 1 | Degraded subsystems fail silently and users assume all is fine | ● | ○ |  |  |  |  |
+| 2-rate-limits-and-api-failures-hang-or-show-nothing-useful | 2 | Rate limits and API failures hang or show nothing useful | ● |  |  |  |  |  |
+| 1-no-visibility-into-which-ports-and-urls-are-in-use | 1 | No visibility into which ports and URLs are in use |  | ● |  |  |  |  |
+| 2-powerful-features-exist-but-are-never-surfaced | 2 | Powerful features exist but are never surfaced |  | ● |  |  |  |  |
+| 3-logs-and-config-mix-languages-unpredictably | 3 | Logs and config mix languages unpredictably |  | ● |  |  |  |  |
+| 4-upgrading-can-silently-break-an-existing-config | 4 | Upgrading can silently break an existing config |  | ● |  |  |  |  |
+| 5-documentation-is-scattered-with-no-guide-for-common-tasks | 5 | Documentation is scattered with no guide for common tasks |  | ● |  |  |  |  |
+| 6-permission-rules-can-only-be-edited-in-raw-yaml | 6 | Permission rules can only be edited in raw YAML |  | ● |  | ○ |  | ○ |
+| 1-wrong-credentials-surface-only-on-the-first-chat-never-at-startup | 1 | Wrong credentials surface only on the first chat, never at startup |  | ● |  |  |  |  |
+| 2-the-config-file-has-no-validation-or-check-tool | 2 | The config file has no validation or check tool |  | ● |  |  |  |  |
+| 3-missing-optional-extras-fail-when-used-not-at-startup | 3 | Missing optional extras fail when used, not at startup |  | ● |  |  |  |  |
+| 4-setup-ends-before-credentials-are-tested | 4 | Setup ends before credentials are tested |  | ● |  |  |  |  |
+| 1-empty-screen-offers-no-example-or-next-step | 1 | Empty screen offers no example or next step | ● |  |  |  |  |  |
+| 2-agent-modes-have-no-user-facing-names-or-descriptions | 2 | Agent modes have no user-facing names or descriptions | ● |  |  |  |  |  |
+| 1-setup-wizard-ends-before-the-model-is-confirmed-working | 1 | Setup wizard ends before the model is confirmed working | ● | ○ |  |  |  |  |
+| 2-running-the-cli-without-config-gives-no-next-step | 2 | Running the CLI without config gives no next step | ● | ○ |  |  |  |  |
+| 1-skills-and-connectors-are-split-apart-though-theyre-the-same-kind-of-thing | 1 | Skills and connectors are split apart though they're the same kind of thing | ● |  |  |  |  |  |
+| 2-settings-are-organized-by-code-module-not-by-user-task | 2 | Settings are organized by code module, not by user task | ● | ● |  |  |  |  |
+| 3-the-activity-view-is-hidden-behind-an-unclear-name | 3 | The activity view is hidden behind an unclear name | ● |  |  |  |  |  |
+| 1-no-guidance-introduces-features-after-first-run | 1 | No guidance introduces features after first run | ● |  |  |  |  |  |
+| 1-the-ui-cant-be-driven-fully-by-keyboard | 1 | The UI can't be driven fully by keyboard | ● |  |  |  |  |  |
+| 2-no-screen-reader-support-streaming-output-isnt-announced | 2 | No screen-reader support; streaming output isn't announced | ● |  |  |  |  |  |
+| 3-no-high-contrast-or-large-text-option | 3 | No high-contrast or large-text option | ● |  |  |  |  |  |
+| 4-core-actions-have-no-keyboard-shortcuts | 4 | Core actions have no keyboard shortcuts | ● |  |  |  |  |  |
+| 1-the-web-ui-isnt-usable-as-a-proper-mobile-experience | 1 | The web UI isn't usable as a proper mobile experience | ● |  |  |  |  |  |
+| 2-no-installable-or-offline-pwa-version | 2 | No installable or offline (PWA) version | ● |  |  |  |  |  |
+| 1-creating-a-skill-has-no-clear-entry-point | 1 | Creating a skill has no clear entry point | ● |  |  |  |  |  |
+| 2-skill-python-dependencies-and-conflicts-are-invisible | 2 | Skill Python dependencies and conflicts are invisible |  | ● |  |  | ○ |  |
+| 3-skills-can-only-be-tested-through-a-live-chat | 3 | Skills can only be tested through a live chat |  | ○ |  |  | ● |  |
+| 1-marketplace-shows-no-ratings-usage-or-freshness | 1 | Marketplace shows no ratings, usage or freshness | ○ | ● |  |  | ● |  |
+| 1-skill-updates-cant-be-reviewed-or-rolled-back | 1 | Skill updates can't be reviewed or rolled back |  | ● |  |  | ● |  |
+| 1-all-users-share-one-identity-memory-and-permissions | 1 | All users share one identity, memory and permissions | ○ | ○ |  | ○ |  | ● |
+| 2-no-multi-tenancy-every-user-shares-one-workspace | 2 | No multi-tenancy: every user shares one workspace |  |  |  | ● |  | ● |
+| 1-no-shared-skill-library-across-instances | 1 | No shared skill library across instances |  | ○ |  |  | ○ | ● |
+| 1-the-examples-directory-is-undiscoverable-and-inconsistent | 1 | The examples directory is undiscoverable and inconsistent |  |  | ● |  |  |  |
+| 2-no-stable-public-api-or-semantic-versioning-contract | 2 | No stable public API or semantic-versioning contract |  |  | ● | ○ |  |  |
+| 1-the-rail-extension-api-has-no-public-documentation | 1 | The rail extension API has no public documentation |  |  | ● |  |  |  |
+| 2-rail-hook-execution-order-can-only-be-learned-from-source | 2 | Rail hook execution order can only be learned from source |  |  | ● |  |  |  |
+| 3-the-hook-context-object-is-undocumented-and-untyped | 3 | The hook context object is undocumented and untyped |  |  | ● |  |  |  |
+| 4-adding-prompt-content-from-a-rail-is-an-undocumented-hidden-api | 4 | Adding prompt content from a rail is an undocumented hidden API |  |  | ● |  |  |  |
+| 5-the-structured-error-api-isnt-documented-for-rail-authors | 5 | The structured error API isn't documented for rail authors |  |  | ● |  |  |  |
+| 1-writing-a-rail-test-requires-reverse-engineering-mock-infrastructure | 1 | Writing a rail test requires reverse-engineering mock infrastructure |  |  | ● |  |  |  |
+| 2-no-cli-to-scaffold-a-new-rail-or-skill | 2 | No CLI to scaffold a new rail or skill |  |  | ● |  |  |  |
+| 3-no-integration-test-layer-between-unit-tests-and-a-full-system | 3 | No integration test layer between unit tests and a full system |  |  | ● |  |  |  |
+| 1-registering-tools-from-a-rail-has-no-developer-guide | 1 | Registering tools from a rail has no developer guide |  |  | ● |  |  |  |
+| 2-the-agent-factory-has-too-many-undocumented-parameters | 2 | The agent factory has too many undocumented parameters |  |  | ● |  |  |  |
+| 1-writing-a-custom-channel-has-no-developer-guide | 1 | Writing a custom channel has no developer guide |  |  |  | ● |  |  |
+| 2-only-shell-command-hooks-exist-theres-no-real-webhook-delivery | 2 | Only shell-command hooks exist; there's no real webhook delivery |  |  |  | ● |  |  |
+| 3-no-local-stub-or-dev-mode-for-testing-integrations | 3 | No local stub or dev mode for testing integrations |  |  |  | ● |  |  |
+| 1-the-api-has-no-authentication-and-is-open-by-default | 1 | The API has no authentication and is open by default |  | ○ |  | ● |  |  |
+| 2-websocket-origin-checks-are-off-by-default-and-undocumented | 2 | WebSocket origin checks are off by default and undocumented |  | ○ |  | ● |  |  |
+| 1-external-apps-can-only-reach-the-agent-over-websocket-with-no-rest | 1 | External apps can only reach the agent over WebSocket, with no REST |  |  |  | ● |  |  |
+| 2-the-e2a-protocol-spec-is-prose-not-a-machine-readable-schema | 2 | The E2A protocol spec is prose, not a machine-readable schema |  |  |  | ● |  |  |
+| 3-no-published-client-sdk-so-every-app-re-implements-the-protocol | 3 | No published client SDK, so every app re-implements the protocol |  |  |  | ● |  |  |
+| 4-session-api-methods-have-no-documented-response-shapes | 4 | Session API methods have no documented response shapes |  |  |  | ● |  |  |
 
 **Legend:** ● primary persona · ○ secondary persona
