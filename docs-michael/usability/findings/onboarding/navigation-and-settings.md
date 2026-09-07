@@ -53,4 +53,6 @@ right panel but requires knowing to look for it. The navigation item is labeled
 Rename to "Agent activity" or "What happened". Surface it as a default sub-tab
 in the right panel alongside artifacts, rather than a separate nav item.
 
+See also [Agent reasoning is hidden in a separate panel](../conversation/explanation.md#1-agent-reasoning-is-hidden-in-a-separate-panel) for the related live-why view.
+
 ---

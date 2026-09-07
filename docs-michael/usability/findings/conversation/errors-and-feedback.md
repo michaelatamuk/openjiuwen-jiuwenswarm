@@ -39,6 +39,8 @@ The CLI and Web UI should agree on error format. Errors should include a short
 machine-readable code (e.g. `ERR_GATEWAY_DISCONNECT`) so users can search for it
 in documentation or paste it in a support request.
 
+Also see [Errors don't point to the log entry with more detail](../setup-and-operation/diagnostics-and-help.md#2-errors-dont-point-to-the-log-entry-with-more-detail), the companion problem of pointing users to where deeper detail lives.
+
 ---
 
 ## 2 No way to rate, retry or correct an agent answer

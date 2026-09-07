@@ -26,6 +26,8 @@ Two levels of transparency:
 The inline chip should show the first 1–2 sentences of reasoning as a preview before
 expanding.
 
+Also see [The activity view is hidden behind an unclear name](../onboarding/navigation-and-settings.md#3-the-activity-view-is-hidden-behind-an-unclear-name), which covers this same trajectory panel's naming and discoverability from the navigation angle.
+
 ---
 
 ## 2 Tool calls show what ran but not why

@@ -43,6 +43,8 @@ to the current session and the last 60 seconds. Errors written to stderr should 
 include the log file path automatically, so the detail is reachable without opening a
 separate viewer.
 
+See also [Error messages give no explanation or next step](../conversation/errors-and-feedback.md#1-error-messages-give-no-explanation-or-next-step), which covers the message content and machine-readable codes.
+
 ---
 
 ## 3 No help or tooltips at the point of confusion
