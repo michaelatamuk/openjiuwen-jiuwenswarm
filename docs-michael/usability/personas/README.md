@@ -17,7 +17,7 @@ The personas are laid out as a pipeline, **0 → 3**, ordered by who depends on 
 ## 1 · Run — operators who stand it up and keep it working
 
 - [Self-hoster](1-run/self-hoster.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
-- [Service Operator](1-run/service-operator.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
+- [Bot Host](1-run/bot-host.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
 
 ## 2 · Build — people who build on/around a running instance
 

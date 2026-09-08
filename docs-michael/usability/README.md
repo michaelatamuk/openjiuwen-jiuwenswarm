@@ -19,7 +19,7 @@ folders matter to them (linking into the findings). Read the file for your role.
 |---|---|---|---|
 | [engine-contributor.md](personas/0-contribute/engine-contributor.md) | **Engine Contributor** | 0 · Contribute | Covered |
 | [self-hoster.md](personas/1-run/self-hoster.md) | **Self-hoster** | 1 · Run | Covered |
-| [service-operator.md](personas/1-run/service-operator.md) | **Service Operator** | 1 · Run | Partial |
+| [bot-host.md](personas/1-run/bot-host.md) | **Bot Host** | 1 · Run | Partial |
 | [product-builder.md](personas/2-build/product-builder.md) | **Product Builder** | 2 · Build | Covered |
 | [skill-author.md](personas/2-build/skill-author.md) | **Skill Author** | 2 · Build | Covered |
 | [consumer.md](personas/3-consume/consumer.md) | **Consumer** (base) | 3 · Consume | Covered |
@@ -105,7 +105,7 @@ Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on wh
 | Persona | Who they are |
 |---|---|
 | [Self-hoster](personas/1-run/self-hoster.md) · **Covered** | Installs, runs, and keeps one jiuwenswarm instance healthy (config, health, diagnostics, cost); no admin role — it is just their instance. |
-| [Service Operator](personas/1-run/service-operator.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
+| [Bot Host](personas/1-run/bot-host.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
 
 ### 2 · Build — people who build on/around a running instance
 

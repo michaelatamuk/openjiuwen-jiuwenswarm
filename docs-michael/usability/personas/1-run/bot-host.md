@@ -1,6 +1,8 @@
-# Service Operator
+# Bot Host
 
-*A consumer, not on the Web UI, who turns one running instance into a group chat bot for a team.*
+*Runs one jiuwenswarm as a shared bot that a group talks to (Feishu/Telegram/WeChat) and keeps it working for them — one person maintaining the group's bot, not everyone self-hosting.*
+
+Because jiuwenswarm has no login or multi-tenancy, all the group's users currently share one identity and workspace; per-user isolation/limits would need those capabilities.
 
 ## Findings that matter to them
 
