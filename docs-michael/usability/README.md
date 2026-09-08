@@ -8,7 +8,7 @@ concern file and a short, self-explanatory title.
 
 ## Navigation
 
-Quick reads: [00-overview — root cause & concern map](findings/00-overview.md)
+Quick reads: [00-overview — root cause & concern map]()
 
 ### `personas/` — Start here if you are a specific role
 
@@ -17,79 +17,19 @@ folders matter to them (linking into the findings). Read the file for your role.
 
 | File | Persona | Tier | Status |
 |---|---|---|---|
-| [engine-contributor.md](personas/0-contribute/engine-contributor.md) | **Engine Contributor** | 0 · Contribute | Covered |
-| [self-hoster.md](personas/1-run/self-hoster.md) | **Self-hoster** | 1 · Run | Covered |
-| [bot-hoster.md](personas/1-run/bot-hoster.md) | **Bot-hoster** | 1 · Run | Partial |
-| [consumer.md](personas/2-consume/consumer.md) | **Consumer** (base) | 2 · Consume | Covered |
-| [web/web-user.md](personas/2-consume/web/web-user.md) · [web-user-chat.md](personas/2-consume/web/web-user-chat.md) · [web-user-code.md](personas/2-consume/web/web-user-code.md) | Web User (+ Chat / Web Code) | 2 · Consume | Covered |
-| [text/text-user.md](personas/2-consume/text/text-user.md) (+ cli/tui/im) | Text surfaces (CLI/TUI/IM) | 2 · Consume | Pending |
-| [channel/channel-user.md](personas/2-consume/channel/channel-user.md) (+ ide/browser) | Channel surfaces (IDE/Browser) | 2 · Consume | Pending |
-| [product-builder.md](personas/3-build/product-builder.md) | **Product Builder** | 3 · Build | Covered |
-| [skill-author.md](personas/3-build/skill-author.md) | **Skill Author** | 3 · Build | Covered |
+| [engine-contributor.md](personas/0-contribute/engine-contributor/engine-contributor.md) | **Engine Contributor** | 0 · Contribute | Covered |
+| [self-hoster.md](personas/1-run/self-hoster/self-hoster.md) | **Self-hoster** | 1 · Run | Covered |
+| [bot-hoster.md](personas/1-run/bot-hoster/bot-hoster.md) | **Bot-hoster** | 1 · Run | Partial |
+| [consumer.md](personas/2-consume/consumer/consumer.md) | **Consumer** (base) | 2 · Consume | Covered |
+| [web/web-user.md](personas/2-consume/web/web-user/web-user.md) · [web-user-chat.md](personas/2-consume/web/web-user-chat/web-user-chat.md) · [web-user-code.md](personas/2-consume/web/web-user-code/web-user-code.md) | Web User (+ Chat / Web Code) | 2 · Consume | Covered |
+| [text/text-user.md](personas/2-consume/text/text-user/text-user.md) (+ cli/tui/im) | Text surfaces (CLI/TUI/IM) | 2 · Consume | Pending |
+| [channel/channel-user.md](personas/2-consume/channel/channel-user/channel-user.md) (+ ide/browser) | Channel surfaces (IDE/Browser) | 2 · Consume | Pending |
+| [product-builder.md](personas/3-build/product-builder/product-builder.md) | **Product Builder** | 3 · Build | Covered |
+| [skill-author.md](personas/3-build/skill-author/skill-author.md) | **Skill Author** | 3 · Build | Covered |
 
 ---
 
-### `findings/` — Single source of truth for each finding
-
-Findings are grouped into **theme folders**, each containing single-source concern files.
-Each finding lives exactly once, in exactly one file, numbered within that file and given a
-short, self-explanatory title. When a finding is updated or resolved, only that file changes.
-
-Start with [00-overview.md](findings/00-overview.md) for the root cause and a theme → folder map.
-
-**`conversation/`** — the day-to-day chat experience
-- [errors-and-feedback](findings/conversation/errors-and-feedback/) — Errors & Feedback · 2 findings
-- [output-and-speed](findings/conversation/output-and-speed/) — Output & Perceived Speed · 5 findings
-- [explanation](findings/conversation/explanation/) — Agent Explanation · 3 findings
-- [messages-and-history](findings/conversation/messages-and-history/) — Messages, History & Notifications · 4 findings
-
-**`control/`** — capability boundaries, approval, stopping & undoing
-- [permissions](findings/control/permissions/) — Permissions · 1 findings
-- [approve-and-preview](findings/control/approve-and-preview/) — Approval & Preview · 2 findings
-- [stop-resume-undo](findings/control/stop-resume-undo/) — Stop, Resume & Undo · 4 findings
-
-**`memory-and-privacy/`** — what is remembered, sent out and kept
-- [memory-visibility](findings/memory-and-privacy/memory-visibility/) — Memory Visibility · 2 findings
-- [retention](findings/memory-and-privacy/retention/) — Data Retention · 1 findings
-
-**`setup-and-operation/`** — run & administer the instance
-- [startup-and-config](findings/setup-and-operation/startup-and-config/) — Startup & Configuration · 4 findings
-- [run-and-manage](findings/setup-and-operation/run-and-manage/) — Running & Managing the Instance · 7 findings
-- [health-and-degradation](findings/setup-and-operation/health-and-degradation/) — Health & Degradation · 2 findings
-- [diagnostics-and-help](findings/setup-and-operation/diagnostics-and-help/) — Diagnostics & Support · 3 findings
-- [economics](findings/setup-and-operation/economics/) — Cost & Token Economics · 3 findings
-
-**`onboarding/`** — first run, empty states & gradual discovery
-- [first-run](findings/onboarding/first-run/) — First Run · 2 findings
-- [empty-state-and-choosing](findings/onboarding/empty-state-and-choosing/) — Empty States & Choosing a Mode · 2 findings
-- [progressive](findings/onboarding/progressive/) — Progressive Discovery · 1 findings
-- [navigation-and-settings](findings/onboarding/navigation-and-settings/) — Navigation & Settings · 3 findings
-
-**`platform/`** — accessibility & cross-device
-- [accessibility](findings/platform/accessibility/) — Accessibility & Keyboard · 4 findings
-- [mobile](findings/platform/mobile/) — Mobile & Cross-Device · 2 findings
-
-**`skills/`** — marketplace, authoring, versioning
-- [marketplace](findings/skills/marketplace/) — Skill Marketplace · 1 findings
-- [authoring-and-testing](findings/skills/authoring-and-testing/) — Skill Authoring & Dependencies · 3 findings
-- [versioning](findings/skills/versioning/) — Skill Versioning · 1 findings
-
-**`collaboration/`** — multi-user & sharing
-- [identity-and-isolation](findings/collaboration/identity-and-isolation/) — Identity & Isolation · 2 findings
-- [shared-library](findings/collaboration/shared-library/) — Shared Skill Library · 1 findings
-
-**`extension-surface/`** — building behaviour into jiuwenswarm (rails, tools, SDK)
-- [rails-and-context-api](findings/extension-surface/rails-and-context-api/) — Rails & Context API · 5 findings
-- [tools-and-agent-factory](findings/extension-surface/tools-and-agent-factory/) — Tools & Agent Factory · 2 findings
-- [testing-and-tooling](findings/extension-surface/testing-and-tooling/) — Extension Testing & Tooling · 3 findings
-- [documentation-and-stability](findings/extension-surface/documentation-and-stability/) — Extension Documentation & Stability · 2 findings
-
-**`application-api/`** — building a product on top of jiuwenswarm as a backend
-- [transport-and-protocol](findings/application-api/transport-and-protocol/) — Transport & Protocol · 4 findings
-- [security-and-isolation](findings/application-api/security-and-isolation/) — Connection Security · 2 findings
-- [integration-and-local-development](findings/application-api/integration-and-local-development/) — Integration & Local Development · 3 findings
-
----
+Findings live under each persona folder (`personas/<tier>/<persona>/findings/…`), so each persona is self-contained.
 
 ## Personas
 
@@ -99,14 +39,14 @@ Personas run **0 → 3**: `0-contribute` makes jiuwenswarm, `1-run` stands it up
 
 | Persona | Who they are |
 |---|---|
-| [Engine Contributor](personas/0-contribute/engine-contributor.md) · **Covered** | Contributes code to the openjiuwen / jiuwenswarm codebase; extends the engine from the inside (rails, tools, the agent factory). |
+| [Engine Contributor](personas/0-contribute/engine-contributor/engine-contributor.md) · **Covered** | Contributes code to the openjiuwen / jiuwenswarm codebase; extends the engine from the inside (rails, tools, the agent factory). |
 
 ### 1 · Run — operators who stand it up and keep it working
 
 | Persona | Who they are |
 |---|---|
-| [Self-hoster](personas/1-run/self-hoster.md) · **Covered** | Installs, runs, and keeps one jiuwenswarm instance healthy (config, health, diagnostics, cost); no admin role — it is just their instance. |
-| [Bot-hoster](personas/1-run/bot-hoster.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
+| [Self-hoster](personas/1-run/self-hoster/self-hoster.md) · **Covered** | Installs, runs, and keeps one jiuwenswarm instance healthy (config, health, diagnostics, cost); no admin role — it is just their instance. |
+| [Bot-hoster](personas/1-run/bot-hoster/bot-hoster.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
 
 ### 2 · Consume — people who actually use the agent
 
@@ -114,36 +54,36 @@ Personas run **0 → 3**: `0-contribute` makes jiuwenswarm, `1-run` stands it up
 
 | Persona | Who they are |
 |---|---|
-| [Consumer](personas/2-consume/consumer.md) · **Covered** | The base consumer: stop/crash, errors, notifications, context, memory/privacy. Everything below inherits this. |
+| [Consumer](personas/2-consume/consumer/consumer.md) · **Covered** | The base consumer: stop/crash, errors, notifications, context, memory/privacy. Everything below inherits this. |
 
 **In the Web UI** (`2-consume/web/`):
 
 | Persona | Who they are |
 |---|---|
-| [Web User](personas/2-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
-| [Web Chat](personas/2-consume/web/web-user-chat.md) · **Covered** | Mostly questions and answers (`agent.work`). |
-| [Web Code](personas/2-consume/web/web-user-code.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
+| [Web User](personas/2-consume/web/web-user/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
+| [Web Chat](personas/2-consume/web/web-user-chat/web-user-chat.md) · **Covered** | Mostly questions and answers (`agent.work`). |
+| [Web Code](personas/2-consume/web/web-user-code/web-user-code.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
 
 **Text surfaces** (`2-consume/text/`) — terminal & messaging (surface findings pending):
 
 | Persona | Who they are |
 |---|---|
-| [Text User](personas/2-consume/text/text-user.md) | Base for CLI/TUI/IM consumers. |
-| [Text CLI](personas/2-consume/text/text-user-cli.md) · [Text TUI](personas/2-consume/text/text-user-tui.md) · [Text IM](personas/2-consume/text/text-user-im.md) | Terminal / messaging consumers (placeholder). |
+| [Text User](personas/2-consume/text/text-user/text-user.md) | Base for CLI/TUI/IM consumers. |
+| [Text CLI](personas/2-consume/text/text-user-cli/text-user-cli.md) · [Text TUI](personas/2-consume/text/text-user-tui/text-user-tui.md) · [Text IM](personas/2-consume/text/text-user-im/text-user-im.md) | Terminal / messaging consumers (placeholder). |
 
 **Channel surfaces** (`2-consume/channel/`) — developer/code channels (surface findings pending):
 
 | Persona | Who they are |
 |---|---|
-| [Channel User](personas/2-consume/channel/channel-user.md) | Base for IDE/Browser consumers. |
-| [Channel IDE](personas/2-consume/channel/channel-user-ide.md) · [Channel Browser](personas/2-consume/channel/channel-user-browser.md) | Code-channel consumers (placeholder). |
+| [Channel User](personas/2-consume/channel/channel-user/channel-user.md) | Base for IDE/Browser consumers. |
+| [Channel IDE](personas/2-consume/channel/channel-user-ide/channel-user-ide.md) · [Channel Browser](personas/2-consume/channel/channel-user-browser/channel-user-browser.md) | Code-channel consumers (placeholder). |
 
 ### 3 · Build — people who build on/around jiuwenswarm for others
 
 | Persona | Who they are |
 |---|---|
-| [Product Builder](personas/3-build/product-builder.md) · **Covered** | Installs a ready jiuwenswarm and builds their own product using it as a backend (E2A/WebSocket or ACP API). |
-| [Skill Author](personas/3-build/skill-author.md) · **Covered** | Writes, packages, and distributes skills (capability content) a user enables on an instance. |
+| [Product Builder](personas/3-build/product-builder/product-builder.md) · **Covered** | Installs a ready jiuwenswarm and builds their own product using it as a backend (E2A/WebSocket or ACP API). |
+| [Skill Author](personas/3-build/skill-author/skill-author.md) · **Covered** | Writes, packages, and distributes skills (capability content) a user enables on an instance. |
 
 These are the roles JiuwenSwarm actually ships surfaces for (Web UI/desktop, CLI, TUI, IM
 channels, IDE, browser, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,

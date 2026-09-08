@@ -12,12 +12,12 @@ The personas are laid out as a pipeline, **0 → 3**, ordered by who depends on 
 
 ## 0 · Contribute — people who make jiuwenswarm
 
-- [Engine Contributor](0-contribute/engine-contributor.md) — contributes code to the openjiuwen / jiuwenswarm codebase; extends the engine from the inside (rails, tools, the agent factory).
+- [Engine Contributor](0-contribute/engine-contributor/engine-contributor.md) — contributes code to the openjiuwen / jiuwenswarm codebase; extends the engine from the inside (rails, tools, the agent factory).
 
 ## 1 · Run — operators who stand it up and keep it working
 
-- [Self-hoster](1-run/self-hoster.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
-- [Bot-hoster](1-run/bot-hoster.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
+- [Self-hoster](1-run/self-hoster/self-hoster.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
+- [Bot-hoster](1-run/bot-hoster/bot-hoster.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
 
 ## 2 · Consume — people who actually use the agent
 
@@ -25,32 +25,32 @@ Genuine users. The consume tier is split into a shared base and its surfaces.
 
 **Shared base** (concerns every consumer feels on any surface):
 
-- [Consumer](2-consume/consumer.md) — stop/crash, errors, notifications, context, memory/privacy, and so on. Everything below inherits this.
+- [Consumer](2-consume/consumer/consumer.md) — stop/crash, errors, notifications, context, memory/privacy, and so on. Everything below inherits this.
 
 Consumers reach the agent through one of three surface groups (each a folder with its own base + personas):
 
 **Web UI** (`2-consume/web/`) — the rich GUI (the desktop app is a wrapper of it):
 
-- [Web User](2-consume/web/web-user.md) — the Web-UI base shared across chat and code.
-- [Web Chat](2-consume/web/web-user-chat.md) — mostly questions and answers.
-- [Web Code](2-consume/web/web-user-code.md) — mostly code work.
+- [Web User](2-consume/web/web-user/web-user.md) — the Web-UI base shared across chat and code.
+- [Web Chat](2-consume/web/web-user-chat/web-user-chat.md) — mostly questions and answers.
+- [Web Code](2-consume/web/web-user-code/web-user-code.md) — mostly code work.
 
 **Text surfaces** (`2-consume/text/`) — terminal and messaging (surface-specific findings pending):
 
-- [Text User](2-consume/text/text-user.md) — base for text surfaces.
-- [Text CLI](2-consume/text/text-user-cli.md) · [Text TUI](2-consume/text/text-user-tui.md) · [Text IM](2-consume/text/text-user-im.md).
+- [Text User](2-consume/text/text-user/text-user.md) — base for text surfaces.
+- [Text CLI](2-consume/text/text-user-cli/text-user-cli.md) · [Text TUI](2-consume/text/text-user-tui/text-user-tui.md) · [Text IM](2-consume/text/text-user-im/text-user-im.md).
 
 **Channel surfaces** (`2-consume/channel/`) — developer/code channels (surface-specific findings pending):
 
-- [Channel User](2-consume/channel/channel-user.md) — base for channel surfaces.
-- [Channel IDE](2-consume/channel/channel-user-ide.md) · [Channel Browser](2-consume/channel/channel-user-browser.md).
+- [Channel User](2-consume/channel/channel-user/channel-user.md) — base for channel surfaces.
+- [Channel IDE](2-consume/channel/channel-user-ide/channel-user-ide.md) · [Channel Browser](2-consume/channel/channel-user-browser/channel-user-browser.md).
 
 ## 3 · Build — people who build on/around jiuwenswarm for others
 
 Builders are also users of jiuwenswarm, but they use it to build something *for other people* — that thing sits between other end-users and jiuwenswarm.
 
-- [Product Builder](3-build/product-builder.md) — installs a ready jiuwenswarm and builds their own product using it as a backend over the E2A/WebSocket (or ACP) API.
-- [Skill Author](3-build/skill-author.md) — writes, packages, and distributes skills (capability content) a user enables on an instance.
+- [Product Builder](3-build/product-builder/product-builder.md) — installs a ready jiuwenswarm and builds their own product using it as a backend over the E2A/WebSocket (or ACP) API.
+- [Skill Author](3-build/skill-author/skill-author.md) — writes, packages, and distributes skills (capability content) a user enables on an instance.
 
 ---
 
