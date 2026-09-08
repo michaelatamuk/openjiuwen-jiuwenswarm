@@ -66,6 +66,8 @@ import { AgentMode, MediaItem, UserAnswer, ModelEntry, type Session } from './ty
 import type {
   ExternalCliAgentKind,
   ExternalCliDependencyInstallStatus,
+  ExternalCliDetectResult,
+  ExternalCliPendingChoice,
 } from './components/ExternalCliAgentsSection';
 import {
   ensureSessionRuntimes,
@@ -121,6 +123,7 @@ import {
   setA2UIActionHandler,
 } from './features/a2ui/actionBridge';
 import { saveBlob } from './utils/desktopSave';
+import { restoreSessionEquipment } from './utils/enabledExtensions';
 import { generateUuidV4 } from './utils/uuid';
 import { ApplicationPluginOutlet } from './applicationPlugins/ApplicationPluginOutlet';
 import { enabledApplicationPlugins } from './applicationPlugins/manifest';
@@ -324,6 +327,14 @@ function AppContent({
   const [externalCliInstallDialogOpen, setExternalCliInstallDialogOpen] = useState(false);
   const [externalCliInstallStatuses, setExternalCliInstallStatuses] = useState<ExternalCliInstallStatuses>({});
   const [hasVisitedAgents, setHasVisitedAgents] = useState(false);
+  // Deferred CLI agent choices held here (not inside Settings) so they survive
+  // leaving/returning to the Settings page while a dependency install runs.
+  const [externalCliPendingChoices, setExternalCliPendingChoices] =
+    useState<Partial<Record<ExternalCliAgentKind, ExternalCliPendingChoice>>>({});
+  // Latest CLI detect results, also held at the App layer so returning to the
+  // Settings page shows the previous status instead of flashing "not checked".
+  const [externalCliDetectResults, setExternalCliDetectResults] =
+    useState<Partial<Record<ExternalCliAgentKind, ExternalCliDetectResult>>>({});
   const [hasVisitedSkills, setHasVisitedSkills] = useState(false);
   const [requestedSettingsModuleId, setRequestedSettingsModuleId] =
     useState<SettingsModuleTarget | null>(null);
@@ -883,7 +894,14 @@ function AppContent({
     drainTaskQueueIfIdle,
   } = useWebSocket({
     activeSessionId: sessionId,
-    onConnect: () => console.log('Connected'),
+    onConnect: () => {
+      console.log('Connected');
+      // 连接建立/断线重连后重拉侧边栏定时任务列表（useCronStore）：web 先行
+      // 导航时首屏挂载早于 gateway 就绪，挂载期的 cron.job.list 会失败并被
+      // store 静默清空，且无其它重试入口，导致 project 页签定时任务空白直到
+      // 侧边栏重新挂载。这里在每次连接可用后补齐拉取。
+      void useCronStore.getState().loadJobs();
+    },
     onDisconnect: () => {
       console.log('Disconnected');
     },
@@ -1413,6 +1431,9 @@ function AppContent({
       });
       upsertSessionMetadata(session, { setCurrent: sessionIdRef.current === targetSessionId });
       useWorkspaceStore.getState().upsertSession(session);
+      if (session.session_equipment && typeof session.session_equipment === 'object') {
+        restoreSessionEquipment(targetSessionId, session.session_equipment);
+      }
       if (sessionIdRef.current === targetSessionId) {
         setMissingSessionId((current) => (current === targetSessionId ? null : current));
         // 同 handleRestoreSession：拿到后端 metadata 里的 model 后还原 selectedModelName，
@@ -2333,13 +2354,9 @@ function AppContent({
   }, [kvCacheAffinityEnabled, mode, request]);
 
   const handleUseAgent = useCallback((agentId: string) => {
-    const currentSessionId = sessionIdRef.current || NEW_CONVERSATION_ID;
-    const sessionStore = useSessionStore.getState();
-    sessionStore.setAgentSelectionIntent(currentSessionId, { kind: 'select', id: agentId });
-    sessionStore.setMode(currentSessionId, 'agent');
-    setActiveNav('chat');
-    requestComposerFocus();
-  }, [requestComposerFocus]);
+    enterNewConversation('agent');
+    useSessionStore.getState().setAgentSelectionIntent(NEW_CONVERSATION_ID, { kind: 'select', id: agentId });
+  }, [enterNewConversation]);
 
   const handleUseAgentPrompt = useCallback((agentId: string, prompt: string) => {
     enterNewConversation('agent', { initialInputValue: prompt });
@@ -3194,6 +3211,7 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
         {hasVisitedAgents && (
           <div className={`app-section min-h-0 ${activeNav === 'agents' ? '' : 'is-hidden'}`}>
             <AgentManagementPanel
+              isActive={activeNav === 'agents'}
               onUseAgent={handleUseAgent}
               onUsePrompt={handleUseAgentPrompt}
               onCreateViaChat={() => requestSessionNavigation('new', {
@@ -3206,18 +3224,20 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
         {activeNav === 'sessions' && (
           <div className="app-section">
             <SessionsPanel
-              currentSessionId={sessionId}
-              isConnected={isConnected}
-              isProcessing={isProcessing}
-              onRestoreSession={handleRestoreSession}
+                currentSessionId={sessionId}
+                isConnected={isConnected}
+                isProcessing={isProcessing}
+                onRestoreSession={handleRestoreSession}
             />
           </div>
         )}
         {activeNav === 'cron' && (
           <div className="chat-layout flex-1 flex min-h-0 overflow-hidden">
+            {/*
+              停留在定时任务时，项目/会话列表不应该还显示"选中"效果——定时任务和它们是同一级的。
+              互斥选中关系，传 null 让列表里的选中态清空（沿用"新建会话时传 null"的既有语义）。
+            */}
             <ConversationSidebar
-              // 停留在定时任务时，项目/会话列表不应该还显示"选中"效果——定时任务和它们是同一级的
-              // 互斥选中关系，传 null 让列表里的选中态清空（沿用"新建会话时传 null"的既有语义）
               activeSessionId={null}
               onNew={(options) => requestSessionNavigation('new', options)}
               onSelect={requestSessionNavigation}
@@ -3230,9 +3250,9 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
             />
             <div className="chat-workspace flex-1 flex min-h-0 overflow-hidden">
               <CronPanel
-                sessionId={sessionId}
-                onCreateViaChat={(initialInputValue) => requestSessionNavigation('new', { initialInputValue })}
-                onSelectSession={(session) => {
+                  sessionId={sessionId}
+                  onCreateViaChat={(initialInputValue) => requestSessionNavigation('new', { initialInputValue })}
+                  onSelectSession={(session) => {
                   if (typeof session === 'string') {
                     // 立即执行返回的 session_id 可能还未在后端创建（agent 刚开始执行），
                     // 构造最小 Session 占位对象，让 upsertSessionMetadata 直接加入会话列表，
@@ -3254,7 +3274,7 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                     return;
                   }
                   requestSessionNavigation(session);
-                }}
+                  }}
               />
             </div>
           </div>
@@ -3276,6 +3296,10 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
                 (status) => status?.status === 'running',
               )}
               onOpenExternalCliInstallDialog={() => setExternalCliInstallDialogOpen(true)}
+              externalCliPendingChoices={externalCliPendingChoices}
+              onExternalCliPendingChoicesChange={setExternalCliPendingChoices}
+              externalCliDetectResults={externalCliDetectResults}
+              onExternalCliDetectResultsChange={setExternalCliDetectResults}
               initialModuleId={requestedSettingsModuleId ?? undefined}
             />
           </div>
@@ -3294,12 +3318,12 @@ const showWorkspaceDivider = effectiveTeamAreaExpanded && !showConversationNotFo
         {hasVisitedSkills && (
           <div className={`app-section ${activeNav === 'skills' ? '' : 'is-hidden'}`}>
             <SkillPanel
-              sessionId={sessionId}
-              isConnected={isConnected}
-              isActive={activeNav === 'skills'}
-              symphonyEnabled={normalizeConfigBoolean(serverConfig?.symphony_enabled)}
-              onSymphonyEnabledChange={saveSymphonyEnabled}
-              onNavigateToSettings={() => requestSettingsModule('agent')}
+                sessionId={sessionId}
+                isConnected={isConnected}
+                isActive={activeNav === 'skills'}
+                symphonyEnabled={normalizeConfigBoolean(serverConfig?.symphony_enabled)}
+                onSymphonyEnabledChange={saveSymphonyEnabled}
+                onNavigateToSettings={() => requestSettingsModule('agent')}
             />
           </div>
         )}

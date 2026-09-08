@@ -64,7 +64,6 @@ from jiuwenswarm.common.config import (
     update_default_model_provider_in_config,
     update_kv_cache_affinity_enabled_in_config,
     validate_persisted_kv_cache_affinity,
-    update_kv_cache_release_enabled_in_config,
     update_skill_retrieval_in_config,
     update_symphony_in_config,
     update_permissions_enabled_in_config,
@@ -84,7 +83,8 @@ from jiuwenswarm.common.config import (
 from jiuwenswarm.common.kv_cache_affinity_config import (
     ASCEND_AFFINITY_PROVIDER,
     KVC_CONFIG_KEYS,
-    default_model_provider_from_entries,
+    default_model_client_config_from_entries,
+    has_kv_cache_affinity_capability,
     is_affinity_enabled,
     normalize_affinity_request,
     parse_bool as parse_kvc_bool,
@@ -704,6 +704,7 @@ _FORWARD_REQ_METHODS = frozenset({
     "skills.marketplace.toggle",
     "skills.uninstall",
     "skills.online_search.search",
+    "skills.online_search.install",
     "skills.skillnet.search",
     "skills.skillnet.install",
     "skills.skillnet.install_status",
@@ -788,6 +789,8 @@ _FORWARD_REQ_METHODS = frozenset({
     "plugin_packages.uninstall",
     "mcp.list",
     "mcp.show",
+    "mcp.install",
+    "mcp.uninstall",
     "mcp.connect",
     "mcp.wait_auth",
     "mcp.disconnect",
@@ -872,6 +875,7 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "skills.marketplace.toggle",
     "skills.uninstall",
     "skills.online_search.search",
+    "skills.online_search.install",
     "skills.skillnet.search",
     "skills.skillnet.install",
     "skills.skillnet.install_status",
@@ -956,6 +960,8 @@ _FORWARD_NO_LOCAL_HANDLER_METHODS = frozenset({
     "plugin_packages.uninstall",
     "mcp.list",
     "mcp.show",
+    "mcp.install",
+    "mcp.uninstall",
     "mcp.connect",
     "mcp.wait_auth",
     "mcp.disconnect",
@@ -1056,7 +1062,6 @@ CONFIG_KEYS = tuple(_CONFIG_SET_ENV_MAP.keys())
 # 来自 config.yaml 的配置项（前端 param 名 -> config.yaml 路径）
 _CONFIG_YAML_KEYS = frozenset({
     "context_engine_enabled",
-    "kv_cache_release_enabled",
     "kv_cache_affinity_enabled",
     "permissions_enabled",
     "memory_forbidden_enabled",
@@ -1367,7 +1372,10 @@ def _run_external_cli_version_command(cli_agent: str, resolved_path: str) -> tup
         if process.returncode == 0:
             return output, ""
         errors.append(output or f"exit code {process.returncode}")
-    return "", "; ".join(errors)
+    # Both flag variants usually fail with the same message (e.g. WinError 193
+    # for a non-executable path); show it once instead of repeating it.
+    unique_errors = list(dict.fromkeys(errors))
+    return "", "; ".join(unique_errors)
 
 
 def _detect_external_cli_agent(cli_agent: str, cli_path: str = "") -> dict[str, Any]:
@@ -1740,7 +1748,19 @@ def _snapshot_claude_dependency_install_status() -> dict[str, Any]:
     return _snapshot_external_cli_dependency_install_status("claude")
 
 
+def _activate_managed_external_cli_paths_if_needed() -> None:
+    """Expose managed SDKs only for an external-CLI configuration request."""
+    if not _is_frozen_runtime():
+        return
+    from jiuwenswarm.common.external_cli_runtime import (
+        activate_external_cli_runtime_paths,
+    )
+
+    activate_external_cli_runtime_paths()
+
+
 def _ensure_claude_dependency_available_or_start_install() -> dict[str, Any] | None:
+    _activate_managed_external_cli_paths_if_needed()
     if importlib.util.find_spec("claude_agent_sdk") is not None:
         with _CLAUDE_DEPENDENCY_INSTALL_LOCK:
             _CLAUDE_DEPENDENCY_INSTALL_STATUS.update(_external_cli_dependency_install_succeeded_updates())
@@ -1897,6 +1917,7 @@ def _append_codex_dependency_install_log(line: str) -> None:
 
 
 def _ensure_codex_dependency_available_or_start_install() -> dict[str, Any] | None:
+    _activate_managed_external_cli_paths_if_needed()
     if importlib.util.find_spec("openai_codex") is not None:
         _update_codex_dependency_install_status(_external_cli_dependency_install_succeeded_updates())
         return None
@@ -1973,8 +1994,14 @@ def _install_optional_dependency(
 ) -> None:
     if _is_frozen_runtime():
         raise RuntimeError(f"frozen applications must use the managed {cli_agent} runtime installer")
-    args = _build_optional_dependency_install_args(package)
+    args = _build_optional_dependency_install_args(package, cli_agent)
     output_lines: list[str] = []
+    logger.info(
+        "[external-cli] installing %s dependency: interpreter=%s command=%s",
+        cli_agent,
+        sys.executable,
+        args,
+    )
     _update_external_cli_dependency_install_status(
         cli_agent,
         {
@@ -2032,12 +2059,24 @@ def _install_optional_dependency(
             process.kill()
             process.wait()
             reader.join(timeout=1)
+            logger.error(
+                "[external-cli] %s dependency install timed out after %ss; output tail:\n%s",
+                cli_agent,
+                _OPTIONAL_DEPENDENCY_INSTALL_TIMEOUT_SECONDS,
+                "\n".join(output_lines[-20:]),
+            )
             raise RuntimeError(f"failed to install {cli_agent} dependency: timed out")
 
     reader.join(timeout=1)
     returncode = process.wait()
     if returncode != 0:
         output = "\n".join(output_lines[-20:])
+        logger.error(
+            "[external-cli] %s dependency install exited with code %s; output tail:\n%s",
+            cli_agent,
+            returncode,
+            output,
+        )
         raise RuntimeError(f"failed to install {cli_agent} dependency: {output}")
     _update_external_cli_dependency_install_status(
         cli_agent,
@@ -2047,7 +2086,20 @@ def _install_optional_dependency(
     )
     importlib.invalidate_caches()
     if importlib.util.find_spec(required_module) is None:
+        # The installer reported success but the module is not importable from
+        # the running interpreter — it almost certainly landed in a different
+        # environment. Log the interpreter paths to make that diagnosable.
+        logger.error(
+            "[external-cli] %s dependency installed but %s is still not importable; "
+            "interpreter=%s sys.prefix=%s search paths=%s",
+            cli_agent,
+            required_module,
+            sys.executable,
+            sys.prefix,
+            sys.path,
+        )
         raise RuntimeError(f"failed to install {cli_agent} dependency: {required_module} is still unavailable")
+    logger.info("[external-cli] %s dependency installed and verified: %s", cli_agent, required_module)
 
 
 def _resolve_openjiuwen_codex_package() -> str:
@@ -2074,11 +2126,55 @@ def _resolve_openjiuwen_extra_package(extra: str) -> str:
     return f"openjiuwen[{extra}]"
 
 
-def _build_optional_dependency_install_args(package: str) -> list[str]:
+# Mirror for optional CLI SDK installs. The managed runtime installer (frozen
+# apps) already downloads its wheels from Aliyun first; source installs should
+# resolve from the same mirror instead of falling back to pypi.org, which is
+# slow to unreachable for users in China. Override with PIP_INDEX_URL /
+# UV_INDEX_URL to respect a user-configured index.
+_OPTIONAL_DEPENDENCY_INDEX_URL = os.getenv("PIP_INDEX_URL") or os.getenv("UV_INDEX_URL") or (
+    "https://mirrors.aliyun.com/pypi/simple/"
+)
+
+
+def _build_optional_dependency_install_args(package: str, cli_agent: str) -> list[str]:
+    """Build the pip/uv command that installs an optional CLI agent SDK.
+
+    ``package`` is the ``openjiuwen[extra]`` requirement; the SDK wheels
+    themselves are pinned to the versions recorded in the managed-runtime
+    manifest so source installs resolve the same versions the frozen-app
+    installer ships, instead of the latest release on the index.
+    """
+    # Import lazily: only needed on this rare install path.
+    from jiuwenswarm.common.external_cli_runtime import pinned_sdk_requirements
+
+    pinned = pinned_sdk_requirements(cli_agent)
     uv_cmd = shutil.which("uv")
     if uv_cmd and sys.prefix != sys.base_prefix:
-        return [uv_cmd, "pip", "install", package]
-    return [sys.executable, "-m", "pip", "install", package]
+        # Pin the target interpreter: without --python, uv resolves its own
+        # environment (VIRTUAL_ENV / auto-discovery) which may differ from the
+        # running interpreter — the install then "succeeds" into the wrong
+        # venv and the follow-up find_spec check reports the SDK as missing.
+        return [
+            uv_cmd,
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--index-url",
+            _OPTIONAL_DEPENDENCY_INDEX_URL,
+            package,
+            *pinned,
+        ]
+    return [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--index-url",
+        _OPTIONAL_DEPENDENCY_INDEX_URL,
+        package,
+        *pinned,
+    ]
 
 
 async def _clear_agent_config_cache(agent_client=None) -> None:
@@ -2830,13 +2926,9 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                     payload[key] = ExtensionRegistry.get_instance().get_crypto_provider().decrypt(val)
             react_cfg = raw.get("react") or {}
             ctx_cfg = react_cfg.get("context_engine_config") or {}
-            kv_cfg = react_cfg.get("kv_cache_affinity_config") or {}
             payload["context_engine_enabled"] = "true" if ctx_cfg.get("enabled", False) else "false"
-            payload["kv_cache_release_enabled"] = (
-                "true" if kv_cfg.get("enable_kv_cache_release", False) else "false"
-            )
             payload["kv_cache_affinity_enabled"] = (
-                "true" if kv_cfg.get("enable_kv_cache_affinity", False) else "false"
+                "true" if is_affinity_enabled(raw) else "false"
             )
             perm_cfg = raw.get("permissions") or {}
             payload["permissions_enabled"] = "true" if perm_cfg.get("enabled", False) else "false"
@@ -2872,7 +2964,6 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             payload["enable_free_models"] = "true" if models_cfg.get("enable_free_models", True) else "false"
         except Exception:  # noqa: BLE001
             payload.setdefault("context_engine_enabled", "false")
-            payload.setdefault("kv_cache_release_enabled", "false")
             payload.setdefault("kv_cache_affinity_enabled", "false")
             payload.setdefault("permissions_enabled", "false")
             payload.setdefault("setup_guide_enabled", "true")
@@ -3099,8 +3190,6 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             try:
                 if param_key == "context_engine_enabled":
                     update_context_engine_enabled_in_config(parsed)
-                elif param_key == "kv_cache_release_enabled":
-                    update_kv_cache_release_enabled_in_config(parsed)
                 elif param_key == "kv_cache_affinity_enabled":
                     update_kv_cache_affinity_enabled_in_config(parsed)
                 elif param_key == "permissions_enabled":
@@ -3694,10 +3783,11 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             return
         try:
             new_models = _build_models_defaults_from_frontend(params.get("models"))
-            default_provider = default_model_provider_from_entries(new_models)
             if (
                 is_affinity_enabled(get_config_raw())
-                and default_provider != ASCEND_AFFINITY_PROVIDER
+                and not has_kv_cache_affinity_capability(
+                    default_model_client_config_from_entries(new_models)
+                )
             ):
                 update_kv_cache_affinity_enabled_in_config(False)
             update_default_models_in_config(new_models)
@@ -3767,10 +3857,11 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                 apply_result = _ConfigApplyResult({}, [])
 
             if new_models is not None:
-                default_provider = default_model_provider_from_entries(new_models)
                 if (
                     is_affinity_enabled(get_config_raw())
-                    and default_provider != ASCEND_AFFINITY_PROVIDER
+                    and not has_kv_cache_affinity_capability(
+                        default_model_client_config_from_entries(new_models)
+                    )
                 ):
                     update_kv_cache_affinity_enabled_in_config(False)
                     yaml_updated.append("kv_cache_affinity_enabled")
@@ -3965,6 +4056,28 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
             remote_ids, remote_reason = await asyncio.to_thread(
                 _fetch_remote_sync, preset.models_endpoint, headers,
             )
+
+            # DashScope's /models catalogue includes unavailable marketplace,
+            # retired, and non-chat entries.  For Alibaba, expose only the
+            # small plan-specific allowlist whose models have been verified on
+            # the corresponding OpenAI-compatible endpoint.  Keep allowlist
+            # order so the UI presents recommended models first.
+            if vendor_key == "alibaba" and remote_ids:
+                unfiltered_count = len(remote_ids)
+                remote_model_ids = set(remote_ids)
+                remote_ids = [
+                    model_id
+                    for model_id in preset.model_options
+                    if model_id in remote_model_ids
+                ]
+                filtered_count = unfiltered_count - len(remote_ids)
+                if filtered_count:
+                    logger.info(
+                        "[vendors.fetch_models] filtered %d non-allowlisted Alibaba models",
+                        filtered_count,
+                    )
+                if not remote_ids:
+                    remote_reason = "no remote models matched the Alibaba plan allowlist"
 
             if remote_ids:
                 await channel.send_response(
