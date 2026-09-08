@@ -49,8 +49,9 @@ Consumers reach the agent through one of three surface groups (each a folder wit
 
 Builders are also users of jiuwenswarm, but they use it to build something *for other people* — that thing sits between other end-users and jiuwenswarm.
 
-- [Product Builder](3-build/product-builder/product-builder.md) — installs a ready jiuwenswarm and builds their own product using it as a backend over the E2A/WebSocket (or ACP) API.
-- [Skill Author](3-build/skill-author/skill-author.md) — writes, packages, and distributes skills (capability content) a user enables on an instance.
+- [Skill Author](3-build/skill-author/skill-author.md) *(Ecosystem)* — writes, packages, and distributes skills (capability content) a user enables on an instance; value flows through the marketplace.
+- [Agent Integrator](3-build/agent-integrator/agent-integrator.md) *(M2M)* — connects an external agent framework (Google ADK, LangGraph, etc.) to jiuwenswarm via the A2A protocol, making jiuwenswarm one node in a multi-agent system.
+- [Product Builder](3-build/product-builder/product-builder.md) *(B2B2C)* — installs a ready jiuwenswarm and builds their own consumer product using it as an invisible backend over the E2A/WebSocket (or ACP) API.
 
 ---
 

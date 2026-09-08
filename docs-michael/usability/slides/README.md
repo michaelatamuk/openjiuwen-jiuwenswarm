@@ -10,7 +10,8 @@ Self-contained specs for building slides. Each file is written so a slide builde
 6. [Web User](06-web-user.md)
 7. [Web Chat](07-web-chat.md)
 8. [Web Code](08-web-code.md)
-9. [Product Builder](09-product-builder.md)
-10. [Skill Author](10-skill-author.md)
+9. [Skill Author](09-skill-author.md)
+10. [Agent Integrator](10-agent-integrator.md)
+11. [Product Builder](11-product-builder.md)
 
-*(Add later slides here as 11-…, etc.)*
+*(Add later slides here as 12-…, etc.)*

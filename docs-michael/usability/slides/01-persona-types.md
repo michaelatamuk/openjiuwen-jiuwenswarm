@@ -30,11 +30,12 @@ Pillars, in order: **Makers → Runners → Consumers → Builders.**
 - Channel Browser
 - Channel IDE
 
-**Pillar 4 · Builders** *(B2B2C — jiuwenswarm → builder → end user)* — the people who build on top of jiuwenswarm for others.
-- Product Builder
-- Skill Author
+**Pillar 4 · Builders** *(Ecosystem / M2M / B2B2C)* — the people who build on top of jiuwenswarm for others. Each has a different market relationship.
+- Skill Author — *Ecosystem* (contributes capability to the platform)
+- Agent Integrator — *M2M* (machine-to-machine, connects an agent system to jiuwenswarm)
+- Product Builder — *B2B2C* (builds a consumer product with jiuwenswarm as backend)
 
-That is the complete, final list. Do not add or remove any persona; do not show "Consumer", "Web User", "Text User", or "Channel User" as pillars — those are internal base users and must not appear on the slide.
+Do not show "Consumer", "Web User", "Text User", or "Channel User" as pillars — those are internal base personas and must not appear on the slide.
 
 ---
 
@@ -47,7 +48,7 @@ One slide, four columns left → right. On top of each column put the pillar nam
 | **Makers** | — | Engine Contributor |
 | **Runners** | — | Self-hoster · Bot-hoster |
 | **Consumers** | *B2C* | Web chatter · Web coder · Text CLI · Text TUI · Text IM · Channel Browser · Channel IDE |
-| **Builders** | *B2B2C* | Product Builder · Skill Author |
+| **Builders** | *Ecosystem / M2M / B2B2C* | Skill Author · Agent Integrator · Product Builder |
 
 Use persona labels verbatim. The B2C / B2B2C sub-labels are part of the slide content.
 
@@ -55,7 +56,7 @@ Use persona labels verbatim. The B2C / B2B2C sub-labels are part of the slide co
 
 ## Speaker notes
 
-"Four kinds of people: the Makers who build jiuwenswarm, the Runners who keep instances working, the Consumers who use it directly — B2C, jiuwenswarm to end user — and the Builders who build on top of it for their own users — B2B2C, jiuwenswarm to builder to end user. Skill Author sits slightly differently: they contribute a skill to the ecosystem rather than ship their own product, but the B2B2C label is close enough for orientation."
+"Four kinds of people: the Makers who build jiuwenswarm, the Runners who keep instances working, the Consumers who use it directly — B2C — and the Builders who build on top of it. Builders have three distinct market relationships: Skill Author is Ecosystem — like a plugin developer, they contribute capability to the platform and value flows through the marketplace. Agent Integrator is M2M — machine to machine, they wire jiuwenswarm into a multi-agent pipeline via the A2A protocol with no human in the loop. Product Builder is B2B2C — they ship their own consumer product using jiuwenswarm as an invisible backend."
 
 ---
 
