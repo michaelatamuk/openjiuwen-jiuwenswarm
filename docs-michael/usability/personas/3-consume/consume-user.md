@@ -1,8 +1,8 @@
 # Consume User
 
-*The basic consume user: concerns every consumer feels no matter what surface they use (Web UI, code mode, or an IM bot). The Web-UI and non-Web-UI users below build on this.*
+*The basic consume user: concerns every consumer feels no matter what surface they use (Web UI, code mode, or an IM bot). The Web-UI and IM users below build on this.*
 
-See the surfaces: [Web UI](web/web-user.md) and [non-Web UI](not-web/).
+See the surfaces: [Web UI](web/web-user.md) and [IM User](im-user.md).
 
 ## Findings that matter to them
 

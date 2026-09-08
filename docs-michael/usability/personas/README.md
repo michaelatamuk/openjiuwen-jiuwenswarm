@@ -8,34 +8,25 @@ Each persona file is a short **profile**: who this person is, and which findings
 
 **Every finding belongs to exactly one profile.** A finding appears once and is owned by a single persona; "shared" concerns live in the lowest common base and are inherited by the more specific profiles below it (without being repeated).
 
-The personas are grouped by what each person does with the system, and the groups are ordered by **who depends on whom**.
+The personas are laid out as a pipeline, **0 → 3**, ordered by who depends on whom: *make the software → run it → build with it → use it*.
+
+## 0 · Contribute — people who make jiuwenswarm
+
+- [Openjiuwen Contributor](0-contribute/openjiuwen-contributor.md) — contributes code to the openjiuwen / jiuwenswarm codebase; extends the engine from the inside (rails, tools, the agent factory).
 
 ## 1 · Run — operators who stand it up and keep it working
 
-These people run instances and deployments; they do not use the agent for their own work.
+- [Instance Admin](1-run/instance-admin.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
+- [Shared Bot Admin](1-run/shared-bot-admin.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
 
-- [Instance Admin](1-keystone/instance-admin.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
-- [Shared Bot Admin](1-keystone/shared-bot-admin.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
+## 2 · Build — people who build on/around a running instance
 
-## 2 · Build — people who produce something others use
+- [Product Developer](2-build/product-developer.md) — installs a ready jiuwenswarm and builds their own product using it as a backend over the E2A/WebSocket (or ACP) API.
+- [Skill Author](2-build/skill-author.md) — writes, packages, and distributes skills (capability content) a user enables on an instance.
 
-Builders depend on jiuwenswarm, but they are not its consumers: they make a thing that *other* people consume. They differ by whether they change jiuwenswarm itself or build separately on top of it (`2-build/on-top/`, `2-build/under-the-hood/`, `2-build/skills/`):
+## 3 · Consume — people who actually use the agent
 
-**Under the hood of jiuwenswarm** — extend jiuwenswarm itself so it behaves differently; the code they write runs inside it:
-
-- [Openjiuwen Contributor](2-build/under-the-hood/openjiuwen-contributor.md) — extends the runtime from inside: rails, tool registration, and the rails-context / agent-factory surface.
-
-**On top of jiuwenswarm** — `pip install` a ready jiuwenswarm as a black box and build a separate product that calls it (directly, over WebSocket, or with a client SDK); none of their code changes jiuwenswarm:
-
-- [Product Developer](2-build/on-top/product-developer.md) — builds their own product on the running instance over the E2A/WebSocket (or ACP) API.
-
-**Instance capabilities** (`2-build/skills/`) — not engine code and not a separate on-top product, but capability *content* installed per instance:
-
-- [Skill Author](2-build/skills/skill-author.md) — writes, packages, and distributes skills a user enables on an instance.
-
-## 3 · Use — people who actually consume the agent
-
-Genuine users: they talk to the agent and use its output. This is the consume tier, split into a shared base and its surfaces.
+Genuine users. The consume tier is split into a shared base and its surfaces.
 
 **Shared base** (concerns every consumer feels on any surface):
 
@@ -55,4 +46,4 @@ Genuine users: they talk to the agent and use its output. This is the consume ti
 
 **Why each finding is owned once.** If several personas need the same concern, it is not "shared" — it belongs to their common **base** and is inherited. A generic concern lives in `consume-user.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/web-user-coder.md`. That is why no finding appears in two profiles.
 
-**Run vs Build vs Use.** Instance Admin and Shared Bot Admin *run* it; Extension/Skill/Application developers *build* on it; only the Consume User (Web, chat, coder, IM) actually *uses* the agent.
+**The four tiers.** `0-contribute` makes jiuwenswarm; `1-run` stands up instances of it; `2-build` produces things on/around those instances; `3-consume` are the people who actually use the agent. (The tiers encode dependency — 0 is the foundation, 3 the most downstream.)
