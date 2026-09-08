@@ -28,4 +28,4 @@
 - **[The agent factory has too many undocumented parameters](findings/extension-surface/tools-and-agent-factory/2-the-agent-factory-has-too-many-undocumented-parameters.md)**
 ### Custom Channels
 
-- **[Writing a custom channel has no developer guide](findings/application-api/integration-and-local-development/1-writing-a-custom-channel-has-no-developer-guide.md)**
+- **[Writing a custom channel has no developer guide](findings/extension-surface/channels/1-writing-a-custom-channel-has-no-developer-guide.md)**
