@@ -59,12 +59,6 @@ from jiuwenswarm.agents.harness.team.team_runtime_inheritance import (
 )
 from jiuwenswarm.agents.swarm import registry
 from jiuwenswarm.agents.swarm.providers import tools as _tools
-from jiuwenswarm.common.config import (
-    ASCEND_AFFINITY_PROVIDER,
-    get_default_model_provider,
-    get_evolution_auto_save_enabled,
-    get_skill_evolution_enabled,
-)
 from jiuwenswarm.common.mode_matrix import (
     NEW_TEAM_CODE_NORMAL,
     NEW_TEAM_CODE_PLAN,
