@@ -31,6 +31,6 @@
 
 - **[Running the CLI without config gives no next step](../../findings/onboarding/first-run/2-running-the-cli-without-config-gives-no-next-step.md)**
 - **[Setup wizard ends before the model is confirmed working](../../findings/onboarding/first-run/1-setup-wizard-ends-before-the-model-is-confirmed-working.md)**
-### Skill Authoring & Dependencies
+### Health & Degradation
 
-- **[Skill Python dependencies and conflicts are invisible](../../findings/skills/authoring-and-testing/2-skill-python-dependencies-and-conflicts-are-invisible.md)**
+- **[You aren't told when a subsystem fails](../../findings/setup-and-operation/health-and-degradation/1-you-arent-told-when-a-subsystem-fails.md)**

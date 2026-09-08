@@ -4,13 +4,12 @@
 
 ## Findings that matter to them
 
-*9 findings.*
+*8 findings.*
 
 ### Integration & Local Development
 
 - **[No local stub or dev mode for testing integrations](../../findings/application-api/integration-and-local-development/3-no-local-stub-or-dev-mode-for-testing-integrations.md)**
 - **[Only shell-command hooks exist; there's no real webhook delivery](../../findings/application-api/integration-and-local-development/2-only-shell-command-hooks-exist-theres-no-real-webhook-delivery.md)**
-- **[Writing a custom channel has no developer guide](../../findings/application-api/integration-and-local-development/1-writing-a-custom-channel-has-no-developer-guide.md)**
 ### Connection Security
 
 - **[No API authentication: fine locally, a real risk once exposed](../../findings/application-api/security-and-isolation/1-no-api-authentication-fine-locally-a-risk-once-exposed.md)**

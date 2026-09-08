@@ -4,7 +4,7 @@
 
 ## Findings that matter to them
 
-*12 findings.*
+*13 findings.*
 
 ### Extension Documentation & Stability
 
@@ -26,3 +26,6 @@
 
 - **[Registering tools from a rail has no developer guide](../../findings/extension-surface/tools-and-agent-factory/1-registering-tools-from-a-rail-has-no-developer-guide.md)**
 - **[The agent factory has too many undocumented parameters](../../findings/extension-surface/tools-and-agent-factory/2-the-agent-factory-has-too-many-undocumented-parameters.md)**
+### Custom Channels
+
+- **[Writing a custom channel has no developer guide](../../findings/application-api/integration-and-local-development/1-writing-a-custom-channel-has-no-developer-guide.md)**

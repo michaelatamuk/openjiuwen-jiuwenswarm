@@ -6,7 +6,7 @@ See the surfaces: [Web UI](web/web-user.md) and [IM User](im-user.md).
 
 ## Findings that matter to them
 
-*20 findings.*
+*19 findings.*
 
 ### Errors & Feedback
 
@@ -45,4 +45,3 @@ See the surfaces: [Web UI](web/web-user.md) and [IM User](im-user.md).
 ### Health & Degradation
 
 - **[Rate limits and API failures hang or show nothing useful](../../findings/setup-and-operation/health-and-degradation/2-rate-limits-and-api-failures-hang-or-show-nothing-useful.md)**
-- **[You aren't told when a subsystem fails](../../findings/setup-and-operation/health-and-degradation/1-you-arent-told-when-a-subsystem-fails.md)**
