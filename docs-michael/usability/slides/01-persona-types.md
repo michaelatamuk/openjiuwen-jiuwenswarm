@@ -21,7 +21,7 @@ Pillars, in order: **Makers → Runners → Consumers → Builders.**
 - Self-hoster
 - Bot-hoster
 
-**Pillar 3 · Consumers** — the people who actually use the agent. They are listed by which surface they use:
+**Pillar 3 · Consumers** *(B2C — jiuwenswarm → end user)* — the people who actually use the agent directly. They are listed by which surface they use:
 - Web chatter
 - Web coder
 - Text CLI
@@ -30,7 +30,7 @@ Pillars, in order: **Makers → Runners → Consumers → Builders.**
 - Channel Browser
 - Channel IDE
 
-**Pillar 4 · Builders** — the people who build on top of jiuwenswarm for others.
+**Pillar 4 · Builders** *(B2B2C — jiuwenswarm → builder → end user)* — the people who build on top of jiuwenswarm for others.
 - Product Builder
 - Skill Author
 
@@ -40,24 +40,22 @@ That is the complete, final list. Do not add or remove any persona; do not show 
 
 ## How to render
 
-One slide, four columns left → right. On top of each column put the pillar name (bold): **Makers · Runners · Consumers · Builders**.
+One slide, four columns left → right. On top of each column put the pillar name (bold), with a small italic market-model label directly beneath it for Consumers and Builders. Then list the personas.
 
-Under each pillar, stack the personas as labeled chips or a bullet list, in exactly the order given above.
+| Column | Sub-label (italic, below pillar name) | Personas (exact labels) |
+|---|---|---|
+| **Makers** | — | Engine Contributor |
+| **Runners** | — | Self-hoster · Bot-hoster |
+| **Consumers** | *B2C* | Web chatter · Web coder · Text CLI · Text TUI · Text IM · Channel Browser · Channel IDE |
+| **Builders** | *B2B2C* | Product Builder · Skill Author |
 
-| Column | Personas (exact labels) |
-|---|---|
-| **Makers** | Engine Contributor |
-| **Runners** | Self-hoster · Bot-hoster |
-| **Consumers** | Web chatter · Web coder · Text CLI · Text TUI · Text IM · Channel Browser · Channel IDE |
-| **Builders** | Product Builder · Skill Author |
-
-Use these labels verbatim (they are the persona names).
+Use persona labels verbatim. The B2C / B2B2C sub-labels are part of the slide content.
 
 ---
 
 ## Speaker notes
 
-"Four kinds of people: the Makers who build jiuwenswarm, the Runners who keep instances working, the Consumers who use it — and they reach it through Web, text, or a channel — and the Builders who build on top of it for others."
+"Four kinds of people: the Makers who build jiuwenswarm, the Runners who keep instances working, the Consumers who use it directly — B2C, jiuwenswarm to end user — and the Builders who build on top of it for their own users — B2B2C, jiuwenswarm to builder to end user. Skill Author sits slightly differently: they contribute a skill to the ecosystem rather than ship their own product, but the B2B2C label is close enough for orientation."
 
 ---
 
