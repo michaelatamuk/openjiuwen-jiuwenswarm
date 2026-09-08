@@ -2,7 +2,7 @@
 
 *The person who installs, runs, and keeps one jiuwenswarm instance — usually their own, so they are also a user of it.*
 
-They own their instance, so in addition to the run concerns below they are a [Consumer](../3-consume/consumer.md) of it (same person running *and* using it).
+They own their instance, so in addition to the run concerns below they are a [Consumer](../2-consume/consumer.md) of it (same person running *and* using it).
 
 ## Findings that matter to them
 

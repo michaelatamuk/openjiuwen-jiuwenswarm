@@ -19,13 +19,13 @@ folders matter to them (linking into the findings). Read the file for your role.
 |---|---|---|---|
 | [engine-contributor.md](personas/0-contribute/engine-contributor.md) | **Engine Contributor** | 0 · Contribute | Covered |
 | [self-hoster.md](personas/1-run/self-hoster.md) | **Self-hoster** | 1 · Run | Covered |
-| [bot-host.md](personas/1-run/bot-host.md) | **Bot Host** | 1 · Run | Partial |
-| [product-builder.md](personas/2-build/product-builder.md) | **Product Builder** | 2 · Build | Covered |
-| [skill-author.md](personas/2-build/skill-author.md) | **Skill Author** | 2 · Build | Covered |
-| [consumer.md](personas/3-consume/consumer.md) | **Consumer** (base) | 3 · Consume | Covered |
-| [web/web-user.md](personas/3-consume/web/web-user.md) · [web-user-chat.md](personas/3-consume/web/web-user-chat.md) · [web-user-code.md](personas/3-consume/web/web-user-code.md) | Web User (+ Chat / Web Code) | 3 · Consume | Covered |
-| [text/text-user.md](personas/3-consume/text/text-user.md) (+ cli/tui/im) | Text surfaces (CLI/TUI/IM) | 3 · Consume | Pending |
-| [channel/channel-user.md](personas/3-consume/channel/channel-user.md) (+ ide/browser) | Channel surfaces (IDE/Browser) | 3 · Consume | Pending |
+| [bot-hoster.md](personas/1-run/bot-hoster.md) | **Bot-hoster** | 1 · Run | Partial |
+| [consumer.md](personas/2-consume/consumer.md) | **Consumer** (base) | 2 · Consume | Covered |
+| [web/web-user.md](personas/2-consume/web/web-user.md) · [web-user-chat.md](personas/2-consume/web/web-user-chat.md) · [web-user-code.md](personas/2-consume/web/web-user-code.md) | Web User (+ Chat / Web Code) | 2 · Consume | Covered |
+| [text/text-user.md](personas/2-consume/text/text-user.md) (+ cli/tui/im) | Text surfaces (CLI/TUI/IM) | 2 · Consume | Pending |
+| [channel/channel-user.md](personas/2-consume/channel/channel-user.md) (+ ide/browser) | Channel surfaces (IDE/Browser) | 2 · Consume | Pending |
+| [product-builder.md](personas/3-build/product-builder.md) | **Product Builder** | 3 · Build | Covered |
+| [skill-author.md](personas/3-build/skill-author.md) | **Skill Author** | 3 · Build | Covered |
 
 ---
 
@@ -93,7 +93,7 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 
 ## Personas
 
-Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on whom**: *make the software → run it → build with it → use it*. **Every finding belongs to exactly one persona**, so no finding is shared across profiles.
+Personas run **0 → 3**: `0-contribute` makes jiuwenswarm, `1-run` stands it up, and then the people who use it are two **sibling** kinds — `2-consume` (use it as-is, for themselves) and `3-build` (use it to build for others). **Every finding belongs to exactly one persona**, so no finding is shared across profiles.
 
 ### 0 · Contribute — people who make jiuwenswarm
 
@@ -106,49 +106,49 @@ Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on wh
 | Persona | Who they are |
 |---|---|
 | [Self-hoster](personas/1-run/self-hoster.md) · **Covered** | Installs, runs, and keeps one jiuwenswarm instance healthy (config, health, diagnostics, cost); no admin role — it is just their instance. |
-| [Bot Host](personas/1-run/bot-host.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
+| [Bot-hoster](personas/1-run/bot-hoster.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
 
-### 2 · Build — people who build on/around a running instance
-
-| Persona | Who they are |
-|---|---|
-| [Product Builder](personas/2-build/product-builder.md) · **Covered** | Installs a ready jiuwenswarm and builds their own product using it as a backend (E2A/WebSocket or ACP API). |
-| [Skill Author](personas/2-build/skill-author.md) · **Covered** | Writes, packages, and distributes skills (capability content) a user enables on an instance. |
-
-### 3 · Consume — people who actually use the agent
+### 2 · Consume — people who actually use the agent
 
 **Shared base** — concerns every consumer feels on any surface:
 
 | Persona | Who they are |
 |---|---|
-| [Consumer](personas/3-consume/consumer.md) · **Covered** | The base consumer: stop/crash, errors, notifications, context, memory/privacy. Everything below inherits this. |
+| [Consumer](personas/2-consume/consumer.md) · **Covered** | The base consumer: stop/crash, errors, notifications, context, memory/privacy. Everything below inherits this. |
 
-**In the Web UI** (`3-consume/web/`):
-
-| Persona | Who they are |
-|---|---|
-| [Web User](personas/3-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
-| [Web Chat](personas/3-consume/web/web-user-chat.md) · **Covered** | Mostly questions and answers (`agent.work`). |
-| [Web Code](personas/3-consume/web/web-user-code.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
-
-**Text surfaces** (`3-consume/text/`) — terminal & messaging (surface findings pending):
+**In the Web UI** (`2-consume/web/`):
 
 | Persona | Who they are |
 |---|---|
-| [Text User](personas/3-consume/text/text-user.md) | Base for CLI/TUI/IM consumers. |
-| [Text CLI](personas/3-consume/text/text-user-cli.md) · [Text TUI](personas/3-consume/text/text-user-tui.md) · [Text IM](personas/3-consume/text/text-user-im.md) | Terminal / messaging consumers (placeholder). |
+| [Web User](personas/2-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
+| [Web Chat](personas/2-consume/web/web-user-chat.md) · **Covered** | Mostly questions and answers (`agent.work`). |
+| [Web Code](personas/2-consume/web/web-user-code.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
 
-**Channel surfaces** (`3-consume/channel/`) — developer/code channels (surface findings pending):
+**Text surfaces** (`2-consume/text/`) — terminal & messaging (surface findings pending):
 
 | Persona | Who they are |
 |---|---|
-| [Channel User](personas/3-consume/channel/channel-user.md) | Base for IDE/Browser consumers. |
-| [Channel IDE](personas/3-consume/channel/channel-user-ide.md) · [Channel Browser](personas/3-consume/channel/channel-user-browser.md) | Code-channel consumers (placeholder). |
+| [Text User](personas/2-consume/text/text-user.md) | Base for CLI/TUI/IM consumers. |
+| [Text CLI](personas/2-consume/text/text-user-cli.md) · [Text TUI](personas/2-consume/text/text-user-tui.md) · [Text IM](personas/2-consume/text/text-user-im.md) | Terminal / messaging consumers (placeholder). |
+
+**Channel surfaces** (`2-consume/channel/`) — developer/code channels (surface findings pending):
+
+| Persona | Who they are |
+|---|---|
+| [Channel User](personas/2-consume/channel/channel-user.md) | Base for IDE/Browser consumers. |
+| [Channel IDE](personas/2-consume/channel/channel-user-ide.md) · [Channel Browser](personas/2-consume/channel/channel-user-browser.md) | Code-channel consumers (placeholder). |
+
+### 3 · Build — people who build on/around jiuwenswarm for others
+
+| Persona | Who they are |
+|---|---|
+| [Product Builder](personas/3-build/product-builder.md) · **Covered** | Installs a ready jiuwenswarm and builds their own product using it as a backend (E2A/WebSocket or ACP API). |
+| [Skill Author](personas/3-build/skill-author.md) · **Covered** | Writes, packages, and distributes skills (capability content) a user enables on an instance. |
 
 These are the roles JiuwenSwarm actually ships surfaces for (Web UI/desktop, CLI, TUI, IM
 channels, IDE, browser, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
-QA, analytics, support) are not included. The tiers are a pipeline 0 → 3: Contribute makes
-jiuwenswarm, Run stands it up, Build produces things on/around it, and only the Consume tier
-(3) actually uses the agent. Consume is a hierarchy: a concern every user feels lives in the
-Consumer base, and each surface group (`web/`, `text/`, `channel/`) adds only its surface's
-own concerns on top. This keeps each finding owned exactly once.
+QA, analytics, support) are not included. `0-contribute` makes jiuwenswarm and `1-run` stands it
+up; then `2-consume` (people who use the agent for themselves) and `3-build` (people who use it
+to build for others) are sibling users. Consume is a hierarchy: a concern every user feels lives
+in the Consumer base, and each surface group (`web/`, `text/`, `channel/`) adds only its
+surface's own concerns on top. This keeps each finding owned exactly once.

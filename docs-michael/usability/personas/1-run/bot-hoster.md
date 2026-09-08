@@ -1,4 +1,4 @@
-# Bot Host
+# Bot-hoster
 
 *Runs one jiuwenswarm as a shared bot that a group talks to (Feishu/Telegram/WeChat) and keeps it working for them — one person maintaining the group's bot, not everyone self-hosting.*
 
