@@ -1,36 +1,17 @@
-# Slide 9 — Product Builder
+# Slide for Product Builder
 
-> Self-contained spec for building this slide. You should not need any other file to produce it.
+> Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
-## The one line (put this big on the slide)
+## On the slide
 
-**Product Builder** — The on-top builder: installs a ready jiuwenswarm (or its SDK) and builds their own product that uses jiuwenswarm as its backend over the E2A/WebSocket (or ACP) API.
+**Product Builder** — Builds their own product using jiuwenswarm as its backend.
 
-## Who this person is
+### Cards (the body)
 
-The on-top builder: installs a ready jiuwenswarm (or its SDK) and builds their own product that uses jiuwenswarm as its backend over the E2A/WebSocket (or ACP) API.
+- **Connection & Security** — no API auth; weak origin checks
+- **Transport & Protocol** — WebSocket-only; prose spec, no SDK
+- **Integration & Tooling** — no dev stubs; only shell hooks
 
-## What concerns them (the slide body)
+## Speaker notes
 
-This persona's own concerns — show them as a set of cards/tiles, one per group:
-
-**Connection & Security** (2):
-
-- [No API authentication: fine locally, a real risk once exposed
-- [WebSocket origin checks are off by default and undocumented
-
-**Transport & Protocol** (4):
-
-- [External apps can only reach the agent over WebSocket, with no REST
-- [The E2A protocol spec is prose, not a machine-readable schema
-- [No published client SDK, so every app re-implements the protocol
-- [Session API methods have no documented response shapes
-
-**Integration & Tooling** (2):
-
-- [Only shell-command hooks exist; there's no real webhook delivery
-- [No local stub or dev mode for testing integrations
-
-## Speaker notes (short)
-
-"Product Builder: The on-top builder: installs a ready jiuwenswarm (or its SDK) and builds their own product that uses jiuwenswarm as its backend over the E2A/WebSocket (or ACP) API. These are the 8 concerns specific to them; anything shared comes from the base persona above them."
+Installs a ready jiuwenswarm and builds on top of it over the E2A/WebSocket/ACP API for their own product's users.

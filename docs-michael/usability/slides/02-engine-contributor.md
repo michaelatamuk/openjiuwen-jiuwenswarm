@@ -1,47 +1,19 @@
-# Slide 2 — Engine Contributor
+# Slide for Engine Contributor
 
-> Self-contained spec for building this slide. You should not need any other file to produce it.
+> Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
-## The one line (put this big on the slide)
+## On the slide
 
-**Engine Contributor** — The under-the-hood builder: contributes code to the openjiuwen / jiuwenswarm codebase — extending the engine from the inside (rails, tools, the agent factory).
+**Engine Contributor** — The developer who changes jiuwenswarm itself.
 
-## Who this person is
+### Cards (the body)
 
-The under-the-hood builder: contributes code to the openjiuwen / jiuwenswarm codebase — extending the engine from the inside (rails, tools, the agent factory).
+- **Rails & Context API** — rail hooks, context & errors are undocumented
+- **Tools & Agent Factory** — registering tools & factory params undocumented
+- **Testing & Tooling** — no scaffold CLI; rails are hard to test
+- **Docs & Stability** — undiscoverable examples, no stable public API
+- **Channels** — no guide for writing a custom channel
 
-## What concerns them (the slide body)
+## Speaker notes
 
-This persona's own concerns — show them as a set of cards/tiles, one per group:
-
-**Extension Documentation & Stability** (2):
-
-- [No stable public API or semantic-versioning contract
-- [The examples directory is undiscoverable and inconsistent
-
-**Rails & Context API** (5):
-
-- [Adding prompt content from a rail is an undocumented hidden API
-- [Rail hook execution order can only be learned from source
-- [The hook context object is undocumented and untyped
-- [The rail extension API has no public documentation
-- [The structured error API isn't documented for rail authors
-
-**Extension Testing & Tooling** (3):
-
-- [No CLI to scaffold a new rail or skill
-- [No integration test layer between unit tests and a full system
-- [Writing a rail test requires reverse-engineering mock infrastructure
-
-**Tools & Agent Factory** (2):
-
-- [Registering tools from a rail has no developer guide
-- [The agent factory has too many undocumented parameters
-
-**Custom Channels** (1):
-
-- [Writing a custom channel has no developer guide
-
-## Speaker notes (short)
-
-"Engine Contributor: The under-the-hood builder: contributes code to the openjiuwen / jiuwenswarm codebase — extending the engine from the inside (rails, tools, the agent factory). These are the 13 concerns specific to them; anything shared comes from the base persona above them."
+The person who git-clones jiuwenswarm and contributes to its engine (rails, tools, agent factory, channels). Their pain is that the extension surface is undocumented and hard to build against.

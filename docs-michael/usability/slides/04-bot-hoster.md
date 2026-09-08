@@ -1,28 +1,16 @@
-# Slide 4 — Bot-hoster
+# Slide for Bot-hoster
 
-> Self-contained spec for building this slide. You should not need any other file to produce it.
+> Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
-## The one line (put this big on the slide)
+## On the slide
 
-**Bot-hoster** — Runs one jiuwenswarm as a shared bot that a group talks to (Feishu/Telegram/WeChat) and keeps it working for them — one person maintaining the group's bot, not everyone self-hosting.
+**Bot-hoster** — Runs one instance as a shared bot a group talks to.
 
-## Who this person is
+### Cards (the body)
 
-Runs one jiuwenswarm as a shared bot that a group talks to (Feishu/Telegram/WeChat) and keeps it working for them — one person maintaining the group's bot, not everyone self-hosting.
+- **Identity & Isolation** — no login, no per-user isolation
+- **Shared Skills** — no shared skill library across instances
 
-## What concerns them (the slide body)
+## Speaker notes
 
-This persona's own concerns — show them as a set of cards/tiles, one per group:
-
-**Identity & Isolation** (2):
-
-- [No login on the Web UI: local Web users share one identity
-- [No multi-tenancy: every user shares one workspace
-
-**Shared Skill Library** (1):
-
-- [No shared skill library across instances
-
-## Speaker notes (short)
-
-"Bot-hoster: Runs one jiuwenswarm as a shared bot that a group talks to (Feishu/Telegram/WeChat) and keeps it working for them — one person maintaining the group's bot, not everyone self-hosting. These are the 3 concerns specific to them; anything shared comes from the base persona above them."
+Maintains a bot a group uses. Because there is no multi-tenancy, all its users share one identity/workspace.

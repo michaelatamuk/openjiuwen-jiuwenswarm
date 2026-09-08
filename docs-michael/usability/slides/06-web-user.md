@@ -1,45 +1,19 @@
-# Slide 6 — Web User
+# Slide for Web User
 
-> Self-contained spec for building this slide. You should not need any other file to produce it.
+> Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
-## The one line (put this big on the slide)
+## On the slide
 
-**Web User** — A Consumer who works in the Web UI, shared across chat and code mode. Inherits the [Consumer](../../consumer/consumer.md) base.
+**Web User** — Uses the agent in the rich Web UI (chat + code).
 
-## Who this person is
+### Cards (the body)
 
-A Consumer who works in the Web UI, shared across chat and code mode. Inherits the [Consumer](../../consumer/consumer.md) base.
+- **Language** — GUI isn't fully translated
+- **Navigation & Settings** — settings by module; skills/connectors split
+- **Discovery** — empty start; powerful features hidden
+- **Accessibility** — contrast & screen-reader gaps
+- **Mobile** — not mobile-friendly, no offline app
 
-## What concerns them (the slide body)
+## Speaker notes
 
-This persona's own concerns — show them as a set of cards/tiles, one per group:
-
-**Language** (1):
-
-- [GUI text is not fully translated
-
-**Navigation & Settings** (3):
-
-- [Settings are organized by code module, not by user task
-- [Skills and connectors are split apart though they're the same kind of thing
-- [The activity view is hidden behind an unclear name
-
-**Discovery** (3):
-
-- [Empty screen offers no example or next step
-- [No guidance introduces features after first run
-- [Powerful features exist but are never surfaced
-
-**Accessibility** (2):
-
-- [No high-contrast or large-text option
-- [No screen-reader support; streaming output isn't announced
-
-**Mobile** (2):
-
-- [The web UI isn't usable as a proper mobile experience
-- [No installable or offline (PWA) version
-
-## Speaker notes (short)
-
-"Web User: A Consumer who works in the Web UI, shared across chat and code mode. Inherits the [Consumer](../../consumer/consumer.md) base. These are the 11 concerns specific to them; anything shared comes from the base persona above them."
+The Web UI surface, shared by chat and code users. Web Chat and Web Code are its sub-profiles.

@@ -1,33 +1,17 @@
-# Slide 10 — Skill Author
+# Slide for Skill Author
 
-> Self-contained spec for building this slide. You should not need any other file to produce it.
+> Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
-## The one line (put this big on the slide)
+## On the slide
 
 **Skill Author** — Writes, packages, and distributes skills.
 
-## Who this person is
+### Cards (the body)
 
-Writes, packages, and distributes skills.
+- **Authoring & Testing** — no clear entry point; only live-chat testing
+- **Marketplace** — no ratings, usage or freshness
+- **Versioning** — updates can't be reviewed or rolled back
 
-## What concerns them (the slide body)
+## Speaker notes
 
-This persona's own concerns — show them as a set of cards/tiles, one per group:
-
-**Authoring & Testing** (3):
-
-- [Creating a skill has no clear entry point
-- [Skill Python dependencies and conflicts are invisible
-- [Skills can only be tested through a live chat
-
-**Marketplace** (1):
-
-- [Marketplace shows no ratings, usage or freshness
-
-**Versioning** (1):
-
-- [Skill updates can't be reviewed or rolled back
-
-## Speaker notes (short)
-
-"Skill Author: Writes, packages, and distributes skills. These are the 5 concerns specific to them; anything shared comes from the base persona above them."
+Adds capability content (skills) that users enable on an instance.
