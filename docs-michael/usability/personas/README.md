@@ -4,7 +4,7 @@
 
 # Personas
 
-Each persona file is a short **profile**: who this person is, and which findings matter to them (linking into the [findings](../findings/)). The exhaustive finding-by-finding map is in [matrix.md](../matrix.md).
+Each persona file is a short **profile**: who this person is, and which findings matter to them (linking into the [findings](../findings/)).
 
 **Every finding belongs to exactly one profile.** A finding appears once and is owned by a single persona; "shared" concerns live in the lowest common base and are inherited by the more specific profiles below it (without being repeated).
 
@@ -16,7 +16,7 @@ The personas are laid out as a pipeline, **0 → 3**, ordered by who depends on 
 
 ## 1 · Run — operators who stand it up and keep it working
 
-- [Instance Admin](1-run/instance-admin.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
+- [Instance Runner](1-run/instance-runner.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention).
 - [Shared Bot Admin](1-run/shared-bot-admin.md) — turns one running instance into a group chat bot for a team, adding per-user isolation and limits.
 
 ## 2 · Build — people who build on/around a running instance

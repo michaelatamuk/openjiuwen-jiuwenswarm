@@ -1,6 +1,6 @@
-# Instance Admin
+# Instance Runner
 
-*The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm healthy. Does not use it for tasks.*
+*The person who installs, runs, and keeps one jiuwenswarm instance healthy — no admin role; it is just their instance to run.*
 
 ## Findings that matter to them
 

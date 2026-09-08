@@ -8,7 +8,7 @@ concern file and a short, self-explanatory title.
 
 ## Navigation
 
-Quick reads: [engineering-leads summary](engineering-summary.md) · [00-overview — root cause & concern map](findings/00-overview.md) · [matrix — findings × personas](matrix.md)
+Quick reads: [00-overview — root cause & concern map](findings/00-overview.md)
 
 ### `personas/` — Start here if you are a specific role
 
@@ -18,7 +18,7 @@ folders matter to them (linking into the findings). Read the file for your role.
 | File | Persona | Tier | Status |
 |---|---|---|---|
 | [openjiuwen-contributor.md](personas/0-contribute/openjiuwen-contributor.md) | **Openjiuwen Contributor** | 0 · Contribute | Covered |
-| [instance-admin.md](personas/1-run/instance-admin.md) | **Instance Admin** | 1 · Run | Covered |
+| [instance-runner.md](personas/1-run/instance-runner.md) | **Instance Runner** | 1 · Run | Covered |
 | [shared-bot-admin.md](personas/1-run/shared-bot-admin.md) | **Shared Bot Admin** | 1 · Run | Partial |
 | [product-developer.md](personas/2-build/product-developer.md) | **Product Developer** | 2 · Build | Covered |
 | [skill-author.md](personas/2-build/skill-author.md) | **Skill Author** | 2 · Build | Covered |
@@ -90,16 +90,9 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 
 ---
 
-### `matrix.md` — Cross-reference
-
-[matrix.md](matrix.md) answers "which finding matters to which persona" — a table
-of all findings × personas. Lives at the root alongside this file.
-
----
-
 ## Personas
 
-Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on whom**: *make the software → run it → build with it → use it*. **Every finding belongs to exactly one persona**, so no finding is shared across profiles. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
+Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on whom**: *make the software → run it → build with it → use it*. **Every finding belongs to exactly one persona**, so no finding is shared across profiles.
 
 ### 0 · Contribute — people who make jiuwenswarm
 
@@ -111,7 +104,7 @@ Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on wh
 
 | Persona | Who they are |
 |---|---|
-| [Instance Admin](personas/1-run/instance-admin.md) · **Covered** | The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, diagnostics, cost). Does **not** use it for tasks. |
+| [Instance Runner](personas/1-run/instance-runner.md) · **Covered** | Installs, runs, and keeps one jiuwenswarm instance healthy (config, health, diagnostics, cost); no admin role — it is just their instance. |
 | [Shared Bot Admin](personas/1-run/shared-bot-admin.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
 
 ### 2 · Build — people who build on/around a running instance
