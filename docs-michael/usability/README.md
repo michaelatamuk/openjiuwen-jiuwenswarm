@@ -15,15 +15,16 @@ Quick reads: [engineering-leads summary](engineering-summary.md) · [00-overview
 One file per persona. Each file is a short profile: who this person is and which concern
 folders matter to them (linking into the findings). Read the file for your role.
 
-| File | Persona | Status |
-|---|---|---|
-| [web-user.md](personas/using/web-user.md) | **Web User** | Covered |
-| [im-user.md](personas/using/im-user.md) | **IM User** | Covered |
-| [instance-admin.md](personas/operating/instance-admin.md) | **Instance Admin** | Covered |
-| [extension-developer.md](personas/extending/extension-developer.md) | **Extension Developer** | Covered |
-| [application-developer.md](personas/integrating/application-developer.md) | **Application Developer** | Covered |
-| [skill-author.md](personas/extending/skill-author.md) | **Skill Author** | Partial |
-| [shared-bot-admin.md](personas/operating/shared-bot-admin.md) | **Shared Bot Admin** | Partial |
+| File | Persona | Tier | Status |
+|---|---|---|---|
+| [instance-admin.md](personas/1-keystone/instance-admin.md) | **Instance Admin** | Keystone | Covered |
+| [extension-developer.md](personas/2-supply/extension-developer.md) | **Extension Developer** | Supply | Covered |
+| [skill-author.md](personas/2-supply/skill-author.md) | **Skill Author** | Supply | Covered |
+| [consume-user.md](personas/3-consume/consume-user.md) | **Consume User** (basic) | Consume | Covered |
+| [web/web-user.md](personas/3-consume/web/web-user.md) · [chat-user.md](personas/3-consume/web/chat-user.md) · [coder.md](personas/3-consume/web/coder.md) | Web-UI consumers (Web / Chat / Coder) | Consume | Covered |
+| [not-web/im-user.md](personas/3-consume/not-web/im-user.md) | **IM User** | Consume | Covered |
+| [application-developer.md](personas/3-consume/not-web/application-developer.md) | **Application Developer** | Consume | Covered |
+| [shared-bot-admin.md](personas/3-consume/not-web/shared-bot-admin.md) | **Shared Bot Admin** | Consume | Partial |
 
 ---
 
@@ -98,37 +99,49 @@ of all findings × personas. Lives at the root alongside this file.
 
 ## Personas
 
-Personas are grouped by how each person relates to the system — that relationship is what
-decides which findings matter to them. Each persona file is a short **profile**: who this is
-and which concern folders affect it. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
+Personas are ordered by **who depends on whom** — not by which screen they use. Everyone downstream is only able to work because someone above produced a healthy, running instance. **Every finding belongs to exactly one persona**, so no finding is shared across profiles. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
 
-### Using — people who talk to the agent
+### 1 · Keystone — the running instance everyone depends on
 
 | Persona | Who they are |
 |---|---|
-| [Web User](personas/using/web-user.md) · **Covered** | Runs JiuwenSwarm and uses the full Web UI / desktop app. JiuwenSwarm's users are developers and technical people, so the most common use — coding and automation — is folded into this persona. |
-| [IM User](personas/using/im-user.md) · **Covered** | Talks to a shared bot from a messaging app (Feishu/Telegram/WeChat group); no Web UI. |
+| [Instance Admin](personas/1-keystone/instance-admin.md) · **Covered** | The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, diagnostics, cost). Does **not** use it for tasks. |
 
-### Administering — people who run it
-
-| Persona | Who they are |
-|---|---|
-| [Instance Admin](personas/operating/instance-admin.md) · **Covered** | The administrator (运维) of one instance: config, health, diagnostics, cost. |
-| [Shared Bot Admin](personas/operating/shared-bot-admin.md) · **Partial** | Runs one instance a group uses through a chat bot; adds per-user session isolation and limits. |
-
-### Extending — people who build into the product
+### 2 · Supply — authors who put things INTO the instance
 
 | Persona | Who they are |
 |---|---|
-| [Extension Developer](personas/extending/extension-developer.md) · **Covered** | rails, tools, and the Python SDK. |
-| [Skill Author](personas/extending/skill-author.md) · **Partial** | writes and packages skills. |
+| [Extension Developer](personas/2-supply/extension-developer.md) · **Covered** | Extends the runtime from inside: rails, tools, and the Python SDK. |
+| [Skill Author](personas/2-supply/skill-author.md) · **Covered** | Writes, packages, and distributes skills. |
 
-### Integrating — people who build on top as a backend
+### 3 · Consume — people who use the running instance
+
+**Basic consume user** — the base every consumer inherits:
 
 | Persona | Who they are |
 |---|---|
-| [Application Developer](personas/integrating/application-developer.md) · **Covered** | a product on the E2A/WebSocket (or ACP) API. |
+| [Consume User](personas/3-consume/consume-user.md) · **Covered** | The basic consume user. Concerns every consumer feels on any surface (stop/crash, errors, notifications, context, memory/privacy). |
+
+**Web sub-group** (`3-consume/web/`) — consumers in the Web UI:
+
+| Persona | Who they are |
+|---|---|
+| [Web User](personas/3-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
+| [Chat User](personas/3-consume/web/chat-user.md) · **Covered** | Mostly questions and answers (`agent.work`). |
+| [Coder](personas/3-consume/web/coder.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
+
+**Non-Web sub-group** (`3-consume/not-web/`) — consumers not on the Web UI:
+
+| Persona | Who they are |
+|---|---|
+| [IM User](personas/3-consume/not-web/im-user.md) · **Covered** | Talks to a running instance only through an IM bot. |
+| [Application Developer](personas/3-consume/not-web/application-developer.md) · **Covered** | A product on top of the running instance over the E2A/WebSocket (or ACP) API. |
+| [Shared Bot Admin](personas/3-consume/not-web/shared-bot-admin.md) · **Partial** | Turns one running instance into a group chat bot for a team. |
 
 These are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM
 channels, skill hubs, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
-QA, analytics, support) are not included.
+QA, analytics, support) are not included. Consume is a hierarchy: a concern every consumer
+feels lives in the Consume User base; a Web-UI concern lives in the Web User base; and chat/
+coder/IM/app/bot add only what is unique to them. This keeps each finding owned exactly once.
+Instance Admin observes the running instance, while Extension Developer and Skill Author are
+accountable for not breaking it and for fixing what they shipped.

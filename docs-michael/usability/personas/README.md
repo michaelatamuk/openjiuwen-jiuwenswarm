@@ -4,27 +4,40 @@
 
 # Personas
 
-Each persona file is a short **profile**: who this person is, and which concern folders matter to them (linking into the [findings](../findings/)). For the exhaustive finding-by-finding map, see [matrix.md](../matrix.md).
+Each persona file is a short **profile**: who this person is, and which findings matter to them (linking into the [findings](../findings/)). The exhaustive finding-by-finding map is in [matrix.md](../matrix.md).
 
-## Using — people who talk to the agent
+**Every finding belongs to exactly one profile.** A finding appears once and is owned by a single persona; "shared" concerns live in the lowest common base and are inherited by the more specific profiles below it (without being repeated).
 
-- [Web User](using/web-user.md) — runs JiuwenSwarm and uses the full Web UI / desktop app; includes the developers who use it to code and automate (folded into this persona).
-- [IM User](using/im-user.md) — talks to a shared bot from a messaging app (Feishu/Telegram/WeChat group); no Web UI.
+The personas are ordered by **who depends on whom**. Everyone downstream only works because someone above produced a healthy, running instance.
 
-## Administering — people who run it
+## 1 · Keystone — the running instance everyone depends on
 
-- [Instance Admin](operating/instance-admin.md) — the administrator (运维) of one instance: config, health, diagnostics, cost.
-- [Shared Bot Admin](operating/shared-bot-admin.md) — runs one instance that a group uses through a chat bot; adds per-user isolation and limits.
+- [Instance Admin](1-keystone/instance-admin.md) — installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, cost, upgrade, retention). Does **not** use it for tasks.
 
-## Extending — people who build into the product
+## 2 · Supply — authors who put things INTO the instance
 
-- [Extension Developer](extending/extension-developer.md) — rails, tools, and the Python SDK.
-- [Skill Author](extending/skill-author.md) — writes and packages skills.
+- [Extension Developer](2-supply/extension-developer.md) — extends the runtime from inside: rails, tools, and the Python SDK.
+- [Skill Author](2-supply/skill-author.md) — writes, packages, and distributes skills.
 
-## Integrating — people who build on top
+## 3 · Consume — people who use the running instance
 
-- [Application Developer](integrating/application-developer.md) — a product on the E2A/WebSocket (or ACP) API.
+Consumers split into a **basic consume user** (shared concerns) and two sub-groups. Files live under `3-consume/` (`consume-user.md`, `web/`, `not-web/`).
+
+**Basic consume user** (shared by every consumer, whatever surface):
+- [Consume User](3-consume/consume-user.md) — concerns every consumer feels (e.g. stop/crash, errors, notifications, context, memory/privacy). This is the base; the profiles below inherit it.
+
+**Web sub-group** (`3-consume/web/`) — consumers in the Web UI:
+- [Web User](3-consume/web/web-user.md) — the Web-UI base shared across chat and code mode.
+- [Chat User](3-consume/web/chat-user.md) — mostly questions and answers (`agent.work`).
+- [Coder](3-consume/web/coder.md) — mostly code work (`agent.code`); edits files, reviews diffs.
+
+**Non-Web sub-group** (`3-consume/not-web/`) — consumers not on the Web UI:
+- [IM User](3-consume/not-web/im-user.md) — talks to a running instance only through an IM bot (inherits the Consume User base).
+- [Application Developer](3-consume/not-web/application-developer.md) — builds their own product on the instance over the E2A/WebSocket (or ACP) API.
+- [Shared Bot Admin](3-consume/not-web/shared-bot-admin.md) — turns one running instance into a group chat bot for a team.
 
 ---
 
-These are the roles JiuwenSwarm actually ships surfaces for. Roles with no shipped surface (audit, security, QA, analytics, support) are not included.
+**Why a base + sub-groups.** If several personas genuinely need the same concern, that concern is not "shared" across them — it belongs to their common **base** and is inherited. That is what keeps each finding owned once: a generic concern lives in `consume-user.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/coder.md`.
+
+**Accountability loops.** Instance Admin observes the health of the running instance; Extension Developer and Skill Author are accountable for not breaking it and for fixing what they shipped. These are single-owner concerns, not duplicates.
