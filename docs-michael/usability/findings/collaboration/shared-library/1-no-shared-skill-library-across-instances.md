@@ -10,7 +10,7 @@
 
 ## The problem today
 
-Skills are per-workspace; two operators can't share a skill across instances without manually copying files.
+Skills are per-workspace; two operators can't share a skill across instances without manually copying files. This is about sharing skills **across separate instances**, which is a different axis from scoping skills *per user within one instance* (that is the multi-tenancy concern).
 
 ```mermaid
 flowchart TD

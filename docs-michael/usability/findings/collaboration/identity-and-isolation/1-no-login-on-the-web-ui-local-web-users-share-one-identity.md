@@ -10,7 +10,7 @@
 
 ## The problem today
 
-The Web UI has no login, so everyone who uses a given Web UI instance shares the same (empty) identity, its sessions, and its memory. This is not true across the system as a whole: channel users (Feishu/Telegram/WeChat) are carried with distinct `user_id`s, which the server scopes sessions and memory by. The gap is specifically the no-login Web surface — it becomes a problem only when more than one person uses the same Web instance.
+The Web UI has no login, so everyone who opens a given instance shares one **empty** identity — the same sessions, memory, and channel-less context. This affects the Web surface only: channel users (Feishu/Telegram/WeChat) already carry a distinct `user_id` that the server scopes by. The gap is that the Web UI gives a person no identity at all, so it only becomes a problem when more than one person uses the same Web instance.
 
 ```mermaid
 flowchart TD
@@ -18,18 +18,18 @@ flowchart TD
     classDef ok    fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
     classDef fix   fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
-    START(["Several people use one instance"]):::plain
-    MID(["they all share identity, memory, skills"]):::plain
+    START(["Several people open the same Web UI"]):::plain
+    MID(["they all share one empty identity"]):::plain
     START --> MID
-    MID -->|"reason: no per-user separation exists"| OUT(["One user's context bleeds into another's"]):::fail
-    OUT --> DONE(["conversations and memory collide"]):::fail
+    MID -->|"reason: the Web UI has no login"| OUT(["one person's sessions/memory are visible to another"]):::fail
+    OUT --> DONE(["no way to tell Web users apart"]):::fail
 ```
 
 ---
 
 ## The proposed fix
 
-For shared/channel deployments, isolate memory and permissions per user. The channel integration already passes `user_id` — plumb it into memory and permission scoping.
+Give the Web UI a per-user identity (login), so each person on a shared Web instance is a distinct user with their own sessions and memory. For a personal local instance (one user) no login is fine; the fix matters only when several people use the same Web UI.
 
 ```mermaid
 flowchart TD
@@ -37,11 +37,13 @@ flowchart TD
     classDef ok    fill:#BBDEFB,color:#1a1a1a,stroke:#1565C0
     classDef fix   fill:#C8E6C9,color:#1a1a1a,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#1a1a1a,stroke:#607D8B
-    START(["Several people use one instance"]):::plain
-    MID(["each user gets isolated memory + permissions"]):::plain
+    START(["Several people open the same Web UI"]):::plain
+    MID(["each Web user logs in to their own identity"]):::plain
     START --> MID
-    MID -->|"reason: the passed user_id is scoped"| OUT(["Each user sees only their own data"]):::fix
-    OUT --> DONE(["no cross-user bleed"]):::ok
+    MID -->|"reason: the Web UI assigns a per-user identity"| OUT(["each user sees only their own sessions/memory"]):::fix
+    OUT --> DONE(["Web users are distinguishable"]):::ok
 ```
+
+Scoping the `user_id` that channel/API requests already carry is a separate, broader problem — see [No multi-tenancy: every user shares one workspace](2-no-multi-tenancy-every-user-shares-one-workspace.md).
 
 Concern: [Identity & Isolation](README.md).

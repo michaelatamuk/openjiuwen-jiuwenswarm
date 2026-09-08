@@ -10,7 +10,7 @@
 
 ## The problem today
 
-jiuwenswarm is single-workspace: `user_id` is only for logging/routing, so two users share memory and can see each other's sessions. This blocks multi-user products (the workaround is one instance per user).
+jiuwenswarm is single-workspace: `user_id` is only for logging/routing, so two users (e.g. two app clients calling the same instance with different `user_id`s) share memory and can see each other's sessions. This blocks multi-user products (the workaround is one instance per user). This is the platform/API side of isolation — distinct from the Web-UI-no-login case, which is covered separately.
 
 ```mermaid
 flowchart TD
@@ -30,6 +30,8 @@ flowchart TD
 ## The proposed fix
 
 A `user_id`-scoped isolation layer: sessions, memory (`USER.md`/`MEMORY.md`), and (optionally) skills scoped per user via namespace prefixes like `~/.jiuwenswarm/users/{user_id}/sessions/` — no separate processes.
+
+Skill scope is a separate axis: this finding is about scoping skills *per user within an instance*; sharing skills *across instances* is the [shared skill library](../shared-library/1-no-shared-skill-library-across-instances.md) concern. The Web-UI-no-login case is [No login on the Web UI](1-no-login-on-the-web-ui-local-web-users-share-one-identity.md).
 
 ```mermaid
 flowchart TD
