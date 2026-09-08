@@ -21,7 +21,7 @@ folders matter to them (linking into the findings). Read the file for your role.
 | [extension-developer.md](personas/2-supply/extension-developer.md) | **Extension Developer** | Supply | Covered |
 | [skill-author.md](personas/2-supply/skill-author.md) | **Skill Author** | Supply | Covered |
 | [consume-user.md](personas/3-consume/consume-user.md) | **Consume User** (basic) | Consume | Covered |
-| [web/web-user.md](personas/3-consume/web/web-user.md) · [chat-user.md](personas/3-consume/web/chat-user.md) · [coder.md](personas/3-consume/web/coder.md) | Web-UI consumers (Web / Chat / Coder) | Consume | Covered |
+| [web/web-user.md](personas/3-consume/web/web-user.md) · [web-user-chatter.md](personas/3-consume/web/web-user-chatter.md) · [web-user-coder.md](personas/3-consume/web/web-user-coder.md) | Web-UI consumers (Web / Chat / Coder) | Consume | Covered |
 | [not-web/im-user.md](personas/3-consume/not-web/im-user.md) | **IM User** | Consume | Covered |
 | [application-developer.md](personas/3-consume/not-web/application-developer.md) | **Application Developer** | Consume | Covered |
 | [shared-bot-admin.md](personas/3-consume/not-web/shared-bot-admin.md) | **Shared Bot Admin** | Consume | Partial |
@@ -127,8 +127,8 @@ Personas are ordered by **who depends on whom** — not by which screen they use
 | Persona | Who they are |
 |---|---|
 | [Web User](personas/3-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
-| [Chat User](personas/3-consume/web/chat-user.md) · **Covered** | Mostly questions and answers (`agent.work`). |
-| [Coder](personas/3-consume/web/coder.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
+| [Chat User](personas/3-consume/web/web-user-chatter.md) · **Covered** | Mostly questions and answers (`agent.work`). |
+| [Coder](personas/3-consume/web/web-user-coder.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
 
 **Non-Web sub-group** (`3-consume/not-web/`) — consumers not on the Web UI:
 

@@ -28,8 +28,8 @@ Consumers split into a **basic consume user** (shared concerns) and two sub-grou
 
 **Web sub-group** (`3-consume/web/`) — consumers in the Web UI:
 - [Web User](3-consume/web/web-user.md) — the Web-UI base shared across chat and code mode.
-- [Chat User](3-consume/web/chat-user.md) — mostly questions and answers (`agent.work`).
-- [Coder](3-consume/web/coder.md) — mostly code work (`agent.code`); edits files, reviews diffs.
+- [Chat User](3-consume/web/web-user-chatter.md) — mostly questions and answers (`agent.work`).
+- [Coder](3-consume/web/web-user-coder.md) — mostly code work (`agent.code`); edits files, reviews diffs.
 
 **Non-Web sub-group** (`3-consume/not-web/`) — consumers not on the Web UI:
 - [IM User](3-consume/not-web/im-user.md) — talks to a running instance only through an IM bot (inherits the Consume User base).
@@ -38,6 +38,6 @@ Consumers split into a **basic consume user** (shared concerns) and two sub-grou
 
 ---
 
-**Why a base + sub-groups.** If several personas genuinely need the same concern, that concern is not "shared" across them — it belongs to their common **base** and is inherited. That is what keeps each finding owned once: a generic concern lives in `consume-user.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/coder.md`.
+**Why a base + sub-groups.** If several personas genuinely need the same concern, that concern is not "shared" across them — it belongs to their common **base** and is inherited. That is what keeps each finding owned once: a generic concern lives in `consume-user.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/web-user-coder.md`.
 
 **Accountability loops.** Instance Admin observes the health of the running instance; Extension Developer and Skill Author are accountable for not breaking it and for fixing what they shipped. These are single-owner concerns, not duplicates.
