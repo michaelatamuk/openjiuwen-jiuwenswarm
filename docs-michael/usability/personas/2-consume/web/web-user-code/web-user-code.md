@@ -6,7 +6,7 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md) · [
 
 ## Findings that matter to them
 
-*9 findings.*
+*8 findings.*
 
 ### Explanation
 
@@ -22,10 +22,6 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md) · [
 ### Progress
 
 - **[No step-wise progress or ETA while a skill runs](findings/progress/5-no-stepwise-progress-or-eta-while-a-skill-runs.md)**
-
-### Choosing
-
-- **[Agent modes have no user-facing names or descriptions](findings/choosing/2-agent-modes-have-no-user-facing-names-or-descriptions.md)**
 
 ### Keyboard
 

@@ -8,7 +8,7 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md). It 
 
 ## Findings that matter to them
 
-*11 findings.*
+*12 findings.*
 
 ### Language
 
@@ -30,6 +30,10 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md). It 
 
 - **[No high-contrast or large-text option](findings/accessibility/3-no-high-contrast-or-large-text-option.md)**
 - **[No screen-reader support; streaming output isn't announced](findings/accessibility/2-no-screen-reader-support-streaming-output-isnt-announced.md)**
+
+### Choosing
+
+- **[Agent modes have no user-facing names or descriptions](findings/choosing/2-agent-modes-have-no-user-facing-names-or-descriptions.md)**
 
 ### Mobile
 

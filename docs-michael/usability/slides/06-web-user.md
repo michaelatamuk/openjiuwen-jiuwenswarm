@@ -12,6 +12,7 @@
 - **Navigation & Settings** — settings by module; skills/connectors split
 - **Discovery** — empty start; powerful features hidden
 - **Accessibility** — contrast & screen-reader gaps
+- **Choosing** — mode names are unclear
 - **Mobile** — not mobile-friendly, no offline app
 
 ## Speaker notes

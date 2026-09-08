@@ -11,7 +11,6 @@
 - **Explanation** — can't see reasoning or why a tool ran
 - **Safety & Undo** — changes apply without preview; hard to undo
 - **Progress** — long builds show no progress
-- **Choosing** — modes have no clear names
 - **Keyboard** — not fully keyboard-driven
 
 ## Speaker notes
