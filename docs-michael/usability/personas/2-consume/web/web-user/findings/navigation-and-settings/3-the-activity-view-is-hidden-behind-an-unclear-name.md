@@ -27,7 +27,7 @@ flowchart TD
 
 ## The proposed fix
 
-Rename to "Agent activity" (or "What happened") and surface it as a default sub-tab in the right panel. Related: [Agent reasoning is hidden in a separate panel](../../../../web-user-code/findings/conversation/explanation/1-agent-reasoning-is-hidden-in-a-separate-panel.md).
+Rename to "Agent activity" (or "What happened") and surface it as a default sub-tab in the right panel.
 
 ```mermaid
 flowchart TD

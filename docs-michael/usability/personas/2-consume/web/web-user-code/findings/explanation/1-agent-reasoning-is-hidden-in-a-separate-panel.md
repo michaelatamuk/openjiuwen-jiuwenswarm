@@ -47,4 +47,3 @@ flowchart TD
     OUT --> DONE(["understands why and can trust the answer"]):::ok
 ```
 
-Related: [The activity view is hidden behind an unclear name](../../../../web-user/findings/onboarding/navigation-and-settings/3-the-activity-view-is-hidden-behind-an-unclear-name.md).
