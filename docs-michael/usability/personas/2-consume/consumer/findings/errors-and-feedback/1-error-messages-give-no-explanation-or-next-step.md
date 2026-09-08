@@ -60,4 +60,4 @@ flowchart TD
     CLEAR --> DONE(["User can act and can report it"]):::ok
 ```
 
-Related: [Errors don't point to the log entry with more detail](../../setup-and-operation/diagnostics-and-help/2-errors-dont-point-to-the-log-entry-with-more-detail.md).
+Related: [Errors don't point to the log entry with more detail](2-errors-dont-point-to-the-log-entry-with-more-detail.md).

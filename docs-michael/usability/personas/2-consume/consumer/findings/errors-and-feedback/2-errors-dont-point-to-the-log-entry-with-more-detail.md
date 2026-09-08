@@ -27,7 +27,7 @@ flowchart TD
 
 ## The proposed fix
 
-Every error with more detail should end with "Full details in ~/.jiuwenswarm/agent/.logs/agent_server.log", or offer a "Show log" button (last 60s of the session). stderr errors should include the log path automatically. Related: [Error messages give no explanation or next step](../../conversation/errors-and-feedback/1-error-messages-give-no-explanation-or-next-step.md).
+Every error with more detail should end with "Full details in ~/.jiuwenswarm/agent/.logs/agent_server.log", or offer a "Show log" button (last 60s of the session). stderr errors should include the log path automatically. Related: [Error messages give no explanation or next step](1-error-messages-give-no-explanation-or-next-step.md).
 
 ```mermaid
 flowchart TD
