@@ -10,9 +10,8 @@
 
 - **Language** — GUI isn't fully translated
 - **Navigation & Settings** — settings by module; skills/connectors split
-- **Discovery** — empty start; powerful features hidden
+- **Discovery & Onboarding** — empty start; powerful features hidden; mode names are unclear
 - **Accessibility** — contrast & screen-reader gaps
-- **Choosing** — mode names are unclear
 - **Mobile** — not mobile-friendly, no offline app
 
 ## Speaker notes

@@ -12,7 +12,7 @@ This persona is **built on top of**: [Consumer](../../2-consume/consumer/consume
 
 ### Data Retention
 
-- **[Data is kept indefinitely with no expiry controls](findings/memory-and-privacy/retention/1-data-is-kept-indefinitely-with-no-expiry-controls.md)**
+- **[Data is kept indefinitely with no expiry controls](findings/data-retention/1-data-is-kept-indefinitely-with-no-expiry-controls.md)**
 ### Cost & Token Economics
 
 - **[No hints about what is consuming the context](findings/setup-and-operation/economics/2-no-hints-about-what-is-consuming-the-context.md)**
@@ -33,8 +33,12 @@ This persona is **built on top of**: [Consumer](../../2-consume/consumer/consume
 - **[Wrong credentials surface only on the first chat, never at startup](findings/setup-and-operation/startup-and-config/1-wrong-credentials-surface-only-on-the-first-chat-never-at-startup.md)**
 ### First Run
 
-- **[Running the CLI without config gives no next step](findings/onboarding/first-run/2-running-the-cli-without-config-gives-no-next-step.md)**
-- **[Setup wizard ends before the model is confirmed working](findings/onboarding/first-run/1-setup-wizard-ends-before-the-model-is-confirmed-working.md)**
+- **[Running the CLI without config gives no next step](findings/first-run/2-running-the-cli-without-config-gives-no-next-step.md)**
+- **[Setup wizard ends before the model is confirmed working](findings/first-run/1-setup-wizard-ends-before-the-model-is-confirmed-working.md)**
 ### Health & Degradation
 
 - **[You aren't told when a subsystem fails](findings/setup-and-operation/health-and-degradation/1-you-arent-told-when-a-subsystem-fails.md)**
+
+### Backup & Recovery
+
+*No findings yet.*

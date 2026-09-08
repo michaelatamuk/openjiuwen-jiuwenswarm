@@ -9,9 +9,10 @@
 ### Cards (the body)
 
 - **Setup & Config** — no validation; credentials fail late
+- **First Run** — wizard exits before the model is confirmed working
 - **Running the instance** — ports/logs/upgrades/permissions are opaque
 - **Cost & Tokens** — no token or cost visibility
-- **Retention** — data is kept forever
+- **Data Retention** — data is kept forever
 - **Health** — subsystem failures go unnoticed
 
 ## Speaker notes

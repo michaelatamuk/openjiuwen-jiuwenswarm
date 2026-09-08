@@ -8,8 +8,8 @@
 
 ### Cards (the body)
 
-- **Reply** — no control over length or writing style
-- **Sharing** — conversations can only be shared as a flat image
+- **Reply & Formatting** — no control over length or writing style
+- **Sharing & Export** — conversations can only be shared as a flat image
 
 ## Speaker notes
 

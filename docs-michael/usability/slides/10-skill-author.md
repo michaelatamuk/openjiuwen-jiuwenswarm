@@ -10,7 +10,7 @@
 
 - **Authoring & Testing** — no clear entry point; only live-chat testing
 - **Marketplace** — no ratings, usage or freshness
-- **Versioning** — updates can't be reviewed or rolled back
+- **Packaging & Distribution** — updates can't be reviewed or rolled back
 
 ## Speaker notes
 

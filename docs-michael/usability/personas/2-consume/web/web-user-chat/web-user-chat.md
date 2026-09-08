@@ -10,8 +10,8 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md) · [
 
 ### Reply
 
-- **[No control over reply length or writing style](findings/reply/1-no-control-over-reply-length-or-writing-style.md)**
+- **[No control over reply length or writing style](findings/reply-and-formatting/1-no-control-over-reply-length-or-writing-style.md)**
 
 ### Sharing
 
-- **[Conversations can only be shared as a flat image](findings/sharing/4-conversations-can-only-be-shared-as-a-flat-image.md)**
+- **[Conversations can only be shared as a flat image](findings/sharing-and-export/4-conversations-can-only-be-shared-as-a-flat-image.md)**

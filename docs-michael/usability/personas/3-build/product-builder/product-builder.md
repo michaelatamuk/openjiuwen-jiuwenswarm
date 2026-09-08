@@ -22,3 +22,7 @@
 
 - **[Only shell-command hooks exist; there's no real webhook delivery](findings/integration-and-tooling/2-only-shell-command-hooks-exist-theres-no-real-webhook-delivery.md)**
 - **[No local stub or dev mode for testing integrations](findings/integration-and-tooling/3-no-local-stub-or-dev-mode-for-testing-integrations.md)**
+
+### Observability
+
+*No findings yet.*

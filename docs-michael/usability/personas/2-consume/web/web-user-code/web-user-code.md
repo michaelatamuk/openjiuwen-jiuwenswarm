@@ -27,3 +27,7 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md) · [
 
 - **[The UI can't be driven fully by keyboard](findings/keyboard/1-the-ui-cant-be-driven-fully-by-keyboard.md)**
 - **[Core actions have no keyboard shortcuts](findings/keyboard/4-core-actions-have-no-keyboard-shortcuts.md)**
+
+### Diff & Review
+
+*No findings yet.*

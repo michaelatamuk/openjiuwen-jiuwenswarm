@@ -15,3 +15,7 @@ Because jiuwenswarm has no login or multi-tenancy, all the group's users current
 ### Shared Skill Library
 
 - **[No shared skill library across instances](findings/collaboration/shared-library/1-no-shared-skill-library-across-instances.md)**
+
+### Rate Limiting & Quotas
+
+*No findings yet.*

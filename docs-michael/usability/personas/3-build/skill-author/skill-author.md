@@ -16,6 +16,10 @@
 
 - **[Marketplace shows no ratings, usage or freshness](findings/marketplace/1-marketplace-shows-no-ratings-usage-or-freshness.md)**
 
-### Versioning
+### Packaging & Distribution
 
-- **[Skill updates can't be reviewed or rolled back](findings/versioning/1-skill-updates-cant-be-reviewed-or-rolled-back.md)**
+- **[Skill updates can't be reviewed or rolled back](findings/packaging-and-distribution/1-skill-updates-cant-be-reviewed-or-rolled-back.md)**
+
+### Documentation & Samples
+
+*No findings yet.*

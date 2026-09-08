@@ -20,22 +20,23 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md). It 
 - **[Skills and connectors are split apart though they're the same kind of thing](findings/navigation-and-settings/1-skills-and-connectors-are-split-apart-though-theyre-the-same-kind-of-thing.md)**
 - **[The activity view is hidden behind an unclear name](findings/navigation-and-settings/3-the-activity-view-is-hidden-behind-an-unclear-name.md)**
 
-### Discovery
+### Discovery & Onboarding
 
-- **[Empty screen offers no example or next step](findings/discovery/1-empty-screen-offers-no-example-or-next-step.md)**
-- **[No guidance introduces features after first run](findings/discovery/1-no-guidance-introduces-features-after-first-run.md)**
-- **[Powerful features exist but are never surfaced](findings/discovery/2-powerful-features-exist-but-are-never-surfaced.md)**
+- **[Empty screen offers no example or next step](findings/discovery-and-onboarding/1-empty-screen-offers-no-example-or-next-step.md)**
+- **[No guidance introduces features after first run](findings/discovery-and-onboarding/1-no-guidance-introduces-features-after-first-run.md)**
+- **[Powerful features exist but are never surfaced](findings/discovery-and-onboarding/2-powerful-features-exist-but-are-never-surfaced.md)**
+- **[Agent modes have no user-facing names or descriptions](findings/discovery-and-onboarding/2-agent-modes-have-no-user-facing-names-or-descriptions.md)**
 
 ### Accessibility
 
 - **[No high-contrast or large-text option](findings/accessibility/3-no-high-contrast-or-large-text-option.md)**
 - **[No screen-reader support; streaming output isn't announced](findings/accessibility/2-no-screen-reader-support-streaming-output-isnt-announced.md)**
 
-### Choosing
-
-- **[Agent modes have no user-facing names or descriptions](findings/choosing/2-agent-modes-have-no-user-facing-names-or-descriptions.md)**
-
 ### Mobile
 
 - **[The web UI isn't usable as a proper mobile experience](findings/mobile/1-the-web-ui-isnt-usable-as-a-proper-mobile-experience.md)**
 - **[No installable or offline (PWA) version](findings/mobile/2-no-installable-or-offline-pwa-version.md)**
+
+### Skill Marketplace
+
+*No findings yet.*
