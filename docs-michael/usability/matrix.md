@@ -1,4 +1,4 @@
-| File | # | Title | Consume User | Web User | Chat User | Coder | Application Developer | Shared Bot Admin | Instance Admin | Extension Developer | Skill Author |
+| File | # | Title | Consume User | Web User | Chat User | Coder | Product Developer | Shared Bot Admin | Instance Admin | Openjiuwen Contributor | Skill Author |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1-error-messages-give-no-explanation-or-next-step | 1 | Error messages give no explanation or next step | ● |  |  |  |  |  |  |  |  |
 | 2-no-way-to-rate-retry-or-correct-an-agent-answer | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |  |  |  |

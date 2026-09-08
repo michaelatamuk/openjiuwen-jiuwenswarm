@@ -41,7 +41,7 @@ Across the corpus the pattern repeats: **the system has the data (health, trajec
 |---|---|
 | Web / IM User | setup, control/trust, cost, mobile/a11y |
 | Instance / Shared Bot Admin | config, health, cron, cost, permissions tooling |
-| Extension / Application Developer | rail API docs, scaffolding, WebSocket-only API, no auth/SDK |
+| Extension / Product Developer | rail API docs, scaffolding, WebSocket-only API, no auth/SDK |
 
 ---
 

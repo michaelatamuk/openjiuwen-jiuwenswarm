@@ -1,6 +1,6 @@
-# Application Developer
+# Product Developer
 
-*A consumer, not on the Web UI, who builds their own product on top of the running instance over the E2A/WebSocket (or ACP) API.*
+*The on-top builder: installs a ready jiuwenswarm (or its SDK) and builds their own product that uses jiuwenswarm as its backend over the E2A/WebSocket (or ACP) API.*
 
 ## Findings that matter to them
 

@@ -17,14 +17,14 @@ folders matter to them (linking into the findings). Read the file for your role.
 
 | File | Persona | Tier | Status |
 |---|---|---|---|
-| [instance-admin.md](personas/1-keystone/instance-admin.md) | **Instance Admin** | Keystone | Covered |
-| [extension-developer.md](personas/2-supply/extension-developer.md) | **Extension Developer** | Supply | Covered |
-| [skill-author.md](personas/2-supply/skill-author.md) | **Skill Author** | Supply | Covered |
-| [consume-user.md](personas/3-consume/consume-user.md) | **Consume User** (basic) | Consume | Covered |
-| [web/web-user.md](personas/3-consume/web/web-user.md) · [web-user-chatter.md](personas/3-consume/web/web-user-chatter.md) · [web-user-coder.md](personas/3-consume/web/web-user-coder.md) | Web-UI consumers (Web / Chat / Coder) | Consume | Covered |
-| [not-web/im-user.md](personas/3-consume/not-web/im-user.md) | **IM User** | Consume | Covered |
-| [application-developer.md](personas/3-consume/not-web/application-developer.md) | **Application Developer** | Consume | Covered |
-| [shared-bot-admin.md](personas/3-consume/not-web/shared-bot-admin.md) | **Shared Bot Admin** | Consume | Partial |
+| [instance-admin.md](personas/1-keystone/instance-admin.md) | **Instance Admin** | Run | Covered |
+| [shared-bot-admin.md](personas/1-keystone/shared-bot-admin.md) | **Shared Bot Admin** | Run | Partial |
+| [openjiuwen-contributor.md](personas/2-build/under-the-hood/openjiuwen-contributor.md) | **Openjiuwen Contributor** | Build | Covered |
+| [skill-author.md](personas/2-build/skills/skill-author.md) | **Skill Author** | Build | Covered |
+| [product-developer.md](personas/2-build/on-top/product-developer.md) | **Product Developer** | Build | Covered |
+| [consume-user.md](personas/3-consume/consume-user.md) | **Consume User** (base) | Use | Covered |
+| [web/web-user.md](personas/3-consume/web/web-user.md) · [web-user-chatter.md](personas/3-consume/web/web-user-chatter.md) · [web-user-coder.md](personas/3-consume/web/web-user-coder.md) | Web User (+ Chat / Coder) | Use | Covered |
+| [im-user.md](personas/3-consume/im-user.md) | **IM User** | Use | Covered |
 
 ---
 
@@ -99,30 +99,44 @@ of all findings × personas. Lives at the root alongside this file.
 
 ## Personas
 
-Personas are ordered by **who depends on whom** — not by which screen they use. Everyone downstream is only able to work because someone above produced a healthy, running instance. **Every finding belongs to exactly one persona**, so no finding is shared across profiles. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
+Personas are grouped by what each person does with the system — **run**, **build**, or **use** — and ordered by **who depends on whom**. **Every finding belongs to exactly one persona**, so no finding is shared across profiles. The exhaustive finding-by-finding map is in [matrix.md](matrix.md).
 
-### 1 · Keystone — the running instance everyone depends on
+### 1 · Run — operators who stand it up and keep it working
 
 | Persona | Who they are |
 |---|---|
 | [Instance Admin](personas/1-keystone/instance-admin.md) · **Covered** | The administrator (运维) who installs, configures, runs, and keeps one JiuwenSwarm healthy (config, health, diagnostics, cost). Does **not** use it for tasks. |
+| [Shared Bot Admin](personas/1-keystone/shared-bot-admin.md) · **Partial** | Turns one running instance into a group chat bot for a team; adds per-user isolation and limits. |
 
-### 2 · Supply — authors who put things INTO the instance
+### 2 · Build — people who produce something others use
 
-| Persona | Who they are |
-|---|---|
-| [Extension Developer](personas/2-supply/extension-developer.md) · **Covered** | Extends the runtime from inside: rails, tools, and the Python SDK. |
-| [Skill Author](personas/2-supply/skill-author.md) · **Covered** | Writes, packages, and distributes skills. |
-
-### 3 · Consume — people who use the running instance
-
-**Basic consume user** — the base every consumer inherits:
+**Under the hood of jiuwenswarm** — extend jiuwenswarm itself so it behaves differently; the code runs inside it:
 
 | Persona | Who they are |
 |---|---|
-| [Consume User](personas/3-consume/consume-user.md) · **Covered** | The basic consume user. Concerns every consumer feels on any surface (stop/crash, errors, notifications, context, memory/privacy). |
+| [Openjiuwen Contributor](personas/2-build/under-the-hood/openjiuwen-contributor.md) · **Covered** | Contributes code to openjiuwen / jiuwenswarm itself — extends the engine from the inside (rails, tools, the agent factory). |
 
-**Web sub-group** (`3-consume/web/`) — consumers in the Web UI:
+**On top of jiuwenswarm** — `pip install` a ready jiuwenswarm as a black box and build a separate product that calls it (directly, over WebSocket, or with a client SDK):
+
+| Persona | Who they are |
+|---|---|
+| [Product Developer](personas/2-build/on-top/product-developer.md) · **Covered** | Builds their own product using jiuwenswarm as its backend (E2A/WebSocket or ACP API). |
+
+**Instance capabilities** — not engine code and not a separate on-top product, but capability content installed per instance:
+
+| Persona | Who they are |
+|---|---|
+| [Skill Author](personas/2-build/skills/skill-author.md) · **Covered** | Writes, packages, and distributes skills a user enables on an instance. |
+
+### 3 · Use — people who actually consume the agent
+
+**Shared base** — concerns every consumer feels on any surface:
+
+| Persona | Who they are |
+|---|---|
+| [Consume User](personas/3-consume/consume-user.md) · **Covered** | The base consumer: stop/crash, errors, notifications, context, memory/privacy. Everything below inherits this. |
+
+**In the Web UI** (`3-consume/web/`):
 
 | Persona | Who they are |
 |---|---|
@@ -130,18 +144,17 @@ Personas are ordered by **who depends on whom** — not by which screen they use
 | [Chat User](personas/3-consume/web/web-user-chatter.md) · **Covered** | Mostly questions and answers (`agent.work`). |
 | [Coder](personas/3-consume/web/web-user-coder.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
 
-**Non-Web sub-group** (`3-consume/not-web/`) — consumers not on the Web UI:
+**Not on the Web UI:**
 
 | Persona | Who they are |
 |---|---|
-| [IM User](personas/3-consume/not-web/im-user.md) · **Covered** | Talks to a running instance only through an IM bot. |
-| [Application Developer](personas/3-consume/not-web/application-developer.md) · **Covered** | A product on top of the running instance over the E2A/WebSocket (or ACP) API. |
-| [Shared Bot Admin](personas/3-consume/not-web/shared-bot-admin.md) · **Partial** | Turns one running instance into a group chat bot for a team. |
+| [IM User](personas/3-consume/im-user.md) · **Covered** | Talks to a running instance only through an IM bot. |
 
 These are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM
 channels, skill hubs, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
-QA, analytics, support) are not included. Consume is a hierarchy: a concern every consumer
-feels lives in the Consume User base; a Web-UI concern lives in the Web User base; and chat/
-coder/IM/app/bot add only what is unique to them. This keeps each finding owned exactly once.
-Instance Admin observes the running instance, while Extension Developer and Skill Author are
-accountable for not breaking it and for fixing what they shipped.
+QA, analytics, support) are not included. Run and Build personas (Instance Admin, Shared Bot
+Admin, Openjiuwen Contributor, Skill Author, Product Developer) are not consumers — they run
+or build the thing that other people consume. Only the Use tier consumes the agent, and it is
+a hierarchy: a concern every user feels lives in the Consume User base; a Web-UI concern lives
+in the Web User base; chat and coder add only what is unique to them. This keeps each finding
+owned exactly once.
