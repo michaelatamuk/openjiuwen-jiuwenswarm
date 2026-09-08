@@ -38,7 +38,7 @@ Start with [00-overview.md](findings/00-overview.md) for the root cause and a th
 **`conversation/`** — the day-to-day chat experience
 - [errors-and-feedback](findings/conversation/errors-and-feedback/) — Errors & Feedback · 2 findings
 - [output-and-speed](findings/conversation/output-and-speed/) — Output & Perceived Speed · 5 findings
-- [explanation](findings/conversation/explanation/) — Agent Explanation · 4 findings
+- [explanation](findings/conversation/explanation/) — Agent Explanation · 3 findings
 - [messages-and-history](findings/conversation/messages-and-history/) — Messages, History & Notifications · 4 findings
 
 **`control/`** — capability boundaries, approval, stopping & undoing

@@ -12,17 +12,16 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 2-no-way-to-rate-retry-or-correct-an-agent-answer | 2 | No way to rate, retry or correct an agent answer | ● |  |  |  |  |  |
 | 1-agent-reasoning-is-hidden-in-a-separate-panel | 1 | Agent reasoning is hidden in a separate panel | ● |  |  |  |  |  |
 | 2-tool-calls-show-what-ran-but-not-why | 2 | Tool calls show what ran but not why | ● |  |  |  |  |  |
-| 3-subagents-work-invisibly-with-no-progress-view | 3 | Subagents work invisibly with no progress view | ● |  |  |  |  |  |
-| 4-clarification-questions-appear-with-no-context | 4 | Clarification questions appear with no context | ● |  |  |  |  |  |
+| 3-clarification-questions-appear-with-no-context | 3 | Clarification questions appear with no context | ● |  |  |  |  |  |
 | 1-past-conversations-cant-be-searched | 1 | Past conversations can't be searched | ● |  |  |  |  |  |
 | 2-no-notification-when-a-long-task-finishes | 2 | No notification when a long task finishes | ● |  |  | ○ |  |  |
 | 3-background-tasks-look-identical-to-idle-sessions | 3 | Background tasks look identical to idle sessions | ● |  |  |  |  |  |
 | 4-conversations-can-only-be-shared-as-a-flat-image | 4 | Conversations can only be shared as a flat image | ● |  |  |  |  | ○ |
 | 1-no-control-over-reply-length-or-writing-style | 1 | No control over reply length or writing style | ● |  |  |  |  |  |
 | 2-long-agent-replies-have-no-structure-aids | 2 | Long agent replies have no structure aids | ● |  |  |  |  |  |
-| 3-nothing-is-shown-while-waiting-for-the-first-token | 3 | Nothing is shown while waiting for the first token | ● |  |  |  |  |  |
-| 4-no-warning-before-the-context-limit-drops-early-memory | 4 | No warning before the context limit drops early memory | ● |  |  |  |  |  |
-| 5-long-running-skills-show-no-progress | 5 | Long-running skills show no progress | ● |  |  |  |  |  |
+| 3-no-immediate-feedback-between-submit-and-the-first-chat-event | 3 | No immediate feedback between submit and the first chat event | ● |  |  |  |  |  |
+| 4-no-advance-warning-before-context-compression | 4 | No advance warning before context compression | ● |  |  |  |  |  |
+| 5-no-stepwise-progress-or-eta-while-a-skill-runs | 5 | No step-wise progress or ETA while a skill runs | ● |  |  |  |  |  |
 | 1-file-changes-are-applied-with-no-preview-or-approval | 1 | File changes are applied with no preview or approval | ● |  |  |  |  |  |
 | 2-destructive-external-actions-fire-without-confirmation | 2 | Destructive external actions fire without confirmation | ● | ○ |  |  |  | ○ |
 | 1-users-arent-told-what-the-agent-is-allowed-to-do-before-it-acts | 1 | Users aren't told what the agent is allowed to do before it acts | ● | ○ |  |  |  | ○ |

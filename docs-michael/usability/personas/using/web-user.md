@@ -19,8 +19,7 @@
 
 - **[Agent reasoning is hidden in a separate panel](../../findings/conversation/explanation/1-agent-reasoning-is-hidden-in-a-separate-panel.md)**
 - **[Tool calls show what ran but not why](../../findings/conversation/explanation/2-tool-calls-show-what-ran-but-not-why.md)**
-- **[Subagents work invisibly with no progress view](../../findings/conversation/explanation/3-subagents-work-invisibly-with-no-progress-view.md)**
-- **[Clarification questions appear with no context](../../findings/conversation/explanation/4-clarification-questions-appear-with-no-context.md)**
+- **[Clarification questions appear with no context](../../findings/conversation/explanation/3-clarification-questions-appear-with-no-context.md)**
 
 ### Messages, History & Notifications
 
@@ -33,9 +32,9 @@
 
 - **[No control over reply length or writing style](../../findings/conversation/output-and-speed/1-no-control-over-reply-length-or-writing-style.md)**
 - **[Long agent replies have no structure aids](../../findings/conversation/output-and-speed/2-long-agent-replies-have-no-structure-aids.md)**
-- **[Nothing is shown while waiting for the first token](../../findings/conversation/output-and-speed/3-nothing-is-shown-while-waiting-for-the-first-token.md)**
-- **[No warning before the context limit drops early memory](../../findings/conversation/output-and-speed/4-no-warning-before-the-context-limit-drops-early-memory.md)**
-- **[Long-running skills show no progress](../../findings/conversation/output-and-speed/5-long-running-skills-show-no-progress.md)**
+- **[No immediate feedback between submit and the first chat event](../../findings/conversation/output-and-speed/3-no-immediate-feedback-between-submit-and-the-first-chat-event.md)**
+- **[No advance warning before context compression](../../findings/conversation/output-and-speed/4-no-advance-warning-before-context-compression.md)**
+- **[No step-wise progress or ETA while a skill runs](../../findings/conversation/output-and-speed/5-no-stepwise-progress-or-eta-while-a-skill-runs.md)**
 
 ### Approval & Preview
 

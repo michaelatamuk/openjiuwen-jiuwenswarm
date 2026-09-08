@@ -31,7 +31,7 @@ Ten **distinct** problems (each different in kind), ranked by usability impact. 
 
 Lower impact than the top ten, but still real, distinct issues.
 
-11. **You can't see *why* the agent acted** — reasoning and the reason behind tool calls are hidden; subagents run invisibly.
+11. **You can't see *why* the agent acted** — reasoning and the reason behind tool calls are hidden.
 12. **Nothing indicates the agent is working** — a blank gap before the first token; long skills show no progress.
 13. **You can't see or correct what the agent remembers about you** — memory is stored but not reviewable or editable.
 14. **Data is kept forever** — no retention or expiry controls.
