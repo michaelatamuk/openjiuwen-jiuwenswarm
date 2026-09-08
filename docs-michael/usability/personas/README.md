@@ -32,18 +32,26 @@ Genuine users. The consume tier is split into a shared base and its surfaces.
 
 - [Consumer](3-consume/consumer.md) — stop/crash, errors, notifications, context, memory/privacy, and so on. Everything below inherits this.
 
-**In the Web UI** (`3-consume/web/`):
+Consumers reach the agent through one of three surface groups (each a folder with its own base + personas):
 
-- [Web User](3-consume/web/web-user.md) — the Web-UI base shared across chat and code mode.
-- [Chatter](3-consume/web/chatter.md) — mostly questions and answers (`agent.work`).
-- [Coder](3-consume/web/coder.md) — mostly code work (`agent.code`).
+**Web UI** (`3-consume/web/`) — the rich GUI (the desktop app is a wrapper of it):
 
-**Not on the Web UI:**
+- [Web User](3-consume/web/web-user.md) — the Web-UI base shared across chat and code.
+- [Web Chat](3-consume/web/web-user-chat.md) — mostly questions and answers.
+- [Web Code](3-consume/web/web-user-code.md) — mostly code work.
 
-- [IM User](3-consume/im-user.md) — talks to a running instance only through an IM bot; inherits the Consumer base.
+**Text surfaces** (`3-consume/text/`) — terminal and messaging (surface-specific findings pending):
+
+- [Text User](3-consume/text/text-user.md) — base for text surfaces.
+- [Text CLI](3-consume/text/text-user-cli.md) · [Text TUI](3-consume/text/text-user-tui.md) · [Text IM](3-consume/text/text-user-im.md).
+
+**Channel surfaces** (`3-consume/channel/`) — developer/code channels (surface-specific findings pending):
+
+- [Channel User](3-consume/channel/channel-user.md) — base for channel surfaces.
+- [Channel IDE](3-consume/channel/channel-user-ide.md) · [Channel Browser](3-consume/channel/channel-user-browser.md).
 
 ---
 
-**Why each finding is owned once.** If several personas need the same concern, it is not "shared" — it belongs to their common **base** and is inherited. A generic concern lives in `consumer.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/coder.md`. That is why no finding appears in two profiles.
+**Why each finding is owned once.** If several personas need the same concern, it is not "shared" — it belongs to their common **base** and is inherited. A generic concern lives in `consumer.md`, a Web-UI concern in `web/web-user.md`, and a code-only concern in `web/web-user-code.md`. That is why no finding appears in two profiles.
 
 **The four tiers.** `0-contribute` makes jiuwenswarm; `1-run` stands up instances of it; `2-build` produces things on/around those instances; `3-consume` are the people who actually use the agent. (The tiers encode dependency — 0 is the foundation, 3 the most downstream.)

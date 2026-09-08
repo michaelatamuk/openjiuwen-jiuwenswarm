@@ -23,8 +23,9 @@ folders matter to them (linking into the findings). Read the file for your role.
 | [product-builder.md](personas/2-build/product-builder.md) | **Product Builder** | 2 · Build | Covered |
 | [skill-author.md](personas/2-build/skill-author.md) | **Skill Author** | 2 · Build | Covered |
 | [consumer.md](personas/3-consume/consumer.md) | **Consumer** (base) | 3 · Consume | Covered |
-| [web/web-user.md](personas/3-consume/web/web-user.md) · [chatter.md](personas/3-consume/web/chatter.md) · [coder.md](personas/3-consume/web/coder.md) | Web User (+ Chat / Coder) | 3 · Consume | Covered |
-| [im-user.md](personas/3-consume/im-user.md) | **IM User** | 3 · Consume | Covered |
+| [web/web-user.md](personas/3-consume/web/web-user.md) · [web-user-chat.md](personas/3-consume/web/web-user-chat.md) · [web-user-code.md](personas/3-consume/web/web-user-code.md) | Web User (+ Chat / Web Code) | 3 · Consume | Covered |
+| [text/text-user.md](personas/3-consume/text/text-user.md) (+ cli/tui/im) | Text surfaces (CLI/TUI/IM) | 3 · Consume | Pending |
+| [channel/channel-user.md](personas/3-consume/channel/channel-user.md) (+ ide/browser) | Channel surfaces (IDE/Browser) | 3 · Consume | Pending |
 
 ---
 
@@ -127,19 +128,27 @@ Personas are laid out as a pipeline, **0 → 3**, ordered by **who depends on wh
 | Persona | Who they are |
 |---|---|
 | [Web User](personas/3-consume/web/web-user.md) · **Covered** | The Web-UI base shared across chat and code mode. |
-| [Chatter](personas/3-consume/web/chatter.md) · **Covered** | Mostly questions and answers (`agent.work`). |
-| [Coder](personas/3-consume/web/coder.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
+| [Web Chat](personas/3-consume/web/web-user-chat.md) · **Covered** | Mostly questions and answers (`agent.work`). |
+| [Web Code](personas/3-consume/web/web-user-code.md) · **Covered** | Mostly code work (`agent.code`); edits files, reviews diffs. |
 
-**Not on the Web UI:**
+**Text surfaces** (`3-consume/text/`) — terminal & messaging (surface findings pending):
 
 | Persona | Who they are |
 |---|---|
-| [IM User](personas/3-consume/im-user.md) · **Covered** | Talks to a running instance only through an IM bot. |
+| [Text User](personas/3-consume/text/text-user.md) | Base for CLI/TUI/IM consumers. |
+| [Text CLI](personas/3-consume/text/text-user-cli.md) · [Text TUI](personas/3-consume/text/text-user-tui.md) · [Text IM](personas/3-consume/text/text-user-im.md) | Terminal / messaging consumers (placeholder). |
 
-These are the roles JiuwenSwarm actually ships surfaces for (desktop/CLI, Web UI, TUI, IM
-channels, skill hubs, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
+**Channel surfaces** (`3-consume/channel/`) — developer/code channels (surface findings pending):
+
+| Persona | Who they are |
+|---|---|
+| [Channel User](personas/3-consume/channel/channel-user.md) | Base for IDE/Browser consumers. |
+| [Channel IDE](personas/3-consume/channel/channel-user-ide.md) · [Channel Browser](personas/3-consume/channel/channel-user-browser.md) | Code-channel consumers (placeholder). |
+
+These are the roles JiuwenSwarm actually ships surfaces for (Web UI/desktop, CLI, TUI, IM
+channels, IDE, browser, rails/harness, E2A/ACP). Roles with no shipped surface (audit, security,
 QA, analytics, support) are not included. The tiers are a pipeline 0 → 3: Contribute makes
 jiuwenswarm, Run stands it up, Build produces things on/around it, and only the Consume tier
-(3) actually uses the agent. Consume is itself a hierarchy: a concern every user feels lives in
-the Consumer base, a Web-UI concern in the Web User base, and chat and coder add only what
-is unique to them. This keeps each finding owned exactly once.
+(3) actually uses the agent. Consume is a hierarchy: a concern every user feels lives in the
+Consumer base, and each surface group (`web/`, `text/`, `channel/`) adds only its surface's
+own concerns on top. This keeps each finding owned exactly once.

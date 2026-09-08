@@ -2,7 +2,7 @@
 
 *A Consumer who works in the Web UI, shared across chat and code mode. Inherits the [Consumer](../consumer.md) base.*
 
-Sub-profiles: [Chatter](chatter.md) and [Coder](coder.md).
+Sub-profiles: [Web Chat](web-user-chat.md) and [Web Code](web-user-code.md).
 
 ## Findings that matter to them
 

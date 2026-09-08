@@ -1,8 +1,14 @@
 # Consumer
 
-*The basic consume user: concerns every consumer feels no matter what surface they use (Web UI, code mode, or an IM bot). The Web-UI and IM users below build on this.*
+*The base consumer: concerns every consumer feels no matter which surface they use to reach the agent.*
 
-See the surfaces: [Web UI](web/web-user.md) and [IM User](im-user.md).
+A consumer can reach the agent through several surface groups, each a folder that builds on this base:
+
+- [Web UI](web/web-user.md) — rich GUI (Web; the desktop app is a wrapper of it). Has [Web Chat](web/web-user-chat.md) and [Web Code](web/web-user-code.md) sub-profiles.
+- [Text surfaces](text/text-user.md) — [CLI](text/text-user-cli.md), [TUI](text/text-user-tui.md), [IM](text/text-user-im.md).
+- [Channel surfaces](channel/channel-user.md) — [IDE](channel/channel-user-ide.md), [Browser](channel/channel-user-browser.md).
+
+Surface-specific concerns live in each surface's own file; everything in common is here.
 
 ## Findings that matter to them
 

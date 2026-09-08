@@ -1,4 +1,4 @@
-# Coder
+# Web Code
 
 *A Web User whose work is mostly code in code mode (`agent.code`). Inherits [Consumer](../consumer.md) and [Web User](web-user.md).*
 

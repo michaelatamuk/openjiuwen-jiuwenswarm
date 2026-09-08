@@ -1,4 +1,4 @@
-# Chatter
+# Web Chat
 
 *A Web User whose work is mostly questions and answers (`agent.work`). Inherits [Consumer](../consumer.md) and [Web User](web-user.md).*
 
