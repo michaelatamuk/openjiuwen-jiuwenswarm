@@ -4,6 +4,11 @@ from typing import Any, Protocol
 
 from openjiuwen.core.foundation.tool import LocalFunction, Tool, ToolCard
 
+from jiuwenswarm.agents.harness.code.rails.heartbeat.models import (
+    DEFAULT_MAX_RUNS,
+    MAX_UNIX_TIMESTAMP_SECONDS,
+)
+
 
 class HeartbeatJobService(Protocol):
     """Narrow AgentServer-local API consumed by heartbeat tools."""
@@ -97,8 +102,11 @@ class HeartbeatRuntimeBridge:
             return await self._send(context, "get", {"job_id": job_id})
 
         async def create_job(**kwargs: Any) -> dict[str, Any]:
+            payload = _without_omitted_optional_values(kwargs)
+            if "max_runs" in kwargs:
+                payload["max_runs"] = kwargs["max_runs"]
             return await self._send(
-                context, "create", _without_omitted_optional_values(kwargs)
+                context, "create", payload
             )
 
         async def update_job(job_id: str, patch: dict[str, Any], **_: Any) -> dict[str, Any]:
@@ -152,7 +160,14 @@ class HeartbeatRuntimeBridge:
                 "interval_seconds": {"type": "integer"},
                 "cron_expr": {"type": "string"},
                 "timezone": {"type": "string"},
-                "run_at": {"type": "number"},
+                "run_at": {
+                    "type": "number",
+                    "maximum": MAX_UNIX_TIMESTAMP_SECONDS,
+                    "description": (
+                        "Execution time for a once schedule as a Unix timestamp "
+                        "in seconds. Milliseconds are not accepted."
+                    ),
+                },
             },
             "required": ["type"],
         }
@@ -164,7 +179,8 @@ class HeartbeatRuntimeBridge:
         return [
             tool(
                 "heartbeat_list_jobs",
-                "List heartbeat follow-up jobs for the current session.",
+                "List all heartbeat jobs; use active_count, not len(jobs), "
+                "for the active-job count.",
                 {
                     "type": "object",
                     "properties": {
@@ -181,6 +197,7 @@ class HeartbeatRuntimeBridge:
             tool(
                 "heartbeat_create_job",
                 "Create a heartbeat follow-up job bound to the current conversation/session. "
+                "The backend performs the authoritative active-job limit check. "
                 "Use it only to return later to continue the existing task with the original "
                 "conversation and runtime configuration. For standalone daily reports, "
                 "periodic notifications, or independent saved-prompt tasks, use "
@@ -203,7 +220,15 @@ class HeartbeatRuntimeBridge:
                             ),
                         },
                         "schedule": schedule,
-                        "max_runs": {"type": "integer"},
+                        "max_runs": {
+                            "type": ["integer", "null"],
+                            "minimum": 1,
+                            "default": DEFAULT_MAX_RUNS,
+                            "description": (
+                                "Maximum completed runs. Use null for unlimited runs; "
+                                f"omit it to use the default ({DEFAULT_MAX_RUNS})."
+                            ),
+                        },
                         "concurrency_policy": {"type": "string", "enum": ["skip", "queue", "replace"]},
                         "enabled": {"type": "boolean", "default": True},
                     },
