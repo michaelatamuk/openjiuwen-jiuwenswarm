@@ -1,4 +1,4 @@
-# Openjiuwen Contributor
+# Engine Contributor
 
 *The under-the-hood builder: contributes code to the openjiuwen / jiuwenswarm codebase — extending the engine from the inside (rails, tools, the agent factory).*
 

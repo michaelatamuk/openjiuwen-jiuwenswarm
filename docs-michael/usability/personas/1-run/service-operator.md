@@ -1,4 +1,4 @@
-# Shared Bot Admin
+# Service Operator
 
 *A consumer, not on the Web UI, who turns one running instance into a group chat bot for a team.*
 

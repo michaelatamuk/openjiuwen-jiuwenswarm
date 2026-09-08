@@ -1,4 +1,4 @@
-# Product Developer
+# Product Builder
 
 *The on-top builder: installs a ready jiuwenswarm (or its SDK) and builds their own product that uses jiuwenswarm as its backend over the E2A/WebSocket (or ACP) API.*
 
