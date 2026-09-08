@@ -1,10 +1,10 @@
-# Slide for Consumer
+# Slide for Consumer — Base
 
 > Light spec: put the big line + cards on the slide; the findings stay in notes. One slide, one message, nothing crowded.
 
 ## On the slide
 
-**Consumer** — Uses the agent directly — the base for everyone who talks to it.
+**Consumer — Base** — These findings apply to every consumer regardless of surface. Web, Text, and Channel personas all inherit from here.
 
 ### Cards (the body)
 
