@@ -53,8 +53,8 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 4-setup-ends-before-credentials-are-tested | 4 | Setup ends before credentials are tested |  | ● |  |  |  |  |
 | 1-empty-screen-offers-no-example-or-next-step | 1 | Empty screen offers no example or next step | ● |  |  |  |  |  |
 | 2-agent-modes-have-no-user-facing-names-or-descriptions | 2 | Agent modes have no user-facing names or descriptions | ● |  |  |  |  |  |
-| 1-setup-wizard-ends-before-the-model-is-confirmed-working | 1 | Setup wizard ends before the model is confirmed working | ● | ○ |  |  |  |  |
-| 2-running-the-cli-without-config-gives-no-next-step | 2 | Running the CLI without config gives no next step | ● | ○ |  |  |  |  |
+| 1-setup-wizard-ends-before-the-model-is-confirmed-working | 1 | Setup wizard ends before the model is confirmed working |  | ● |  |  |  |  |
+| 2-running-the-cli-without-config-gives-no-next-step | 2 | Running the CLI without config gives no next step |  | ● |  |  |  |  |
 | 1-skills-and-connectors-are-split-apart-though-theyre-the-same-kind-of-thing | 1 | Skills and connectors are split apart though they're the same kind of thing | ● |  |  |  |  |  |
 | 2-settings-are-organized-by-code-module-not-by-user-task | 2 | Settings are organized by code module, not by user task | ● | ● |  |  |  |  |
 | 3-the-activity-view-is-hidden-behind-an-unclear-name | 3 | The activity view is hidden behind an unclear name | ● |  |  |  |  |  |
@@ -65,7 +65,7 @@ Which findings affect which persona. Findings are identified per concern file; t
 | 4-core-actions-have-no-keyboard-shortcuts | 4 | Core actions have no keyboard shortcuts | ● |  |  |  |  |  |
 | 1-the-web-ui-isnt-usable-as-a-proper-mobile-experience | 1 | The web UI isn't usable as a proper mobile experience | ● |  |  |  |  |  |
 | 2-no-installable-or-offline-pwa-version | 2 | No installable or offline (PWA) version | ● |  |  |  |  |  |
-| 1-creating-a-skill-has-no-clear-entry-point | 1 | Creating a skill has no clear entry point | ● |  |  |  |  |  |
+| 1-creating-a-skill-has-no-clear-entry-point | 1 | Creating a skill has no clear entry point |  |  |  |  | ● |  |
 | 2-skill-python-dependencies-and-conflicts-are-invisible | 2 | Skill Python dependencies and conflicts are invisible |  | ● |  |  | ○ |  |
 | 3-skills-can-only-be-tested-through-a-live-chat | 3 | Skills can only be tested through a live chat |  | ○ |  |  | ● |  |
 | 1-marketplace-shows-no-ratings-usage-or-freshness | 1 | Marketplace shows no ratings, usage or freshness | ○ | ● |  |  | ● |  |

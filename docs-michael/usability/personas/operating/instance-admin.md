@@ -8,7 +8,12 @@
 
 ## Findings that matter to them
 
-*17 findings.*
+*19 findings.*
+
+### Onboarding / First Run
+
+- **[Setup wizard ends before the model is confirmed working](../../findings/onboarding/first-run/1-setup-wizard-ends-before-the-model-is-confirmed-working.md)**
+- **[Running the CLI without config gives no next step](../../findings/onboarding/first-run/2-running-the-cli-without-config-gives-no-next-step.md)**
 
 ### Data Retention
 
