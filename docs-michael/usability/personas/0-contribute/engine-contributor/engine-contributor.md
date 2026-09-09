@@ -4,7 +4,7 @@
 
 ## Findings that matter to them
 
-*13 findings.*
+*15 findings.*
 
 ### Extension Documentation & Stability
 
@@ -33,3 +33,10 @@
 ### Release & Versioning
 
 *No findings yet.*
+
+
+
+### Documentation & Stability
+
+- **[User docs are written like internal design notes](findings/documentation-and-stability/user-docs-written-like-design-notes.md)**
+- **[Docs are invisible to agents evaluating us (no llms.txt)](findings/documentation-and-stability/docs-invisible-to-agents-no-llms-txt.md)**

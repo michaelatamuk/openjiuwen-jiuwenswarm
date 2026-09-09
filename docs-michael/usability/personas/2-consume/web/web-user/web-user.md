@@ -8,12 +8,13 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md). It 
 
 ## Findings that matter to them
 
-*12 findings.*
+*20 findings.*
 
 ### Language
 
 - **[GUI text is not fully translated](findings/language/7-gui-text-is-not-fully-translated.md)**
 
+- **[The newest features are the least translated](findings/language/newest-features-least-translated.md)**
 ### Navigation & Settings
 
 - **[Settings are organized by code module, not by user task](findings/navigation-and-settings/2-settings-are-organized-by-code-module-not-by-user-task.md)**
@@ -40,3 +41,34 @@ This persona is **built on top of**: [Consumer](../../consumer/consumer.md). It 
 ### Skill Marketplace
 
 *No findings yet.*
+
+
+### Browser Research
+
+
+
+### Explanation & Visibility
+
+- **[No way to see every LLM/tool call and token behind a run](findings/explanation-and-visibility/swarm-trace-viewer.md)**
+- **[No live picture of how the swarm is coordinating](findings/explanation-and-visibility/swarm-topology-graph.md)**
+- **[Can't scrub back through what the agent did, turn by turn](findings/explanation-and-visibility/session-replay.md)**
+
+
+### Safety & Undo
+
+- **[Can't compare versions of a generated artifact](findings/safety-and-undo/artifact-gallery-and-version-diff.md)**
+
+
+### Control & Continuity
+
+- **[The task list doesn't show progress moving](findings/control-and-continuity/goal-task-kanban.md)**
+
+
+### Conversation
+
+- **[The agent's output only lands as one final message](findings/conversation/live-canvas.md)**
+
+
+### History & Notifications
+
+- **[No way to know the agent's state without opening the window](findings/history-and-notifications/desktop-tray-status.md)**
