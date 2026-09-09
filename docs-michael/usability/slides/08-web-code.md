@@ -9,10 +9,11 @@
 ### Cards (the body)
 
 - **Explanation** — can't see reasoning or why a tool ran
-- **Safety & Undo** — changes apply without preview; hard to undo
-- **Progress** — long builds show no progress
-- **Keyboard** — not fully keyboard-driven
+- **Safety & Undo** — no preview/approval; hard to undo
+- **Progress** — no progress or ETA on long runs
+- **Keyboard** — not fully keyboard-driven; no shortcuts
+- **Diff & Review** — no way to diff/review before applying
 
 ## Speaker notes
 
-A coder: code-focused use of the Web UI. Inherits Consumer + Web User bases.
+A coder; needs to see reasoning, preview/approve changes, undo, progress and keyboard use.

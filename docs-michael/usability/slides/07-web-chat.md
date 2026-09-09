@@ -8,9 +8,9 @@
 
 ### Cards (the body)
 
-- **Reply & Formatting** — no control over length or writing style
-- **Sharing & Export** — conversations can only be shared as a flat image
+- **Reply** — can't control reply length or style
+- **Sharing** — only share as a flat image
 
 ## Speaker notes
 
-A chatter: conversation-focused use of the Web UI. Inherits Consumer + Web User bases.
+A chatter; controls answer style and how a conversation can be shared.

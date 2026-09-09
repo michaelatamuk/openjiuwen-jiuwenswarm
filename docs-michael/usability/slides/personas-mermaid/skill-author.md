@@ -1,13 +1,12 @@
-# Skill Author — persona block
+# Skill Author
 
-Each box: bold group over a short statement of the problem. ≤3 boxes per row.
+Each box = one concern group.
 
 ```mermaid
 block-beta
   columns 3
-  P["<b>Skill Author</b>"]:3
-  block:b0:3
-    columns 3
-    n1["<b>Authoring &amp; Testing</b>\nNo entry point; live-chat only; deps hidden"] n2["<b>Marketplace</b>\nNo ratings/usage/freshness"] n3["<b>Versioning</b>\nNo review/rollback of updates"]
-  end
+  P["Skill Author"]:3
+  G1["Authoring & Testing"] G2["Marketplace"] G3["Packaging & Distribution"]
+  G4["Documentation & Samples"]
 ```
+

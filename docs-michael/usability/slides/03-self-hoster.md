@@ -4,17 +4,21 @@
 
 ## On the slide
 
-**Self-hoster** — Runs their own instance, usually to use it themselves.
+**Self-hoster** — Runs their own instance - and is also its user.
 
 ### Cards (the body)
 
-- **Setup & Config** — no validation; credentials fail late
-- **First Run** — wizard exits before the model is confirmed working
-- **Running the instance** — ports/logs/upgrades/permissions are opaque
-- **Cost & Tokens** — no token or cost visibility
-- **Data Retention** — data is kept forever
-- **Health** — subsystem failures go unnoticed
+- **Data Retention** — data kept forever; no expiry controls
+- **Cost & Token Economics** — no token/cost visibility or attribution
+- **Running & Managing the Instance** — ports/logs/upgrades/permissions are opaque
+- **Startup & Configuration** — bad credentials surface late; no config check
+- **First Run** — setup ends before the model is verified; CLI gives no next step
+- **Health & Degradation** — subsystem failures go unnoticed
+- **Backup & Recovery** — no backup or recovery path
+- **Cost & Tokens** — no token/cost visibility
+- **Diagnostics** — no doctor / diagnostic command
+- **Documentation** — docs incomplete or show the wrong (Chinese) UI
 
 ## Speaker notes
 
-Installs, runs and keeps one instance healthy. It is their own instance, so they are also a user of it.
+Installs and keeps one instance healthy; being the operator, its config, cost and health are their daily pain.

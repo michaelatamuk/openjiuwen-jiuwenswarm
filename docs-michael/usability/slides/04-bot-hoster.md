@@ -8,9 +8,10 @@
 
 ### Cards (the body)
 
-- **Identity & Isolation** — no login, no per-user isolation
-- **Shared Skills** — no shared skill library across instances
+- **Identity & Isolation** — no login or per-user isolation
+- **Shared Skill Library** — no shared skill library across instances
+- **Rate Limiting & Quotas** — no per-user rate limits or quotas
 
 ## Speaker notes
 
-Maintains a bot a group uses. Because there is no multi-tenancy, all its users share one identity/workspace.
+Maintains a bot a group uses; no multi-tenancy means all its users share one identity.

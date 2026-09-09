@@ -4,14 +4,15 @@
 
 ## On the slide
 
-**Skill Author** — Writes, packages, and distributes skills.
+**Skill Author** — Writes, packages, distributes skills (Ecosystem).
 
 ### Cards (the body)
 
-- **Authoring & Testing** — no clear entry point; only live-chat testing
-- **Marketplace** — no ratings, usage or freshness
-- **Packaging & Distribution** — updates can't be reviewed or rolled back
+- **Authoring & Testing** — no entry point; live-chat only; deps hidden
+- **Marketplace** — no ratings/usage/freshness
+- **Packaging & Distribution** — updates can't be reviewed/rolled back
+- **Documentation & Samples** — no docs or samples
 
 ## Speaker notes
 
-Adds capability content (skills) that users enable on an instance.
+Adds capability content (skills) users enable; authoring, marketplace and versioning friction.

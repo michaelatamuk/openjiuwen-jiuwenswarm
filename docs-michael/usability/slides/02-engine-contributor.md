@@ -8,12 +8,14 @@
 
 ### Cards (the body)
 
-- **Rails & Context API** — rail hooks, context & errors are undocumented
-- **Tools & Agent Factory** — registering tools & factory params undocumented
-- **Testing & Tooling** — no scaffold CLI; rails are hard to test
-- **Docs & Stability** — undiscoverable examples, no stable public API
-- **Channels** — no guide for writing a custom channel
+- **Extension Documentation & Stability** — no stable public API or versioning; examples hidden
+- **Rails & Context API** — rails hooks / context / errors are undocumented
+- **Extension Testing & Tooling** — no scaffold CLI; rails are hard to test
+- **Tools & Agent Factory** — no tool-guide; factory params undocumented
+- **Custom Channels** — no guide for writing a custom channel
+- **Release & Versioning** — no stable release or versioning contract
+- **Documentation & Stability** — examples hidden; no stable public API
 
 ## Speaker notes
 
-The person who git-clones jiuwenswarm and contributes to its engine (rails, tools, agent factory, channels). Their pain is that the extension surface is undocumented and hard to build against.
+Contributes code to jiuwenswarm (engine: rails, tools, factory, channels); the extension surface is undocumented and hard to build against.

@@ -4,14 +4,16 @@
 
 ## On the slide
 
-**Product Builder** — Builds their own product using jiuwenswarm as its backend.
+**Product Builder** — Builds their own product using jiuwenswarm as backend (B2B2C).
 
 ### Cards (the body)
 
 - **Connection & Security** — no API auth; weak origin checks
-- **Transport & Protocol** — WebSocket-only; prose spec, no SDK
-- **Integration & Tooling** — no dev stubs; only shell hooks
+- **Transport & Protocol** — WebSocket-only; prose spec; no SDK
+- **Integration & Tooling** — no stubs/dev mode; only shell hooks
+- **Observability** — no run or cost observability
+- **Documentation** — docs incomplete or show the wrong (Chinese) UI
 
 ## Speaker notes
 
-Installs a ready jiuwenswarm and builds on top of it over the E2A/WebSocket/ACP API for their own product's users.
+Installs a ready jiuwenswarm and builds a consumer product on top over E2A/WebSocket/ACP; connection, protocol and integration friction.

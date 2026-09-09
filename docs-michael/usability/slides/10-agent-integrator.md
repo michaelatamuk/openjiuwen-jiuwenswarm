@@ -4,16 +4,16 @@
 
 ## On the slide
 
-**Agent Integrator** — Wires jiuwenswarm into a multi-agent system via the A2A protocol.
+**Agent Integrator** — Wires jiuwenswarm into a multi-agent system via A2A (M2M).
 
 ### Cards (the body)
 
 - **Discovery & Card** — agent card has minimal capability info for orchestrators
-- **Task Lifecycle** — completion signals require stream parsing; no simple done/fail event
-- **Outbound & Delegation** — jiuwenswarm cannot call other agents; terminal node only
-- **Protocol & Compatibility** — optional dep; no push notifications; version pinning unclear
-- **Structured Output** — tool calls are textified, not structured artifacts; semantic loss
+- **Task Lifecycle** — completion signals need stream parsing; no simple done/fail
+- **Outbound & Delegation** — can't call other agents; terminal node only
+- **Protocol & Compatibility** — optional dep; no push; version pinning unclear
+- **Structured Output** — tool calls are textified, not structured artifacts
 
 ## Speaker notes
 
-Connects an external agent framework (Google ADK, LangGraph, CrewAI, etc.) to jiuwenswarm via the A2A HTTP/JSON-RPC protocol. Machine-to-machine — no human in the loop. Their concern is not UX: it is whether jiuwenswarm behaves as a reliable, well-described agent peer. The biggest gap: jiuwenswarm can receive A2A calls but cannot itself call other agents, making it a terminal node rather than a full participant in a multi-agent pipeline.
+Connects an external agent framework (ADK, LangGraph, CrewAI) over A2A HTTP/JSON-RPC; machine-to-machine, no human in the loop. The biggest gap: jiuwenswarm can receive A2A calls but cannot call other agents, so it is a terminal node rather than a full multi-agent participant.
