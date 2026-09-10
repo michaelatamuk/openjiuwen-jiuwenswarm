@@ -6111,21 +6111,21 @@ def test_workflow_updated_to_team_events_paused_phase_freezes_task_then_resume_t
     column, same start time) and carry progress_frozen so the easing clock
     stops; running after a pause thaws it.
     """
-    seen_phase, seen_agent, spawned = {}, {}, set()
+    state = team_helpers._WorkflowEventDedup()
     team_helpers._workflow_updated_to_team_events(
         _wf_event([{"id": "p1", "name": "p", "status": "running"}]),
-        "sess-wf", seen_phase, seen_agent, spawned,
+        "sess-wf", state,
     )
     out = team_helpers._workflow_updated_to_team_events(
         _wf_event([{"id": "p1", "name": "p", "status": "paused"}]),
-        "sess-wf", seen_phase, seen_agent, spawned,
+        "sess-wf", state,
     )
     assert [(e["event"]["type"], e["event"]["status"], e["event"]["progress_frozen"]) for e in out] == [
         ("team.task.paused", "in_progress", True),
     ]
     out = team_helpers._workflow_updated_to_team_events(
         _wf_event([{"id": "p1", "name": "p", "status": "running"}]),
-        "sess-wf", seen_phase, seen_agent, spawned,
+        "sess-wf", state,
     )
     assert [(e["event"]["type"], e["event"]["status"], e["event"]["progress_frozen"]) for e in out] == [
         ("team.task.claimed", "in_progress", False),
