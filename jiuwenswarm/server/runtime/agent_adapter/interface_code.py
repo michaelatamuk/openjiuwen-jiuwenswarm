@@ -47,7 +47,7 @@ from openjiuwen.harness.subagents.browser_agent import build_browser_agent_confi
 from openjiuwen.harness.subagents.code_agent import build_code_agent_config
 from openjiuwen.harness.subagents.explore_agent import build_explore_agent_config
 from openjiuwen.harness.subagents.plan_agent import build_plan_agent_config
-from openjiuwen.harness.tools import WebFetchWebpageTool, WebPaidSearchTool
+from openjiuwen.harness.tools import WebFetchWebpageTool, WebPaidSearchTool, is_paid_search_enabled
 from openjiuwen.harness.tools.worktree import WorktreeConfig, WorktreeRail
 
 from jiuwenswarm.server.runtime.agent_adapter.interface_deep import (
@@ -70,7 +70,6 @@ from jiuwenswarm.server.runtime.agent_adapter.trusted_web_search import (
 )
 from jiuwenswarm.agents.harness.common.rails.interrupt.interrupt_helpers import (
     apply_permission_trusted_dirs,
-    build_permission_rail,
 )
 from jiuwenswarm.agents.harness.common.browser_defaults import (
     DEFAULT_BROWSER_AGENT_MAX_ITERATIONS,
@@ -487,6 +486,15 @@ _CODE_PLAN_ALLOWED_TOOLS: list[str] = [
     "bash",
     "write_file",
     "edit_file",
+    # Symphony is a planning capability. Keep the progressive-tool bridge
+    # reachable in plan mode, then allow only the three graph operations when
+    # the nested call re-enters AgentModeRail; unrelated deferred tools remain
+    # blocked by this allow-list.
+    "tool_search",
+    "tool_call",
+    "symphony_read_graph",
+    "symphony_refresh_graph",
+    "symphony_compose_graph",
 ]
 
 
@@ -516,6 +524,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         "FileSystemRail",  # 别名
         "DesignRail",  # SDD 状态机（wave-1），受 modes.code.sdd.enabled 门控
         "SubagentRail",
+        "SymphonyOrchestrationRail",
         # The AgentServer-owned Job Heartbeat Rail is always mounted above.
         # Treat a same-named resource entry as fixed so it cannot be mounted a
         # second time (or resolve to agent-core's deprecated RunKind rail).
@@ -830,6 +839,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
 
         self._instance_overrides = dict(config or {}) if isinstance(config, dict) else {}
         config_base = get_config()
+        self._config_base_cache = config_base.copy()
         self._refresh_multimodal_configs(config_base)
         config = config_base.get('react', {}).copy()
         self._config_cache = config.copy()
@@ -921,6 +931,13 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         self._instance.ability_manager.set_owner_id(tool_owner_id)
         self._code_spec_rails = list(self._instance.configured_rails())
         self._tool_cards = self._collect_code_spec_tool_cards()
+        # Symphony is configured outside modes.code.tools. Reuse the same
+        # canonical capability sync as reload, and do it before rail startup so
+        # the first ProgressiveTool index already contains the graph tools.
+        # A caller-supplied Spec remains authoritative and receives no implicit
+        # tools from the product config.
+        if spec is None:
+            self._sync_symphony_tools_for_runtime(config_base)
 
         # 改动3：让 agent 初始化（ensure_initialized）在独立线程 + 独立事件循环里跑，
         # 主事件循环在初始化的十几秒里保持响应，esc 的 cancel 不再堵队列、后端能尽快停。
@@ -1420,23 +1437,16 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             _RailBuildInfo("_runtime_prompt_rail", self._build_runtime_prompt_rail),
             _RailBuildInfo("_response_prompt_rail", self._build_response_prompt_rail),
             _RailBuildInfo("_skill_retrieval_prompt_rail", self._build_skill_retrieval_prompt_rail),
+            _RailBuildInfo(
+                "_symphony_orchestration_rail",
+                self._build_symphony_orchestration_rail,
+            ),
             _RailBuildInfo("_stream_event_rail", self._build_stream_event_rail),
             _RailBuildInfo("_security_rail", self._build_security_rail),
             _RailBuildInfo("_heartbeat_rail", self._build_heartbeat_rail),
             _RailBuildInfo("_lsp_rail", self._build_lsp_rail_via_config),
             _RailBuildInfo("_project_memory_rail", self._build_project_memory_rail),
-            _RailBuildInfo(
-                "_permission_rail",
-                build_permission_rail,
-                {
-                    "config": config_base,
-                    "llm": self._model,
-                    "model_name": config_base.get("models", {}).get(
-                        "default", {}
-                    ).get("model_client_config", {}).get("model_name", "gpt-4"),
-                    "session_id": getattr(self, "_parent_session_id", None),
-                },
-            ),
+            *self._permission_interrupt_rail_infos(config_base),
             _RailBuildInfo("_code_filesystem_rail", self._build_filesystem_rail),
             _RailBuildInfo("_coding_memory_rail", self._build_coding_memory_rail),
             _RailBuildInfo("_memory_forbidden_rail", self._build_memory_forbidden_rail),
@@ -2044,6 +2054,9 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
                     mode,
                 )
 
+        self._last_mode = mode
+        await self._sync_personal_context_rail(mode)
+
     def _build_code_agent_rail(self) -> CodeAgentRail | None:
         """构建 CodeAgentRail，管理 /agents 创建的自定义 agent。"""
         try:
@@ -2317,10 +2330,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
 
     def _build_paid_search_tool(self, agent_id: str) -> WebPaidSearchTool | None:
         """条件注册付费搜索工具：有任意一个付费 API Key 才注册."""
-        if not any(
-            os.environ.get(key)
-            for key in ("BOCHA_API_KEY", "PERPLEXITY_API_KEY", "SERPER_API_KEY", "JINA_API_KEY")
-        ):
+        if not is_paid_search_enabled():
             logger.info("[JiuwenSwarmCodeAdapter] web_paid_search skipped: no paid search API key")
             return None
         tool = WebPaidSearchTool(
@@ -2332,6 +2342,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
 
     def _sync_paid_search_tool_for_runtime(self) -> None:
         """Sync paid search while respecting ``modes.code.tools``."""
+        self._invalidate_stale_paid_search_tool()
         configured_tools = (
             self._active_code_config()
             .get("modes", {})
@@ -2339,18 +2350,7 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
             .get("tools")
             or []
         )
-        paid_search_env_keys = (
-            "BOCHA_API_KEY",
-            "PERPLEXITY_API_KEY",
-            "SERPER_API_KEY",
-            "JINA_API_KEY",
-        )
-        has_paid_search_key = False
-        for key in paid_search_env_keys:
-            if os.environ.get(key):
-                has_paid_search_key = True
-                break
-        enabled = "web_paid_search" in configured_tools and has_paid_search_key
+        enabled = "web_paid_search" in configured_tools and is_paid_search_enabled()
         agent_id = self._tool_owner_id()
         tools, self._paid_search_registered = self._sync_tool_group(
             current_tools=(

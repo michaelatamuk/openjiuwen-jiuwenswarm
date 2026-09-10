@@ -102,6 +102,7 @@ _COMMON_RAIL_NAMES: tuple[str, ...] = (
     registry.MULTIMODAL_IMAGE,
     registry.TEAM_WORKSPACE_REPORT_PATH,
     registry.CONTEXT_PROCESSOR,
+    registry.PERSONAL_CONTEXT,
     registry.PLUGIN_RAILS,
     registry.SKILL_RETRIEVAL_PROMPT,
     registry.SYMPHONY_ORCHESTRATION_PROMPT,
@@ -126,6 +127,8 @@ _COMMON_TOOL_NAMES: tuple[str, ...] = (
     registry.USER_TODOS,
     registry.VIDEO,
     registry.IMAGE_GEN,
+    registry.VIDEO_GEN,
+    registry.VISUAL_GEN,
     registry.XIAOYI_PHONE,
     registry.CRON_TOOLS,
     registry.SEND_FILE,
@@ -151,6 +154,7 @@ _CODE_RAIL_NAMES: tuple[str, ...] = (
     registry.CODE_AGENT_MODE,
     registry.STRUCTURED_ASK_USER,
     registry.CONTEXT_PROCESSOR,
+    registry.PERSONAL_CONTEXT,
     registry.CODE_TASK_PLANNING,
     registry.CODE_AGENT_RAIL,
     registry.USER_HOOKS,
@@ -180,6 +184,8 @@ _CODE_TOOL_NAMES: tuple[str, ...] = (
     registry.USER_TODOS,
     registry.VIDEO,
     registry.IMAGE_GEN,
+    registry.VIDEO_GEN,
+    registry.VISUAL_GEN,
     registry.XIAOYI_PHONE,
     registry.CODE_EXTRA_TOOLS,
     registry.CRON_TOOLS,
@@ -891,6 +897,31 @@ def build_member_deep_agent_spec(
     merged_rails = _collapse_skill_use_rails(
         merged_rails, retrieval_enabled=retrieval_enabled
     )
+
+    if role == "leader" and not _is_code_mode(mode):
+        # Add the leader-facing PermissionInterruptRail. The chat-team leader
+        # is user-facing and can resolve ASK dialogs; teammates are headless
+        # and use TeamPermissionRail instead (see _build_team_capability_specs).
+        # Code mode is excluded to avoid surprising existing code-team flows.
+        _perms_cfg = (
+            config.get("permissions") if isinstance(config, dict) else None
+        )
+        if isinstance(_perms_cfg, dict) and _perms_cfg.get("enabled"):
+            from jiuwenswarm.agents.swarm.permission_rail_spec import (
+                PERMISSION_RAIL_BUNDLE,
+                register_permission_rail_provider,
+            )
+            register_permission_rail_provider()
+            if not any(
+                isinstance(_s, RailSpec) and _s.type == PERMISSION_RAIL_BUNDLE
+                for _s in merged_rails
+            ):
+                merged_rails.append(
+                    RailSpec(
+                        type=PERMISSION_RAIL_BUNDLE,
+                        params={"permissions_config": _perms_cfg},
+                    ),
+                )
 
     update: dict[str, Any] = {
         "rails": merged_rails,
