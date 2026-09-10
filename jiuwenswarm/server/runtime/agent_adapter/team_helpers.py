@@ -4023,6 +4023,12 @@ async def _consume_workflow_events(
     并检测 ``waiting_for_human`` agent 生成 ``chat.ask_user_question`` 事件。
     """
     is_tui = _resolve_channel_id(channel_id) == "tui"
+    # Phase/agent dedup lives on the handler (session-scoped): this loop is
+    # cancelled on team pause, and a resume relaunch replays the cached
+    # prefix — a fresh per-loop table would re-emit the replay as new tasks.
+    seen_phase = workflow_handler.seen_phase
+    seen_agent = workflow_handler.seen_agent
+    spawned_members = workflow_handler.spawned_members
     state = _WorkflowEventDedup()
     seen_human_waiting: set[str] = set()
     try:
