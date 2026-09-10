@@ -899,10 +899,10 @@ async def _run_command_in_bound_sandbox(
         "shell_type": shell_type,
         "resolved_shell": _sandbox_resolved_shell(shell_type),
         "exit_code": _value_field(data, "exit_code", -1),
-        "stdout": _clip_text(
+        "stdout": _clip_head_tail(
             str(_value_field(data, "stdout", "") or ""), max_output_chars
         ),
-        "stderr": _clip_text(
+        "stderr": _clip_head_tail(
             str(_value_field(data, "stderr", "") or ""), max_output_chars
         ),
     }
