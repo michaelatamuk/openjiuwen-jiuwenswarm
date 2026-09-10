@@ -273,6 +273,8 @@
       "chromePathPlaceholder": "For example, /Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     },
     "experimental": {
+      "taskAsr": "ASR model configuration",
+      "taskFullDuplex": "Task chat full duplex",
       "externalCliAgents": "Third-Party Agents",
       "externalCliAgentsDescription": "For Team mode only.",
       "a2ui": "A2UI generation",
@@ -306,6 +308,21 @@
       "embed_api_base": { "title": "API URL" },
       "embed_api_key": { "title": "API key" },
       "embed_model": { "title": "Model name" },
+      "asr_api_base": {
+        "title": "ASR API URL",
+        "description": "Enter an OpenAI-compatible base URL or the full /audio/transcriptions URL.",
+        "placeholder": "e.g. https://api.example.com/v1"
+      },
+      "asr_api_key": {
+        "title": "ASR API key",
+        "description": "Used for general speech transcription; JoyAI has separate settings.",
+        "placeholder": "e.g. sk-..."
+      },
+      "asr_model": {
+        "title": "ASR model",
+        "description": "Model used for general speech transcription.",
+        "placeholder": "e.g. FunAudioLLM/SenseVoiceSmall"
+      },
       "enable_free_models": {
         "title": "Enable free models",
         "description": "When enabled, available free models are fetched live. Note that free models may have limitations such as rate limits or restricted context window size. Free models are sourced from the Opencode Zen gateway (https://opencode.ai/zen), obtained by intersecting the models.dev catalog (https://models.opencode.ai/api.json) with the Zen live model list (criterion: input price is 0)."
@@ -368,6 +385,10 @@
       },
       "a2ui_enabled": { "title": "Enable A2UI", "description": "Render supported results as interactive interfaces." },
       "trajectory_ui_enabled": { "title": "Enable trajectory UI", "description": "Show Chat and Trajectory switching in Agent and Team modes and enable the trajectory observability data path." },
+      "task_full_duplex_enabled": {
+        "title": "Enable Full-duplex in task chat",
+        "description": "Show a Full-duplex action when the composer is empty; it shares the entire screen and continuously listens to the microphone."
+      },
       "kv_cache_affinity_enabled": {
         "title": "Enable compute affinity",
         "description": "Supported only for models deployed with Ascend vLLM inference services, not models accessed through third-party API keys."
@@ -921,7 +942,10 @@
     "modeAgentTeam": "Cluster Mode",
     "modeAutoHarness": "Auto-Harness Mode",
     "modeAutoHarnessDesc": "Automatically analyze and optimize target repository",
-    "recording": "Recording... (release to send)",
+    "recording": "Recording... (click the microphone again to finish)",
+    "transcribing": "Transcribing speech...",
+    "startRecording": "Voice input",
+    "stopRecording": "Stop recording and transcribe",
     "messageQueue": "Message queue",
     "waitingTasks": "Waiting tasks",
     "waitingTasksCount": "Waiting tasks ({{count}})",
@@ -945,6 +969,9 @@
     "holdToSpeak": "Hold to speak",
     "send": "Send (Enter)",
     "stop": "Stop",
+    "taskFullDuplexStart": "Share the entire screen and start a Full-duplex conversation",
+    "taskFullDuplexStarting": "Starting Full-duplex conversation",
+    "taskFullDuplexStop": "Stop Full-duplex conversation and screen sharing",
     "modelSelector": {
       "tooltip": "Switch the model used for chat",
       "configured": "Configured Models",
@@ -997,6 +1024,25 @@
     "extensionManageMcps": "Manage My Connectors",
     "extensionMore": "More",
     "recentTasks": "Progress",
+    "applicationTasks": {
+      "cancelling": "Stopping",
+      "cancelled": "Cancelled",
+      "controls": {
+        "drag": "Drag onto another task to reorder",
+        "next": "Run next",
+        "stop": "Stop this task",
+        "more": "Task actions",
+        "up": "Move up",
+        "down": "Move down",
+        "preempt": "Stop current task and run this",
+        "close": "Close",
+        "failed": "Task operation failed"
+      },
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
     "contextCompressionCommandRunning": "Compressing context",
     "teamPause": "Pause",
     "teamPauseHint": "After pausing a team, send the next message to continue",
@@ -1842,12 +1888,20 @@
       "feature3Title": "Task integration · awaken graph context",
       "feature3Desc": "When running complex AI tasks or conversations, directly mount and retrieve graph knowledge for more accurate output and richer context."
     },
+    "chat": {
+      "toggleLabel": "Personal Context"
+    },
     "settings": {
       "title": "Context",
       "subtitle": "Choose how personal context is collected, organized, and generated.",
+      "masterEnable": "Enable Personal Context",
+      "masterEnableHint": "Master switch controlling personal context collection and agent context loading.",
       "enable": "Collect Personal Context",
-      "enableHint": "Add personal context content and build a knowledge graph automatically.",
+      "enableHint": "Periodic context harvesting & graph building.",
       "strategyProfile": "Context strategy",
+      "strategy_agent": "Agent",
+      "strategy_balanced": "LLM",
+      "strategy_rules": "Rules",
       "model": "Context Organize Model",
       "modelPlaceholder": "Please select an organize model",
       "modelRequiredFirst": "Please select an organize model first",
@@ -1860,6 +1914,7 @@
       "state": "State",
       "action": "Action",
       "authorize": "Authorize",
+      "goAuthorize": "Go authorize",
       "reauthorize": "Re-authorize",
       "cancelAuth": "Revoke",
       "authorizing": "Authorizing…",
@@ -1873,6 +1928,11 @@
       "githubTokenPlaceholder": "ghp_xxxxxxxxxxxx",
       "githubTokenHint": "Token is stored locally in the browser and used to authenticate the fetch service.",
       "githubTokenRequired": "Please enter a GitHub token",
+      "gitcodeHint": "GitCode uses a personal access token (PAT). After authorizing you can add GitCode fetch in \"Context content\".",
+      "gitcodeTokenLabel": "GitCode token",
+      "gitcodeTokenPlaceholder": "Enter a GitCode personal access token",
+      "gitcodeTokenHint": "Token is stored locally in the browser and used to authenticate the fetch service.",
+      "gitcodeTokenRequired": "Please enter a GitCode token",
       "feishuHint": "Feishu uses an OAuth device flow. After authorizing, complete the login in your browser as prompted.",
       "feishuVerifyHint": "Complete the Feishu authorization in the opened page; the state will update automatically."
     },
@@ -1929,6 +1989,7 @@
       "stateFailed": "Failed",
       "stateWaiting": "Waiting",
       "stateStopped": "Stopped",
+      "stateStopping": "Stopping",
       "lastRunUnavailable": "Backend did not return fetch time",
       "intervalHour": "Every {{n}} hour(s)",
       "intervalDay": "Every {{n}} day(s)",
@@ -1938,12 +1999,6 @@
       "actionRetry": "Retry",
       "actionStop": "Stop",
       "deleteConfirm": "Delete this fetch service?",
-      "intervalSeconds": "Interval (seconds)",
-      "intervalRangeError": "Interval must be > 0 and <= 31536000 seconds (about 365 days)",
-      "sourceJsonObjectError": "source must be a JSON object",
-      "sourceJsonInvalidError": "Invalid JSON",
-      "maxItems": "Max items per run",
-      "save": "Save",
       "cancel": "Cancel",
       "empty": "No content yet. Click \"Add content\" at the top right to create one.",
       "noContentInCategory": "No content",
@@ -1959,8 +2014,9 @@
     },
     "addContent": {
       "title": "Add content",
+      "editTitle": "Edit collection task",
       "nameLabel": "Content name",
-      "namePlaceholder": "e.g. My Zhihu collection",
+      "namePlaceholder": "e.g. my-task: letter/digit start, . _ - only",
       "providerLabel": "Content source",
       "autoCollectLabel": "Auto fetch",
       "autoCollectHint": "Fetch automatically at the chosen frequency",
@@ -1971,6 +2027,7 @@
     "timeRangeCustom": "Custom",
     "dateRangeTitle": "Select Date Range",
     "dateRangePlaceholder": "Select a date range",
+    "dateRangeRequired": "Select a custom date range",
     "addUrl": "+ Add",
     "frequencyLabel": "Auto fetch frequency",
       "frequencyHour": "Every {{n}} hour(s)",
@@ -1984,6 +2041,7 @@
       "maxItemsRangeError": "Max items must be 1-10000, or empty for default",
       "previousStep": "Previous",
     "submit": "Add",
+      "save": "Save",
       "notConfigured": "Personal context is not configured. Enable it in Settings first.",
       "providerUnauthorized": "Not authorized. Authorize it in Settings first.",
       "goAuthorize": "Go authorize",
@@ -2026,8 +2084,20 @@
         "commits": "Commits",
         "code": "Code",
         "resourcesRequired": "Select at least one content type",
-        "tokenFromAuth": "Token obtained from Settings authorization",
-        "tokenMissing": "GitHub token not found. Authorize in Settings first."
+        "tokenFromAuth": "Token obtained from Settings authorization"
+      },
+      "gitcode": {
+        "repoUrlLabel": "GitCode repository URL",
+        "repoUrlPlaceholder": "https://gitcode.com/<owner>/<repo>",
+        "repoUrlHint": "or git@gitcode.com:<owner>/<repo>",
+        "resourcesLabel": "Account Content to Collect",
+        "readme": "README",
+        "issues": "Issues",
+        "pullRequests": "Pull Requests",
+        "commits": "Commits",
+        "code": "Code",
+        "resourcesRequired": "Select at least one content type",
+        "tokenFromAuth": "Token obtained from Settings authorization"
       },
       "feishu": {
         "modeLabel": "Feishu Content Type",
@@ -2048,14 +2118,13 @@
         "calendarTimePlaceholder": "Select",
         "docPathLabel": "Specify Document (Optional)",
         "docPathPlaceholder": "Enter path or select file",
-        "wikiDirLabel": "Wiki Directory",
-        "wikiDirPlaceholder": "Only fetch content in this directory",
         "authorizeAfterCreate": "Authorize Feishu account in settings after creation:"
       }
     },
     "provider": {
       "localFiles": "Local files",
       "github": "GitHub",
+      "gitcode": "GitCode",
       "feishu": "Feishu",
       "browserBookmarks": "Edge bookmarks",
       "zhihuReader": "Zhihu",
@@ -3136,6 +3205,7 @@
   },
   "speech": {
     "recognitionUnsupported": "Speech recognition is not supported by this browser",
+    "recordingUnsupported": "Microphone recording is not supported by this browser",
     "synthesisUnsupported": "Speech synthesis is not supported by this browser",
     "errors": {
       "noSpeech": "No speech detected",
