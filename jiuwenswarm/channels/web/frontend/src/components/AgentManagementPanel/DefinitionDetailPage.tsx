@@ -145,10 +145,9 @@ export function DefinitionDetailPage({
   const canUse = detail.installed && detail.connectionState === 'connected' && detail.enabled !== false;
   const needsConnection = detail.installed && detail.connectionState !== 'connected';
   const canDelete = detail.source === 'local' && !detail.installed;
-  const canPreviewFiles = detail.source === 'local' || detail.installed;
   return (
     <div className="agent-management-detail" data-testid="agent-detail">
-      <button type="button" className="detail-back mb-[35px]" onClick={onBack}>
+      <button type="button" className="detail-back" onClick={onBack}>
         <BackIcon aria-hidden="true" />
         {t('agentManagement.actions.back')}
       </button>
@@ -324,10 +323,6 @@ export function DefinitionDetailPage({
           <article className="agent-management-detail-content prose prose-sm max-w-none">
             {detail.details ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{detail.details}</ReactMarkdown> : null}
           </article>
-        ) : !canPreviewFiles ? (
-          <div className="agent-management-file-preview agent-management-file-preview--unavailable">
-            <div className="agent-management-file-state">{t('agentManagement.detail.filesUnavailable')}</div>
-          </div>
         ) : (
           <DefinitionFilePreview
             files={files}

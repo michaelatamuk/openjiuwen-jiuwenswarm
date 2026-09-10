@@ -11,6 +11,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from jiuwenswarm import runtime as runtime_package
+from jiuwenswarm.agents.harness.code.rails.heartbeat.execution import (
+    SessionRunAdmission,
+)
 from jiuwenswarm.common.schema.agent import AgentRequest
 from jiuwenswarm.common.schema.agent import AgentResponse, AgentResponseChunk
 from jiuwenswarm.common.schema.message import ReqMethod
@@ -106,6 +109,38 @@ class FakeAgent:
             payload={"event_type": "chat.final", "content": "ok"},
             is_complete=True,
             metadata={"route": "stream"},
+        )
+
+
+class AskUserAgent(FakeAgent):
+    async def process_message(self, request: AgentRequest) -> AgentResponse:
+        return AgentResponse(
+            request_id=request.request_id,
+            channel_id=request.channel_id,
+            payload={
+                "event_type": "chat.ask_user_question",
+                "request_id": "call_ask_user",
+            },
+        )
+
+    async def process_message_stream(self, request: AgentRequest):
+        params = request.params if isinstance(request.params, dict) else {}
+        if params.get("answers"):
+            yield AgentResponseChunk(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                payload={"event_type": "chat.final", "content": "answered"},
+                is_complete=True,
+            )
+            return
+        yield AgentResponseChunk(
+            request_id=request.request_id,
+            channel_id=request.channel_id,
+            payload={
+                "event_type": "chat.ask_user_question",
+                "request_id": "call_ask_user",
+            },
+            is_complete=True,
         )
 
 
@@ -876,6 +911,71 @@ async def test_answer_interaction_forwards_runtime_execution_options() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pending_interaction_blocks_heartbeat_until_matching_answer() -> None:
+    admission = SessionRunAdmission()
+    manager = FakeAgentManager()
+    manager.agent = AskUserAgent()
+    runtime = AgentRuntime(
+        agent_manager=manager,
+        initializer=AsyncMock(),
+        plan_controller=FakePlanController(),
+        admission_controller=admission,
+    )
+    session_id = "ask-user-session"
+    request = AgentRequest(
+        request_id="ask-user-request",
+        channel_id="web",
+        session_id=session_id,
+        req_method=ReqMethod.CHAT_SEND,
+        params={"query": "ask", "mode": "agent", "work_mode": "work"},
+        is_stream=True,
+    )
+
+    events = [event async for event in runtime.stream(request, trigger_hook=False)]
+
+    assert [event.event_type for event in events] == ["chat.ask_user_question"]
+    assert admission.has_pending_interaction(session_id) is True
+    assert await admission.try_begin_heartbeat(session_id, "heartbeat-1") is False
+
+    answer = AgentRequest(
+        request_id="answer-request",
+        channel_id="web",
+        session_id=session_id,
+        req_method=ReqMethod.CHAT_SEND,
+        params={
+            "query": "",
+            "request_id": "call_ask_user",
+            "answers": [{"question": "choose", "selected_options": ["A"]}],
+            "source": "ask_user_interrupt",
+            "mode": "agent",
+            "work_mode": "work",
+        },
+        is_stream=True,
+    )
+    answer_events = [
+        event async for event in runtime.stream(answer, trigger_hook=False)
+    ]
+
+    assert [event.event_type for event in answer_events] == ["chat.final"]
+    assert admission.has_pending_interaction(session_id) is False
+    assert await admission.try_begin_heartbeat(session_id, "heartbeat-2") is True
+    await admission.end_heartbeat(session_id, "heartbeat-2")
+
+
+@pytest.mark.asyncio
+async def test_stale_answer_does_not_clear_current_pending_interaction() -> None:
+    admission = SessionRunAdmission()
+    await admission.mark_interaction_pending("session-1", "current-question")
+
+    await admission.begin_user("session-1")
+    await admission.clear_interaction_pending("session-1", "stale-question")
+    await admission.end_user("session-1")
+
+    assert admission.has_pending_interaction("session-1") is True
+    assert await admission.try_begin_heartbeat("session-1", "heartbeat-1") is False
+
+
+@pytest.mark.asyncio
 async def test_interrupt_resume_does_not_wait_for_existing_user_admission() -> None:
     admission = FakeAdmissionController(user_active=True)
     manager = FakeAgentManager()
@@ -1221,31 +1321,34 @@ async def test_agent_server_disconnect_cleanup_delegates_to_runtime_public_api(
 
 
 @pytest.mark.asyncio
-async def test_agent_server_session_fork_allocates_target_through_runtime_public_api(
-    monkeypatch,
-) -> None:
-    from jiuwenswarm.agents.harness.common import session_ops_service
+async def test_agent_server_auto_fork_uses_runtime_public_api() -> None:
     from jiuwenswarm.server.agent_ws_server import AgentWebSocketServer
 
-    manager = SimpleNamespace(get_agent_nowait=MagicMock(return_value=None))
+    manager = object()
+    prepared = SimpleNamespace(
+        state=runtime_package.SessionProvisionState.PREPARED,
+    )
+    result = runtime_package.SessionForkResult(
+        channel_id="tui",
+        source_session_id="fork-source",
+        session_id="fork-target",
+        title="Forked session",
+    )
+    async def commit_fork(
+        _prepared: object,
+        *,
+        timing: object,
+    ) -> object:
+        del timing
+        prepared.state = runtime_package.SessionProvisionState.COMMITTED
+        return result
+
     runtime = SimpleNamespace(
         agent_manager=manager,
         start=AsyncMock(),
-        create_or_resume_session=AsyncMock(return_value="fork-target"),
-    )
-    fork_session = MagicMock(
-        return_value={
-            "source_session_id": "fork-source",
-            "target_session_id": "fork-target",
-            "title": "Forked session",
-        }
-    )
-    copy_session_state = AsyncMock()
-    monkeypatch.setattr(session_ops_service, "fork_session", fork_session)
-    monkeypatch.setattr(
-        session_ops_service,
-        "copy_session_state",
-        copy_session_state,
+        prepare_session_fork=AsyncMock(return_value=prepared),
+        commit_session_provision=AsyncMock(side_effect=commit_fork),
+        abort_session_provision=AsyncMock(),
     )
 
     server = object.__new__(AgentWebSocketServer)
@@ -1263,55 +1366,59 @@ async def test_agent_server_session_fork_allocates_target_through_runtime_public
     await server._handle_session_fork(ws, request, asyncio.Lock())
 
     runtime.start.assert_awaited_once_with()
-    runtime.create_or_resume_session.assert_awaited_once_with(
-        channel_id="tui",
-        session_id=None,
+    runtime.prepare_session_fork.assert_awaited_once_with(
+        runtime_package.SessionForkInput(
+            channel_id="tui",
+            source_session_id="fork-source",
+            target_session_id=None,
+            title="Forked session",
+        )
     )
-    fork_session.assert_called_once_with(
-        source_session_id="fork-source",
-        target_session_id="fork-target",
-        title="Forked session",
-        channel_id="tui",
+    runtime.commit_session_provision.assert_awaited_once_with(
+        prepared,
+        timing=runtime_package.SessionProvisionCommitTiming.BEFORE_RESULT_DELIVERY,
     )
-    copy_session_state.assert_awaited_once()
     ws.send.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_agent_server_session_fork_waits_for_runtime_with_explicit_target(
-    monkeypatch,
-) -> None:
-    from jiuwenswarm.agents.harness.common import session_ops_service
+async def test_agent_server_explicit_fork_waits_for_runtime() -> None:
     from jiuwenswarm.server.agent_ws_server import AgentWebSocketServer
 
     order: list[str] = []
-    manager = SimpleNamespace(get_agent_nowait=MagicMock(return_value=None))
+    manager = object()
+    prepared = SimpleNamespace(
+        state=runtime_package.SessionProvisionState.PREPARED,
+    )
 
     async def start_runtime() -> None:
         order.append("runtime.start")
 
+    async def prepare_fork(_provision_input: object) -> object:
+        order.append("runtime.prepare")
+        return prepared
+
+    async def commit_fork(
+        _prepared: object,
+        *,
+        timing: object,
+    ) -> object:
+        del timing
+        order.append("runtime.commit")
+        prepared.state = runtime_package.SessionProvisionState.COMMITTED
+        return runtime_package.SessionForkResult(
+            channel_id="tui",
+            source_session_id="fork-source",
+            session_id="fork-target",
+            title="Forked session",
+        )
+
     runtime = SimpleNamespace(
         agent_manager=manager,
         start=AsyncMock(side_effect=start_runtime),
-        create_or_resume_session=AsyncMock(),
-    )
-
-    def fork_session(**kwargs: object) -> dict[str, str]:
-        order.append("fork.filesystem")
-        return {
-            "source_session_id": str(kwargs["source_session_id"]),
-            "target_session_id": str(kwargs["target_session_id"]),
-            "title": str(kwargs["title"]),
-        }
-
-    async def copy_session_state(**kwargs: object) -> None:
-        order.append("fork.checkpointer")
-
-    monkeypatch.setattr(session_ops_service, "fork_session", fork_session)
-    monkeypatch.setattr(
-        session_ops_service,
-        "copy_session_state",
-        copy_session_state,
+        prepare_session_fork=AsyncMock(side_effect=prepare_fork),
+        commit_session_provision=AsyncMock(side_effect=commit_fork),
+        abort_session_provision=AsyncMock(),
     )
 
     server = object.__new__(AgentWebSocketServer)
@@ -1333,8 +1440,15 @@ async def test_agent_server_session_fork_waits_for_runtime_with_explicit_target(
     await server._handle_session_fork(ws, request, asyncio.Lock())
 
     runtime.start.assert_awaited_once_with()
-    runtime.create_or_resume_session.assert_not_awaited()
-    assert order == ["runtime.start", "fork.filesystem", "fork.checkpointer"]
+    runtime.prepare_session_fork.assert_awaited_once_with(
+        runtime_package.SessionForkInput(
+            channel_id="tui",
+            source_session_id="fork-source",
+            target_session_id="fork-target",
+            title="Forked session",
+        )
+    )
+    assert order == ["runtime.start", "runtime.prepare", "runtime.commit"]
     ws.send.assert_awaited_once()
 
 
@@ -2305,6 +2419,100 @@ async def test_agent_server_stop_replaces_closed_one_shot_runtime(monkeypatch) -
     assert server_module._plan_exited_sessions is recovered_plan_controller.exited_sessions
     assert server_module._session_mode_sync_locks is recovered_plan_controller.sync_locks
     assert previous_lock is not None
+
+
+@pytest.mark.asyncio
+async def test_agent_server_stop_retains_runtime_when_close_is_rejected(
+    monkeypatch,
+) -> None:
+    from jiuwenswarm.server import agent_ws_server as server_module
+    from jiuwenswarm.server.agent_ws_server import AgentWebSocketServer
+    from jiuwenswarm.server.runtime.session.kv_cache import kv_cache_product_hooks
+
+    class FakeWebSocketServer:
+        def __init__(self) -> None:
+            self.closed = False
+            self.wait_closed = AsyncMock()
+
+        def close(self) -> None:
+            self.closed = True
+
+    server = AgentWebSocketServer()
+    previous_runtime = server.get_runtime()
+    listener = FakeWebSocketServer()
+    server._server = listener
+    runtime_push_handler = object()
+    previous_runtime_push_handler = object()
+    server._runtime_push_handler = runtime_push_handler
+    server._previous_runtime_push_handler = previous_runtime_push_handler
+    restore_runtime_push_handler = MagicMock()
+    monkeypatch.setattr(
+        server_module,
+        "restore_runtime_push_handler",
+        restore_runtime_push_handler,
+    )
+    server._jiuwenbox_runner.stop = AsyncMock()
+    server._personal_context_host.stop = AsyncMock()
+    close_rejected = RuntimeStateError(
+        "runtime has unfinished session provisions; commit or abort them before close"
+    )
+    previous_runtime.close = AsyncMock(side_effect=[close_rejected, None])
+    monkeypatch.setattr(
+        kv_cache_product_hooks,
+        "cancel_pending_tasks",
+        AsyncMock(),
+    )
+
+    with pytest.raises(RuntimeStateError) as caught:
+        await server.stop()
+
+    assert caught.value is close_rejected
+    assert server.get_runtime() is previous_runtime
+    assert server.get_agent_manager() is previous_runtime.agent_manager
+    assert listener.closed is True
+    listener.wait_closed.assert_awaited_once_with()
+    restore_runtime_push_handler.assert_called_once_with(
+        runtime_push_handler,
+        previous_runtime_push_handler,
+    )
+    server._jiuwenbox_runner.stop.assert_awaited_once_with()
+    server._personal_context_host.stop.assert_awaited_once_with()
+
+    await server.stop()
+
+    assert previous_runtime.close.await_count == 2
+    assert server.get_runtime() is not previous_runtime
+    assert server.get_runtime().agent_manager is server.get_agent_manager()
+
+
+@pytest.mark.asyncio
+async def test_agent_server_stop_replaces_runtime_after_closed_cleanup_error(
+    monkeypatch,
+) -> None:
+    from jiuwenswarm.server.agent_ws_server import AgentWebSocketServer
+    from jiuwenswarm.server.runtime.session.kv_cache import kv_cache_product_hooks
+
+    server = AgentWebSocketServer()
+    previous_runtime = server.get_runtime()
+
+    async def close_with_cleanup_error() -> None:
+        previous_runtime._started = False
+        previous_runtime._closed = True
+        raise RuntimeError("runtime cleanup failed")
+
+    previous_runtime.close = AsyncMock(side_effect=close_with_cleanup_error)
+    monkeypatch.setattr(
+        kv_cache_product_hooks,
+        "cancel_pending_tasks",
+        AsyncMock(),
+    )
+
+    await server.stop()
+
+    previous_runtime.close.assert_awaited_once_with()
+    assert previous_runtime.closed is True
+    assert server.get_runtime() is not previous_runtime
+    assert server.get_runtime().agent_manager is server.get_agent_manager()
 
 
 @pytest.mark.asyncio

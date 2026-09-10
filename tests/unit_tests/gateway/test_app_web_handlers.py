@@ -335,6 +335,7 @@ async def test_heartbeat_web_methods_preserve_health_check_aliases_and_session()
         {
             "name": "n",
             "prompt": "p",
+            "max_runs": None,
             "channel_id": "other",
             "session_id": "other-session",
             "schedule": {"type": "interval", "interval_seconds": 120},
@@ -350,6 +351,7 @@ async def test_heartbeat_web_methods_preserve_health_check_aliases_and_session()
     )
     created = controller.calls[1][1]
     assert created["channel_id"] == "web"
+    assert created["max_runs"] is None
     assert created["session_id"] == "session-current"
     assert created["source"] == "web_rpc"
     assert controller.calls[1][2] == "user-current"
@@ -742,7 +744,7 @@ async def test_path_set_reloads_config_and_resets_agent_browser_runtime(
     )
 
     assert saved_configs == [
-        {"chrome_path": "C:\\Chrome\\chrome.exe", "browser_type": "auto", "headless": False}
+        {"chrome_path": "C:\\Chrome\\chrome.exe", "headless": False}
     ]
     assert lifecycle_calls == [
         ("reload", agent_client),
@@ -760,7 +762,6 @@ async def test_path_set_reloads_config_and_resets_agent_browser_runtime(
         "ok": True,
         "payload": {
             "chrome_path": "C:\\Chrome\\chrome.exe",
-            "browser_type": "auto",
             "headless": False,
         },
         "error": None,
@@ -1074,11 +1075,31 @@ async def test_config_save_handlers_respond_before_agent_reload_finishes(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_config_set_applies_scoped_reload_before_responding(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "params,keys,scopes",
+    [
+        ({"api_base": "https://example.com/one"}, {"API_BASE"}, ["model"]),
+        ({"bocha_api_key": "test-key"}, {"BOCHA_API_KEY"}, ["search"]),
+        ({"serper_api_key": ""}, {"SERPER_API_KEY"}, ["search"]),
+        (
+            {"bocha_api_key": "test-key", "vision_api_key": "test-vision-key"},
+            {"BOCHA_API_KEY", "VISION_API_KEY"},
+            ["multimodal", "search"],
+        ),
+    ],
+)
+async def test_config_set_applies_scoped_reload_before_responding(monkeypatch, tmp_path, params, keys, scopes):
     channel = FakeWebChannel()
     reload_started = asyncio.Event()
     release_first_reload = asyncio.Event()
     reload_calls: list[tuple[set[str], dict, dict]] = []
+
+    monkeypatch.setattr(
+        "jiuwenswarm.extensions.registry.ExtensionRegistry.get_instance",
+        lambda: SimpleNamespace(get_crypto_provider=lambda: None),
+    )
+    for key in keys:
+        monkeypatch.setenv(key, "")
 
     monkeypatch.setattr(
         "jiuwenswarm.gateway.channel_manager.web.app_web_handlers._ENV_FILE",
@@ -1105,19 +1126,20 @@ async def test_config_set_applies_scoped_reload_before_responding(monkeypatch, t
     task = asyncio.create_task(channel.methods["config.set"](
         object(),
         "req-1",
-        {"api_base": "https://example.com/one"},
+        params,
         "sess-1",
     ))
 
-    await asyncio.wait_for(reload_started.wait(), timeout=1)
-    assert channel.responses == []
+    try:
+        await asyncio.wait_for(reload_started.wait(), timeout=1)
+        assert channel.responses == []
+    finally:
+        release_first_reload.set()
+        await task
 
-    release_first_reload.set()
-    await task
-
-    assert reload_calls[0][0] == {"API_BASE"}
+    assert reload_calls[0][0] == keys
     assert reload_calls[0][2]["target_channel_id"] == "web"
-    assert reload_calls[0][2]["reload_scopes"] == ["model"]
+    assert reload_calls[0][2]["reload_scopes"] == scopes
     assert channel.responses[-1]["id"] == "req-1"
     assert channel.responses[-1]["ok"] is True
     assert channel.responses[-1]["payload"]["applied_without_restart"] is True
@@ -1969,8 +1991,44 @@ def test_codex_dependency_install_is_not_started_twice(monkeypatch):
     release_install.set()
 
     assert first and first["status"] == "running"
+    assert first["progress_kind"] == "installer_activity"
     assert second and second["status"] == "running"
     assert len(install_calls) == 1
+
+
+def test_claude_dependency_install_running_snapshot_does_not_reenter_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailOnReentryLock:
+        def __init__(self) -> None:
+            self.locked = False
+
+        def __enter__(self) -> None:
+            if self.locked:
+                raise AssertionError("Claude dependency lock was re-entered")
+            self.locked = True
+
+        def __exit__(self, *_args: object) -> None:
+            self.locked = False
+
+    lock = FailOnReentryLock()
+    monkeypatch.setattr(app_web_handlers, "_CLAUDE_DEPENDENCY_INSTALL_LOCK", lock)
+    monkeypatch.setitem(app_web_handlers._EXTERNAL_CLI_DEPENDENCY_INSTALL_LOCKS, "claude", lock)
+    monkeypatch.setattr(app_web_handlers, "_activate_managed_external_cli_paths_if_needed", lambda: None)
+    monkeypatch.setattr(app_web_handlers.importlib.util, "find_spec", lambda _name: None)
+    monkeypatch.setattr(app_web_handlers, "_is_frozen_runtime", lambda: False)
+    app_web_handlers._CLAUDE_DEPENDENCY_INSTALL_STATUS.update({
+        "status": "running",
+        "phase": "downloading",
+        "error": "",
+        "log_tail": [],
+    })
+
+    snapshot = app_web_handlers._ensure_claude_dependency_available_or_start_install()
+
+    assert snapshot is not None
+    assert snapshot["status"] == "running"
+    assert snapshot["phase"] == "downloading"
 
 
 @pytest.mark.parametrize(
@@ -2035,6 +2093,7 @@ def test_external_cli_dependency_install_starts_managed_runtime_in_frozen_deskto
 
     assert first and first["status"] == "running"
     assert first["phase"] == "preparing"
+    assert first["progress_kind"] == "download_metrics"
     assert second and second["status"] == "running"
     assert len(created_threads) == 1
     assert created_threads[0].target is app_web_handlers._run_managed_external_cli_runtime_install
@@ -2486,6 +2545,14 @@ def test_detect_external_cli_agent_rejects_windows_script_path(monkeypatch, tmp_
     assert result["path"] == str(script_path)
 
 
+def test_detect_external_cli_agent_reports_directory_path(tmp_path) -> None:
+    result = _detect_external_cli_agent("claude", str(tmp_path))
+
+    assert result["status"] == "unsupported"
+    assert result["reason"] == "directory"
+    assert result["message"] == f"{tmp_path} is a directory"
+
+
 def test_config_panel_flatten_reads_symphony_enabled_and_skill_retrieval():
     raw = {
         "symphony": {
@@ -2605,6 +2672,7 @@ def test_web_forwards_only_canonical_personal_context_rpc_methods():
         "personal_context.fetch.delete_service",
         "personal_context.fetch.patch_service",
         "personal_context.fetch.start_service",
+        "personal_context.fetch.stop_run",
         "personal_context.fetch.stop_service",
         "personal_context.fetch.run_all",
         "personal_context.fetch.run_one",
@@ -2630,7 +2698,7 @@ def test_web_forwards_only_canonical_personal_context_rpc_methods():
 
     assert forwarded == methods
     assert no_local == methods
-    assert len(methods) == 24
+    assert len(methods) == 25
 
 
 # =====================================================================
