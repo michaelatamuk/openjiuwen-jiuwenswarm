@@ -6,7 +6,7 @@ export type SidebarNavKey =
   | 'agents'
   | 'teams'
   | 'sessions'
-  | 'tracehound' | 'cron'
+  | 'cron'
   | 'personalContext'
   | 'personalContextSettings'
   | 'settings'

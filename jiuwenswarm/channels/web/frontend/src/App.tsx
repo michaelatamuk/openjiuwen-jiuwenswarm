@@ -27,7 +27,6 @@ import {
   type SettingsModuleTarget,
 } from './features/settings/settingsNavigation';
 import { ConnectorMarketPanel } from './components/ConnectorMarket';
-import { TraceHoundPanel } from './components/TraceHound';
 import { TrajectoryPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
@@ -3318,11 +3317,6 @@ function AppContent({
                 isProcessing={isProcessing}
                 onRestoreSession={handleRestoreSession}
             />
-          </div>
-        )}
-        {activeNav === 'tracehound' && (
-          <div className="app-section">
-            <TraceHoundPanel isConnected={isConnected} />
           </div>
         )}
         {activeNav === 'cron' && (

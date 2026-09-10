@@ -11,7 +11,6 @@ import PlusIcon from '../../assets/sidebar/plus.svg?react';
 import logoIcon from '/logo.svg';
 import SettingsIcon from '../../assets/settings/app-navigation/settings.svg?react';
 import UpdateIcon from '../../assets/sidebar/advanced-config.svg?react';
-import TracehoundIcon from '../../assets/sidebar/tracehound.svg?react';
 import WorkIcon from '../../assets/工作.svg?react';
 import SkillDesignIcon from '../../assets/agent-management/agent-skill.svg?react';
 import AgentDesignIcon from '../../assets/智能体.svg?react';
@@ -80,7 +79,6 @@ const mainNavItems: NavItem[] = [
   { key: 'personalContext', labelKey: 'nav.personalContext', icon: personalContextNavIcon },
   { key: 'settings', labelKey: 'nav.settings', icon: <SettingsIcon aria-hidden /> },
   { key: 'updatepanel', labelKey: 'nav.update', icon: <UpdateIcon aria-hidden /> },
-  { key: 'tracehound', labelKey: 'nav.tracehound', icon: <TracehoundIcon aria-hidden /> },
 ];
 
 export function SessionSidebar({
