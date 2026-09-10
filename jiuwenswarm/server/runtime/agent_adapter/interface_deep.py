@@ -14367,6 +14367,13 @@ class JiuWenSwarmDeepAdapter:
                     )
                     if isinstance(usage_meta, dict):
                         _accumulate_usage_metadata(usage_meta, "main")
+                        # agent-core no longer serializes the prompt; carry the one
+                        # captured by the llm_call_start event so the emitted
+                        # usage_metadata record still exposes it.
+                        if last_llm_prompt and not usage_meta.get("prompt"):
+                            usage_meta = {**usage_meta, "prompt": last_llm_prompt}
+                            if isinstance(chunk.payload, dict):
+                                chunk.payload["usage_metadata"] = usage_meta
                     yield AgentResponseChunk(
                         request_id=rid,
                         channel_id=cid,
