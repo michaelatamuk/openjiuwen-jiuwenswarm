@@ -215,7 +215,7 @@ async def test_finalize_create_from_knowledge_installs(
     assert "---" in result["skill"]["content"]
 
 
-def test_finalize_create_from_knowledge_new_this_run_no_conflict(
+async def test_finalize_create_from_knowledge_new_this_run_no_conflict(
     manager: SkillManager, tmp_path: Path
 ) -> None:
     """运行前没有同名时，即使目标目录已由本轮写入，也应直接成功。"""
@@ -224,7 +224,7 @@ def test_finalize_create_from_knowledge_new_this_run_no_conflict(
     (dest / "SKILL.md").write_text(
         _skill_md("matplotlib_line_plot", "from this run"), encoding="utf-8"
     )
-    result = manager.finalize_create_from_knowledge(
+    result = await manager.finalize_create_from_knowledge(
         dest,
         workspace_candidates=[dest],
         existing_skill_names=set(),
@@ -233,7 +233,7 @@ def test_finalize_create_from_knowledge_new_this_run_no_conflict(
     assert result["skill"]["name"] == "matplotlib_line_plot"
 
 
-def test_finalize_create_from_knowledge_historical_rejects(
+async def test_finalize_create_from_knowledge_historical_rejects(
     manager: SkillManager, tmp_path: Path
 ) -> None:
     existing = manager._skills_dir / "matplotlib_line_plot"
@@ -247,7 +247,7 @@ def test_finalize_create_from_knowledge_historical_rejects(
     (skill_root / "SKILL.md").write_text(
         _skill_md("matplotlib_line_plot", "new desc"), encoding="utf-8"
     )
-    result = manager.finalize_create_from_knowledge(
+    result = await manager.finalize_create_from_knowledge(
         out,
         existing_skill_names={"matplotlib_line_plot"},
     )
