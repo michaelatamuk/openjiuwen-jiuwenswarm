@@ -6065,6 +6065,7 @@ class JiuWenSwarmDeepAdapter:
         valid_modes = {
             SkillUseRail.SKILL_MODE_AUTO_LIST,
             SkillUseRail.SKILL_MODE_ALL,
+            SkillUseRail.SKILL_MODE_RECOMMENDATION,
         }
         if isinstance(raw_skill_mode, str) and raw_skill_mode in valid_modes:
             return raw_skill_mode
@@ -6075,6 +6076,17 @@ class JiuWenSwarmDeepAdapter:
             SkillUseRail.SKILL_MODE_ALL,
         )
         return SkillUseRail.SKILL_MODE_ALL
+
+    @staticmethod
+    def _resolve_oracle_dir(config: dict[str, Any]) -> str | None:
+        """Resolve the recommendation-mode oracle dir.
+
+        Mirrors the swarm construction path: ``react.oracle_dir`` first, then
+        the ``JIUWENSWARM_ORACLE_DIR`` environment variable. Without a scoring
+        matrix, ``recommendation`` mode degrades to "return every skill".
+        """
+        value = config.get("oracle_dir") or os.getenv("JIUWENSWARM_ORACLE_DIR")
+        return str(value) if value else None
 
     @staticmethod
     def _build_response_prompt_rail() -> ResponsePromptRail | None:
@@ -6743,6 +6755,7 @@ class JiuWenSwarmDeepAdapter:
             skill_rail = SkillUseRail(
                 skills_dir=all_skill_dirs,
                 skill_mode=skill_mode,
+                oracle_dir=self._resolve_oracle_dir(config),
                 include_tools=include_tools,
                 disabled_skills=self._skill_manager.list_execution_disabled_skills(),
             )
@@ -8278,6 +8291,13 @@ class JiuWenSwarmDeepAdapter:
             )
             if self._skill_rail.skill_mode != new_skill_mode:
                 self._skill_rail.skill_mode = new_skill_mode
+            # Keep recommendation mode's oracle dir in sync on hot reload.
+            new_oracle_dir = self._resolve_oracle_dir(config)
+            new_oracle_path = (
+                Path(new_oracle_dir).expanduser() if new_oracle_dir else None
+            )
+            if self._skill_rail.oracle_dir != new_oracle_path:
+                self._skill_rail.oracle_dir = new_oracle_path
             # Update disabled_skills.
             new_disabled = set(self._skill_manager.list_execution_disabled_skills())
             if self._skill_rail.disabled_skills != new_disabled:
