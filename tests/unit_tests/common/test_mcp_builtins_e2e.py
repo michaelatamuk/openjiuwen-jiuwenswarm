@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import json
 import os
 from pathlib import Path
 
@@ -80,7 +81,7 @@ def test_prepare_workspace_extracts_mcp_builtins(temp_workspace: Path) -> None:
     assert mcp_builtins.is_dir(), "mcp_builtins 未解压"
     assert not (mcp_builtins / "index.json").exists()
     assert not (mcp_builtins / "manifest.json").exists()
-    assert (mcp_builtins / ".mcp_builtins_version").read_text(encoding="utf-8").strip() == "v0.2.1"
+    assert (mcp_builtins / ".mcp_builtins_version").read_text(encoding="utf-8").strip() == "v0.2.4"
     pkg_dirs = [p for p in mcp_builtins.iterdir() if p.is_dir() and not p.name.startswith(".")]
     assert {package.name for package in pkg_dirs} == EXPECTED_BUILTIN_MCPS
     packages = [load_mcp_package(package) for package in pkg_dirs]
@@ -106,6 +107,31 @@ def test_prepare_workspace_extracts_mcp_builtins(temp_workspace: Path) -> None:
         path.name in {"index.json", "connector-meta.json"}
         for path in mcp_builtins.rglob("*")
     )
+
+
+def test_huawei_cloud_pins_compatible_mcp_sdk(temp_workspace: Path) -> None:
+    """The shipped Huawei Cloud command must keep the legacy server on MCP 1.x."""
+    prepare_workspace(overwrite=True, preferred_language="zh", workspace_dir=temp_workspace)
+
+    config_path = (
+        temp_workspace
+        / "agent"
+        / "workspace"
+        / "mcp"
+        / "mcp_builtins"
+        / "huaweiyun-mcp"
+        / "mcp.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    server = config["mcpServers"]["huaweicloud-mcp-server"]
+
+    assert server["command"] == "uvx"
+    assert server["args"][:4] == [
+        "--with",
+        "mcp<2",
+        "--from",
+        "huaweicloud-mcp-server",
+    ]
 
 
 def test_list_marketplace_orders_huawei_first(temp_workspace: Path) -> None:
@@ -181,8 +207,11 @@ def test_gitcode_init_works_without_bare_pip_on_path(
     )
     python3_shim.chmod(0o755)
 
+    # install() pins the init command via the `{version}` placeholder, so mirror
+    # that here: the runner must receive the concrete `gitcode-cli==<pin>` target.
+    init_cmd = cli_driver._pin_init_command(manifest.init_cmd, manifest.min_version)
     result = cli_driver.default_runner(
-        manifest.init_cmd,
+        init_cmd,
         env={"PATH": str(shim_dir), **({"SYSTEMROOT": os.environ["SYSTEMROOT"]} if "SYSTEMROOT" in os.environ else {})},
     )
 
@@ -191,5 +220,5 @@ def test_gitcode_init_works_without_bare_pip_on_path(
         "-m",
         "pip",
         "install",
-        "gitcode-cli",
+        f"gitcode-cli=={manifest.min_version}",
     ]

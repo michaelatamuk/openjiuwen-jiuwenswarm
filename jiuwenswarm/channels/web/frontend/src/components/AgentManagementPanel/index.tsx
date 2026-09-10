@@ -9,8 +9,8 @@ import { PendingConnectorModals, usePendingConnectorFlow } from '../ConnectorMar
 import { useConnectorStore } from '../../stores/connectorStore';
 import {
   AgentInstallPendingError,
-  AgentManagementError,
   createAgentManagementClient,
+  extractRpcErrorMessage,
   type AgentCatalogItem,
   type AgentDraft,
   type AgentManagementClient,
@@ -31,6 +31,7 @@ import { PageHeader, PageToolbarSearch } from '../ui';
 type PanelView = 'catalog' | 'mine' | 'detail' | 'create';
 
 type AgentManagementPanelProps = {
+  isActive?: boolean;
   onUseAgent?: (id: string) => void;
   onUsePrompt?: (id: string, prompt: string) => void;
   onCreateViaChat?: () => void;
@@ -50,7 +51,19 @@ const EMPTY_DRAFT: AgentDraft = {
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (error && typeof error === 'object' && 'payload' in error) {
+    const payload = (error as { payload?: unknown }).payload;
+    if (payload && typeof payload === 'object') {
+      const apiError = (payload as { error?: unknown }).error;
+      if (typeof apiError === 'string' && apiError.trim()) {
+        return apiError.trim();
+      }
+    }
+  }
+  return fallback;
 }
 
 function getFriendlyErrorMessage(
@@ -74,7 +87,7 @@ function getFriendlyErrorMessage(
     return translate('agentManagement.states.agentUnavailable');
   }
   if (
-    /^agent_template package (?:missing\/corrupt manifest\.json|wrong package_type|conflict):/i.test(normalizedMessage)
+    /^agent_template package (?:wrong package_type|conflict):/i.test(normalizedMessage)
   ) {
     return translate('agentManagement.states.agentDefinitionUnavailable');
   }
@@ -106,10 +119,7 @@ function getFriendlyErrorMessage(
   }
   const connector = /^connector not connected:\s*(.+)$/i.exec(normalizedMessage)?.[1];
   if (connector) return translate('agentManagement.states.connectorUnavailableNamed', { connector });
-  if (error instanceof AgentManagementError) {
-    return fallback;
-  }
-  return message;
+  return fallback;
 }
 
 function deriveAgentId(name: string): string {
@@ -122,6 +132,7 @@ function deriveAgentId(name: string): string {
 }
 
 export function AgentManagementPanel({
+  isActive = true,
   onUseAgent,
   onUsePrompt,
   onCreateViaChat,
@@ -156,6 +167,8 @@ export function AgentManagementPanel({
   const [mcpStatus, setMcpStatus] = useState<RequestStatus>('idle');
   const catalogRef = useRef<AgentCatalogItem[]>(state.catalog);
   const catalogRevisionRef = useRef(0);
+  const panelMountedRef = useRef(false);
+  const panelPrevActiveRef = useRef(false);
   const detailRevisionRef = useRef(0);
   const filesRevisionRef = useRef(0);
   const fileRevisionRef = useRef(0);
@@ -234,9 +247,18 @@ export function AgentManagementPanel({
     }
   }, [client]);
 
+  // 切换到专家页面时刷新目录（面板常驻挂载、切走仅隐藏，聊天里新建的专家
+  // 不会主动通知前端），沿用 SkillPanel 的激活转换检测；首次挂载也走此入口，
+  // 避免与旧的 mount-only 请求重复。
   useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
+    const prevIsActive = panelPrevActiveRef.current;
+    const isInitialMount = !panelMountedRef.current;
+    panelMountedRef.current = true;
+    if (isActive && (!prevIsActive || isInitialMount)) {
+      void loadCatalog();
+    }
+    panelPrevActiveRef.current = isActive;
+  }, [isActive, loadCatalog]);
 
   useEffect(() => {
     return () => {
@@ -297,8 +319,7 @@ export function AgentManagementPanel({
 
   const handleTabChange = (tab: 'content' | 'files') => {
     setDetailTab(tab);
-    const canPreviewFiles = state.detail?.source === 'local' || state.detail?.installed === true;
-    if (tab === 'files' && canPreviewFiles && selectedId && state.filesStatus === 'idle') {
+    if (tab === 'files' && selectedId && state.filesStatus === 'idle') {
       void loadFiles(selectedId).then((files) => {
         const firstPreviewableFile = files ? findFirstPreviewableFile(files) : null;
         if (firstPreviewableFile) void handleSelectFile(firstPreviewableFile);
@@ -535,7 +556,7 @@ export function AgentManagementPanel({
         actionNoticeTimerRef.current = null;
       }, 3000);
     } catch (error) {
-      setUploadError(formatActionError(error, t('agentManagement.states.uploadError')));
+      setUploadError(extractRpcErrorMessage(error, t('agentManagement.states.uploadError')));
     }
   };
 
@@ -655,6 +676,8 @@ export function AgentManagementPanel({
         data-testid="agent-management-panel"
         data-variant={isMine ? 'mine' : 'catalog'}
       >
+        {/* 固定区（header/toolbar/提示）：page-shell 限宽 1400px 居中，与下方滚动列共用内容线 */}
+        <div className="page-shell flex-none">
         <PageHeader title={t('agentManagement.title')} subtitle={t('agentManagement.subtitle')} />
         <div className="page-toolbar" data-testid="page-toolbar">
           <nav
@@ -706,11 +729,12 @@ export function AgentManagementPanel({
               autoComplete="off"
               disabled={connectorFlowId !== null}
               value={isMine ? mineQuery : query}
-              onChange={(event) =>
+              onChange={(e) => {
+                const nextValue = e.target.value;
                 isMine
-                  ? (setMineQuery(event.target.value), setMinePage(1))
-                  : (setQuery(event.target.value), setCatalogPage(1))
-              }
+                  ? (setMineQuery(nextValue), setMinePage(1))
+                  : (setQuery(nextValue), setCatalogPage(1));
+              }}
               placeholder={t(isMine ? 'agentManagement.searchMine' : 'agentManagement.searchCatalog')}
             />
             {isMine ? (
@@ -772,6 +796,7 @@ export function AgentManagementPanel({
             {actionNotice}
           </div>
         ) : null}
+        </div>
         <CatalogPage
           scope={isMine ? 'mine' : 'catalog'}
           items={isMine ? mineView.items : catalogView.items}

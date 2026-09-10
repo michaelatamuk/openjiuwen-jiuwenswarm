@@ -690,12 +690,22 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const { t } = useTranslation();
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const hasPendingQuestion = useChatStore(
-    (s) => Boolean(s.runtimes[activeSessionId ?? '']?.pendingQuestion),
+    (s) => Boolean(s.runtimes[activeSessionId ?? '']?.pendingQuestions[0]),
   );
   const isCompactRunning = Boolean(
     activeSessionId && compactingSessionIds.has(activeSessionId),
   );
-  const composerDisabled = isCompactRunning || hasPendingQuestion;
+  // 并行场景：一个 agent 等人工、其它 agent 还在跑时开放输入以便 supplement，故要
+  // pendingQuestion 且无 running agent 才锁（而不是有 pendingQuestion 即锁）。
+  const hasRunningAgent = useSessionStore((s) => {
+    const runs = s.runtimes[activeSessionId ?? '']?.workflowRuns ?? [];
+    return runs.some((run) =>
+      run.phases?.some((phase) =>
+        phase.agents?.some((agent) => agent.status === 'running'),
+      ),
+    );
+  });
+  const composerDisabled = isCompactRunning || (hasPendingQuestion && !hasRunningAgent);
   const selectedAgentId = useSessionStore((s) => {
     const runtime = s.runtimes[activeSessionId ?? ''];
     if (runtime?.mode !== 'agent') return null;
@@ -1015,7 +1025,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
         if (composerDisabled) return;
 
         setTimeout(() => {
-          if (sid && useChatStore.getState().runtimes[sid]?.pendingQuestion) return;
+          if (sid && useChatStore.getState().runtimes[sid]?.pendingQuestions[0]) return;
           if (isTeamMode) {
             onSubmit(finalText);
           } else if (isInterruptible) {
@@ -1474,6 +1484,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     if (!attachMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
+      // 授权/连接弹窗（ConnectTokenModal/CliAuthModal）现在 createPortal 到 document.body，不在
+      // 下面任何 ref 的子树内——靠 data-connector-auth-modal 识别“点的是弹窗内部”，跳过关闭（与
+      // ExtensionPickerPanel.tsx 的同款监听一致；bug 2026091001-001 portal 化后的回归修复）。
+      if ((event.target as HTMLElement | null)?.closest?.('[data-connector-auth-modal]')) return;
       if (
         !attachMenuRef.current?.contains(event.target as Node) &&
         !attachMenuPortalRef.current?.contains(event.target as Node) &&

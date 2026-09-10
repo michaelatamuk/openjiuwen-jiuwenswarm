@@ -17,6 +17,7 @@ import HeartbeatPanel from './components/HeartbeatPanel';
 import { ToolPanel } from './components/ToolPanel';
 import { UpdatePanel } from './components/UpdatePanel';
 import { ExternalCliInstallDialog, type ExternalCliInstallStatuses } from './components/ExternalCliInstallDialog';
+import { PersonalContextPanel } from './components/PersonalContext';
 import { SettingsPage } from './features/settings/SettingsPage';
 import type { SettingsPageDefinition } from './features/settings/registry/types';
 import type { SettingsRequest } from './features/settings/services/settingsContract';
@@ -34,7 +35,7 @@ import {
 } from './features/shareImageExport';
 import type { CodeReviewTarget } from './features/code-mode/types';
 
-import { FEATURE_APP_UPDATER_UI } from './featureFlags';
+import { FEATURE_APP_UPDATER_UI, FEATURE_PERSONAL_CONTEXT_UI } from './featureFlags';
 import {
   beginHistoryRestore,
   fetchHistoryPage,
@@ -64,12 +65,17 @@ import { processOAuthCallback } from './utils/gitcodeOAuth';
 import { useTeamPanelState } from './features/teamPanelState';
 import { useSingleAgentPanelState } from './features/singleAgentPanelState';
 import { AgentMode, MediaItem, UserAnswer, ModelEntry, type Session } from './types';
-import type {
-  ExternalCliAgentKind,
-  ExternalCliDependencyInstallStatus,
-  ExternalCliDetectResult,
-  ExternalCliPendingChoice,
+import {
+  EXTERNAL_CLI_AGENT_KINDS,
+  type ExternalCliAgentKind,
+  type ExternalCliDependencyInstallStatus,
+  type ExternalCliDetectResult,
+  type ExternalCliPendingChoice,
 } from './components/ExternalCliAgentsSection';
+import {
+  loadExternalCliPendingChoices,
+  persistExternalCliPendingChoices,
+} from './features/settings/modules/experimental/externalCliInstallState';
 import {
   ensureSessionRuntimes,
   useSessionStore,
@@ -330,16 +336,16 @@ function AppContent({
   const [externalCliInstallStatuses, setExternalCliInstallStatuses] = useState<ExternalCliInstallStatuses>({});
   const [hasVisitedAgents, setHasVisitedAgents] = useState(false);
   // Deferred CLI agent choices held here (not inside Settings) so they survive
-  // leaving/returning to the Settings page while a dependency install runs.
+  // leaving/returning to Settings and a full page refresh while an install runs.
   const [externalCliPendingChoices, setExternalCliPendingChoices] =
-    useState<Partial<Record<ExternalCliAgentKind, ExternalCliPendingChoice>>>({});
+    useState<Partial<Record<ExternalCliAgentKind, ExternalCliPendingChoice>>>(loadExternalCliPendingChoices);
   // Latest CLI detect results, also held at the App layer so returning to the
   // Settings page shows the previous status instead of flashing "not checked".
   const [externalCliDetectResults, setExternalCliDetectResults] =
     useState<Partial<Record<ExternalCliAgentKind, ExternalCliDetectResult>>>({});
   const [hasVisitedSkills, setHasVisitedSkills] = useState(false);
-  const [requestedSettingsModuleId, setRequestedSettingsModuleId] =
-    useState<SettingsModuleTarget | null>(null);
+  const [hasVisitedPersonalContext, setHasVisitedPersonalContext] = useState(false);
+  const [requestedSettingsModuleId, setRequestedSettingsModuleId] = useState<SettingsModuleTarget | null>(null);
   /** Chat-integrated Trajectory panel (right workspace slot), scoped to the current session */
   const [tracePanelOpen, setTracePanelOpen] = useState(false);
   const {
@@ -397,6 +403,12 @@ function AppContent({
 
   useEffect(() => {
     if (!FEATURE_APP_UPDATER_UI && activeNav === 'updatepanel') {
+      setActiveNav('chat');
+    }
+  }, [activeNav]);
+
+  useEffect(() => {
+    if (!FEATURE_PERSONAL_CONTEXT_UI && (activeNav === 'personalContext' || activeNav === 'personalContextSettings')) {
       setActiveNav('chat');
     }
   }, [activeNav]);
@@ -752,7 +764,7 @@ function AppContent({
   const prependMessages = useChatStore((s) => s.prependMessages);
   const isProcessing = useChatStore((s) => s.runtimes[sessionId]?.isProcessing ?? false);
   const isPaused = useChatStore((s) => s.runtimes[sessionId]?.isPaused ?? false);
-  const hasPendingQuestion = useChatStore((s) => Boolean(s.runtimes[sessionId]?.pendingQuestion));
+  const hasPendingQuestion = useChatStore((s) => Boolean(s.runtimes[sessionId]?.pendingQuestions[0]));
   const setProcessing = useChatStore((s) => s.setProcessing);
   const setThinking = useChatStore((s) => s.setThinking);
   const setLoadingHistory = useChatStore((s) => s.setLoadingHistory);
@@ -773,7 +785,12 @@ function AppContent({
     import.meta.env.MODE,
     typeof serverConfig?.runtime_platform === 'string' ? serverConfig.runtime_platform : undefined,
   );
-  const hiddenNavItems = getHiddenNavItemsForPlatform(frontendPlatform);
+  const hiddenNavItems = useMemo<MainNavKey[]>(() => {
+    const base = getHiddenNavItemsForPlatform(frontendPlatform);
+    if (FEATURE_PERSONAL_CONTEXT_UI) return base;
+    // feature 关闭时移除全部个人上下文入口
+    return [...base, 'personalContext', 'personalContextSettings'];
+  }, [frontendPlatform]);
 
   useEffect(() => {
     if (!serverConfig) {
@@ -1670,6 +1687,34 @@ function AppContent({
     [request],
   );
 
+  useEffect(() => {
+    persistExternalCliPendingChoices(externalCliPendingChoices);
+  }, [externalCliPendingChoices]);
+
+  useEffect(() => {
+    if (!isConnected) return undefined;
+    let cancelled = false;
+    const restoreInstallStatuses = async () => {
+      const results = await Promise.allSettled(
+        EXTERNAL_CLI_AGENT_KINDS.map(async (agent) => {
+          const status = await getExternalCliDependencyInstallStatus(agent);
+          return [agent, status] as const;
+        }),
+      );
+      if (cancelled) return;
+      const restored: ExternalCliInstallStatuses = {};
+      for (const result of results) {
+        if (result.status === 'fulfilled') restored[result.value[0]] = result.value[1];
+      }
+      if (Object.keys(restored).length === 0) return;
+      setExternalCliInstallStatuses((current) => ({ ...current, ...restored }));
+    };
+    void restoreInstallStatuses();
+    return () => {
+      cancelled = true;
+    };
+  }, [getExternalCliDependencyInstallStatus, isConnected]);
+
   const trackExternalCliDependencyInstalls = useCallback(
     (statuses: ExternalCliInstallStatuses) => {
       setExternalCliInstallStatuses(statuses);
@@ -2282,6 +2327,10 @@ function AppContent({
     // 开关打开，跟 initialInputValue 走的是同一条通道。
     options.initialEnabledPlugins?.forEach((id) => useSessionStore.getState().addEnabledPlugin(NEW_CONVERSATION_ID, id));
     options.initialEnabledMcps?.forEach((name) => useSessionStore.getState().addEnabledMcp(NEW_CONVERSATION_ID, name));
+    if (options.metadata) {
+      useSessionStore.getState().ensureRuntime(NEW_CONVERSATION_ID);
+      useSessionStore.getState().setSessionMetadata(NEW_CONVERSATION_ID, options.metadata);
+    }
     if (options.preserveProject) {
       preserveSelectedProjectOnChatNewRef.current = true;
       newConversationProjectRef.current = selectedProject
@@ -2620,8 +2669,10 @@ function AppContent({
 
   const handleUserAnswer = useCallback((requestId: string, answers: UserAnswer[], source?: string) => {
     const currentSessionId = sessionIdRef.current;
-    if (!currentSessionId || currentSessionId === NEW_CONVERSATION_ID) return;
-    void sendUserAnswer(currentSessionId, requestId, answers, source);
+    if (!currentSessionId || currentSessionId === NEW_CONVERSATION_ID) {
+      return Promise.resolve(false);
+    }
+    return sendUserAnswer(currentSessionId, requestId, answers, source);
   }, [sendUserAnswer]);
 
   const handleLoadMoreHistory = useCallback(async () => {
@@ -2827,7 +2878,7 @@ function AppContent({
   const handleDeleteConversation = useCallback(async () => {
     if (!deleteTarget) return;
     const runtime = useChatStore.getState().getRuntime(deleteTarget.session_id);
-    if (runtime?.isProcessing || runtime?.pendingQuestion) {
+    if (runtime?.isProcessing || runtime?.pendingQuestions[0]) {
       setDialogError(t('multiSession.deleteRunningDisabled'));
       return;
     }
@@ -2889,8 +2940,9 @@ function AppContent({
       }
       if (nav === 'agents') setHasVisitedAgents(true);
       if (nav === 'skills') setHasVisitedSkills(true);
+      if (nav === 'personalContext') setHasVisitedPersonalContext(true);
     },
-    [activeNav, isMobile, modelSetupGuideStep, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden, t],
+    [activeNav, isMobile, modelSetupGuideStep, setSingleAgentPanelExpanded, setHasVisitedPersonalContext, setRequestedSettingsModuleId, setTeamAreaExpanded, setToolPanelHidden, t],
   );
 
   const skipModelSetupGuide = useCallback(() => {
@@ -3247,6 +3299,7 @@ function AppContent({
         {hasVisitedAgents && (
           <div className={`app-section min-h-0 ${activeNav === 'agents' ? '' : 'is-hidden'}`}>
             <AgentManagementPanel
+              isActive={activeNav === 'agents'}
               onUseAgent={handleUseAgent}
               onUsePrompt={handleUseAgentPrompt}
               onCreateViaChat={() => requestSessionNavigation('new', {
@@ -3350,6 +3403,12 @@ function AppContent({
           </div>
         )}
 
+        {FEATURE_PERSONAL_CONTEXT_UI && hasVisitedPersonalContext && (
+          <div className={`app-section ${activeNav === 'personalContext' ? '' : 'is-hidden'}`}>
+            <PersonalContextPanel isConnected={isConnected} isActive={activeNav === 'personalContext'} />
+          </div>
+        )}
+
         {hasVisitedSkills && (
           <div className={`app-section ${activeNav === 'skills' ? '' : 'is-hidden'}`}>
             <SkillPanel
@@ -3377,8 +3436,13 @@ function AppContent({
                     metadata: { scene: 'create_plugin' },
                   },
                 }))}
-                onUseExample={(initialInputValue, mcpName) =>
-                  requestSessionNavigation('new', { initialInputValue, initialEnabledMcps: [mcpName], forceMode: 'agent' })
+                onUseExample={(initialInputValue, mcpName, displayName) =>
+                  requestSessionNavigation('new', {
+                    initialInputValue,
+                    initialEnabledMcps: [mcpName],
+                    forceMode: 'agent',
+                    metadata: { prefer_mcp: { id: mcpName, display_name: displayName ?? mcpName } },
+                  })
                 }
                 onUsePluginExample={(initialInputValue, pluginId) =>
                   requestSessionNavigation('new', { initialInputValue, initialEnabledPlugins: [pluginId], forceMode: 'agent' })
