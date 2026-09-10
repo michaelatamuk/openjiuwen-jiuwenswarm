@@ -1715,13 +1715,17 @@ async def test_skill_retrieval_prompt_clears_section_when_disabled(
     assert "残留技能检索提示" not in builder.build()
     assert [tool.name for tool in ctx.inputs.tools] == ["list_skill"]
 
-def test_resolve_skill_mode_accepts_all_and_auto_list(monkeypatch):
+def test_resolve_skill_mode_accepts_known_modes(monkeypatch):
     monkeypatch.setattr(
         "jiuwenswarm.server.runtime.agent_adapter.interface_deep.is_skill_retrieval_enabled",
         lambda *_args: False,
     )
     assert JiuWenSwarmDeepAdapter._resolve_skill_mode({"skill_mode": "all"}) == "all"
     assert JiuWenSwarmDeepAdapter._resolve_skill_mode({"skill_mode": "auto_list"}) == "auto_list"
+    assert (
+        JiuWenSwarmDeepAdapter._resolve_skill_mode({"skill_mode": "recommendation"})
+        == "recommendation"
+    )
     assert JiuWenSwarmDeepAdapter._resolve_skill_mode({"skill_mode": "invalid"}) == "all"
 
     monkeypatch.setattr(
@@ -1729,6 +1733,18 @@ def test_resolve_skill_mode_accepts_all_and_auto_list(monkeypatch):
         lambda *_args: True,
     )
     assert JiuWenSwarmDeepAdapter._resolve_skill_mode({"skill_mode": "all"}) == "auto_list"
+
+
+def test_resolve_oracle_dir_prefers_config_then_env(monkeypatch):
+    monkeypatch.setenv("JIUWENSWARM_ORACLE_DIR", "/env/oracle")
+    assert (
+        JiuWenSwarmDeepAdapter._resolve_oracle_dir({"oracle_dir": "/cfg/oracle"})
+        == "/cfg/oracle"
+    )
+    assert JiuWenSwarmDeepAdapter._resolve_oracle_dir({}) == "/env/oracle"
+
+    monkeypatch.delenv("JIUWENSWARM_ORACLE_DIR", raising=False)
+    assert JiuWenSwarmDeepAdapter._resolve_oracle_dir({}) is None
 
 
 def test_deep_adapter_skill_retrieval_prompt_uses_live_toolkit(monkeypatch, tmp_path):
