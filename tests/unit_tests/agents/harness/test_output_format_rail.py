@@ -81,6 +81,7 @@ def _make_adapter(config_base: dict) -> JiuWenSwarmDeepAdapter:
     adapter._filesystem_rail = None
     adapter._heartbeat_service = None
     adapter._skill_manager = None
+    adapter._is_cron_execution = False
     for attr in (
         "_skill_evolution_rail",
         "_skill_rail",
