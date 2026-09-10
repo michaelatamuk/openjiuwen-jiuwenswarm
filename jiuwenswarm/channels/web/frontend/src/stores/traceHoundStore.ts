@@ -34,6 +34,18 @@ export interface TraceHoundSessionItem {
   mode?: string;
 }
 
+export interface AgentActivity {
+  name: string;
+  role: 'leader' | 'member';
+  tool_calls: number;
+  tool_results: number;
+  tool_failures: number;
+  responses: number;
+  llm_calls: number;
+  tokens: number;
+  cost: number;
+}
+
 export interface TurnSummary {
   turn_id: string;
   turn_index: number;
@@ -60,6 +72,9 @@ export interface TurnSummary {
   mode: string | null;
   llm_call_count: number;
   event_count: number;
+  // Team attribution: which agents acted in this turn (leader first)
+  agents?: string[];
+  agent_activity?: AgentActivity[];
   // Detailed per-turn data
   assistant_responses?: string[];
   models_used?: string[];
@@ -99,6 +114,7 @@ export interface ToolCallDetail {
   name: string;
   arguments: string;
   tool_call_id: string;
+  agent?: string | null;
 }
 
 export interface ToolUpdateDetail {
@@ -106,15 +122,18 @@ export interface ToolUpdateDetail {
   tool_call_id: string;
   arguments: string;
   status: string;
+  agent?: string | null;
 }
 
 export interface ToolResultDetail {
   tool_name: string;
   tool_call_id: string;
   result: string;
+  failed?: boolean;
   error_type?: string | null;
   error_detail?: string | null;
   error?: string | null;
+  agent?: string | null;
 }
 
 export interface SessionStats {
@@ -158,12 +177,14 @@ export interface SessionAnalysis {
 
 export interface HistoryRecord {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'leader' | 'teammate';
   request_id: string;
   event_type: string | null;
   content: string;
   timestamp: number;
   mode: string | null;
+  /** Team-mode: which member produced this event (leader events carry none) */
+  member_name?: string;
   subagent_type?: string;
   sub_session_id?: string;
   tool_name?: string;
@@ -252,6 +273,8 @@ interface TraceHoundState {
   sessionStats: SessionStats | null;
   selectedTurnId: string | null;
   turnRecords: HistoryRecord[];
+  /** When a cross-link jumped into a turn, the record (by tool_call_id) to scroll to */
+  focusRecordId: string | null;
   loading: boolean;
   error: string | null;
 
@@ -262,7 +285,17 @@ interface TraceHoundState {
 
   loadSessions: () => Promise<void>;
   selectSession: (session: TraceHoundSessionItem) => Promise<void>;
+  /** Session-scoped entry for the chat's Trajectory panel — loads a session's
+   *  turns directly by id (skips the global session browser). */
+  openCurrentSession: (sessionId: string, title?: string, mode?: string | null) => Promise<void>;
+  /** Live-refresh the open session's turn list + stats, preserving the
+   *  selected turn (re-fetches its records only when its event_count grew). */
+  refreshTurns: (sessionId: string) => Promise<void>;
   selectTurn: (turnId: string) => Promise<void>;
+  /** Fetch + store a turn's records (shared by selectTurn and jumpToTurn). */
+  loadTurnDetail: (turnId: string) => Promise<void>;
+  /** Select a turn and request a scroll to the record matching `recordId`. */
+  jumpToTurn: (turnId: string, recordId?: string) => void;
   back: () => void;
   clearError: () => void;
   analyzeSession: () => Promise<void>;
@@ -277,6 +310,7 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
   sessionStats: null,
   selectedTurnId: null,
   turnRecords: [],
+  focusRecordId: null,
   loading: false,
   error: null,
 
@@ -352,6 +386,7 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
       sessionStats: null,
       selectedTurnId: null,
       turnRecords: [],
+      focusRecordId: null,
       analysis: cachedAnalysis,
       analyzeError: null,
     });
@@ -398,10 +433,56 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
     }
   },
 
+  openCurrentSession: async (sessionId, title, mode) => {
+    // Same flow as selectSession but with a minimal item constructed from the
+    // currently open chat session — no need to go through the session browser.
+    await get().selectSession({
+      session_id: sessionId,
+      title: title?.trim() || undefined,
+      mode: mode || undefined,
+    });
+  },
+
+  refreshTurns: async (sessionId) => {
+    const prevEventCount = new Map(get().turns.map(t => [t.turn_id, t.event_count]));
+    try {
+      const res = await webRequest<{ ok: boolean; turns: TurnSummary[]; session_stats: SessionStats }>(
+        'tracehound.turns.list',
+        { session_id: sessionId }
+      );
+      const turns = Array.isArray(res?.turns) ? res.turns : [];
+      const selectedTurnId = get().selectedTurnId;
+      const selected = selectedTurnId ? turns.find(t => t.turn_id === selectedTurnId) : undefined;
+      const selectedGrew = Boolean(
+        selectedTurnId && (selected?.event_count ?? 0) > (prevEventCount.get(selectedTurnId) ?? 0)
+      );
+      set({
+        turns,
+        sessionStats: res?.session_stats ?? get().sessionStats,
+        ...(selectedGrew ? { turnRecords: [] } : {}),
+      });
+      // Keep the detail view honest only when the selected turn actually grew —
+      // reuses selectTurn's turn.get path to refresh its records.
+      if (selectedGrew && selectedTurnId) {
+        await get().selectTurn(selectedTurnId);
+      }
+    } catch {
+      /* transient — next poll tick retries */
+    }
+  },
+
   selectTurn: async (turnId) => {
     const { selectedSessionId } = get();
     if (!selectedSessionId) return;
     set({ loading: true, error: null, selectedTurnId: turnId, turnRecords: [] });
+    set({ selectedTurnId: turnId, focusRecordId: null });
+    await get().loadTurnDetail(turnId);
+  },
+
+  loadTurnDetail: async (turnId) => {
+    const { selectedSessionId } = get();
+    if (!selectedSessionId) return;
+    set({ loading: true, error: null, turnRecords: [] });
     try {
       const res = await webRequest<{ ok: boolean; records: HistoryRecord[] }>(
         'tracehound.turn.get',
@@ -416,10 +497,15 @@ export const useTraceHoundStore = create<TraceHoundState>((set, get) => ({
     }
   },
 
+  jumpToTurn: (turnId, recordId) => {
+    set({ selectedTurnId: turnId, focusRecordId: recordId ?? null });
+    void get().loadTurnDetail(turnId);
+  },
+
   back: () => {
     const { selectedTurnId } = get();
     if (selectedTurnId) {
-      set({ selectedTurnId: null, turnRecords: [] });
+      set({ selectedTurnId: null, turnRecords: [], focusRecordId: null });
     } else {
       set({ selectedSessionId: null, selectedSession: null, turns: [], sessionStats: null, analysis: null, analyzeError: null });
     }

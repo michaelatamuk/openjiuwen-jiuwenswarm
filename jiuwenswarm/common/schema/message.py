@@ -408,6 +408,7 @@ class ReqMethod(Enum):
     TRACEHOUND_TURNS_LIST = "tracehound.turns.list"
     TRACEHOUND_TURN_GET = "tracehound.turn.get"
     TRACEHOUND_ANALYZE = "tracehound.analyze"
+    TRACEHOUND_SESSION_MTIME = "tracehound.session.mtime"
 
 
 class EventType(Enum):
