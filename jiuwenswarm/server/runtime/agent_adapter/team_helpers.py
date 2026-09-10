@@ -3872,10 +3872,14 @@ async def _consume_workflow_events(
     # Phase/agent dedup lives on the handler (session-scoped): this loop is
     # cancelled on team pause, and a resume relaunch replays the cached
     # prefix — a fresh per-loop table would re-emit the replay as new tasks.
-    seen_phase = workflow_handler.seen_phase
-    seen_agent = workflow_handler.seen_agent
-    spawned_members = workflow_handler.spawned_members
-    state = _WorkflowEventDedup()
+    state = _WorkflowEventDedup(
+        seen_phase=workflow_handler.seen_phase,
+        seen_agent=workflow_handler.seen_agent,
+        spawned_members=workflow_handler.spawned_members,
+        # Activity length is session-scoped too, so a replayed prefix does not
+        # re-announce already-seen worker activity after a consumer restart.
+        seen_activity=getattr(workflow_handler, "seen_activity", {}),
+    )
     seen_human_waiting: set[str] = set()
     try:
         logger.info(
