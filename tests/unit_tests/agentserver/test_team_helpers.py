@@ -6181,6 +6181,7 @@ def test_workflow_updated_to_team_events_activity_emits_activity_changed():
     out2 = team_helpers._workflow_updated_to_team_events(_wf_event(phases), "sess-wf", state)
     acts = [e for e in out2 if e["event"]["type"] == "team.member.activity_changed"]
     assert [a["event"]["activity"] for a in acts] == ["tool: bash"]
+    assert all(a["event"]["workflow_run_id"] == "run-1" for a in acts)
 
     # Same delta again -> no duplicate activity events.
     again = team_helpers._workflow_updated_to_team_events(_wf_event(phases), "sess-wf", state)
