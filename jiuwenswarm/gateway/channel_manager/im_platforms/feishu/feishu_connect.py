@@ -13,7 +13,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable
 
-import requests
+import aiohttp
 from pydantic import BaseModel, Field
 from jiuwenswarm.common.mode_matrix import is_team_mode
 from jiuwenswarm.common.schema.message import Message, ReqMethod, EventType
@@ -405,16 +405,16 @@ class FeishuChannel(BaseChannel):
         try:
             # 1. 获取 tenant_access_token
             token_url = f"{self.config.api_base}/open-apis/auth/v3/tenant_access_token/internal"
-            token_resp = await asyncio.to_thread(
-                requests.post,
-                token_url,
-                json={
-                    "app_id": self.config.app_id,
-                    "app_secret": self.config.app_secret,
-                },
-                timeout=10,
-            )
-            token_data = token_resp.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    token_url,
+                    json={
+                        "app_id": self.config.app_id,
+                        "app_secret": self.config.app_secret,
+                    },
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as token_resp:
+                    token_data = await token_resp.json()
             if token_data.get("code") != 0:
                 logger.warning(
                     "[_fetch_bot_open_id] 获取 tenant_access_token 失败: code=%s msg=%s",
@@ -429,13 +429,13 @@ class FeishuChannel(BaseChannel):
 
             # 2. 调用 bot/v3/info 获取机器人信息
             bot_info_url = f"{self.config.api_base}/open-apis/bot/v3/info"
-            bot_resp = await asyncio.to_thread(
-                requests.get,
-                bot_info_url,
-                headers={"Authorization": f"Bearer {tenant_access_token}"},
-                timeout=10,
-            )
-            bot_data = bot_resp.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    bot_info_url,
+                    headers={"Authorization": f"Bearer {tenant_access_token}"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as bot_resp:
+                    bot_data = await bot_resp.json()
             if bot_data.get("code") != 0:
                 logger.warning(
                     "[_fetch_bot_open_id] 获取机器人信息失败: code=%s msg=%s",
@@ -987,23 +987,24 @@ class FeishuChannel(BaseChannel):
             content=content[:500],
         )
         try:
-            resp = await asyncio.to_thread(
-                requests.post,
-                f"{api_base.rstrip('/')}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model_name,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": 80,
-                },
-                timeout=30,
-            )
-            resp.raise_for_status()
-            choices = resp.json().get("choices") or []
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{api_base.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.7,
+                        "max_tokens": 80,
+                    },
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    resp.raise_for_status()
+                    payload = await resp.json()
+            choices = payload.get("choices") or []
             if choices:
                 text = (choices[0].get("message") or {}).get("content", "").strip()
                 text = self._normalize_group_ack_text(target_name, text)

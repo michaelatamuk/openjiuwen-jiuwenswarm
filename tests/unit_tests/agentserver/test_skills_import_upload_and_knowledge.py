@@ -200,6 +200,7 @@ async def test_create_from_knowledge_file_routes_router(
     assert str(doc) in payload["followup_prompt"] or str(doc.resolve()) in payload["followup_prompt"]
 
 
+@pytest.mark.asyncio
 async def test_finalize_create_from_knowledge_installs(
     manager: SkillManager, tmp_path: Path
 ) -> None:
@@ -215,6 +216,7 @@ async def test_finalize_create_from_knowledge_installs(
     assert "---" in result["skill"]["content"]
 
 
+@pytest.mark.asyncio
 async def test_finalize_create_from_knowledge_new_this_run_no_conflict(
     manager: SkillManager, tmp_path: Path
 ) -> None:
@@ -233,6 +235,7 @@ async def test_finalize_create_from_knowledge_new_this_run_no_conflict(
     assert result["skill"]["name"] == "matplotlib_line_plot"
 
 
+@pytest.mark.asyncio
 async def test_finalize_create_from_knowledge_historical_rejects(
     manager: SkillManager, tmp_path: Path
 ) -> None:
