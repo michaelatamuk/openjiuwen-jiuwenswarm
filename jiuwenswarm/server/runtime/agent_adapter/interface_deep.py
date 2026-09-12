@@ -1089,6 +1089,16 @@ def _parse_float(value: Any, default: float) -> float:
         return default
 
 
+def _parse_float(value: Any, default: float) -> float:
+    """Parse float-like values safely, falling back to *default* on null/invalid."""
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_bool(value: Any, default: bool = False) -> bool:
     """Parse persisted YAML/API boolean values without truthiness surprises."""
     if isinstance(value, bool):
@@ -8856,6 +8866,19 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_failure_memory_rail",
                     self._build_failure_memory_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Context headroom guard: warn as context usage approaches the limit.
+        # Disabled by default — only inserted when enabled so the registry's
+        # "build returned None" warning is not spammed on every normal build.
+        _ch_cfg = config_base.get("context_headroom") or {}
+        if bool(_ch_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_context_headroom_rail",
+                    self._build_context_headroom_rail,
                     {"config_base": config_base},
                 )
             )
