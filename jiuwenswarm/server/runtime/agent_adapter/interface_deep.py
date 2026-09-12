@@ -8758,6 +8758,20 @@ class JiuWenSwarmDeepAdapter:
                 )
             )
 
+        # Tool-call deduplication: short-circuit identical repeat calls to
+        # deterministic tools and warn on repeated calls. Disabled by default —
+        # only inserted when enabled so the registry's "build returned None"
+        # warning is not spammed on every normal build.
+        _dedup_cfg = config_base.get("tool_dedup") or {}
+        if bool(_dedup_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_tool_call_deduplication_rail",
+                    self._build_tool_call_deduplication_rail,
+                    {"config_base": config_base},
+                )
+            )
+
         # SkillEvolutionRail 不在冷启动时挂载，由 _update_rails_for_mode 按 mode 按需注册/注销
         # 智能模式下关闭自演进，plan 模式下按配置启用
 
