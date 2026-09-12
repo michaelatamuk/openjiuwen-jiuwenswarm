@@ -15,7 +15,7 @@ import time
 from collections import OrderedDict
 from typing import Any, Callable
 
-import requests
+import aiohttp
 from pydantic import BaseModel, Field
 
 from jiuwenswarm.gateway.channel_manager.base import BaseChannel, ChannelMetadata, RobotMessageRouter
@@ -344,23 +344,24 @@ class WecomChannel(BaseChannel):
             content=content[:500],
         )
         try:
-            resp = await asyncio.to_thread(
-                requests.post,
-                f"{api_base.rstrip('/')}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model_name,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": 80,
-                },
-                timeout=30,
-            )
-            resp.raise_for_status()
-            choices = resp.json().get("choices") or []
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{api_base.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.7,
+                        "max_tokens": 80,
+                    },
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    resp.raise_for_status()
+                    payload = await resp.json()
+            choices = payload.get("choices") or []
             if choices:
                 text = (choices[0].get("message") or {}).get("content", "").strip()
                 text = self._normalize_group_ack_text(target_name, text)

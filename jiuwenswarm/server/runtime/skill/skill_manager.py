@@ -560,12 +560,16 @@ def _log_rejected_name(operation: str, label: str, value: Any, exc: ValueError) 
     )
 
 
-async def _safe_rmtree(path: Path) -> bool:
-    """安全地删除目录树，处理 Windows 上的 git 文件锁定问题."""
+def _safe_rmtree_sync(path: Path) -> bool:
+    """同步版安全删除目录树，处理 Windows 上的 git 文件锁定问题.
+
+    供同步方法（运行在 ``asyncio.to_thread`` 中）使用；异步路径请用 ``_safe_rmtree``.
+    """
     if not path.exists():
         return True
 
     import stat
+    import time
 
     max_retries = 3
     retry_delay = 0.2
@@ -608,17 +612,22 @@ async def _safe_rmtree(path: Path) -> bool:
                                     except PermissionError:
                                         pass  # 忽略文件删除失败
                                 # 小延迟
-                                await asyncio.sleep(0.01)
+                                time.sleep(0.01)
                             except OSError:
                                 pass  # 忽略权限修改失败
                 except Exception:
                     pass  # 忽略其他异常
 
             # 等待后重试
-            await asyncio.sleep(retry_delay)
+            time.sleep(retry_delay)
             retry_delay *= 2
 
     return False
+
+
+async def _safe_rmtree(path: Path) -> bool:
+    """安全地删除目录树，处理 Windows 上的 git 文件锁定问题（异步入口）."""
+    return await asyncio.to_thread(_safe_rmtree_sync, path)
 
 
 async def _handle_copy_error(
@@ -636,7 +645,7 @@ async def _handle_copy_error(
         dest: 目标路径
         logger_prefix: 日志前缀（用于区分不同操作）
         src: 源路径（可选，用于日志记录）
-cleanup_dest: 是否清理目标目录。新建半成品可清；覆盖已有 Skill 时必须为 False。
+        cleanup_dest: 是否清理目标目录。新建半成品可清；覆盖已有 Skill 时必须为 False。
     
     Returns:
         错误响应字典
@@ -4047,7 +4056,7 @@ class SkillManager:
                             "detail": "该技能已安装。",
                             "detail_key": "skills.skillNet.errors.skillAlreadyInstalled",
                         }
-                    shutil.rmtree(dest)
+                    _safe_rmtree_sync(dest)
 
                 shutil.copytree(skill_dir, dest)
                 for mirror_root in self._get_mirror_skills_dirs():
@@ -4055,10 +4064,10 @@ class SkillManager:
                     if mirror_dest.exists():
                         if not force:
                             continue
-                        shutil.rmtree(mirror_dest)
+                        _safe_rmtree_sync(mirror_dest)
                     mirror_root.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(skill_dir, mirror_dest)
-                shutil.rmtree(skill_dir)
+                _safe_rmtree_sync(skill_dir)
                 return {
                     "ok": True,
                     "skill_name": skill_name,
