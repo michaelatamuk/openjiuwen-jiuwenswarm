@@ -26,6 +26,9 @@ from jiuwenswarm.agents.harness.common.rails.context_headroom_rail import (
 from jiuwenswarm.server.runtime.agent_adapter.interface_deep import (
     JiuWenSwarmDeepAdapter,
 )
+from jiuwenswarm.server.runtime.agent_adapter.permission_runtime_state import (
+    SessionPermissionState,
+)
 
 
 def _run(coro):
@@ -92,6 +95,7 @@ def _make_adapter(config_base: dict) -> JiuWenSwarmDeepAdapter:
     adapter._skill_manager = None
     adapter._is_cron_execution = False
     adapter._parent_session_id = None
+    adapter._permission_state = SessionPermissionState()
     for attr in (
         "_skill_evolution_rail",
         "_skill_rail",
