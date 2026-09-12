@@ -81,8 +81,10 @@ from openjiuwen.harness.factory import (
 from openjiuwen.harness.image_modality_probe import get_cached_image_support
 from openjiuwen.harness.prompts import resolve_language
 from openjiuwen.harness.rails import (
+    BudgetNoticeRail,
     ModelAnomalyDetectionRail,
     SkillUseRail,
+    TaskCompletionRail,
     TaskPlanningRail,
     SecurityRail,
     SubagentRail,
