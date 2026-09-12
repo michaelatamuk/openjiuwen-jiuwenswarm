@@ -3794,6 +3794,7 @@ def _workflow_updated_to_team_events(
                                 "team_id": team_id,
                                 "member_id": member_id,
                                 "name": agent.get("name") or agent_id,
+                                "workflow_run_id": run_id,
                                 "activity": content[:120],
                             },
                         )
