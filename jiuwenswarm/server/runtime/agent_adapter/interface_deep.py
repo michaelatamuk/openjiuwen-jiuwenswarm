@@ -79,8 +79,10 @@ from openjiuwen.harness.factory import (
 from openjiuwen.harness.image_modality_probe import get_cached_image_support
 from openjiuwen.harness.prompts import resolve_language
 from openjiuwen.harness.rails import (
+    BudgetNoticeRail,
     ModelAnomalyDetectionRail,
     SkillUseRail,
+    TaskCompletionRail,
     TaskPlanningRail,
     SecurityRail,
     SubagentRail,
@@ -291,7 +293,6 @@ from jiuwenswarm.symphony.llm import (
     register_request_model,
 )
 
-from openjiuwen.harness.rails import BudgetNoticeRail, TaskCompletionRail
 from jiuwenswarm.common.config import get_model_names
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.common.log_preview import preview_text
