@@ -1,85 +1,87 @@
-# [Feature]: Iteration-budget awareness with automatic low-budget warnings
+# [Feature]: Task-loop budget awareness — automatic low-budget wind-down warnings (rounds, tokens, time)
 
 ## Executive Summary
 
-Agents on long tasks start large refactors or multi-step investigations late in the run and get abruptly terminated when the iteration counter expires, because no component read the current iteration and no prompt section told the agent how much budget remained. This feature adds a rail that warns the agent — via a system-prompt section — how many steps remain, so it prioritises finishing and produces a clean partial result instead of being silently cut off.
+Agents on long tasks run until a task-loop budget is exhausted and then stop abruptly, mid-work, with no chance to land a usable result. This feature makes the agent aware of its remaining budget: when the task loop is running low on rounds, tokens, or wall-clock time, a localized system-prompt notice tells the agent how much remains and to finish cleanly with a partial result and an explicit statement of what is left. The notice is produced by agent-core's generic `BudgetNoticeRail`, which reads the loop's actual budgets through `LoopCoordinator.budget_limits()`; jiuwenswarm mounts the rail and supplies the rounds budget.
 
 Issue #3548 https://github.com/openJiuwen-ai/jiuwenswarm/issues/3548<br>
 PR #368 https://github.com/openJiuwen-ai/jiuwenswarm/pull/368
 
 ## Background Description
 
-The ReAct agent loop iterates from `iteration = 0` to `react.max_iterations`, and the current iteration is tracked in session state (the `iteration` key written by `ContextProcessorRail`). But no component read that value and no prompt section communicated the remaining budget to the LLM, so the agent started new long work late in the run and died silently when the counter hit `max_iterations` — no graceful degradation, no chance to wrap up.
+DeepAgent's outer task loop is bounded by a set of stop-condition budgets — rounds, cumulative tokens, and wall-clock — evaluated by `LoopCoordinator`. When any budget is exhausted the loop ends immediately, whether or not the agent has finished, so the run can be cut off in the middle of a refactor or investigation.
 
 ```mermaid
 flowchart TD
-    classDef fail fill:#FFCDD2,color:#111,stroke:#C62828
+    classDef fail  fill:#FFCDD2,color:#111,stroke:#C62828
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    LOOP(["agent loop: iteration N<br/>of max_iterations"]):::plain
-    LOOP -->|"no awareness of remaining budget"| WORK["starts new long work<br/>even near the limit"]:::fail
-    WORK -->|"iteration counter reaches max"| CUT["silently cut off<br/>no partial result"]:::fail
+    LOOP(["task loop: rounds / tokens / time"]):::plain
+    LOOP -->|"budget exhausted mid-task"| CUT["loop stops abruptly<br/>no partial result"]:::fail
 ```
+
+jiuwenswarm mounts agent-core's `BudgetNoticeRail` on the agent and gives the outer task loop a real rounds budget, so the agent receives a wind-down notice before the budget is spent. This is the jiuwenswarm half of the fix; the rail and the loop-budget accessors live in agent-core.
 
 ## Design Ideas
 
 ### Proposed design
 
-- **`IterationBudgetRail`** — a `DeepAgentRail` (rail `priority=6`, just after `RuntimePromptRail` at 5) that fires on `before_model_call` every turn.
-- **Read + compute** — reads the current iteration from `ctx.session.get_state("iteration")`, computes `remaining = max_iterations - iteration`.
-- **Conditional injection** — when `remaining <= budget_warning_threshold`, injects `PromptSection(name="iteration_budget_warning", priority=96)` telling the agent how many iterations remain, to prioritise finishing, not to start new long subtasks, and to produce the best partial result with a clear statement of what remains.
-- **Cleanup** — removes the section when not near the limit, and clears any stale warning on `before_invoke` to prevent bleed-through across invocations.
-- **Config** — reads `max_iterations` (default 100) and `budget_warning_threshold` (default 10) from the mode config.
+- **Mount agent-core's `BudgetNoticeRail`** — `interface_deep._build_budget_notice_rail(config)` builds the rail and the existing `_RailBuildInfo` table attaches it as `_budget_notice_rail`.
+- **Give the loop a real rounds budget** — jiuwenswarm adds `TaskCompletionRail(max_rounds=react.max_iterations)` to the rail list, so the outer loop is genuinely capped at `max_iterations` and `LoopCoordinator.budget_limits()` exposes that limit.
+- **Single source of truth** — the rail reads the loop's limits (`budget_limits()`) and current usage; jiuwenswarm does not carry a parallel copy of the budget inside the rail.
+- **Host threshold** — `react.budget_warning_threshold` maps to the rail's absolute remaining-rounds threshold (default 10). Token/time budgets warn when configured on the loop.
+- **Localized notice** — the prompt section text (cn/en) comes from agent-core's `budget_notice` section; jiuwenswarm only passes the language.
 
 ```mermaid
 flowchart TD
-    classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
+    classDef ok   fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    LOOP(["agent loop: iteration N<br/>of max_iterations"]):::plain
-    LOOP -->|"remaining = max_iterations - N"| RAIL["IterationBudgetRail<br/>reads iteration state"]:::ok
-    RAIL -->|"remaining <= threshold"| WARN["injects budget warning<br/>into system prompt"]:::ok
-    WARN -->|"agent sees how much is left"| RESULT["finishes current work<br/>clean partial result"]:::done
+    LOOP(["task loop"]):::plain
+    LOOP -->|"budget_limits() + usage"| RAIL["BudgetNoticeRail<br/>reads the loop's budgets"]:::ok
+    RAIL -->|"remaining <= threshold"| WARN["injects budget_notice section (cn/en)"]:::ok
+    WARN -->|"agent sees remaining budget"| RESULT(["finishes current work<br/>clean partial result"]):::done
 ```
+
+### Rejected alternatives
+
+- **Implement the rail in jiuwenswarm** — the capability is generic and provided by agent-core; a host copy would duplicate it and drift.
+- **Let the rail carry its own `max_iterations`** — a parallel copy of the budget can desynchronise from the limit that actually stops the loop.
+- **Warn without configuring a loop budget** — the rail reads the loop's real budgets, so there would be nothing to warn about; the rounds cap must be configured on the loop.
+- **One rail per resource** — three sections competing for one prompt slot, with duplicated lifecycle and no benefit.
 
 ## Involved Public APIs
 
-New class (public addition):
-
 | API | Kind |
 |---|---|
-| `IterationBudgetRail` | new class (`DeepAgentRail`) |
+| `_build_budget_notice_rail(config)` | adapter builder (mounts agent-core `BudgetNoticeRail`) |
+| `_budget_notice_rail` | rail registration attribute in `_build_agent_rails` |
+| Config (`react`) | `max_iterations` — outer task-loop rounds cap (single source of truth) |
+| Config (`react`) | `budget_warning_threshold` — remaining rounds at which to warn (default 10) |
 
-Config additions (under the mode config / `react`):
-
-| Field | Type | Default |
-|---|---|---|
-| `max_iterations` | int | `100` |
-| `budget_warning_threshold` | int | `10` |
-
-**Impact:** additive. No existing rail, prompt, or config contract changes. The rail reads existing session state (`iteration`) and only changes the system prompt when near the limit.
+**Impact:** additive to the agent's rail set; the user-facing config keys and defaults are preserved. Requires the agent-core `BudgetNoticeRail` feature (agent-core issue #1348).
 
 ## Description of Relevance to Other Modules
 
-- **`jiuwenswarm/agents/harness/common/rails/iteration_budget_rail.py`** — the new rail itself.
-- **`jiuwenswarm/server/runtime/agent_adapter/interface_deep.py`** — `_build_iteration_budget_rail()` builds and attaches the rail with `max_iterations`/`budget_warning_threshold` read from mode config.
-- **`ContextProcessorRail`** — the existing writer of the `iteration` session-state key this rail reads; no change to it.
+- **`jiuwenswarm/server/runtime/agent_adapter/interface_deep.py`** — builds/mounts the rail and supplies the loop rounds budget.
+- **`jiuwenswarm/resources/config.yaml`** — `react.max_iterations` / `react.budget_warning_threshold`.
+- **agent-core** — provides `BudgetNoticeRail`, the localized `budget_notice` section, and `LoopCoordinator.budget_limits()`.
 
 ## Test Design and Test Plan
 
-Unit/integration tests:
+Unit tests (`tests/unit_tests/agents/harness/test_budget_notice_rail.py`):
 
-1. **Above threshold** — when `remaining > threshold`, no section is injected (and any stale section is removed).
-2. **At/below threshold** — when `remaining <= threshold`, `PromptSection(name="iteration_budget_warning", priority=96)` is injected with the expected warning text (used/total/remaining + finish guidance).
-3. **Boundary** — `remaining == threshold` injects; `remaining == threshold + 1` does not.
-4. **Missing state** — when `iteration` is absent from session state, the rail does nothing.
-5. **Cleanup** — `before_invoke` removes a stale warning so it never bleeds into the next invocation.
-6. **`uninit`** — the section is removed on teardown.
+1. **Default threshold** — empty config → 10 remaining rounds.
+2. **Loose parsing** — null / empty / non-integer `budget_warning_threshold` falls back, never crashes.
+3. **Explicit threshold** — `budget_warning_threshold: 5` is honored.
+4. **Single source of truth** — with `max_iterations` absent from the rail config, the rail warns based on the loop's real rounds limit (loop built with `MaxRoundsEvaluator`) and clears when the budget is healthy.
 
 Performance/reliability:
 
-- **No overhead far from the limit** — the rail only mutates the prompt when near the threshold; otherwise it just removes a no-op section.
+- Passive rail: no extra model calls, no blocking I/O, no evaluator mutation.
 
 ## Additional Information
+
+Depends on the agent-core feature: `BudgetNoticeRail` + `LoopCoordinator.budget_limits()` (agent-core issue #1348 / PR #1349).
 
 ## Solution
 
@@ -92,120 +94,57 @@ Paired: [GitHub #368](https://github.com/openJiuwen-ai/jiuwenswarm/pull/368) ↔
 
 ## **What does this PR do / why do we need it**
 
-This PR adds **Iteration Budget Awareness** to the ReAct agent loop.
-When the agent is running low on iterations, it now receives a clear warning in its system prompt telling it:
-
-- exactly how many steps remain
-- to prioritise finishing current work
-- to produce the best partial result possible
-- to explicitly state remaining TODOs
-
-This prevents the agent from being **silently cut off** mid-refactor or mid-investigation.
-
-Issue #3548
-
----
-
-## **Problem**
-
-Agents working on long tasks often start large refactors or multi-step investigations late in the run — e.g., iteration 145 out of 150 — and then get terminated abruptly when the iteration counter expires.
-
-The agent had **no awareness** of how much "time" it had left.
-No graceful degradation.
-No opportunity to wrap up.
-
-The ReActAgent loop iterates from:
-
-```
-iteration = 0 … react.max_iterations
-```
-
-The current iteration is tracked in session state (`iteration` key written by ContextProcessorRail).
-However:
-
-- **No component** read this value
-- **No prompt section** communicated remaining budget to the LLM
-- The agent simply died when the counter hit max_iterations
-
----
-
-## **Solution**
-
-The agent now sees a **visible iteration-budget warning** when it is running low.
-The warning tells it:
-
-- how many steps remain
-- to wrap up ongoing work
-- to produce a final partial result
-- to clearly list remaining tasks
-
-This gives the agent a chance to land gracefully.
+This PR adds **task-loop budget awareness** to the agent. The agent now receives a localized system-prompt notice when the task loop is running low on rounds, tokens, or wall-clock time, telling it how much remains and to finish with the best partial result and an explicit statement of what is left.
 
 ```mermaid
 flowchart TD
-    classDef ok fill:#BBDEFB,color:#111,stroke:#1565C0
+    classDef ok   fill:#BBDEFB,color:#111,stroke:#1565C0
     classDef done fill:#C8E6C9,color:#111,stroke:#2E7D32
     classDef plain fill:#ECEFF1,color:#111,stroke:#607D8B
-    LOOP(["agent loop: iteration N<br/>of max_iterations"]):::plain
-    LOOP -->|"remaining = max_iterations - N"| RAIL["IterationBudgetRail<br/>reads iteration state"]:::ok
-    RAIL -->|"remaining <= threshold"| WARN["injects budget warning<br/>into system prompt"]:::ok
-    WARN -->|"agent sees how much is left"| RESULT["finishes current work<br/>clean partial result"]:::done
+    LOOP(["task loop"]):::plain
+    LOOP -->|"budget_limits() + usage"| RAIL["BudgetNoticeRail<br/>reads the loop's budgets"]:::ok
+    RAIL -->|"remaining <= threshold"| WARN["injects budget_notice section (cn/en)"]:::ok
+    WARN -->|"agent sees remaining budget"| RESULT(["finishes current work<br/>clean partial result"]):::done
 ```
 
-A new **IterationBudgetRail** (priority 6) fires on **before_model_call** every turn.
-
-It:
-
-1. Reads the current iteration from `ctx.session.get_state("iteration")`
-2. Computes:
-
-```
-remaining = max_iterations - iteration
-```
-
-3. If `remaining ≤ budget_warning_threshold`, injects:
-
-```
-PromptSection(
-    priority=96,
-    name="iteration_budget_warning",
-    content="You are running low on iterations…"
-)
-```
-
-4. Removes the section when not near the limit
-5. Removes stale warnings on every **before_invoke** to prevent bleed-through across invocations
+The notice is injected by agent-core's `BudgetNoticeRail`, which reads the loop's actual budgets (`LoopCoordinator.budget_limits()`). jiuwenswarm mounts the rail and gives the outer task loop a real rounds budget (`TaskCompletionRail(max_rounds=react.max_iterations)`), so the cap is enforced and the rail has a limit to report.
 
 ### **Configuration**
 
-Added to the `react:` config section:
+`react.max_iterations` (outer task-loop rounds cap) and `react.budget_warning_threshold` (remaining rounds at which to warn, default 10) in `config.yaml`.
 
-```
-budget_warning_threshold: 10   # default
-```
+### **Why this matters**
 
-SkillsBench sets:
-
-```
-budget_warning_threshold: 15   # 10% of its 150-iteration budget
-```
+- **Graceful landing** — the agent finishes with a usable partial result instead of being cut off.
+- **All budgets covered** — rounds, tokens, time (whatever the loop enforces), not just one.
+- **Single source of truth** — the warning reads the loop's real limits; no parallel host copy.
+- **Low cost** — passive rail: no extra model calls, no blocking I/O, no overhead far from the limit.
 
 ---
 
-## **Expected Impact**
+## **Which issue(s) this PR fixes**
 
-- Agents no longer get cut off mid-work
-- Better final outputs when near iteration limits
-- Clear partial results instead of silent termination
-- Improved benchmark stability for long-running tasks
-- No behavior change when far from the limit
+Fixes #3548
+
+---
+
+## **What scenarios were tested, and what were the verification results（Function, performance, reliability, etc.）**
+
+### **Functional verification**
+- Empty/null/non-integer `budget_warning_threshold` → default 10 remaining rounds.
+- Explicit `budget_warning_threshold` honored.
+- Rail warns based on the loop's real rounds budget and clears when the budget is healthy.
+- Localized notice renders in the agent's prompt language.
+
+### **Performance & reliability**
+- No behavior change far from the limit; no extra model calls or blocking I/O.
 
 ---
 
 ## **Self-checklist**
 
-- [x] **Design**: Reviewed with maintainers
-- [x] **Test**: Verified warning injection/removal across multiple rails
-- [x] **Verification**: Confirmed correct behavior at thresholds and boundaries
-- [ ] **Interface**: No external API changes
-- [x] **Document**: Added bilingual documentation for iteration budget warnings
+- [x] **Design**: Mounts the generic agent-core rail and configures the loop budget
+- [x] **Test**: Builder mapping + single-source-of-truth tests
+- [x] **Verification**: Default/loose/explicit threshold and healthy-path clearing
+- [x] **Interface**: User config keys preserved
+- [x] **Document**: Config comments updated
