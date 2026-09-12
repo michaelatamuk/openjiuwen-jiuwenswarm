@@ -272,7 +272,7 @@ Agent Team 模式内置**团队验证层**，在 Leader 汇总结果之前自动
 ```yaml
 team:
   verification:
-    enabled: true
+    enabled: false
     pass_threshold: 70
     rework_threshold: 40
     block_on_fail: false
