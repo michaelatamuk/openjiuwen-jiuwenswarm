@@ -8846,6 +8846,20 @@ class JiuWenSwarmDeepAdapter:
                 )
             )
 
+        # Failure-pattern memory: record failed approaches in session state and
+        # surface them in the system prompt. Disabled by default — only inserted
+        # when enabled so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _fm_cfg = config_base.get("failure_memory") or {}
+        if bool(_fm_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_failure_memory_rail",
+                    self._build_failure_memory_rail,
+                    {"config_base": config_base},
+                )
+            )
+
         # SkillEvolutionRail 不在冷启动时挂载，由 _update_rails_for_mode 按 mode 按需注册/注销
         # 智能模式下关闭自演进，plan 模式下按配置启用
 
