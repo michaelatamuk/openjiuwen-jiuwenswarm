@@ -308,9 +308,9 @@ class TeamMonitorHandler(BaseMonitorHandler):
                 base.update(content_field)
         return base
 
-    async def _handle_task_unblocked(self, base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
+    async def _handle_task_completed(self, base: dict[str, Any], event: MonitorEvent) -> dict[str, Any]:
         # task_id and status already set by _handle_task; this method only
-        # adds the verification side-effect for TASK_UNBLOCKED events.
+        # adds the verification side-effect for TASK_COMPLETED events.
 
         # Trigger verification if the verification rail is configured
         if self._verification_rail is not None:
@@ -438,8 +438,8 @@ class TeamMonitorHandler(BaseMonitorHandler):
         # dedicated handlers because they carry distinct fields.
         if event_category == TeamEventCategory.TASK:
             event_data = await self._handle_task(event_data, event)
-            if event.event_type == MonitorEventType.TASK_UNBLOCKED:
-                event_data = await self._handle_task_unblocked(event_data, event)
+            if event.event_type == MonitorEventType.TASK_COMPLETED:
+                event_data = await self._handle_task_completed(event_data, event)
         else:
             non_task_handlers = {
                 MonitorEventType.MEMBER_SPAWNED: self._handle_member_spawned,

@@ -360,14 +360,12 @@ def build_member_rails(
             team_name = (team_workspace.team_id or "jiuwen_team").strip()
             team_cfg = (config or {}).get("modes", {}).get("team", {}).get(team_name, {}) or {}
             verification_cfg = team_cfg.get("verification", {}) or {}
-            verification_enabled = bool(verification_cfg.get("enabled", True))
+            verification_enabled = bool(verification_cfg.get("enabled", False))
             if verification_enabled:
                 skip_patterns = set()
                 raw_patterns = verification_cfg.get("skip_patterns", [])
                 if isinstance(raw_patterns, list):
                     skip_patterns = {str(p).lower() for p in raw_patterns if isinstance(p, str)}
-
-                model_section = verification_cfg.get("model", None)
 
                 verification_rail = TeamVerificationRail(
                     team_workspace_root=team_ws_root,

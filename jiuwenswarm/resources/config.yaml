@@ -1606,7 +1606,7 @@ modes:
       # ============================================================
       verification:
         # 总开关；关闭后不创建 TeamVerificationRail，Leader 不验证
-        enabled: true
+        enabled: false
 
         # fail 时阻止 Leader consolidation
         block_on_fail: false
