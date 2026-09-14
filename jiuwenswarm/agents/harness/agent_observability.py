@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from typing import Any
 
@@ -64,6 +65,13 @@ _agent_observability_active: bool = False
 # unless force was ever used.
 _force_ever_enabled: bool = False
 
+# Serializes the two flags above and the runtime toggle they guard. Callers hand
+# this module's entry points to a worker thread so a trajectory-runtime restart
+# never blocks the event loop, which means the single-threaded ordering they used
+# to rely on is no longer implied. Reentrant because the sync path calls the
+# shutdown path.
+_state_lock = threading.RLock()
+
 # Session-id → open root span fallback table (see ``open_agent_run_span``). The
 # agent and its sub-agents run in a different asyncio task than the request
 # handler, so ContextVars do not reach them; this table lets a sub-agent's
@@ -94,6 +102,12 @@ def sync_agent_observability(*, force: bool = False) -> None:
     requests; the normal config hot-reload teardown is unchanged when evolution
     is disabled.
     """
+    with _state_lock:
+        _sync_agent_observability_locked(force=force)
+
+
+def _sync_agent_observability_locked(*, force: bool) -> None:
+    """Apply one observability sync with ``_state_lock`` already held."""
     global _agent_observability_active, _force_ever_enabled
 
     config = get_config()
@@ -166,19 +180,20 @@ def sync_agent_observability(*, force: bool = False) -> None:
 def shutdown_agent_observability() -> None:
     """Shutdown single-agent observability (on disable or process exit)."""
     global _agent_observability_active
-    try:
-        if not shutdown_trajectory_runtime(demand="agent"):
-            logger.warning("[AgentObservability] trajectory runtime did not drain cleanly")
-    except Exception as exc:
-        logger.warning("[AgentObservability] trajectory runtime shutdown failed: %s", exc)
-    if not _agent_observability_active:
-        return
-    try:
-        release_observability()
-        _agent_observability_active = False
-        logger.info("[AgentObservability] disabled")
-    except Exception as exc:
-        logger.warning("[AgentObservability] shutdown failed: %s", exc)
+    with _state_lock:
+        try:
+            if not shutdown_trajectory_runtime(demand="agent"):
+                logger.warning("[AgentObservability] trajectory runtime did not drain cleanly")
+        except Exception as exc:
+            logger.warning("[AgentObservability] trajectory runtime shutdown failed: %s", exc)
+        if not _agent_observability_active:
+            return
+        try:
+            release_observability()
+            _agent_observability_active = False
+            logger.info("[AgentObservability] disabled")
+        except Exception as exc:
+            logger.warning("[AgentObservability] shutdown failed: %s", exc)
 
 
 # ── Per-run root span ───────────────────────────────────────────
