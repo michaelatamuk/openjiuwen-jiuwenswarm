@@ -484,7 +484,7 @@ Generally, from highest to lowest: **values you save in the web Configuration UI
 
 ## 11. Shell Command Output Limits
 
-The `shell_output` section controls how much command output is returned to the model after running a shell command (via `BashTool` or `mcp_exec_command`). This prevents large output from flooding the context window while ensuring that error messages at the **end** of output (e.g. pytest failure details) are always visible.
+The `shell_output` section controls how much output the jiuwenswarm `mcp_exec_command` tool returns to the model. The openjiuwen `BashTool` / `PowerShellTool` (agent-core) own their own large-output truncation and take `max_output_chars` / `head_ratio` as per-call inputs with the same head+tail behavior. Both ensure error messages at the **end** of output (e.g. pytest failure details) stay visible instead of being cut off.
 
 ### 11.1 Config keys
 
@@ -507,7 +507,7 @@ When output exceeds `max_chars`, a **head+tail** view is returned:
 
 With the default ratio of `0.6`, 60 % of the budget goes to the head (setup/context lines) and 40 % to the tail (where errors and final status appear). This is intentionally tail-heavy compared to a simple 80/20 split because tool failures and test assertions always appear last.
 
-For `BashTool` specifically: when the underlying engine persists very large output to a temp file (its internal limit is also 20 000 chars by default), jiuwenswarm reads the persisted file and applies the head+tail view inline, with a note pointing to the full file for reference.
+`BashTool` / `PowerShellTool` are openjiuwen (agent-core) tools: they persist very large output to a temp file and render the head+tail preview themselves (their internal limit is also 20 000 chars by default), noting the full file for reference. `shell_output` does not affect them; pass `max_output_chars` / `head_ratio` as tool inputs to tune a single call.
 
 ### 11.3 Example — tighter limit for bandwidth-constrained deployments
 
