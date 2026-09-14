@@ -1795,8 +1795,7 @@ def get_all_sessions_metadata(
         from jiuwenswarm.server.runtime.session.lifecycle import visible, projection, project_id_for
         if visible(metadata):
             metadata.update(projection("session", session_id, project_id=project_id_for(metadata)))
-            sessions.append(metadata)
-        # 如果 metadata 中的 round_id / total_tokens 为 0，尝试从 history 文件轻量扫描补充
+            # 如果 metadata 中的 round_id / total_tokens 为 0，尝试从 history 文件轻量扫描补充
         if metadata.get("round_id", 0) == 0 or metadata.get("total_tokens", 0) == 0:
             try:
                 from jiuwenswarm.server.runtime.session.session_history import get_session_history_stats
