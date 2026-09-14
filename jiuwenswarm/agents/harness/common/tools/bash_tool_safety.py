@@ -5,10 +5,6 @@
 The agent's primary shell tool is ``bash`` (openjiuwen ``BashTool``), not
 ``mcp_exec_command``.  Safety checks in ``command_tools`` only affect the latter
 unless we hook the harness tools here.
-
-Large-output truncation is owned by the openjiuwen shell tools themselves
-(``render_tool_content`` / ``truncate_output``), so this module only installs the
-jiuwenswarm-specific pre-execution safety policy.
 """
 
 from __future__ import annotations
