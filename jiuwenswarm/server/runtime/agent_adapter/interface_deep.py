@@ -1771,6 +1771,7 @@ class JiuWenSwarmDeepAdapter:
         self._mcp_prewarm_task: asyncio.Task | None = None
         self._model_anomaly_detection_rail: ModelAnomalyDetectionRail | None = None
         self._heartbeat_rail: HeartbeatRail | None = None
+        self._budget_notice_rail: BudgetNoticeRail | None = None
         self._heartbeat_service: Any | None = None
         self._skill_evolution_rail: SkillEvolutionRail | None = None
         self._evolution_interrupt_rail: EvolutionInterruptRail | None = None
