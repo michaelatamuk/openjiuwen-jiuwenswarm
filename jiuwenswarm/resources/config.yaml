@@ -796,11 +796,12 @@ verification:
 # ============================================================
 # Shell command output limits
 # ============================================================
-# Applies to the jiuwenswarm mcp_exec_command tool. The openjiuwen
-# BashTool / PowerShellTool own their large-output truncation and take
-# max_output_chars / head_ratio as per-call inputs.
-# max_chars: max total characters returned to the model.
-#   0 = no limit; default 20000 (~200 lines).
+# Applies to both the jiuwenswarm mcp_exec_command tool and, via the
+# BASH_TOOL_* / POWER_SHELL_TOOL_* environment variables exported at
+# startup, the openjiuwen BashTool / PowerShellTool (agent-core).
+# max_chars: max total characters returned to the model per command.
+#   0 = no limit; default 20000 (~200 lines). For BashTool / PowerShellTool
+#   this is a ceiling on their own per-call max_output_chars.
 # head_ratio: fraction of the budget kept from the beginning of output
 #   (the remainder is kept from the end / tail).
 #   Default 0.6 (60% head, 40% tail). Errors appear at the end, so a
