@@ -1,0 +1,497 @@
+{
+  "_doc": "JiuwenSwarm end-state config examples. JSON mirror of jiuwenswarm-pluggability-config-example.md (companion to jiuwenswarm-pluggability-rewrite.md).",
+  "_exprSyntax": "{{ ... }} is evaluated in a restricted namespace (env, home, cwd, platform, config) at row activation; honored only under config, enabled, disabled, when. All other metadata is literal.",
+  "rowModel": {
+    "id": "stable id; later patch layers target it",
+    "type": "plugin type = entry-point name or built-in id",
+    "config": "object validated by the plugin's Config model",
+    "enabled": "optional expression; default true",
+    "disabled": "alias of enabled: false",
+    "when": "optional precondition expression",
+    "inject": ["optional explicit service dependency list (usually declared in the plugin)"],
+    "group": "true when this row's config is a nested entry list",
+    "isolate": "{ service: true | \"label\" } subtree service realm",
+    "intercept": "{ service: config } subtree service config",
+    "insert": ["patch: add rows (top-level or into a group)"]
+  },
+  "precedence": [
+    "in-box bundle",
+    "distribution bundle",
+    "user harness.yaml",
+    "--patch overlays"
+  ],
+  "precedenceNote": "Per id, last layer wins; a patch replaces the row's whole config unless it uses insert.",
+
+  "discovery": {
+    "agent-tools/pyproject.toml": {
+      "project": {
+        "name": "agent-tools",
+        "version": "1.0.0",
+        "requires-python": ">=3.11",
+        "dependencies": ["openjiuwen>=2"]
+      },
+      "project.optional-dependencies": {
+        "web": ["httpx", "trafilatura"],
+        "feishu": ["lark-oapi"],
+        "otel": ["opentelemetry-sdk", "opentelemetry-exporter-otlp"],
+        "redis": ["redis"],
+        "vector": ["numpy"]
+      },
+      "project.entry-points.\"openjiuwen.plugins\"": {
+        "llm": "agent_tools.llm:plugin",
+        "llm_deepseek": "agent_tools.llm.deepseek:plugin",
+        "llm_retry": "agent_tools.llm.retry:plugin",
+        "memory": "agent_tools.memory:plugin",
+        "retrieval": "agent_tools.retrieval:plugin",
+        "mcp": "agent_tools.mcp:plugin",
+        "skill": "agent_tools.skill:plugin",
+        "marketplace": "agent_tools.marketplace:plugin",
+        "channel_web": "agent_tools.channels.web:plugin",
+        "channel_feishu": "agent_tools.channels.feishu:plugin",
+        "observability_otel": "agent_tools.observability.otel:plugin"
+      },
+      "project.entry-points.\"openjiuwen.rail\"": {
+        "budget_notice": "agent_tools.rails.budget_notice:BudgetNoticeRail",
+        "task_planning": "agent_tools.rails.task_planning:TaskPlanningRail",
+        "lsp": "agent_tools.rails.lsp:LspRail"
+      },
+      "project.entry-points.\"openjiuwen.tool\"": {
+        "bash": "agent_tools.tools.shell:BashTool",
+        "web": "agent_tools.tools.web:WebTool",
+        "skill": "agent_tools.tools.skill:SkillTool"
+      },
+      "project.entry-points.\"openjiuwen.subagent\"": {
+        "explore": "agent_tools.subagents.explore:build_explore",
+        "code": "agent_tools.subagents.code:build_code"
+      }
+    },
+
+    "agent_tools/llm/deepseek/plugin.toml": {
+      "plugin": {
+        "id": "agent-tools.llm.deepseek",
+        "version": "1.0.0",
+        "api": "1",
+        "description": "DeepSeek chat-completions provider for ctx.llm",
+        "provides": ["llm.deepseek"],
+        "requires": ["llm>=1", "credentials>=1", "settings>=1"]
+      },
+      "config": {
+        "apiKeyEnv": { "type": "string", "default": "DEEPSEEK_API_KEY" },
+        "baseUrl": { "type": "string", "default": "https://api.deepseek.com" },
+        "model": { "type": "string", "default": "deepseek-chat" }
+      }
+    },
+
+    "agent_tools/channels/feishu/plugin.toml": {
+      "plugin": {
+        "id": "agent-tools.channels.feishu",
+        "version": "1.0.0",
+        "api": "1",
+        "description": "Feishu/Lark channel",
+        "provides": ["channel.feishu"],
+        "requires": ["gateway>=1", "session>=1"]
+      },
+      "config": {
+        "appId": { "type": "string" },
+        "appSecret": { "type": "string", "secret": true }
+      }
+    }
+  },
+
+  "hostPlane": {
+    "jiuwenswarm/resources/harness.default.yaml": [
+      { "id": "kernel", "type": "openjiuwen.kernel" },
+      { "id": "llm", "type": "openjiuwen.llm" },
+      {
+        "id": "llm-deepseek",
+        "type": "agent-tools.llm.deepseek",
+        "config": {
+          "apiKeyEnv": "DEEPSEEK_API_KEY",
+          "baseUrl": "{{env.DEEPSEEK_BASE_URL}}",
+          "model": "{{env.JIUWENSWARM_MODEL || deepseek-chat}}"
+        }
+      },
+      {
+        "id": "llm-retry",
+        "type": "agent-tools.llm.retry",
+        "config": { "maxAttempts": 5, "baseDelayMs": 500 }
+      },
+      {
+        "id": "settings",
+        "type": "agent-tools.settings.file",
+        "config": { "path": "{{home}}/settings.yaml" }
+      },
+      { "id": "credentials", "type": "agent-tools.credentials.local" },
+      {
+        "id": "storage",
+        "type": "agent-tools.storage.json",
+        "config": { "root": "{{home}}/storages" }
+      },
+      {
+        "id": "session-store",
+        "type": "agent-tools.session.jsonl",
+        "config": { "root": "{{home}}/sessions" }
+      },
+      {
+        "id": "session-query",
+        "type": "agent-tools.session.query-sqlite",
+        "config": { "path": ":memory:", "openAt": "never" }
+      },
+      {
+        "id": "observability-otel",
+        "type": "agent-tools.observability.otel",
+        "enabled": "{{env.JIUWENSWARM_TELEMETRY_DISABLED == ''}}",
+        "config": {
+          "mode": "{{env.JIUWENSWARM_TELEMETRY_MODE || FEEDBACK_ONLY}}",
+          "exporter": { "url": "{{env.JIUWENSWARM_OTLP_URL}}" },
+          "shutdownTimeoutMillis": 3000
+        }
+      },
+      { "id": "sandbox", "type": "agent-tools.sandbox.local" },
+      {
+        "id": "sandbox-policy",
+        "type": "agent-tools.sandbox.policy",
+        "config": {
+          "mode": "{{env.JIUWENSWARM_PERMISSION_MODE || workspace-write}}",
+          "workspaceRoot": "{{cwd}}"
+        }
+      },
+      { "id": "fs", "type": "agent-tools.fs.sandbox" },
+      {
+        "id": "shell-bash",
+        "type": "agent-tools.shell.bash",
+        "disabled": "{{platform == 'win32'}}",
+        "config": { "timeoutMs": 60000 }
+      },
+      {
+        "id": "shell-pwsh",
+        "type": "agent-tools.shell.pwsh",
+        "disabled": "{{platform != 'win32'}}"
+      },
+      { "id": "mcp", "type": "agent-tools.mcp" },
+      { "id": "skill", "type": "agent-tools.skill" },
+      { "id": "skill-filesystem", "type": "agent-tools.skill.filesystem" },
+      { "id": "memory", "type": "agent-tools.memory", "config": { "backend": "lite" } },
+      { "id": "retrieval", "type": "agent-tools.retrieval" },
+      { "id": "compaction", "type": "agent-tools.compaction.basic" },
+      {
+        "id": "permissions",
+        "type": "agent-tools.permissions.presets",
+        "config": {
+          "mode": "{{env.JIUWENSWARM_PERMISSION_MODE || workspace-write}}",
+          "presets": {
+            "read-only": { "sandbox": "read-only", "approval": "ask" },
+            "workspace-write": { "sandbox": "workspace-write", "approval": "ask" },
+            "danger-full-access": { "sandbox": "danger-full-access", "approval": "never" }
+          }
+        }
+      },
+      { "id": "tools", "type": "openjiuwen.tools" },
+      { "id": "system-prompt", "type": "openjiuwen.system-prompt" },
+      { "id": "agents", "type": "openjiuwen.agents" },
+      { "id": "agent-loop", "type": "openjiuwen.agent-loop" },
+      { "id": "gateway", "type": "jiuwenswarm.gateway" },
+      { "id": "channels-core", "type": "jiuwenswarm.channels.core" },
+      { "id": "marketplace", "type": "agent-tools.marketplace" },
+      { "id": "equipment", "type": "jiuwenswarm.equipment" },
+      {
+        "id": "agent-presets",
+        "type": "jiuwenswarm.agent-presets",
+        "config": { "default": "standard", "modeSelectionEnabled": true }
+      },
+      { "id": "team", "type": "agent-tools.team" },
+      { "id": "adapter", "type": "jiuwenswarm.adapter.harness" }
+    ],
+
+    "$JIUWENSWARM_HOME/harness.yaml": [
+      { "id": "llm-deepseek", "config": { "model": "deepseek-flash" } },
+      { "id": "memory", "enabled": false },
+      {
+        "insert": [
+          {
+            "id": "channel-feishu",
+            "type": "agent-tools.channels.feishu",
+            "config": {
+              "appId": "{{env.FEISHU_APP_ID}}",
+              "appSecret": "{{env.FEISHU_APP_SECRET}}"
+            }
+          }
+        ]
+      },
+      { "id": "retrieval", "intercept": { "memory": { "backend": "graph" } } }
+    ],
+
+    "--patch ./local.overlay.yaml": [
+      { "id": "sandbox-policy", "config": { "mode": "danger-full-access" } },
+      { "id": "channel-feishu", "disabled": true }
+    ],
+
+    "resources/harness.team-leader.yaml": [
+      {
+        "id": "channel-remote",
+        "type": "agent-tools.channels.remote",
+        "config": { "listen": "tcp://0.0.0.0:9100" }
+      },
+      {
+        "id": "team",
+        "config": { "lifecycle": "persistent", "spawn_mode": "inprocess" }
+      },
+      { "id": "observability-otel", "config": { "mode": "ALWAYS" } }
+    ]
+  },
+
+  "agentPlane": {
+    "resources/agents/standard/agent.yaml": {
+      "model": {
+        "provider": "deepseek",
+        "name": "deepseek-chat",
+        "reasoningEffort": "medium"
+      },
+      "persona": [
+        { "name": "identity", "file": "persona/IDENTITY.md", "priority": 10 },
+        { "name": "soul", "file": "persona/SOUL.md", "priority": 20 },
+        { "name": "user", "file": "persona/USER.md", "priority": 30 }
+      ],
+      "tools": [
+        { "type": "agent-tools.tools.bash" },
+        { "type": "agent-tools.tools.fs" },
+        { "type": "agent-tools.tools.fs-search" },
+        { "type": "agent-tools.tools.str-replace-editor" },
+        { "type": "agent-tools.tools.web", "config": { "fetch": true, "searchTimeoutMs": 60000 } },
+        { "type": "agent-tools.tools.skill" },
+        { "type": "agent-tools.tools.todo", "config": { "allowParallelInProgress": true } },
+        { "type": "agent-tools.tools.ask-user" }
+      ],
+      "rails": [
+        { "type": "agent-tools.rails.task-planning" },
+        {
+          "type": "agent-tools.rails.budget-notice",
+          "config": { "round_ratio": 0.2, "token_ratio": 0.15, "time_ratio": 0.15 }
+        },
+        { "type": "agent-tools.rails.context-headroom", "config": { "warnRatio": 0.9 } },
+        { "type": "agent-tools.rails.security" },
+        { "type": "agent-tools.rails.summarize-memory", "enabled": "{{config.memory.enabled}}" }
+      ],
+      "subagents": [
+        { "type": "agent-tools.subagents.explore" },
+        { "type": "agent-tools.subagents.plan" },
+        { "type": "agent-tools.subagents.code", "config": { "model": "inherit", "backgroundMode": "continuable" } }
+      ],
+      "groups": [
+        {
+          "id": "compaction",
+          "group": true,
+          "isolate": { "compaction": true, "toolResultPruner": true },
+          "config": [
+            { "type": "agent-tools.compaction.basic" },
+            {
+              "type": "agent-tools.compaction.tool-result-pruner",
+              "config": { "thresholdChars": 8192, "headChars": 4096, "tailChars": 1024 }
+            }
+          ]
+        }
+      ],
+      "settings": {
+        "preset": { "default": "standard", "modeSelectionEnabled": true }
+      }
+    },
+
+    "resources/agents/code/agent.yaml": {
+      "extends": "standard",
+      "rails": [
+        { "type": "agent-tools.rails.code.agent-mode" },
+        { "type": "agent-tools.rails.lsp", "config": { "servers": ["python", "typescript"] } },
+        { "type": "agent-tools.rails.code.worktree" },
+        { "type": "agent-tools.rails.code.project-memory", "enabled": "{{config.memory.enabled}}" },
+        { "type": "agent-tools.rails.code.coding-memory", "enabled": "{{config.memory.enabled}}" },
+        { "type": "agent-tools.rails.task-planning" },
+        { "type": "agent-tools.rails.confirm-interrupt" },
+        { "type": "agent-tools.rails.plan-approval" }
+      ],
+      "tools": [
+        { "type": "agent-tools.tools.web", "config": { "fetch": true, "free": true, "paid": true } },
+        { "type": "agent-tools.tools.user-todos" },
+        { "type": "agent-tools.tools.skill-toolkit" },
+        { "type": "agent-tools.tools.skill-retrieval" },
+        { "type": "agent-tools.tools.acp-chat", "disabled": "{{env.ACP_CHAT_ENABLED == ''}}" }
+      ],
+      "subagents": [
+        { "type": "agent-tools.subagents.code" },
+        { "type": "agent-tools.subagents.explore" },
+        { "type": "agent-tools.subagents.plan" },
+        { "type": "agent-tools.subagents.statusline-setup", "config": { "maxIterations": 8 } }
+      ],
+      "groups": [
+        {
+          "id": "sdd",
+          "group": true,
+          "enabled": "{{config.modes.code.sdd.enabled}}",
+          "config": [
+            { "type": "agent-tools.rails.code.design", "config": { "stages": ["RAS", "RDS"] } }
+          ]
+        }
+      ]
+    },
+
+    "resources/agents/team/agent.yaml": {
+      "extends": "standard",
+      "rails": [
+        { "type": "agent-tools.rails.team.permission", "config": { "policy": "{{env.JIUWENSWARM_TEAM_PERMISSION || ask}}" } },
+        { "type": "agent-tools.rails.team.blocker-report" },
+        { "type": "agent-tools.rails.team.skill-evolution", "enabled": "{{config.team.jiuwen_team.enable_skill_evolution}}" },
+        { "type": "jiuwenswarm.rails.symphony-orchestration", "enabled": "{{config.symphony.enabled}}" }
+      ],
+      "team": {
+        "lifecycle": "persistent",
+        "teammate_mode": "build_mode",
+        "spawn_mode": "inprocess",
+        "enable_swarmflow": false,
+        "external_cli_agents": [],
+        "external_transport": null,
+        "swarmflow_budget": null,
+        "reliability": {
+          "enabled": true,
+          "monitor_roles": ["leader", "teammate"],
+          "detectors": {
+            "tool_error": { "enabled": true, "window_seconds": 60.0, "rate_threshold": 5, "consecutive_threshold": 3 },
+            "repeat_tool": { "enabled": true, "history_size": 30, "repeat_warn": 10, "pingpong_warn": 10, "loop_block": 20, "global_stop": 30 },
+            "model_error": { "enabled": true, "window_seconds": 120.0, "rate_threshold": 3, "consecutive_threshold": 2 },
+            "output_length": { "enabled": true, "text_threshold": 32000, "thinking_threshold": 16000 },
+            "compaction": { "enabled": true, "window_seconds": 300.0, "frequency_threshold": 3, "drop_ratio": 0.3 }
+          }
+        }
+      },
+      "subagents": [
+        { "type": "agent-tools.subagents.explore" },
+        { "type": "agent-tools.subagents.plan" },
+        { "type": "agent-tools.subagents.code", "config": { "backgroundMode": "continuable" } }
+      ]
+    }
+  },
+
+  "distributed": {
+    "config.team.distributed.leader.yaml": [
+      {
+        "id": "channel-remote",
+        "type": "agent-tools.channels.remote",
+        "config": { "listen": "tcp://0.0.0.0:9100", "token": "{{env.TEAM_TOKEN}}" }
+      },
+      {
+        "id": "team",
+        "config": {
+          "lifecycle": "persistent",
+          "spawn_mode": "remote",
+          "external_transport": "agent-tools.team.transport.remote",
+          "external_cli_agents": ["codex", "claudecode"]
+        }
+      }
+    ],
+    "config.team.distributed.teammate.yaml": [
+      {
+        "id": "team",
+        "config": {
+          "lifecycle": "persistent",
+          "spawn_mode": "remote",
+          "external_transport": {
+            "type": "agent-tools.team.transport.remote",
+            "config": { "connect": "tcp://leader:9100", "token": "{{env.TEAM_TOKEN}}" }
+          }
+        }
+      }
+    ]
+  },
+
+  "oldToNew": [
+    { "old": "interface_deep.py::_build_agent_rails + _build_*_rail", "new": "agent.yaml rails rows resolved by agent-tools.rails.*" },
+    { "old": "interface_deep.py::_get_tool_cards", "new": "agent.yaml tools rows resolved by agent-tools.tools.*" },
+    { "old": "interface_code.py::_TOOL_BUILD_NAMES (L402)", "new": "agent-tools/tools/* entry points + tools rows" },
+    { "old": "agents/swarm/providers/* (@harness_element)", "new": "agent-tools/* plugins; registry.py becomes discovery" },
+    { "old": "config.yaml::modes.<mode>.rails/tools name lists", "new": "resources/agents/<mode>/agent.yaml" },
+    { "old": "config.yaml top-level feature sections", "new": "host harness.yaml rows (or plugin Config)" },
+    { "old": "common/config.py update_*_in_config writers", "new": "patch layers / row edits (validated Config)" },
+    { "old": "create_adapter(sdk, mode) if/elif", "new": "adapter row + entry-point provider" },
+    { "old": "harness_providers::resolve_provider if/elif", "new": "agent-tools.harness.* entry points" },
+    { "old": "extensions/{loader,registry}.py + extension.yaml", "new": "the kernel loader + openjiuwen.plugins entry points" }
+  ],
+
+  "accounting": {
+    "currentConfigYaml": {
+      "file": "jiuwenswarm/resources/config.yaml",
+      "totalLines": 1823,
+      "commentOnlyLines": 666,
+      "blankLines": 131,
+      "dataLines": 1026,
+      "topLevelSections": 55,
+      "nestedKeys": 894,
+      "note": "The example above is an illustrative subset. ~all 1,026 data lines relocate (to plugin Config, per-agent presets, or plugin defaults in code); the ~797 comment/blank lines are the part that genuinely disappears (replaced by plugin README/JSDoc), plus config.py's ~80 update_* writers become generic patch editing."
+    },
+    "sectionDestinations": [
+      { "section": "permissions", "lines": 260, "destination": "agent-tools.permissions.presets Config (+ per-session preset override)" },
+      { "section": "modes", "lines": 236, "destination": "per-mode agent.yaml presets (resources/agents/<mode>/agent.yaml)" },
+      { "section": "channels", "lines": 177, "destination": "one channel plugin per entry (agent-tools.channels.*) Config" },
+      { "section": "react", "lines": 151, "destination": "agent preset model/loop fields + openjiuwen.agent-loop Config + rail params" },
+      { "section": "memory", "lines": 141, "destination": "agent-tools.memory Config" },
+      { "section": "models", "lines": 120, "destination": "agent-tools.llm.* provider Config (+ settings.file)" },
+      { "section": "symphony", "lines": 65, "destination": "agent-tools.symphony Config" },
+      { "section": "gateway", "lines": 53, "destination": "jiuwenswarm.gateway Config" },
+      { "section": "acp_agents", "lines": 45, "destination": "agent-tools.channels.acp Config" },
+      { "section": "execution_guard", "lines": 38, "destination": "guard rail plugin Config" },
+      { "section": "hooks", "lines": 36, "destination": "agent-tools.hooks Config" },
+      { "section": "team", "lines": 35, "destination": "agent-tools.team Config (+ team preset team:)" },
+      { "section": "telemetry", "lines": 32, "destination": "agent-tools.observability.otel Config" },
+      { "section": "team_observability", "lines": 30, "destination": "observability plugin Config" },
+      { "section": "debug_trace", "lines": 29, "destination": "observability/debug plugin Config" },
+      { "section": "tools", "lines": 24, "destination": "tool plugins Config + preset tools: rows" },
+      { "section": "extensions", "lines": 23, "destination": "kernel-loader discovery paths + installed plugin list" },
+      { "section": "mcp", "lines": 21, "destination": "agent-tools.mcp Config" },
+      { "section": "skills", "lines": 19, "destination": "agent-tools.skill Config" },
+      { "section": "auto_harness", "lines": 19, "destination": "jiuwenswarm.auto-harness Config" },
+      { "section": "agent_observability", "lines": 14, "destination": "observability plugin Config" },
+      { "section": "experimental", "lines": 14, "destination": "per-experiment plugin rows" },
+      { "section": "verification", "lines": 14, "destination": "verification rail/subagent Config" },
+      { "section": "agents", "lines": 13, "destination": "jiuwenswarm.agent-presets roster" },
+      { "section": "proactive_recommendation", "lines": 13, "destination": "recommendation plugin Config" },
+      { "section": "heartbeat", "lines": 13, "destination": "agent-tools.rails.heartbeat Config" },
+      { "section": "task_memory", "lines": 13, "destination": "memory plugin Config" },
+      { "section": "tracehound", "lines": 13, "destination": "observability plugin Config" },
+      { "section": "updater", "lines": 12, "destination": "jiuwenswarm.updater Config" },
+      { "section": "browser", "lines": 11, "destination": "agent-tools.browser Config" },
+      { "section": "health_check", "lines": 11, "destination": "health plugin Config" },
+      { "section": "autonomy", "lines": 9, "destination": "autonomous-mode rail Config" },
+      { "section": "trajectory_ui", "lines": 9, "destination": "observability/UI plugin Config" },
+      { "section": "logging", "lines": 8, "destination": "observability plugin Config" },
+      { "section": "a2ui", "lines": 8, "destination": "a2ui plugin Config" },
+      { "section": "usage_cost", "lines": 8, "destination": "usage/cost plugin Config" },
+      { "section": "shell_output", "lines": 6, "destination": "shell tool plugin Config" },
+      { "section": "context_headroom", "lines": 6, "destination": "agent-tools.rails.context-headroom Config" },
+      { "section": "verifier_circuit_breaker", "lines": 6, "destination": "verifier rail Config" },
+      { "section": "email_settings", "lines": 6, "destination": "notification plugin Config" },
+      { "section": "preferred_language", "lines": 6, "destination": "kernel/settings Config" },
+      { "section": "setup_guide", "lines": 5, "destination": "product plugin Config" },
+      { "section": "output_format", "lines": 5, "destination": "agent-tools.rails.output-format Config" },
+      { "section": "embed", "lines": 5, "destination": "memory/retrieval Config" },
+      { "section": "failure_memory", "lines": 4, "destination": "agent-tools.rails.failure-memory Config" },
+      { "section": "step_back", "lines": 4, "destination": "agent-tools.rails.step-back Config" },
+      { "section": "task_description", "lines": 4, "destination": "agent-tools.rails.task-description Config" },
+      { "section": "tool_dedup", "lines": 4, "destination": "agent-tools.rails.tool-call-dedup Config" },
+      { "section": "auto_recap", "lines": 3, "destination": "recap plugin Config" },
+      { "section": "rsi", "lines": 3, "destination": "agent-tools.rsi Config" },
+      { "section": "kv_cache_affinity_config", "lines": 3, "destination": "core KV-cache seam Config" },
+      { "section": "progressive_tool_enabled", "lines": 3, "destination": "progressive-tool rail Config" },
+      { "section": "config_version", "lines": 3, "destination": "profile/loader metadata" },
+      { "section": "endpoint_profile_overrides", "lines": 2, "destination": "merged into llm provider Config" }
+    ],
+    "shrinks": [
+      "666 comment lines + 131 blank lines -> plugin README/JSDoc",
+      "common/config.py's ~80 update_*_in_config writers -> generic patch/row editing",
+      "feature X: { enabled: true/false } blocks -> row presence (a stale enabled:false cannot contradict a missing row)",
+      "hand-duplicated blocks (e.g. the repeated task_description/tool_dedup inserts in _build_agent_rails)"
+    ],
+    "grows": [
+      "the agent composition (rails:, tools:, subagents: rows) was code (_build_agent_rails, _get_tool_cards, _TOOL_BUILD_NAMES) and becomes explicit config: ~40-60 rows per preset"
+    ],
+    "net": "Total stated configuration stays roughly flat or rises (composition becomes explicit); each file gets smaller; information that was code or comments becomes either a validated Config default or a named row. The example is small because it is a sample of a distributed whole, not because the other ~2,000 lines vanished."
+  },
+
+  "boot": "jiuwenswarm-agentserver reads the in-box bundle, the user harness.yaml, and any --patch files; builds a flat row list; discovers plugin types via entry points; validates each row's config; mounts the selected rows (activation service-gated); fails loud on an unknown type or an unmet dependency; then each session resolves its agent.yaml preset under an isolated scope and mounts it. Nothing in that path names a module - only a type."
+}
