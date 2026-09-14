@@ -466,7 +466,10 @@ These are **conceptual** paths in the main configuration for cross-reference wit
 | `react.context_engine_config.round_level_compressor_config.trigger_context_ratio` | Round-level compression trigger ratio of the effective context budget | `0.8` |
 | `react.context_engine_config.round_level_compressor_config.min_target_context_ratio` | Round-level compression target lower bound (fraction of window) | `0.1` |
 | `react.context_engine_config.round_level_compressor_config.keep_recent_messages` | Round-level compression: number of recent messages to keep | `4` |
-| `react.budget_warning_threshold` | Number of remaining iterations at which the agent receives a wrap-up warning in its system prompt, telling it to prioritise finishing current work | `10` |
+| `react.budget_warning_ratio` | Fraction of the rounds budget remaining at which the agent receives a wrap-up warning in its system prompt, telling it to prioritise finishing current work | `0.20` |
+| `react.budget_warning_threshold` | Optional absolute number of remaining iterations; when set it overrides `react.budget_warning_ratio` | unset |
+| `react.max_tokens` | Optional cumulative token cap for the outer task loop; unset means no token budget | unset |
+| `react.timeout_seconds` | Optional wall-clock cap (seconds) for the outer task loop; unset means no time budget. Distinct from `react.completion_timeout`, which bounds a single round's wait | unset |
 | `skills.external_dirs` | Extra skill directories loaded as if locally installed. Accepts a YAML list or a semicolon-separated string (also settable via `EXTERNAL_SKILL_DIRS` env var). Skills here are fully equivalent to UI-installed skills. | `""` (empty) |
 | `skills.external_only` | When `true` and `skills.external_dirs` is non-empty, the personal skills directory is excluded — only external-dir skills are visible to the agent. Use in benchmark / CI environments to prevent unrelated installed skills from appearing. | `false` |
 | `shell_output.max_chars` | Maximum characters returned to the model per shell command output (BashTool and mcp_exec_command). `0` = no limit. | `20000` |
