@@ -304,6 +304,27 @@ def _get_shell_output_config() -> tuple[int, float]:
         return 20000, 0.6
 
 
+def apply_shell_output_env_defaults() -> None:
+    """Export ``shell_output`` config to the agent-core shell-tool env knobs.
+
+    The agent's primary shell tools are openjiuwen ``BashTool`` / ``PowerShellTool``
+    (agent-core), which read ``BASH_TOOL_*`` / ``POWER_SHELL_TOOL_*`` from
+    ``os.environ`` at call time. Exporting the shared ``shell_output`` section
+    there lets one config bound both ``mcp_exec_command`` and the harness shell
+    tools, while the tools stay decoupled (they never read jiuwenswarm's config
+    object directly).
+
+    ``setdefault`` is used so an explicit value already present in the runtime
+    environment (deployment / .env) wins over config.yaml.
+    """
+    max_chars, head_ratio = _get_shell_output_config()
+    if max_chars > 0:
+        os.environ.setdefault("BASH_TOOL_MAX_OUTPUT_CHARS", str(max_chars))
+        os.environ.setdefault("POWER_SHELL_TOOL_MAX_OUTPUT_CHARS", str(max_chars))
+    os.environ.setdefault("BASH_TOOL_HEAD_RATIO", str(head_ratio))
+    os.environ.setdefault("POWER_SHELL_TOOL_HEAD_RATIO", str(head_ratio))
+
+
 def _check_command_safety(command: str) -> str | None:
     for pattern, message in _DANGEROUS_COMMAND_PATTERNS:
         if pattern.search(command):
@@ -840,6 +861,7 @@ async def _run_command_in_bound_sandbox(
     max_output_chars: int,
     shell_type: str,
     background: bool,
+    head_ratio: float,
 ) -> str:
     fallback_reason = _sandbox_host_fallback_reason(sys_operation)
     if fallback_reason:
@@ -900,10 +922,10 @@ async def _run_command_in_bound_sandbox(
         "resolved_shell": _sandbox_resolved_shell(shell_type),
         "exit_code": _value_field(data, "exit_code", -1),
         "stdout": _clip_head_tail(
-            str(_value_field(data, "stdout", "") or ""), max_output_chars
+            str(_value_field(data, "stdout", "") or ""), max_output_chars, head_ratio=head_ratio
         ),
         "stderr": _clip_head_tail(
-            str(_value_field(data, "stderr", "") or ""), max_output_chars
+            str(_value_field(data, "stderr", "") or ""), max_output_chars, head_ratio=head_ratio
         ),
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
@@ -988,6 +1010,7 @@ async def mcp_exec_command(
             max_output_chars=max_output_chars,
             shell_type=normalized_shell_type,
             background=background,
+            head_ratio=_head_ratio,
         )
 
     if background:
