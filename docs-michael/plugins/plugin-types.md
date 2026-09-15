@@ -45,8 +45,8 @@ The test for the whole table: a capability is a plugin type only if it has (or w
 |---|---|---|---|
 | tools | a callable tool the model can invoke | filesystem, shell, todo, code, ask-user, cron, goal | web, vision, audio, image, cron, skill, acp-chat |
 | rails | a hook that runs in the agent loop | security, task-planning, budget-notice, heartbeat, lsp, mcp, task-completion, tool-call-resilience | code rails, execution-guard, permissions, symphony, member/evolution rails |
-| subagents | a delegate agent | explore, plan, code, browser, research, verification, mobile-gui | statusline-setup |
-| LLM | a model client + vendor catalog | Providers: openai, anthropic, deepseek, openrouter, dashscope, siliconflow, intelli-router | Vendors: alibaba (qwen), minimax, maas, baidu, mimo, kimi, zhipu, volcengine, deepseek, openrouter |
+| subagents | a delegate agent | explore, plan, code, browser, research, verification, mobile-gui | statusline-setup, swarm code + browser variants |
+| models | a model client (text / vision / audio) + vendor catalog | Providers: openai, anthropic, deepseek, openrouter, dashscope, siliconflow, intelli-router | Vendors: alibaba (qwen), minimax, maas, baidu, mimo, kimi, zhipu, volcengine, deepseek, openrouter |
 | memory | stores + consolidates/extracts memories | Providers: lite, graph, external (mem0, agentarts, lakebase, jiuwen, openjiuwen, openviking) | Processes: auto-memory, memory-rpc, dreaming sweeper |
 | skill | use, create, recommend, or build skills | Runtime: use-rail, create-rail, skill tools, recommender | Builder: generate, test, validate, improve, package |
 | trajectory store | stores agent trajectories | Evolution/RL: in-memory, file, redis, local | Observability: sqlite, sink |
