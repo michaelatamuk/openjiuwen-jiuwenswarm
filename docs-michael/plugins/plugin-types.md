@@ -2,58 +2,60 @@
 
 Each type is a plug-point (a contract). The **plugin** is the **provider** that implements it — the piece you swap. So "memory" is not a plugin; a memory *provider* is.
 
-Rows are split by origin: an agent-core item and a jiuwenswarm item are different things, not the same type.
+The test for the whole table: a capability is a plugin type only if it has (or will have) a **protocol/contract that several providers implement**. "Not part" = no protocol, one concrete implementation.
 
 ## Part of the system — Yes
 
+### Only in agent-core
+
+| Type | Explanation | Examples |
+|---|---|---|
+| team runtime | a runtime for spawning + messaging members | multi-agent, agent-teams |
+| harness providers | a whole-harness runtime | native, claudecode, codex, dsh |
+| external-agent hooks | control-plane hooks for claude-code/codex/dsh (intercept tools/prompts) | hook protocol |
+| permission engine | enforces permissions — mandatory seam, only the policy is swappable | checker, file guard, shell AST, tiered policy, net guard, tool policy |
+| retrieval | a vector store / retriever | vector store, embedding, reranker, query-rewriter |
+| tracer/exporter | collects traces | otel, local |
+| MCP client | a client that connects to an MCP server | stdio, sse, streamable-http |
+| session checkpointer | saves/restores session state | in-memory, persistence, redis |
+| fs | a filesystem implementation | local, sandbox |
+| workspace | a workspace manager | local, remote |
+| shell | a shell implementation | bash, pwsh |
+| sandbox | an execution sandbox | local, jiuwenbox, yuanrong |
+| sys_operation | an OS-operation implementation | local, sandbox |
+| storage | a key-value/blob store | json, sqlite, redis |
+| kv_cache | a key-value cache | in-memory, persistent |
+| workflow | a workflow engine | graph, multi-rollout |
+| goal | a goal tracker / evaluator | manager, assessment, store, evaluation |
+| LSP | a language server | python, typescript |
+| personal-context | a rail + sources that gather and inject the user's personal context | github, gitcode, feishu, local files, rss, bookmarks, cursor, zhihu, toutiao |
+
+### Only in jiuwenswarm
+
+| Type | Explanation | Examples |
+|---|---|---|
+| compaction | a strategy to shrink the context | context-optimizer, tool-result-pruner |
+| proactive recommendation | recommends proactive actions | proactive engine, profile extractor, feedback collector, situation report |
+| marketplace | a hub client for skills/plugins/packages | remote (Team Skills Hub) |
+| channels | a channel transport | web, tui, desktop, ide, acp, cli, browser, feishu, slack, dingtalk, wechat, wecom, telegram, whatsapp, discord |
+
+### In both
+
 | Type | Explanation | Examples — agent-core | Examples — jiuwenswarm |
 |---|---|---|---|
-| core tools | a callable tool the model can invoke | filesystem, shell, todo, code, ask-user, cron, goal | — |
-| product tools | a callable tool the model can invoke | — | web, vision, audio, image, cron, skill, acp-chat |
-| core rails | a hook that runs in the agent loop | security, task-planning, budget-notice, heartbeat, lsp, mcp, task-completion, tool-call-resilience | — |
-| product rails | a hook that runs in the agent loop | — | code rails, execution-guard, permissions, symphony, member/evolution rails |
-| core subagents | a delegate agent | explore, plan, code, browser, research, verification, mobile-gui | — |
-| product subagents | a delegate agent | — | statusline-setup (plus swarm overrides of code, browser) |
-| team runtime | a runtime for spawning + messaging members | multi-agent, agent-teams | — |
-| LLM providers | a model client (chat-completions) | openai, anthropic, deepseek, openrouter, dashscope, siliconflow, intelli-router | — |
-| LLM vendors | a vendor/model catalog | — | alibaba (qwen), minimax, maas, baidu, mimo, kimi, zhipu, volcengine, deepseek, openrouter |
-| harness providers | a whole-harness runtime | native, claudecode, codex, dsh | — |
-| external-agent hooks | control-plane hooks for claude-code/codex/dsh (intercept tools/prompts) | hook protocol (ToolDecision, BeforePrompt, BeforeTool) | — |
-| memory provider | stores/recalls facts | lite, graph, external (mem0, agentarts, lakebase, jiuwen, openjiuwen, openviking) | — |
-| dreaming orchestrator | idle-aware periodic scheduler that triggers the sweep | built-in | — |
-| dreaming sweeper | scan + compress + extract + promote memories | — | sweeper, auto-memory |
-| retrieval | a vector store / retriever | vector store, embedding, reranker, query-rewriter | — |
-| compaction | a strategy to shrink the context | — | context-optimizer, tool-result-pruner |
-| MCP client | a client that connects to an MCP server | stdio, sse, streamable-http clients + mcp rail (list/read resources) | — |
-| MCP registry/marketplace | manages which MCP servers to connect | — | registry, config, marketplace, credentials |
-| browser | a browser runtime | — | playwright (chromium) |
-| skill runtime | use/create/recommend skills | use-rail, create-rail, skill tools (use/list/recommend), recommender | — |
-| skill management | manage/develop/discover skills | — | skill manager (CRUD/files/types/archive), skill-dev pipeline (generate/test/package), discovery/retrieval, marketplace/UI |
-| marketplace | a Hub client (remote install) | — | hub client |
-| fs | a filesystem implementation | local, sandbox | — |
-| workspace | a workspace manager | local, remote | — |
-| shell | a shell implementation | bash, pwsh | — |
-| sandbox | an execution sandbox | local, jiuwenbox, yuanrong | — |
-| sys_operation | an OS-operation implementation | local, sandbox | — |
-| core session store | a session backend | checkpointer, redis | — |
-| product session store | a session backend | — | jsonl, sqlite |
-| storage | a key-value/blob store | json, sqlite, redis | — |
-| kv_cache | a key-value cache | in-memory, persistent | — |
-| core observability | a tracer / exporter | local, otel | — |
-| product observability | a tracer / exporter | — | trajectory store, sink |
-| workflow | a workflow engine | graph, multi-rollout | — |
-| goal | a goal tracker / evaluator | built-in | — |
-| core permissions | a permission policy | permission engine, policy | — |
-| product permissions | a permission policy | — | permissions rails |
-| LSP | a language server | python, typescript | — |
-| personal-context | a rail that injects remembered facts | built-in | — |
+| tools | a callable tool the model can invoke | filesystem, shell, todo, code, ask-user, cron, goal | web, vision, audio, image, cron, skill, acp-chat |
+| rails | a hook that runs in the agent loop | security, task-planning, budget-notice, heartbeat, lsp, mcp, task-completion, tool-call-resilience | code rails, execution-guard, permissions, symphony, member/evolution rails |
+| subagents | a delegate agent | explore, plan, code, browser, research, verification, mobile-gui | statusline-setup |
+| LLM | a model client + vendor catalog | Providers: openai, anthropic, deepseek, openrouter, dashscope, siliconflow, intelli-router | Vendors: alibaba (qwen), minimax, maas, baidu, mimo, kimi, zhipu, volcengine, deepseek, openrouter |
+| memory | stores + consolidates/extracts memories | Providers: lite, graph, external (mem0, agentarts, lakebase, jiuwen, openjiuwen, openviking) | Processes: auto-memory, memory-rpc, dreaming sweeper |
+| skill | use, create, recommend, or build skills | Runtime: use-rail, create-rail, skill tools, recommender | Builder: generate, test, validate, improve, package |
+| trajectory store | stores agent trajectories | Evolution/RL: in-memory, file, redis, local | Observability: sqlite, sink |
 
 ## Part of the system — Maybe
 
 | Type | Explanation | Examples — agent-core | Examples — jiuwenswarm | Why only maybe |
 |---|---|---|---|---|
 | adapter | an agent adapter (spec → session) | — | interface_deep, interface_code | the contract is generic, but these adapters are jiuwenswarm-specific |
-| channels | a channel transport | — | web, tui, desktop, ide, acp, cli, browser, feishu, slack, dingtalk, wechat, wecom, telegram, whatsapp, discord | the transports stay jiuwenswarm; only the IM connectors are generic |
 | gateway | the process/transport gateway | — | gateway | the definition is generic, but jiuwenswarm's gateway is product-specific |
 | team orchestration | the product's team policy (roles, assembly, presets) | — | swarm | jiuwenswarm's team/swarm behavior is product policy |
 
@@ -65,6 +67,8 @@ None of the types above fall here. The fixed things below are not plugins:
 |---|---|
 | kernel | it is the plugin system itself |
 | loader | it is the composition mechanism |
+| skill manager (CRUD) | create/update/delete + archive skills — management, not a pluggable contract |
+| session management | manager, message store, history, archive — management, not a pluggable backend |
 | security invariants (permission enforcement, sandbox boundaries) | fixed by design — must not be disabled |
 | protocol constants | fixed by spec — they stay fixed |
 
@@ -75,6 +79,7 @@ None of the types above fall here. The fixed things below are not plugins:
 - `agent-core/openjiuwen/harness/manifest/meta_elements.py` — `harness.rail.entry_point` / `harness.tool.entry_point` reading `openjiuwen.rail` / `openjiuwen.tool`.
 - `agent-core/openjiuwen/core/foundation/store/__init__.py` — `openjiuwen.vector_stores` entry-point group.
 - `agent-core/openjiuwen/core/foundation/tool/mcp/client/{stdio,sse,streamable_http,mcp}_client.py` — MCP clients.
+- `agent-core/openjiuwen/harness/tools/browser_move/*` — managed browser + playwright runtime.
 - `agent-core/openjiuwen/harness_providers/factory.py` — hardcoded `resolve_provider` chain (`native`/`native_v2`/`claudecode`/`codex`/`dsh`).
 - `agent-core/openjiuwen/harness_protocol/hooks.py` — external-agent hook protocol.
 - `agent-core/openjiuwen/harness/rails/*` — agent_mode, budget_notice, heartbeat, lsp, mcp, model_anomaly_detection, personal_context, progressive_tool, sys_operation, task_completion, task_planning, tool_call_resilience.
@@ -84,7 +89,7 @@ None of the types above fall here. The fixed things below are not plugins:
 - `agent-core/openjiuwen/core/{memory,retrieval,session,sys_operation,workflow,graph,context_engine,kv_cache,multi_agent}` and `agent_teams/` and `core/memory/dreaming/orchestrator.py` — in-box contract dirs.
 - `agent-core/openjiuwen/harness/{tools,subagents,skills,lsp,prompts,observability,security,personal_context,goal,workspace}` — in-box capability dirs.
 - `jiuwenswarm/jiuwenswarm/agents/swarm/providers/*` — 44 `@harness_element` declarations re-exporting the catalog into the product.
-- `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/dreaming/sweeper.py` — dreaming sweeper.
+- `jiuwenswarm/jiuwenswarm/agents/harness/common/{memory_rpc.py,auto_memory/,memory/dreaming/sweeper.py}` — jiuwenswarm memory.
 - `jiuwenswarm/jiuwenswarm/tools/context_optimizer/` — compaction.
 - `jiuwenswarm/jiuwenswarm/gateway/` — the product gateway.
 - `jiuwenswarm/jiuwenswarm/server/runtime/marketplace/*` — Hub client.
