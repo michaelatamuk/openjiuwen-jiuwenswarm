@@ -95,12 +95,15 @@ from jiuwenswarm.server.runtime.session.session_message_store import (
 )
 from jiuwenswarm.server.runtime.session.session_metadata import get_all_sessions_metadata, remove_session_metadata_cache, update_session_metadata
 from jiuwenswarm.server.runtime.session.session_history import (
+    HistorySnapshotChanged,
+    InvalidHistoryCursor,
     append_compact_history_records,
     append_history_record,
     enqueue_history_request_completion,
     history_exists,
     is_valid_session_id,
     load_history_records,
+    read_history_cursor_page,
     read_member_history_records,
     read_team_history_records,
     wait_for_history_receipt,
@@ -5441,7 +5444,7 @@ class AgentWebSocketServer:
         methods = {
             "session.archive", "session.unarchive", "session.archived.list",
             "session.delete",
-            "project.archive", "project.unarchive", "project.archived.list",
+            "project.sessions.archive", "project.sessions.delete_archived",
             "project.delete", "project.lifecycle",
         }
         if method not in methods:
@@ -5454,13 +5457,15 @@ class AgentWebSocketServer:
         try:
             if method == "session.archived.list":
                 payload = service.list_sessions(params)
-            elif method == "project.archived.list":
-                payload = service.list_projects(params)
+            elif method.startswith("project.sessions."):
+                payload = await service.project_batch(
+                    params.get("project_id"), method.rsplit(".", 1)[1], request.channel_id or ""
+                )
             elif method == "project.lifecycle" and params.get("events"):
                 payload = {"events": lc.event_snapshots()}
             elif method == "project.lifecycle" and params.get("inventory"):
                 from jiuwenswarm.server.runtime.session.project_store import list_projects
-                payload = {"projects": [dict(project_id=p.project_id, hidden=p.hidden,
+                payload = {"projects": [dict(project_id=p.project_id,
                             operation=lc.state("project", p.project_id).get("operation"))
                             for p in list_projects(include_hidden=True, cache_bust=True)]}
                 known = {item["project_id"] for item in payload["projects"]}
@@ -5469,7 +5474,7 @@ class AgentWebSocketServer:
                     operation = lc.read_json(path).get("operation") or {}
                     project_id = operation.get("resource_id")
                     if project_id and project_id not in known and operation.get("status") != "completed":
-                        payload["projects"].append(dict(project_id=project_id, hidden=True, operation=operation))
+                        payload["projects"].append(dict(project_id=project_id, operation=operation))
             elif method == "project.lifecycle":
                 project_id = lc.validate_id(params.get("project_id"))
                 payload = lc.projection("project", project_id)
@@ -6767,12 +6772,55 @@ class AgentWebSocketServer:
         params = request.params if isinstance(request.params, dict) else {}
         session_id = params.get("session_id")
         page_idx = params.get("page_idx")
+        cursor_protocol = "cursor" in params
+        request_cursor = params.get("cursor")
         subagent_id = params.get("subagent_id")
-        data = self.get_conversation_history(
-            session_id=session_id,
-            page_idx=page_idx,
-            subagent_id=subagent_id if isinstance(subagent_id, str) else None,
-        )
+        try:
+            if cursor_protocol:
+                if request_cursor is not None and not isinstance(request_cursor, str):
+                    raise InvalidHistoryCursor("history cursor must be null or a string")
+                data = await asyncio.to_thread(
+                    self.get_conversation_history_cursor,
+                    session_id,
+                    request_cursor,
+                    limit=params.get("limit", _HISTORY_PAGE_SIZE),
+                    subagent_id=subagent_id if isinstance(subagent_id, str) else None,
+                )
+            else:
+                data = await asyncio.to_thread(
+                    self.get_conversation_history,
+                    session_id=session_id,
+                    page_idx=page_idx,
+                    subagent_id=subagent_id if isinstance(subagent_id, str) else None,
+                )
+        except (InvalidHistoryCursor, HistorySnapshotChanged) as exc:
+            error_code = (
+                "HISTORY_SNAPSHOT_CHANGED"
+                if isinstance(exc, HistorySnapshotChanged)
+                else "INVALID_HISTORY_CURSOR"
+            )
+            error_chunk = AgentResponseChunk(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                payload={
+                    "event_type": "history.message",
+                    "status": "error",
+                    "error": str(exc),
+                    "code": error_code,
+                    "session_id": str(session_id or ""),
+                    "subagent_id": str(subagent_id or ""),
+                    "cursor": request_cursor,
+                },
+                is_complete=True,
+            )
+            wire = encode_agent_chunk_for_wire(
+                error_chunk,
+                response_id=request.request_id,
+                sequence=0,
+            )
+            async with send_lock:
+                await send_wire_payload(ws, wire)
+            return
         if data is None:
             err_chunk = AgentResponseChunk(
                 request_id=request.request_id,
@@ -6795,6 +6843,10 @@ class AgentWebSocketServer:
         messages = data.get("messages", [])
         total_pages = data.get("total_pages")
         page = data.get("page_idx")
+        next_cursor = data.get("next_cursor")
+        has_more = data.get("has_more")
+        snapshot_id = data.get("snapshot_id")
+        snapshot_end = data.get("snapshot_end")
         response_subagent_id = data.get("subagent_id")
         sequence = 0
         # 仅 web 通道走分片流（前端 HistoryRecordReassembler 重组）。
@@ -6818,6 +6870,11 @@ class AgentWebSocketServer:
                             "subagent_id": str(response_subagent_id or subagent_id or ""),
                             "total_pages": total_pages,
                             "page_idx": page,
+                            "cursor": request_cursor if cursor_protocol else None,
+                            "next_cursor": next_cursor,
+                            "has_more": has_more,
+                            "snapshot_id": snapshot_id,
+                            "snapshot_end": snapshot_end,
                         },
                         is_complete=False,
                     )
@@ -6843,8 +6900,11 @@ class AgentWebSocketServer:
 
         # Session open / refresh: push full todo snapshot before history "done"
         # so the frontend todo panel restores without reading workspace files.
-        # Only page 1 — pagination must not re-flash the panel.
-        if page_idx == 1 and isinstance(session_id, str) and session_id.strip():
+        # Only the initial page/batch — pagination must not re-flash the panel.
+        is_initial_history_batch = (
+            cursor_protocol and request_cursor is None
+        ) or (not cursor_protocol and page_idx == 1)
+        if is_initial_history_batch and isinstance(session_id, str) and session_id.strip():
             todos = load_todo_snapshot_for_frontend(
                 session_id.strip(),
                 **_todo_snapshot_session_fields(session_id.strip()),
@@ -6890,6 +6950,11 @@ class AgentWebSocketServer:
                 "subagent_id": str(response_subagent_id or subagent_id or ""),
                 "total_pages": total_pages,
                 "page_idx": page,
+                "cursor": request_cursor if cursor_protocol else None,
+                "next_cursor": next_cursor,
+                "has_more": has_more,
+                "snapshot_id": snapshot_id,
+                "snapshot_end": snapshot_end,
             },
             is_complete=True,
         )
@@ -10763,6 +10828,36 @@ class AgentWebSocketServer:
             "total_pages": total_pages,
             "page_idx": page_idx,
         }
+        if normalized_subagent_id:
+            result["subagent_id"] = normalized_subagent_id
+        return result
+
+    @staticmethod
+    def get_conversation_history_cursor(
+        session_id: str,
+        cursor: str | None,
+        *,
+        limit: int = _HISTORY_PAGE_SIZE,
+        subagent_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise InvalidHistoryCursor("session_id is required")
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= _HISTORY_PAGE_SIZE:
+            raise InvalidHistoryCursor(
+                f"history limit must be between 1 and {_HISTORY_PAGE_SIZE}"
+            )
+        normalized_subagent_id = (
+            subagent_id.strip()
+            if isinstance(subagent_id, str) and subagent_id.strip()
+            else None
+        )
+        result = read_history_cursor_page(
+            session_id.strip(),
+            cursor=cursor,
+            limit=limit,
+            is_restorable=_is_restorable_history_record,
+            subagent_id=normalized_subagent_id,
+        )
         if normalized_subagent_id:
             result["subagent_id"] = normalized_subagent_id
         return result
