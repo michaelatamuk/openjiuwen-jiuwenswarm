@@ -72,6 +72,24 @@ None of the types above fall here. The fixed things below are not plugins:
 | security invariants (permission enforcement, sandbox boundaries) | fixed by design — must not be disabled |
 | protocol constants | fixed by spec — they stay fixed |
 
+## Seams in DeepSeek, not here
+
+Capabilities DeepSeek models as a swappable seam (a contract + backend), but jiuwenswarm/agent-core don't. "Options" = the backends you could swap between.
+
+| Seam | What you swap (backend) | Options | Here |
+|---|---|---|---|
+| subprocess | how a subprocess runs | local, e2b (cloud sandbox), win32 | folded into shell |
+| web | how search/fetch is done | search: deepseek, exa, perplexity; fetch: http | web tools only |
+| jobs | where background tasks run | in-process, queue (Redis/Celery) | none |
+| spill | where oversized output goes | local disk, object storage (S3) | truncation only |
+| terminal | interactive session backend | bash, pwsh, remote (SSH) | none |
+| code-runtime | how code executes | worker-thread, subprocess, e2b | "code" tool only |
+| credentials | how secrets are stored | local file, keychain, vault | config.yaml |
+| settings | how settings are stored | file, database, cloud | config.yaml |
+| attachment | how files are attached | local, object storage | product shell |
+
+DeepSeek ships only the first option for some; the seam still exists because consumers bind to the contract, so the rest can be added.
+
 ## Code anchors (verified)
 
 - `agent-core/openjiuwen/harness/manifest/models.py` — `ElementKind.TOOL | RAIL | SUBAGENT`.
