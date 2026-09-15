@@ -81,6 +81,7 @@ from openjiuwen.harness.prompts import resolve_language
 from openjiuwen.harness.rails import (
     ModelAnomalyDetectionRail,
     SkillUseRail,
+    TaskDescriptionRail,
     TaskPlanningRail,
     SecurityRail,
     SubagentRail,
@@ -302,9 +303,6 @@ from jiuwenswarm.symphony.llm import (
     register_request_model,
 )
 
-from jiuwenswarm.agents.harness.common.rails.task_description_rail import (
-    TaskDescriptionRail,
-)
 from jiuwenswarm.common.hooks_config import load_hooks_config
 from jiuwenswarm.common.log_preview import preview_text
 from jiuwenswarm.common.stage_timer import StageTimer
