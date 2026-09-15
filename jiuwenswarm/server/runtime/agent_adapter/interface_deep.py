@@ -85,6 +85,7 @@ from openjiuwen.harness.rails import (
     ModelAnomalyDetectionRail,
     SkillUseRail,
     TaskCompletionRail,
+    TaskDescriptionRail,
     TaskPlanningRail,
     SecurityRail,
     SubagentRail,
@@ -307,9 +308,6 @@ from jiuwenswarm.symphony.llm import (
 )
 
 from jiuwenswarm.common.config import get_model_names
-from jiuwenswarm.agents.harness.common.rails.task_description_rail import (
-    TaskDescriptionRail,
-)
 from jiuwenswarm.agents.harness.common.rails.autonomous_mode_rail import (
     AutonomousModeRail,
 )
