@@ -2,6 +2,7 @@
 docs/
 site/
 dist/
+markdown/
 .mmd-cache/
 .mmd-png/
 
