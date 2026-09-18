@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ContentRoot(
-    val version: Int = 1,
+    val version: Int = 2,
     val topics: List<TopicDto> = emptyList(),
 )
 
@@ -21,16 +21,47 @@ data class QuestionDto(
     val topicId: String,
     val topicTitle: String,
     val number: Int,
+    val type: String = "concept",
     val question: String,
-    val general: String = "",
-    val jiuwen: String = "",
-    val gap: String = "",
-    val diagram: String = "",
-    val anchors: List<AnchorDto> = emptyList(),
+    val tldr: String = "",
+    val points: List<String> = emptyList(),
+    val explain: String = "",
+    val mechanism: String = "",
+    val citations: List<CitationDto> = emptyList(),
+    val pitfalls: List<String> = emptyList(),
+    val followups: List<String> = emptyList(),
+    val diagram: DiagramDto = DiagramDto(),
+    val meta: MetaDto = MetaDto(),
+    val provenance: ProvenanceDto = ProvenanceDto(),
 )
 
 @Serializable
-data class AnchorDto(
+data class CitationDto(
+    val kind: String = "code",
     val ref: String,
+    val symbol: String = "",
+    val lines: String = "",
     val desc: String = "",
+    val snippet: String = "",
+)
+
+@Serializable
+data class DiagramDto(
+    val source: String = "",
+    val image: String = "",
+    val alt: String = "",
+    val steps: List<String> = emptyList(),
+)
+
+@Serializable
+data class MetaDto(
+    val difficulty: String = "core",
+    val tags: List<String> = emptyList(),
+    val related: List<String> = emptyList(),
+)
+
+@Serializable
+data class ProvenanceDto(
+    val sources: List<String> = emptyList(),
+    val reviewedAt: String = "",
 )

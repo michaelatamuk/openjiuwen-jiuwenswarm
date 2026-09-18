@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 
 object ContentImporter {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     /** Import the bundled content.json into Room on first launch. */
     suspend fun importIfNeeded(context: Context, db: AppDatabase) {
@@ -20,11 +20,28 @@ object ContentImporter {
         val cards = ArrayList<CardEntity>()
         for (t in root.topics) {
             for (q in t.questions) {
+                val blob = buildString {
+                    append(q.question).append('\n')
+                    append(q.tldr).append('\n')
+                    append(q.points.joinToString("\n")).append('\n')
+                    append(q.explain).append('\n')
+                    append(q.mechanism).append('\n')
+                    append(q.citations.joinToString("\n") { it.ref + " " + it.desc })
+                }
                 questions.add(
                     QuestionEntity(
-                        id = q.id, topicId = q.topicId, number = q.number, question = q.question,
-                        general = q.general, jiuwen = q.jiuwen, gap = q.gap, diagram = q.diagram,
-                        anchorsJson = json.encodeToString(q.anchors),
+                        id = q.id, topicId = q.topicId, number = q.number, type = q.type,
+                        question = q.question, tldr = q.tldr,
+                        pointsJson = json.encodeToString(q.points),
+                        explain = q.explain, mechanism = q.mechanism,
+                        citationsJson = json.encodeToString(q.citations),
+                        pitfallsJson = json.encodeToString(q.pitfalls),
+                        followupsJson = json.encodeToString(q.followups),
+                        diagramImage = q.diagram.image, diagramSource = q.diagram.source,
+                        diagramStepsJson = json.encodeToString(q.diagram.steps),
+                        metaJson = json.encodeToString(q.meta),
+                        provenanceJson = json.encodeToString(q.provenance),
+                        searchBlob = blob,
                     )
                 )
                 cards.add(CardEntity(questionId = q.id))

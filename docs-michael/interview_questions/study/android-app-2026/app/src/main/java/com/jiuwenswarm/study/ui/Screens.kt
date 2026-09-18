@@ -1,6 +1,5 @@
 package com.jiuwenswarm.study.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,8 +24,6 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +47,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.jiuwenswarm.study.data.AnchorDto
 import com.jiuwenswarm.study.data.QuestionEntity
 import com.jiuwenswarm.study.data.Repo
 import com.jiuwenswarm.study.data.StudyItem
@@ -67,25 +63,12 @@ private fun Section(title: String, body: String) {
 }
 
 @Composable
-private fun AnchorsBlock(anchors: List<AnchorDto>) {
-    if (anchors.isEmpty()) return
-    var open by remember { mutableStateOf(false) }
+private fun BulletList(title: String, items: List<String>) {
+    if (items.isEmpty()) return
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        TextButton(onClick = { open = !open }) {
-            Text(if (open) "Hide code anchors" else "Anchors (${anchors.size})")
-        }
-        if (open) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    anchors.forEach { a ->
-                        Text(a.ref, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                        if (a.desc.isNotBlank())
-                            Text(a.desc, style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        }
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(4.dp))
+        items.forEach { Text("• $it", style = MaterialTheme.typography.bodyLarge) }
     }
 }
 
@@ -156,7 +139,7 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
     var index by remember { mutableIntStateOf(0) }
     var reveal by remember { mutableIntStateOf(0) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { queue = repo.buildQueue() }
+    LaunchedEffect(Unit) { queue = repo.buildQueue() }
 
     val q = queue
     if (q == null) {
@@ -164,10 +147,8 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
         return
     }
     if (index >= q.size) {
-        Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        Column(Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Done for now", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text("Reviewed ${q.size} cards.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -176,23 +157,45 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
     }
 
     val item = q[index]
+    val points = remember(item) { repo.points(item.question) }
+    val pitfalls = remember(item) { repo.pitfalls(item.question) }
+    val citations = remember(item) { repo.citations(item.question) }
+    val steps = remember(item) { repo.steps(item.question) }
+
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("${index + 1} / ${q.size}", style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${index + 1} / ${q.size}", style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            TypeBadge(item.question.type)
+        }
         Spacer(Modifier.height(8.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Text(item.question.question, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
-            if (reveal >= 1) Section("General", item.question.general)
-            if (reveal >= 2) Section("Jiuwen", item.question.jiuwen)
-            if (reveal >= 3 && item.question.diagram.isNotBlank()) {
+
+            if (reveal >= 1) {
+                if (item.question.tldr.isNotBlank())
+                    Text(item.question.tldr, style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(8.dp))
-                DiagramImage(item.question.diagram)
+                PointsList(points)
+            }
+            if (reveal >= 2) {
+                Section("Explanation", item.question.explain)
+                BulletList("Pitfalls", pitfalls)
+            }
+            if (reveal >= 3) {
+                Section("Evidence (Jiuwen)", item.question.mechanism)
+                CitationChips(citations)
             }
             if (reveal >= 4) {
-                Section("Gap", item.question.gap)
-                AnchorsBlock(repo.anchors(item.question))
-                TextButton(onClick = { onOpen(item.question.id) }) { Text("Open full card") }
+                if (item.question.diagramImage.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    DiagramImage(item.question.diagramImage)
+                    DiagramStepper(steps)
+                }
+                TextButton(onClick = { onOpen(item.question.id) }) { Text("Open full topic page") }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -202,11 +205,7 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
             }
         } else {
             RatingBar { rating ->
-                scope.launch {
-                    repo.rate(item.question.id, rating)
-                    index++
-                    reveal = 0
-                }
+                scope.launch { repo.rate(item.question.id, rating); index++; reveal = 0 }
             }
         }
     }
@@ -240,17 +239,21 @@ fun TopicScreen(repo: Repo, topicId: String, onQuestion: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(questions, key = { it.id }) { q ->
             Card(Modifier.fillMaxWidth().clickable { onQuestion(q.id) }) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-                    Text("${q.number}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
-                    Text(q.question, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${q.number}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(10.dp))
+                        TypeBadge(q.type)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(q.question, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
     }
 }
 
-// ---------------------------------------------------------------- Question (read)
+// ---------------------------------------------------------------- Question (topic page)
 
 @Composable
 fun QuestionScreen(repo: Repo, questionId: String) {
@@ -263,34 +266,53 @@ fun QuestionScreen(repo: Repo, questionId: String) {
     val isBookmarked = bookmarks.contains(questionId)
 
     val item = q ?: return
+    val points = remember(item) { repo.points(item) }
+    val pitfalls = remember(item) { repo.pitfalls(item) }
+    val followups = remember(item) { repo.followups(item) }
+    val citations = remember(item) { repo.citations(item) }
+    val steps = remember(item) { repo.steps(item) }
+    val meta = remember(item) { repo.meta(item) }
+    val prov = remember(item) { repo.provenance(item) }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(item.topicId, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            TypeBadge(item.type)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { scope.launch { repo.toggleBookmark(questionId, isBookmarked) } }) {
-                Icon(if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                    contentDescription = "Bookmark")
+                Icon(if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "Bookmark")
             }
         }
         Text(item.question, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        if (item.tldr.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(item.tldr, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        }
         Spacer(Modifier.height(12.dp))
-        Section("General", item.general)
-        Section("Jiuwen", item.jiuwen)
-        if (item.diagram.isNotBlank()) { Spacer(Modifier.height(8.dp)); DiagramImage(item.diagram) }
-        Section("Gap", item.gap)
-        AnchorsBlock(repo.anchors(item))
+        PointsList(points)
+        Section("Explanation", item.explain)
+        Section("Evidence (Jiuwen)", item.mechanism)
+        CitationChips(citations)
+        if (item.diagramImage.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            DiagramImage(item.diagramImage)
+            DiagramStepper(steps)
+        }
+        BulletList("Pitfalls", pitfalls)
+        BulletList("Likely follow-ups", followups)
+        Spacer(Modifier.height(8.dp))
+        Text("${meta.difficulty} · ${meta.tags.joinToString()} · reviewed ${prov.reviewedAt}",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        LinearProgressIndicator(
-            progress = { ((card?.state ?: 0).coerceIn(0, 3)) / 3f },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        LinearProgressIndicator(progress = { ((card?.state ?: 0).coerceIn(0, 3)) / 3f },
+            modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(16.dp))
         Text("Your note", style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(
             value = noteText ?: note?.text ?: "",
             onValueChange = { noteText = it },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2,
+            modifier = Modifier.fillMaxWidth(), minLines = 2,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         )
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
@@ -350,7 +372,7 @@ fun SearchScreen(repo: Repo, onQuestion: (String) -> Unit) {
         OutlinedTextField(
             value = query, onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search questions…") },
+            placeholder = { Text("Search questions, answers, points…") },
             singleLine = true,
         )
         Spacer(Modifier.height(10.dp))
@@ -358,8 +380,12 @@ fun SearchScreen(repo: Repo, onQuestion: (String) -> Unit) {
             items(list, key = { it.id }) { q ->
                 Card(Modifier.fillMaxWidth().clickable { onQuestion(q.id) }) {
                     Column(Modifier.padding(14.dp)) {
-                        Text(q.topicId, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(q.topicId, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(8.dp))
+                            TypeBadge(q.type)
+                        }
                         Text(q.question, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }

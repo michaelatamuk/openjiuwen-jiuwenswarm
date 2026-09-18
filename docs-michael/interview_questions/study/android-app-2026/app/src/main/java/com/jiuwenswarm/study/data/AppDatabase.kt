@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         BookmarkEntity::class,
         ReviewLogEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         fun build(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "jiuwen-study.db").build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "jiuwen-study.db")
+                .fallbackToDestructiveMigration()
+                .build()
     }
 }

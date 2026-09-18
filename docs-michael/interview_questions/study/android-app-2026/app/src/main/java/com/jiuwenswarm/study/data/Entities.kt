@@ -10,24 +10,34 @@ data class TopicEntity(
     val orderIndex: Int,
 )
 
+/** A question as a layered/atomic topic page (v2 schema). */
 @Entity(tableName = "questions")
 data class QuestionEntity(
     @PrimaryKey val id: String,
     val topicId: String,
     val number: Int,
+    val type: String,
     val question: String,
-    val general: String,
-    val jiuwen: String,
-    val gap: String,
-    val diagram: String,
-    val anchorsJson: String,
+    val tldr: String,
+    val pointsJson: String,
+    val explain: String,
+    val mechanism: String,
+    val citationsJson: String,
+    val pitfallsJson: String,
+    val followupsJson: String,
+    val diagramImage: String,
+    val diagramSource: String,
+    val diagramStepsJson: String,
+    val metaJson: String,
+    val provenanceJson: String,
+    val searchBlob: String,
 )
 
 /** Spaced-repetition state for one question (FSRS). */
 @Entity(tableName = "cards")
 data class CardEntity(
     @PrimaryKey val questionId: String,
-    val state: Int = 0,          // 0 new, 1 learning, 2 review, 3 relearning
+    val state: Int = 0,
     val stability: Double = 0.0,
     val difficulty: Double = 0.0,
     val due: Long = 0L,

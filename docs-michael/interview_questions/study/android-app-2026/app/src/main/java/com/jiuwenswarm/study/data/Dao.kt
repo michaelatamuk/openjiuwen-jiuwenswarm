@@ -36,7 +36,7 @@ interface QuestionDao {
     @Query("SELECT COUNT(*) FROM questions")
     suspend fun count(): Int
 
-    @Query("SELECT * FROM questions WHERE question LIKE '%'||:q||'%' OR general LIKE '%'||:q||'%' OR jiuwen LIKE '%'||:q||'%' ORDER BY topicId, number LIMIT 60")
+    @Query("SELECT * FROM questions WHERE searchBlob LIKE '%'||:q||'%' ORDER BY topicId, number LIMIT 60")
     fun search(q: String): Flow<List<QuestionEntity>>
 }
 

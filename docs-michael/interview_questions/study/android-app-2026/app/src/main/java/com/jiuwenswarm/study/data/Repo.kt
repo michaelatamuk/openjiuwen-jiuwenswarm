@@ -27,8 +27,29 @@ class Repo(private val db: AppDatabase) {
     fun totalReviews(): Flow<Int> = db.reviewLog().observeTotalReviews()
     fun activeDays(): Flow<Int> = db.reviewLog().observeActiveDays()
 
-    fun anchors(q: QuestionEntity): List<AnchorDto> =
-        runCatching { json.decodeFromString<List<AnchorDto>>(q.anchorsJson) }.getOrDefault(emptyList())
+    // --- layered content accessors -------------------------------------------------
+
+    fun points(q: QuestionEntity): List<String> = decodeList(q.pointsJson)
+
+    fun pitfalls(q: QuestionEntity): List<String> = decodeList(q.pitfallsJson)
+
+    fun followups(q: QuestionEntity): List<String> = decodeList(q.followupsJson)
+
+    fun steps(q: QuestionEntity): List<String> = decodeList(q.diagramStepsJson)
+
+    fun citations(q: QuestionEntity): List<CitationDto> =
+        runCatching { json.decodeFromString<List<CitationDto>>(q.citationsJson) }.getOrDefault(emptyList())
+
+    fun meta(q: QuestionEntity): MetaDto =
+        runCatching { json.decodeFromString<MetaDto>(q.metaJson) }.getOrDefault(MetaDto())
+
+    fun provenance(q: QuestionEntity): ProvenanceDto =
+        runCatching { json.decodeFromString<ProvenanceDto>(q.provenanceJson) }.getOrDefault(ProvenanceDto())
+
+    private inline fun <reified T> decodeList(s: String): List<T> =
+        runCatching { json.decodeFromString<List<T>>(s) }.getOrDefault(emptyList())
+
+    // --- bookmarks / notes ---------------------------------------------------------
 
     fun bookmarkIds(): Flow<List<String>> = db.bookmarks().observeIds()
 
@@ -44,7 +65,8 @@ class Repo(private val db: AppDatabase) {
         else db.notes().upsert(NoteEntity(questionId, text, System.currentTimeMillis()))
     }
 
-    /** Build today's queue: due review cards first, then a few new cards. */
+    // --- study ---------------------------------------------------------------------
+
     suspend fun buildQueue(maxDue: Int = 30, maxNew: Int = 8): List<StudyItem> {
         val now = System.currentTimeMillis()
         val out = ArrayList<StudyItem>()
