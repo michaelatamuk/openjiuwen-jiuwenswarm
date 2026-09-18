@@ -15464,6 +15464,14 @@ class JiuWenSwarmDeepAdapter:
 
         _model_error = self._model_config_error(request)
         if _model_error is not None:
+            yield AgentResponseChunk(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                payload={"event_type": "chat.error", "error": _model_error[1], "code": _model_error[0]},
+                is_complete=True,
+            )
+            return
+
         # Record the parent request context so sub-agent LLM calls (which run in
         # sub-sessions) can be forwarded into this session's history (TraceHound).
         # Mirror of the non-streaming path (process_message_impl) — the web chat
@@ -15482,16 +15490,6 @@ class JiuWenSwarmDeepAdapter:
             )
         except Exception:
             pass
-
-        _req_model = self._requested_model_name(request)
-        if not self._has_valid_model_config(_req_model):
-            yield AgentResponseChunk(
-                request_id=request.request_id,
-                channel_id=request.channel_id,
-                payload={"event_type": "chat.error", "error": _model_error[1], "code": _model_error[0]},
-                is_complete=True,
-            )
-            return
 
         session_id = request.session_id or "default"
         rid = request.request_id
