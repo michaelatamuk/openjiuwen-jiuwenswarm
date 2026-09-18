@@ -322,6 +322,13 @@ def build_diagram(code, mmdc, question):
     }
 
 
+def load_merge(pattern):
+    out = {}
+    for p in sorted(glob.glob(os.path.join(HERE, pattern))):
+        out.update(json.load(open(p, encoding="utf-8")))
+    return out
+
+
 def main():
     if "--fix-cache" in sys.argv:
         n = 0
@@ -330,9 +337,9 @@ def main():
         print("fixed", n, "cached SVGs")
         return
     mmdc = find_mmdc()
-    authored = json.load(open(AUTH, encoding="utf-8")) if os.path.isfile(AUTH) else {}
-    authored_j = json.load(open(AUTH_J, encoding="utf-8")) if os.path.isfile(AUTH_J) else {}
-    authored_d = json.load(open(AUTH_D, encoding="utf-8")) if os.path.isfile(AUTH_D) else {}
+    authored = load_merge("authored_summaries*.json")
+    authored_j = load_merge("authored_jiuwen_plain*.json")
+    authored_d = load_merge("authored_diagrams*.json")
     files = sorted(f for f in glob.glob(os.path.join(BASE, "*.md"))
                    if re.match(r"^(0[1-9]|10|9[0-9])-", os.path.basename(f)))
     os.makedirs(os.path.join(OUT, "diagrams"), exist_ok=True)
