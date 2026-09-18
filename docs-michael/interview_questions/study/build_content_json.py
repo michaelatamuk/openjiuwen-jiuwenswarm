@@ -354,37 +354,37 @@ def main():
             citations = parse_anchors(body)
             qtype = infer_type(q["question"], citations)
             sents = sentences(explain)
-            d_tldr = sents[0] if sents else q["question"]
-            d_points = sents[:6] if len(sents) >= 2 else ([d_tldr] if d_tldr else [])
             key = f"{prefix}-{qi}"
             ov = authored.get(key, {})
             qt = ov.get("title", "")
-            tldr = ov.get("tldr") or d_tldr
-            points = ov.get("points") or d_points
-            jiuwen_plain = authored_j.get(key) or mechanism
+            tldr = ov.get("tldr", "")
+            points = ov.get("points", [])
+            jiuwen_plain = authored_j.get(key, "")
             sources = []
             cm = CANON.search(body)
             if cm:
                 sources.append(cm.group(1).strip())
 
-            diagram = EMPTY_DIAGRAM
-            diagram_tech = EMPTY_DIAGRAM
-            dia = DIAGRAM.search(body)
-            fence = dia.group(1).replace("\r", "").strip() if dia else ""
+            fences = [c.replace("\r", "").strip() for c in DIAGRAM.findall(body)]
             authd = authored_d.get(key, {})
-            if authd.get("technical") == "__existing__":
-                concept_src = authd.get("concept", "")
-                tech_src = fence
+            concept = authd.get("concept")
+            if isinstance(concept, list):
+                concept_srcs = concept
+            elif concept:
+                concept_srcs = [concept]
             else:
-                concept_src = authd.get("concept") or fence
-                tech_src = authd.get("technical", "")
+                concept_srcs = fences
+            tech_src = (fences[0] if fences else "") if authd.get("technical") == "__existing__" \
+                else authd.get("technical", "")
+            diagrams = []
+            diagram_tech = EMPTY_DIAGRAM
             try:
-                if concept_src:
-                    d = build_diagram(concept_src, mmdc, q["question"])
+                for src in concept_srcs:
+                    d = build_diagram(src, mmdc, q["question"])
                     if d is None:
                         pending += 1
                     else:
-                        diagram = d
+                        diagrams.append(d)
                         rendered += 1
                 if tech_src:
                     d = build_diagram(tech_src, mmdc, q["question"])
@@ -396,6 +396,7 @@ def main():
             except Exception as e:
                 missing += 1
                 print("diagram render failed:", str(e)[:120])
+            diagram = diagrams[0] if diagrams else EMPTY_DIAGRAM
 
             t["questions"].append({
                 "id": f"{prefix}-{qi}", "topicId": prefix, "topicTitle": title, "number": qi,
@@ -404,6 +405,7 @@ def main():
                 "citations": citations,
                 "pitfalls": sentences(gap), "followups": [],
                 "diagram": diagram,
+                "diagrams": diagrams,
                 "diagramTechnical": diagram_tech,
                 "meta": {"difficulty": "advanced" if qtype in ("design", "compare", "mechanism") else "core",
                          "tags": [prefix],

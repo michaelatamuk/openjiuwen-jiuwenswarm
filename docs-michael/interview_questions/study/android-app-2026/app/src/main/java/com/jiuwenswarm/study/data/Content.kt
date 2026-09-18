@@ -33,6 +33,7 @@ data class QuestionDto(
     val pitfalls: List<String> = emptyList(),
     val followups: List<String> = emptyList(),
     val diagram: DiagramDto = DiagramDto(),
+    val diagrams: List<DiagramDto> = emptyList(),
     val diagramTechnical: DiagramDto = DiagramDto(),
     val meta: MetaDto = MetaDto(),
     val provenance: ProvenanceDto = ProvenanceDto(),

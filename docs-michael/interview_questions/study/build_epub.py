@@ -64,14 +64,16 @@ def main():
             summary = f'<div class="summary">{html.escape(q.get("tldr",""))}</div>' if q.get("tldr") else ""
             pts = ("<ul>" + "".join(f"<li>{html.escape(p)}</li>" for p in q.get("points", [])) + "</ul>") if q.get("points") else ""
             concept = ""
-            c = q.get("diagram", {}) or {}
-            if c.get("image"):
-                p = os.path.join(ASSETS, c["image"].replace("/", os.sep))
-                if os.path.isfile(p):
-                    images[os.path.basename(p)] = p
-                    concept = f'<div class="diagram"><img src="images/{os.path.basename(p)}"/></div>'
+            for c in (q.get("diagrams") or [q.get("diagram", {}) or {}]):
+                if c.get("image"):
+                    p = os.path.join(ASSETS, c["image"].replace("/", os.sep))
+                    if os.path.isfile(p):
+                        images[os.path.basename(p)] = p
+                        concept += f'<div class="diagram"><img src="images/{os.path.basename(p)}"/></div>'
             tech = ""
-            if q.get("mechanism") or q.get("citations"):
+            plain = q.get("jiuwenPlain", "")
+            tech_text = q.get("mechanism", "") if plain else ""
+            if tech_text or q.get("citations"):
                 cites = "".join(f'<div class="cite"><code>{html.escape(x.get("ref",""))}</code> {html.escape(x.get("desc",""))}</div>' for x in q.get("citations", []))
                 timg = ""
                 td = q.get("diagramTechnical", {}) or {}
@@ -80,7 +82,7 @@ def main():
                     if os.path.isfile(tp):
                         images[os.path.basename(tp)] = tp
                         timg = f'<div class="diagram"><img src="images/{os.path.basename(tp)}"/></div>'
-                tech = "<h3>Technical detail (classes &amp; functions)</h3>" + md(q.get("mechanism", "")) + cites + timg
+                tech = "<h3>Technical detail (classes &amp; functions)</h3>" + md(tech_text) + cites + timg
             parts.append(
                 f'<h2 id="{qid}">{html.escape(q["question"])}</h2>{title}{summary}{pts}'
                 f'<h3>Explanation</h3>{md(q.get("explain",""))}{concept}'

@@ -78,20 +78,23 @@ def main():
                 lines.append("")
             if q.get("explain"):
                 lines += [f"**General.** {q['explain']}", ""]
-            img = write_diagram(q.get("diagram", {}).get("svg", "") or q.get("diagram", {}).get("image", ""))
-            if img:
-                lines += [img, ""]
-            jiu = q.get("jiuwenPlain") or q.get("mechanism")
+            for d in (q.get("diagrams") or [q.get("diagram", {})]):
+                im = write_diagram(d.get("image", "") or d.get("svg", ""))
+                if im:
+                    lines += [im, ""]
+            plain = q.get("jiuwenPlain") or ""
+            jiu = plain or q.get("mechanism") or ""
             if jiu:
                 lines += [f"**Jiuwen.** {jiu}", ""]
-            tech_img = write_diagram((q.get("diagramTechnical", {}) or {}).get("svg", "")
-                                     or (q.get("diagramTechnical", {}) or {}).get("image", ""))
-            if q.get("mechanism") or q.get("citations") or tech_img:
+            tech_img = write_diagram((q.get("diagramTechnical", {}) or {}).get("image", "")
+                                     or (q.get("diagramTechnical", {}) or {}).get("svg", ""))
+            tech_text = q.get("mechanism", "") if plain else ""
+            if tech_text or q.get("citations") or tech_img:
                 lines.append("<details>")
                 lines.append("<summary><b>Technical detail (classes &amp; functions)</b></summary>")
                 lines.append("")
-                if q.get("mechanism"):
-                    lines += [q["mechanism"], ""]
+                if tech_text:
+                    lines += [tech_text, ""]
                 if q.get("citations"):
                     lines += [f"<sub>{anchors_md(q['citations'])}</sub>", ""]
                 if tech_img:

@@ -53,13 +53,16 @@ def main():
             concept = q.get("diagram", {}) or {}
             tech = q.get("diagramTechnical", {}) or {}
             img = ""
-            if concept.get("image"):
-                p = os.path.join(ASSETS, concept["image"].replace("/", os.sep))
-                if os.path.isfile(p):
-                    media[os.path.basename(p)] = p
-                    img = diagram_img(concept["image"])
+            for c in (q.get("diagrams") or [concept]):
+                if c.get("image"):
+                    p = os.path.join(ASSETS, c["image"].replace("/", os.sep))
+                    if os.path.isfile(p):
+                        media[os.path.basename(p)] = p
+                        img += diagram_img(c["image"])
             tech_html = ""
-            if q.get("mechanism") or q.get("citations") or tech.get("image"):
+            plain = q.get("jiuwenPlain", "")
+            tech_text = q.get("mechanism", "") if plain else ""
+            if tech_text or q.get("citations") or tech.get("image"):
                 cites = "".join(
                     f'<div><code>{html.escape(c.get("ref",""))}</code> {html.escape(c.get("desc",""))}</div>'
                     for c in q.get("citations", [])
@@ -72,7 +75,7 @@ def main():
                         tech_img = diagram_img(tech["image"])
                 tech_html = (
                     "<details><summary>Technical detail (classes &amp; functions)</summary>"
-                    + md(q.get("mechanism", "")) + cites + tech_img + "</details>"
+                    + md(tech_text) + cites + tech_img + "</details>"
                 )
             title = f'<div style="color:#4c5bd4;font-weight:700;font-size:13px">{html.escape(q["title"])}</div>' if q.get("title") else ""
             summary = f'<p style="color:#333">{html.escape(q.get("tldr",""))}</p>' if q.get("tldr") else ""

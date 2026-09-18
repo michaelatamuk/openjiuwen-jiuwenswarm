@@ -57,6 +57,15 @@ class Repo(private val db: AppDatabase) {
         )
     }
 
+    fun diagrams(q: QuestionEntity): List<DiagramData> {
+        val list = runCatching { json.decodeFromString<List<DiagramDto>>(q.diagramListJson) }
+            .getOrDefault(emptyList())
+            .filter { it.image.isNotBlank() || it.svg.isNotBlank() }
+            .map { DiagramData(it.svg, it.image, it.svgDark, it.width, it.height, it.alt, it.steps, it.nodes) }
+        if (list.isNotEmpty()) return list
+        return listOfNotNull(diagram(q))
+    }
+
     fun diagramTechnical(q: QuestionEntity): DiagramData? {
         val d = runCatching { json.decodeFromString<DiagramDto>(q.diagramTechJson) }.getOrNull() ?: return null
         if (d.image.isBlank() && d.svg.isBlank()) return null

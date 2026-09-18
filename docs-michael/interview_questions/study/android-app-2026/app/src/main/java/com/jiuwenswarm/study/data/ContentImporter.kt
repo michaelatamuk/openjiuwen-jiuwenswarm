@@ -43,6 +43,7 @@ object ContentImporter {
                         diagramAlt = q.diagram.alt, diagramSource = q.diagram.source,
                         diagramStepsJson = json.encodeToString(q.diagram.steps),
                         diagramNodesJson = json.encodeToString(q.diagram.nodes),
+                        diagramListJson = json.encodeToString(q.diagrams),
                         diagramTechJson = json.encodeToString(q.diagramTechnical),
                         metaJson = json.encodeToString(q.meta),
                         provenanceJson = json.encodeToString(q.provenance),

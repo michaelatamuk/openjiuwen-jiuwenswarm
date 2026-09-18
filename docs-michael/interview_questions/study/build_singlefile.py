@@ -12,6 +12,7 @@ import os
 import re
 import json
 import html
+import base64
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, "android-app-2026", "app", "src", "main", "assets")
@@ -33,15 +34,14 @@ def md(text):
     return "<p>" + html.escape(text).replace("\n\n", "</p><p>") + "</p>"
 
 
-def inline_svg(rel):
+def inline_img(rel):
     if not rel:
         return ""
     p = os.path.join(ASSETS, rel.replace("/", os.sep))
     if not os.path.isfile(p):
         return ""
-    t = open(p, encoding="utf-8", errors="replace").read()
-    t = re.sub(r"<\?xml.*?\?>", "", t, flags=re.S).strip()
-    return '<div class="diagram">' + t + "</div>"
+    data = base64.b64encode(open(p, "rb").read()).decode("ascii")
+    return f'<div class="diagram"><img src="data:image/png;base64,{data}" alt="diagram"></div>'
 
 
 def citations_html(cites):
@@ -104,14 +104,16 @@ def build():
         for q in t["questions"]:
             title = f'<div class="title">{html.escape(q["title"])}</div>' if q.get("title") else ""
             summary = f'<div class="summary">{html.escape(q.get("tldr",""))}</div>' if q.get("tldr") else ""
-            concept = inline_svg(q.get("diagram", {}).get("svg", ""))
-            tech = inline_svg(q.get("diagramTechnical", {}).get("svg", ""))
-            jiu = md(q.get("jiuwenPlain", "")) or md(q.get("mechanism", ""))
+            concept = "".join(inline_img(d.get("image", "")) for d in (q.get("diagrams") or [q.get("diagram", {})]))
+            tech = inline_img(q.get("diagramTechnical", {}).get("image", ""))
+            plain = q.get("jiuwenPlain", "")
+            jiu = md(plain) or md(q.get("mechanism", ""))
+            tech_text = q.get("mechanism", "") if plain else ""
             tech_block = ""
-            if q.get("mechanism") or q.get("citations") or tech:
+            if tech_text or q.get("citations") or tech:
                 tech_block = (
                     "<details><summary>Technical detail (classes &amp; functions)</summary>"
-                    + md(q.get("mechanism", "")) + citations_html(q.get("citations", [])) + tech
+                    + md(tech_text) + citations_html(q.get("citations", [])) + tech
                     + "</details>"
                 )
             parts.append(
