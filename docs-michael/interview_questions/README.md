@@ -26,6 +26,16 @@ interview_questions/
 
 The numbered `01`–`10` files were assembled from the archived docs: near-identical and same-concept questions were merged, so each question appears once. Patterns and the glossary are reference material, not questions.
 
+## Study offline (plane / phone)
+
+The `study/` folder holds a generated offline kit built from these docs:
+
+- `study/dist/jiuwenswarm-interview-offline.html` — one self-contained file with search, tap-to-reveal answers, and Mermaid; works with no network on Windows and Android.
+- `study/site/index.html` — a fully local website build (MkDocs Material) for desktop reading.
+- `study/dist/jiuwen-interview.apkg` — an Anki deck for spaced repetition (Anki / AnkiDroid).
+
+Rebuild instructions are in `study/README.md`.
+
 ## Read in this order
 
 | File | Questions | Focus |

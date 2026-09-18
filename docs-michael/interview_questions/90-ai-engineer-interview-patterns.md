@@ -36,10 +36,10 @@ flowchart TD
 ```mermaid
 flowchart LR
     C["constraint"] --> L["latency budget"]
-    C --> $["cost per query"]
+    C --> COST["cost per query"]
     C --> A["accuracy floor"]
     L --> K["cap top_k (default 5, static)"]
-    $ --> M["model choice (routing is availability-only)"]
+    COST --> M["model choice (routing is availability-only)"]
     A --> R["rerank? (not in KB path)"]
 ```
 

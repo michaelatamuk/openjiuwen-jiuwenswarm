@@ -57,7 +57,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     C["constraint"] --> L["latency"] --> K["cap top_k (static 5)"]
-    C --> $["cost"] --> M["model choice (availability routing only)"]
+    C --> COST["cost"] --> M["model choice (availability routing only)"]
     C --> A["accuracy"] --> R["rerank? (not wired into KB)"]
 ```
 

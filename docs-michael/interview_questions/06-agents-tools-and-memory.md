@@ -631,17 +631,17 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant Loop as ReAct loop
+    participant RA as ReAct loop
     participant Rail as Interrupt rail
     participant Store as Session state
     participant User
-    Loop->>Rail: before_tool_call
-    Rail-->>Loop: AbortError(cause=ToolInterruptException)
-    Loop->>Store: commit_interrupt (context + ToolInterruptionState)
-    Note over Loop: return INTERACTION (paused)
-    User->>Loop: handle_resume(InteractiveInput)
-    Loop->>Store: load preserved iteration + tools
-    Loop->>Loop: replay interrupted tool calls, continue
+    RA->>Rail: before_tool_call
+    Rail-->>RA: AbortError(cause=ToolInterruptException)
+    RA->>Store: commit_interrupt (context + ToolInterruptionState)
+    Note over RA: return INTERACTION (paused)
+    User->>RA: handle_resume(InteractiveInput)
+    RA->>Store: load preserved iteration + tools
+    RA->>RA: replay interrupted tool calls, continue
 ```
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:237` — `_raise_interrupt`; `:243` raises `AbortError(cause=ToolInterruptException)`; re-raised at `agent-core/openjiuwen/core/runner/callback/framework.py:1172`<br>&bull; `agent-core/openjiuwen/core/single_agent/interrupt/handler.py:279` — `commit_interrupt`; `:310` `handle_resume`; `:326` uses preserved `state.iteration`<br>&bull; `agent-core/openjiuwen/core/single_agent/interrupt/state.py:32` — `ToolInterruptionState`<br>&bull; `agent-core/openjiuwen/core/session/checkpointer/persistence.py:803` — `pre_workflow_execute`; `:824` recover on `InteractiveInput`; `:860` `post_workflow_execute`; `:876` save on `TASK_STATUS_INTERRUPT`<br>&bull; `agent-core/openjiuwen/core/graph/graph.py:315` — `CompiledGraph._invoke`; `:326` pre; `:334` `pregel.run`; `:346` post<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:45` — `_is_resume`; `:174` `_save_state_on_error`; `:39` restore in `init`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:1519/1526` — `save_state`/`load_state`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2491/2516` — `load_state`/`save_state`; `agent-core/openjiuwen/harness_providers/io_adapter.py:299/308` — `pause()`/`resume()`</sub>

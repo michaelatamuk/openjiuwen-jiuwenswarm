@@ -1,0 +1,12 @@
+# Generated build outputs (regenerate with build_study.py / build_singlefile.py)
+docs/
+site/
+dist/
+.mmd-cache/
+
+# Bundled runtime assets (downloaded; not needed after build-time SVG rendering)
+assets/mermaid.min.js
+assets/mermaid-init.js
+assets/iframe-worker-shim.js
+
+node_modules/
