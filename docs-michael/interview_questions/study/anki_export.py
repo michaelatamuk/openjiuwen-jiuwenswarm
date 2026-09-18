@@ -1,132 +1,123 @@
 #!/usr/bin/env python
-"""Build Anki cards from the interview question bank.
+"""Build Anki cards from content.json (the authored, layered model).
 
-Outputs (into study/dist/):
-  jiuwen-interview-anki.csv   - import into Anki/AnkiDroid (HTML enabled)
-  jiuwen-interview.apkg       - ready-to-open Anki deck (needs `genanki`)
+Front: question. Back: key points + summary + explanation + concept diagram +
+Jiuwen (plain) + technical detail (collapsed). Concept diagrams are embedded PNGs.
 
-Usage:
-    python anki_export.py
+Outputs (study/dist/): jiuwen-interview.apkg, jiuwen-interview-anki.csv
 """
 import os
 import re
-import glob
+import json
 import html
 import hashlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BASE = os.path.dirname(HERE)
+ASSETS = os.path.join(HERE, "android-app-2026", "app", "src", "main", "assets")
 DIST = os.path.join(HERE, "dist")
+CONTENT = os.path.join(ASSETS, "content.json")
 
-TOPIC = {
-    "01": "LLM foundations",
-    "02": "Prompting & output",
-    "03": "RAG & retrieval",
-    "04": "RAG system design",
-    "05": "Agents, tools & memory",
-    "06": "Evaluation",
-    "07": "Production & scale",
-    "08": "Security & safety",
-    "09": "Fine-tuning",
-    "10": "General engineering",
-}
+try:
+    import markdown
+    HAVE_MD = True
+except Exception:
+    HAVE_MD = False
 
 
-def parse_blocks(path):
-    lines = open(path, encoding="utf-8").read().split("\n")
-    res, cur = [], None
-    for ln in lines:
-        m = re.match(r"^## (\d+)\.\s*(.+)$", ln)
-        if m:
-            if cur:
-                res.append(cur)
-            cur = {"title": m.group(2).strip(), "body": []}
-        elif ln.startswith("## "):
-            if cur:
-                res.append(cur)
-                cur = None
-        elif cur is not None:
-            cur["body"].append(ln)
-    if cur:
-        res.append(cur)
-    out = []
-    for b in res:
-        if b["title"].lower().startswith("summary"):
-            continue
-        b["body"] = "\n".join(b["body"]).strip()
-        out.append(b)
-    return out
+def md(text):
+    if not text:
+        return ""
+    if HAVE_MD:
+        return markdown.markdown(text, extensions=["extra", "sane_lists", "tables"])
+    return "<p>" + html.escape(text) + "</p>"
 
 
-def md_to_html(text):
-    try:
-        import markdown
-        return markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
-    except Exception:
-        # minimal fallback
-        t = html.escape(text)
-        t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
-        return "<p>" + t.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
+def points(points_):
+    if not points_:
+        return ""
+    return "<ul>" + "".join(f"<li>{html.escape(p)}</li>" for p in points_) + "</ul>"
+
+
+def diagram_img(rel):
+    if not rel:
+        return ""
+    return f'<div style="text-align:center"><img src="{os.path.basename(rel)}" style="max-width:100%"></div>'
 
 
 def main():
-    os.makedirs(DIST, exist_ok=True)
-    files = sorted(glob.glob(os.path.join(BASE, "[01][0-9]-*.md")))
+    data = json.load(open(CONTENT, encoding="utf-8"))
+    media = {}
     cards = []
-    for f in files:
-        prefix = os.path.basename(f)[:2]
-        topic = TOPIC.get(prefix, prefix)
-        for b in parse_blocks(f):
-            body = b["body"]
-            body = re.sub(r"```mermaid\n.*?```", "", body, flags=re.S)
-            body = body.strip()
-            cards.append({"q": b["title"], "topic": topic, "a": md_to_html(body)})
+    for t in data["topics"]:
+        for q in t["questions"]:
+            concept = q.get("diagram", {}) or {}
+            tech = q.get("diagramTechnical", {}) or {}
+            img = ""
+            if concept.get("image"):
+                p = os.path.join(ASSETS, concept["image"].replace("/", os.sep))
+                if os.path.isfile(p):
+                    media[os.path.basename(p)] = p
+                    img = diagram_img(concept["image"])
+            tech_html = ""
+            if q.get("mechanism") or q.get("citations") or tech.get("image"):
+                cites = "".join(
+                    f'<div><code>{html.escape(c.get("ref",""))}</code> {html.escape(c.get("desc",""))}</div>'
+                    for c in q.get("citations", [])
+                )
+                tech_img = ""
+                if tech.get("image"):
+                    tp = os.path.join(ASSETS, tech["image"].replace("/", os.sep))
+                    if os.path.isfile(tp):
+                        media[os.path.basename(tp)] = tp
+                        tech_img = diagram_img(tech["image"])
+                tech_html = (
+                    "<details><summary>Technical detail (classes &amp; functions)</summary>"
+                    + md(q.get("mechanism", "")) + cites + tech_img + "</details>"
+                )
+            title = f'<div style="color:#4c5bd4;font-weight:700;font-size:13px">{html.escape(q["title"])}</div>' if q.get("title") else ""
+            summary = f'<p style="color:#333">{html.escape(q.get("tldr",""))}</p>' if q.get("tldr") else ""
+            back = (
+                title + summary + points(q.get("points", []))
+                + "<h4>Explanation</h4>" + md(q.get("explain", ""))
+                + img
+                + "<h4>Jiuwen</h4>" + (md(q.get("jiuwenPlain", "")) or md(q.get("mechanism", "")))
+                + tech_html
+            )
+            cards.append({"q": q["question"], "topic": t["title"] + " · " + t["id"], "a": back})
 
-    with open(os.path.join(DIST, "jiuwen-interview-anki.csv"), "w", encoding="utf-8") as fh:
-        fh.write("Question,Topic,Answer\n")
+    os.makedirs(DIST, exist_ok=True)
+    import csv
+    with open(os.path.join(DIST, "jiuwen-interview-anki.csv"), "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["Question", "Topic", "Answer"])
         for c in cards:
-            q = c["q"].replace('"', '""')
-            ans = c["a"].replace('"', '""').replace("\r", "").replace("\n", " ")
-            fh.write(f'"{q}","{c["topic"]}","{ans}"\n')
-
-    csv_path = os.path.join(DIST, "jiuwen-interview-anki.csv")
-    print(f"wrote {csv_path} ({len(cards)} cards)")
+            w.writerow([c["q"], c["topic"], c["a"]])
 
     try:
         import genanki
     except Exception:
-        print("genanki not installed; skipping .apkg (CSV is ready for import).")
+        print("genanki not installed; CSV written")
         return
-
-    mid = int(hashlib.sha1(b"jiuwen-qa-model").hexdigest()[:8], 16)
+    mid = int(hashlib.sha1(b"jiuwen-qa-v2").hexdigest()[:8], 16)
     did = int(hashlib.sha1(b"jiuwen-interview-prep").hexdigest()[:8], 16)
     model = genanki.Model(
-        mid, "Jiuwen Q&A",
+        mid, "Jiuwen Q&A v2",
         fields=[{"name": "Question"}, {"name": "Topic"}, {"name": "Answer"}],
         templates=[{
             "name": "Recall",
-            "qfmt": '<div class="topic">{{Topic}}</div><div class="q">{{Question}}</div>',
-            "afmt": '{{FrontSide}}<hr id="answer"><div class="a">{{Answer}}</div>',
+            "qfmt": '<div style="color:#3f51b5;font-size:12px;font-weight:700">{{Topic}}</div><div style="font-size:18px;font-weight:600">{{Question}}</div>',
+            "afmt": '{{FrontSide}}<hr id="answer">{{Answer}}',
         }],
-        css=(
-            ".card{font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;"
-            "text-align:left;color:#222;background:#fff;line-height:1.5}"
-            ".topic{color:#3f51b5;font-size:12px;font-weight:700;text-transform:uppercase;"
-            "letter-spacing:.04em;margin-bottom:6px}.q{font-weight:600;font-size:18px}"
-            ".a{font-size:15px}.a code{background:#f2f2f2;padding:1px 4px;border-radius:4px}"
-            ".a pre{background:#f6f8fa;padding:8px;border-radius:6px;overflow:auto}"
-            ".a table{border-collapse:collapse}.a td,.a th{border:1px solid #ccc;padding:4px 6px}"
-        ),
+        css=".card{font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;text-align:left;background:#fff;color:#222;line-height:1.5}code{background:#f2f2f2;padding:1px 4px;border-radius:4px}details{margin-top:8px}",
     )
     deck = genanki.Deck(did, "Jiuwen Interview Prep")
     for c in cards:
         guid = hashlib.sha1((c["topic"] + "|" + c["q"]).encode("utf-8")).hexdigest()
-        deck.add_note(genanki.Note(
-            model=model, guid=guid,
-            fields=[c["q"], c["topic"], c["a"]]))
-    apkg = os.path.join(DIST, "jiuwen-interview.apkg")
-    genanki.Package(deck).write_to_file(apkg)
-    print(f"wrote {apkg} ({len(cards)} cards)")
+        deck.add_note(genanki.Note(model=model, guid=guid, fields=[c["q"], c["topic"], c["a"]]))
+    pkg = genanki.Package(deck)
+    pkg.media_files = list(media.values())
+    pkg.write_to_file(os.path.join(DIST, "jiuwen-interview.apkg"))
+    print(f"wrote apkg + csv ({len(cards)} cards, {len(media)} images)")
 
 
 if __name__ == "__main__":
