@@ -30,8 +30,8 @@ flowchart TD
 ```mermaid
 flowchart TD
     COMMIT["commit / CI"] --> DEL["delete_index(doc_id): remove old chunks"]
-    DEL --> RE["re-chunk + re-embed + build_index"]
-    RE --> FL["Milvus flush (consistency)"]
+    DEL --> FL["Milvus flush (consistency) between delete and rebuild"]
+    FL --> RE["re-chunk + re-embed + build_index"]
     NEW["new file"] --> APP["append into existing ANN index (no full re-index)"]
 ```
 
@@ -47,7 +47,8 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Q["100k queries/day"] --> CACHE["cache (exact only)"] --> RET["hybrid retrieve (dense+sparse RRF)"]
+    Q["100k queries/day"] --> RET["hybrid retrieve (dense+sparse RRF)"]
+    Q -.->|"absent"| CACHE["no query/response cache (only tool-call dedup cache)"]
     RET --> RR["optional rerank"] --> GEN["generate with retrieved context"]
     GEN --> OBS["observability: spans · cost per session"]
     OBS --> FB["feedback loop (partial)"]
@@ -66,8 +67,8 @@ flowchart LR
 ```mermaid
 flowchart TD
     UP["update_documents(doc_id)"] --> DEL["delete_index(doc_id): filter delete all chunks"]
-    DEL --> RE["re-chunk + re-embed + build_index"]
-    RE --> FL["Milvus flush (consistency)"]
+    DEL --> FL["Milvus flush (consistency) between delete and rebuild"]
+    FL --> RE["re-chunk + re-embed + build_index"]
     DEL -.->|"crash here"| LOSS["document lost (no transaction)"]
     PG["PG store: INSERT ... ON CONFLICT DO UPDATE (upsert)"] -.->|"no PG indexer wraps it"| X["unused upsert path"]
 ```

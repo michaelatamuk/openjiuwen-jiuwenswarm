@@ -276,9 +276,9 @@ flowchart TD
     R --> S{"facts sufficient? (AgenticRetriever)"}
     S -->|no| NQ["next question → re-retrieve (no abstention)"]
     S -->|yes| GEN["generate"]
-    R --> G{"grounded/verified?"}
-    G -->|"reviewer / verification agent / RSI judge"| GEN
-    R -.->|"absent"| X["answerable-from-context gate · 'I don't know' user path"]
+    GEN --> G{"answer grounded?"}
+    G -->|"post-hoc review: reviewer / verification agent / RSI judge (does not gate generation)"| RV["review of the produced answer"]
+    G -.->|"absent"| X["answerable-from-context gate · 'I don't know' user path"]
 ```
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:94` / `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:117` — applied only when supplied<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326` — `_rewrite` sufficiency check (rewrite, not abstain)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94` — `is_abstain` → empty candidates; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305` — `is_abstain`<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension; `:279` threshold re-normalization<br>&bull; `agent-core/openjiuwen/harness/subagents/verification_agent.py:51` — PASS/FAIL/PARTIAL verdict</sub>
@@ -551,7 +551,7 @@ flowchart TD
     Q -->|no| R["retrieval failure: chunking · index · query mismatch"]
     Q -->|yes| G["generation/grounding failure"]
     R --> X["no tool checks this; score_threshold defaults None"]
-    G --> Y["judges do not receive retrieved context → cannot localize"]
+    G --> Y["pairwise judge sees answer only (LLMAsJudgeMetric); trace-level evaluators do see tool results"]
 ```
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`<br>&bull; `agent-core/openjiuwen/harness/tools/web/free_search.py:299` — lexical relevance only<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator` (no context input)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — parses `result: true/false`, no context/attribution<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension on the output</sub>
@@ -818,7 +818,7 @@ flowchart TD
     V --> D{"dense results empty?"}
     D -->|yes| S
     D -->|no| R(["return"])
-    H --> D
+    H --> HR(["hybrid: no dense→sparse fallback (that branch is mode='vector' only)"])
     Q -.->|"intention produced but unused"| X["no intent→mode classifier"]
 ```
 

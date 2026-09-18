@@ -204,7 +204,7 @@ flowchart TD
     DOCS["known documents"] --> SYN["synthetic queries (doc = gold)"]
     MINE --> SET["small labeled eval set (50–200, multiple types)"]
     SYN --> SET
-    SET --> MET["Recall@k · Precision@k · MRR · NDCG"]
+    SET -.->|"absent"| MET["Recall@k · Precision@k · MRR · NDCG (not implemented)"]
     SYN -.->|"rsi generator: stub/bytecode"| X["no runnable core generator (PerStream example only)"]
 ```
 
@@ -220,7 +220,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    CMP{"compare two models"} --> ROUTE["IntelliRouter (availability/cost/latency — NOT accuracy)"]
+    CMP{"compare two models"} --> ROUTE["IntelliRouter (health/tokens/RPM/latency — NOT accuracy)"]
     CMP --> EVAL["run both on same held-out task set"]
     EVAL --> TR["Trainer: per-candidate validation score → keep best"]
     EVAL --> BON["best_of_n: tests / diff / lint"]

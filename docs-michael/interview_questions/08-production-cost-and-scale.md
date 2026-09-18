@@ -122,7 +122,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    REQ["multi-step pipeline"] --> ST["streaming (SSE/WS chunks) + TTFT measured"]
+    REQ["multi-step pipeline"] --> ST["streaming (WS chunk frames) + TTFT measured"]
     REQ --> PAR["parallel tool execution"]
     REQ --> CACHE["KV/prefix cache (local inference) · model object cache"]
     REQ --> ROUTE["IntelliRouter → deployment selection"]

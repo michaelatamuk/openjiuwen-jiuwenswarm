@@ -80,6 +80,7 @@ flowchart TD
     HINT --> ALLOC{"allocator"}
     ALLOC --> RR["RoundRobin"]
     ALLOC --> BN["ByModelName"]
+    ALLOC --> RT["RouterAllocator"]
     ALLOC --> IR["IntelliRouter (tpm/rpm rate-aware, failover)"]
     IR -.->|"not accuracy-based"| X["no cost/latency/quality-based model selection"]
 ```

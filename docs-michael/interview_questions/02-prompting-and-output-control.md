@@ -39,14 +39,6 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    PR["PR"] --> L["lint"] --> TC["type-check"] --> G{"gate (ci_gate.yaml)"}
-    G -->|"configured"| LINT["lint + type-check only"]
-    G -.->|"not configured"| PY["pytest level0 (advertised, not invoked)"]
-    EVAL["evaluator_pipeline / Trainer"] -.->|"offline CLI, no baseline threshold"| Q["quality regression gate ABSENT"]
-```
-
-```mermaid
-flowchart TD
     OPT["prompt optimizer"] --> MUT["overwrites system_prompt/user_prompt in place"]
     OPT --> CKPT["EvolveCheckpoint.version (operators_state, for resume)"]
     SEC["PromptSection: name/priority/category — no version/hash"] --> ASM["SystemPromptBuilder.build()"]

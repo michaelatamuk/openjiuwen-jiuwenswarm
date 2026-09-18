@@ -188,7 +188,7 @@ flowchart TD
     direction TB
         M["model call"] --> D{"tool calls?"}
         D -->|"work tools"| W["run tools"] --> RC["result differs from plan"] --> AD{"how to adapt?"}
-        AD -->|"revise tasks"| T["todo_modify: add / cancel / reorder"] --> M
+        AD -->|"revise tasks"| T["todo_modify: update / delete / cancel / append / insert"] --> M
         AD -->|"new instruction"| S["push_steering"] --> M
         AD -->|"change mode"| P["enter/exit plan + approval"] --> M
     end
@@ -737,13 +737,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    I(["input"]) --> M
-    subgraph LOOP["ReAct loop"]
+    I(["input"]) --> LOOP
+    subgraph LOOP["ReAct loop (inner: max_iterations = 5)"]
     direction TB
         M["model call"] --> T{"tool calls?"}
         T -->|yes| R["run tools"] --> M
-        G["stop conditions: rounds / time / budget / no-progress"] -.->|"checked each iteration"| T
     end
+    LOOP --> G{"DeepAgent outer task loop: rounds / time / budget / no-progress"}
     T -->|"no tool calls"| F(["final answer"])
     R ~~~ F
 ```
