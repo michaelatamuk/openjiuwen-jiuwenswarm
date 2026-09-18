@@ -44,7 +44,7 @@ flowchart TD
     G --> V["verification agent + reviewer Correctness (no context faithfulness)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92` — `VerificationRail` allowlist<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` default `None`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → sparse fallback<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — no context input</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92` — `VerificationRail` allowlist<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` default `None`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → sparse fallback<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:40` — no context input</sub>
 
 ## 3. Any A-vs-B comparison is testing tradeoff reasoning, not the "right" answer
 
@@ -79,7 +79,7 @@ flowchart LR
 
 **What a strong answer includes:** version prompts in source control or a prompt store with an immutable ID/hash, run a fixed eval on every change, gate the deploy, log the prompt version with the output, and be able to roll back in one step.
 
-**Jiuwen:** Prompts are assembled from named `PromptSection`s that carry only name/priority/category (no version/hash); optimization overwrites them in place; `PromptReport` is diagnostics, not versioning. Rollback exists only at the RSI **harness-package** level, and the CI gate has no eval threshold. Logs carry spans but not a prompt-version identifier.
+**Jiuwen:** Prompts are assembled from named `PromptSection`s that carry only name/priority/category/carrier (no version/hash); optimization overwrites them in place; `PromptReport` is diagnostics, not versioning. Rollback exists only at the RSI **harness-package** level, and the CI gate has no eval threshold. Logs carry spans but not a prompt-version identifier.
 
 ```mermaid
 flowchart TD
@@ -89,7 +89,7 @@ flowchart TD
     P --> L["log prompt version with output (absent)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:24` — `PromptSection` (no version); `:219` `build`<br>&bull; `agent-core/openjiuwen/harness/prompts/report.py:38` — `PromptReport` diagnostics<br>&bull; `agent-core/openjiuwen/agent_evolving/checkpointing/manager.py:43` — checkpoint version (operator state)<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — package-level rollback<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — no eval gate</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:24` — `PromptSection` (no version); `:219` `build`<br>&bull; `agent-core/openjiuwen/harness/prompts/report.py:58` — `PromptReport` diagnostics<br>&bull; `agent-core/openjiuwen/agent_evolving/checkpointing/manager.py:43` — checkpoint version (operator state)<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — package-level rollback<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — no eval gate</sub>
 
 ## 6. "How do you know it's working" is testing evaluation depth
 
@@ -108,7 +108,7 @@ flowchart TD
     Q --> OK["offline: exact-match + LLM judge + RSI rubric (present)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — no context input; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:12` — exact match<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193` — weighted rubric<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:167` — benchmark eval<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — lint/type-check only; `agent-core/pyproject.toml:236` — markers not invoked<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:102` — `has_error` (operations, not quality)</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:40` — no context input; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:12` — exact match<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193` — weighted rubric<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:167` — benchmark eval<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — lint/type-check only; `agent-core/pyproject.toml:236` — markers not invoked<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:102` — `has_error` (operations, not quality)</sub>
 
 ## 7. Any question about untrusted input is testing prompt injection awareness
 

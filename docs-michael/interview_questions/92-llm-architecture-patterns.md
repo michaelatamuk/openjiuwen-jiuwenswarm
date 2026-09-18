@@ -59,7 +59,7 @@ sequenceDiagram
     Model-->>Host: answer (or another tool_call)
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740/2793/2813` — loop / answer / execute<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:938/1078/1032` — tool list + dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — card → JSON Schema<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:65` — argument validation</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740/2793/2813` — loop / answer / execute<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:984/1078` — tool list + dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — card → JSON Schema<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:82` — argument validation</sub>
 
 ## 4. Planner–executor pattern
 
@@ -79,7 +79,7 @@ flowchart TD
     C --> A["final answer"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — outer task loop<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108` — planning layer + todo tools<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:184` — `TodoCreateTool`<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194/657` — subagent delegation<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101/108` — supervisor (agents-as-tools); `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — plan subagent</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — outer task loop<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108` — planning layer + todo tools<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:193` — `TodoCreateTool`<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194/657` — subagent delegation<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101/108` — supervisor (agents-as-tools); `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — plan subagent</sub>
 
 ## 5. Critic or reflection loop
 
@@ -116,7 +116,7 @@ flowchart TD
     RT --> M
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:64` — `SessionModelContext`; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805` — product hybrid index<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167` — `memory_search`; `agent-core/openjiuwen/harness/prompts/sections/memory.py:14` — when to call</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805` — product hybrid index<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167` — `memory_search`; `agent-core/openjiuwen/harness/prompts/sections/memory.py:14` — when to call</sub>
 
 ## 7. Router pattern
 
