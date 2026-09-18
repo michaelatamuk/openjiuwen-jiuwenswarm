@@ -1,8 +1,10 @@
 import { settingsNavigationIcons } from '../../../../assets/settings';
 import type { SettingsModuleDefinition } from '../../registry/types';
 import {
+  A2UISetting,
   ExternalCliSettingsItem,
   ProactiveLimitsSetting,
+  RSISetting,
   TaskFullDuplexSetting,
   TrajectoryUiSetting,
 } from './ExperimentalSettings';
@@ -33,9 +35,30 @@ export const experimentalModule: SettingsModuleDefinition = {
       items: [{ id: 'external-cli-agents', component: 'custom', render: ExternalCliSettingsItem }],
     },
     {
+      id: 'rsi',
+      titleKey: 'settingsPanel.experimental.rsi',
+      items: [{ id: 'rsi-enabled', component: 'custom', render: RSISetting }],
+    },
+    {
+      id: 'a2ui',
+      titleKey: 'settingsPanel.experimental.a2ui',
+      items: [{ id: 'a2ui', component: 'custom', render: A2UISetting }],
+    },
+    {
       id: 'trajectory-ui',
       titleKey: 'settingsPanel.experimental.trajectoryUi',
       items: [{ id: 'trajectory-ui-enabled', component: 'custom', render: TrajectoryUiSetting }],
+    },
+    {
+      id: 'skill-pack',
+      titleKey: 'settingsPanel.experimental.skillPack',
+      items: [
+        {
+          id: 'discover-skill-pack-enabled',
+          component: 'switch',
+          key: 'symphony_evolution_enabled',
+        },
+      ],
     },
     {
       id: 'kv-cache-affinity',
