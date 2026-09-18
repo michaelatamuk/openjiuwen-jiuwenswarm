@@ -37,6 +37,7 @@ import {
   type SettingsModuleTarget,
 } from './features/settings/settingsNavigation';
 import { ConnectorMarketPanel } from './components/ConnectorMarket';
+import { TrajectoryPanel } from './components/TraceHound';
 import { LoginDialog } from './components/LoginDialog';
 import { TrajectoryPanel } from './components/TraceHound';
 import {
