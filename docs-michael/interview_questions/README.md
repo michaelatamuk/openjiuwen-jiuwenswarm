@@ -1,37 +1,63 @@
-# Interview question bank — Jiuwen
+# Interview question bank — organized and deduplicated
 
-Sixteen docs covering recurring AI-engineering interview material — twelve question sets plus four reference docs (two patterns docs, an architecture-patterns doc, and a glossary). Each question set has the same shape: a short **General** answer that transfers to any interview, then a **Jiuwen** answer describing how this codebase implements it, with a Mermaid diagram and an **Anchors** list for each question.
+A curated set of AI-engineering interview questions, deduplicated and grouped by topic. Every unique question is answered once, with a short **General** answer, a **Jiuwen** answer describing how this codebase implements it, a Mermaid diagram, and `file:line` **Anchors**.
 
-## Docs
+## Structure
 
-| Doc | Questions | Focus |
+```
+interview_questions/
+  README.md                     this guide
+  01-llm-foundations.md         }
+  02-prompting-and-output-control.md
+  03-fine-tuning-and-customization.md
+  04-rag-and-retrieval.md       }  190 unique questions,
+  05-rag-system-design.md       }  one place each
+  06-agents-tools-and-memory.md
+  07-evaluation.md
+  08-production-cost-and-scale.md
+  09-security-and-safety.md
+  10-general-engineering.md
+  90-ai-engineer-interview-patterns.md     }
+  91-llm-interview-patterns.md             }  reference docs
+  92-llm-architecture-patterns.md          }
+  93-llm-terms-glossary.md                 }
+  orig/                         the original docs, archived unchanged
+```
+
+The numbered `01`–`10` files were assembled from the archived docs: near-identical and same-concept questions were merged, so each question appears once. Patterns and the glossary are reference material, not questions.
+
+## Read in this order
+
+| File | Questions | Focus |
 |---|---|---|
-| [ai-agent-interview-questions_for_engineers.md](ai-agent-interview-questions_for_engineers.md) | 27 | Core concepts, planning and reasoning, tool use and reliability, memory, multi-agent, cost and production, safety |
-| [ai-agent-framework-interview-questions_for_engineers.md](ai-agent-framework-interview-questions_for_engineers.md) | 24 | Framework value, state and execution, tool integration, multi-agent orchestration, reliability and control, framework selection |
-| [llm-fundamentals-interview-questions_for_engineers.md](llm-fundamentals-interview-questions_for_engineers.md) | 24 | Architecture, tokens and sampling, context and memory, prompting, fine-tuning, model behavior, evaluation and comparison |
-| [llm-applied-interview-questions_for_engineers.md](llm-applied-interview-questions_for_engineers.md) | 23 | Core LLM concepts, RAG, agents and tool use, evaluation, production and cost, security |
-| [llm-terms-interview-reference_for_engineers.md](llm-terms-interview-reference_for_engineers.md) | 20 terms | Glossary: core model concepts, RAG and retrieval, customization, agents and tools, production concerns |
-| [llm-interview-patterns_for_engineers.md](llm-interview-patterns_for_engineers.md) | 7 patterns | Recurring LLM interview dynamics: context handling, hallucination, tradeoffs, cost/loop control, prompt versioning, evaluation, untrusted input |
-| [llm-architecture-patterns_for_engineers.md](llm-architecture-patterns_for_engineers.md) | 7 patterns | Recurring LLM architecture patterns: simple RAG, modular RAG + rerank, agentic tools, planner-executor, critic loop, memory-augmented, router |
-| [ai-engineer-technical-questions_for_engineers.md](ai-engineer-technical-questions_for_engineers.md) | 30 | Python and software engineering, LLM fundamentals, RAG, agents and tool use, evaluation, system design and scale, security, judgment and tradeoffs |
-| [genai-interview-questions_for_engineers.md](genai-interview-questions_for_engineers.md) | 31 | Foundational concepts, prompting, RAG, fine-tuning and customization, agents and tool use, evaluation, production and scale, safety and ethics |
-| [rag-part1-interview-questions_for_engineers.md](rag-part1-interview-questions_for_engineers.md) | 23 | RAG architecture and pipeline, chunking and embedding, retrieval quality, failure modes, scale and production, evaluation |
-| [rag-part2-interview-questions_for_engineers.md](rag-part2-interview-questions_for_engineers.md) | 18 | Multi-hop and complex retrieval, hybrid search, agentic RAG, query understanding, production-grade retrieval |
-| [rag-practical-interview-questions_for_engineers.md](rag-practical-interview-questions_for_engineers.md) | 25 | RAG conceptual basics, chunking and embeddings, retrieval and ranking, failure scenarios, comparisons, real-world systems, cost and practicality |
-| [rag-retrieval-interview-questions_for_engineers.md](rag-retrieval-interview-questions_for_engineers.md) | 28 | Embeddings and similarity, chunking, sparse vs. dense, reranking, retrieval evaluation, multi-document and complex queries, scale and freshness |
-| [rag-evaluation-interview-questions_for_engineers.md](rag-evaluation-interview-questions_for_engineers.md) | 19 | Core evaluation concepts, retrieval metrics, generation metrics, practical eval setup, business-facing evaluation |
-| [rag-system-design-interview-questions_for_engineers.md](rag-system-design-interview-questions_for_engineers.md) | 20 | Whiteboard design prompts, scale and infrastructure, latency and cost, freshness and consistency, reliability and failure handling, security and access control |
-| [ai-engineer-interview-patterns_for_engineers.md](ai-engineer-interview-patterns_for_engineers.md) | 7 patterns | Recurring interview dynamics: failure-mode awareness, tradeoffs with numbers, shipped-agent signals, evaluation depth, scaling, disguised security, stakeholder judgment |
+| [01-llm-foundations.md](01-llm-foundations.md) | 15 | Tokens, embeddings, self-attention, encoder/decoder, positional encoding, sampling, context window |
+| [02-prompting-and-output-control.md](02-prompting-and-output-control.md) | 8 | Zero/few-shot/CoT, system vs user prompts, JSON output |
+| [03-fine-tuning-and-customization.md](03-fine-tuning-and-customization.md) | 7 | Full FT vs LoRA, instruction tuning, when to fine-tune, small-dataset risk |
+| [04-rag-and-retrieval.md](04-rag-and-retrieval.md) | 54 | Chunking, embeddings, dense/sparse, reranking, query understanding, RAG failure modes |
+| [05-rag-system-design.md](05-rag-system-design.md) | 16 | Whiteboard design prompts, scale, freshness, multi-tenancy, access control |
+| [06-agents-tools-and-memory.md](06-agents-tools-and-memory.md) | 44 | Function calling, loops, frameworks, state, planning, memory, multi-agent |
+| [07-evaluation.md](07-evaluation.md) | 23 | Retrieval metrics, faithfulness, LLM-as-judge, regression suites, production eval |
+| [08-production-cost-and-scale.md](08-production-cost-and-scale.md) | 6 | Cost, latency, caching, concurrency, 10x scaling |
+| [09-security-and-safety.md](09-security-and-safety.md) | 8 | Prompt injection, untrusted content, sensitive data, harmful output, jailbreaks |
+| [10-general-engineering.md](10-general-engineering.md) | 9 | Retries, error isolation, model choice, stakeholder judgment, rule-based vs LLM |
 
-Most sets open with a `> **The pattern worth noticing:**` line; every set closes with a strong-vs-weak summary table.
+## Reference docs
+
+| File | Scope |
+|---|---|
+| [90-ai-engineer-interview-patterns.md](90-ai-engineer-interview-patterns.md) | 7 recurring technical-interview dynamics |
+| [91-llm-interview-patterns.md](91-llm-interview-patterns.md) | 7 recurring LLM interview dynamics |
+| [92-llm-architecture-patterns.md](92-llm-architecture-patterns.md) | 7 recurring LLM architecture patterns |
+| [93-llm-terms-glossary.md](93-llm-terms-glossary.md) | 20-term glossary with where each term bites |
 
 ## How to read an answer
 
 - **General** — the framework-agnostic answer; this is the part that transfers to any interview.
-- **Jiuwen** — how this codebase implements the mechanism, or an explicit statement that it does not. Code references are collected in the **Anchors** list under each Jiuwen answer, as `path:line` — short description.
+- **Jiuwen** — how this codebase implements the mechanism, or an explicit statement that it does not. Code references are collected in the **Anchors** line, as `path:line` — short description.
+- Each question ends with a line naming its canonical source doc and the other docs that covered it, so you can trace it back.
 
 ## Conventions
 
 - **Anchors** use full repository paths and are `file:line`; they may drift as code changes. Where a mechanism is absent, config-gated, or inert, that is stated rather than implied. All anchors were verified to resolve to a real file and line when written, and their line contents spot-checked.
 - **Layers.** "The framework" is `agent-core/openjiuwen` — the thin `core/` SDK plus the heavier `harness/`, `agent_teams/`, `extensions/`, and `auto_harness/` layers. The product built on it is `jiuwenswarm/jiuwenswarm/`. Answers say which layer carries a mechanism.
-- **Paths** are relative to the repository root.
+- **Paths** are relative to the repository root. The uncompressed originals live in [`orig/`](orig/README.md).
