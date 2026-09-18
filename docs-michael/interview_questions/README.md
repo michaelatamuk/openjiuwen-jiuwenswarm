@@ -7,34 +7,30 @@ A curated set of AI-engineering interview questions, deduplicated and grouped by
 ```
 interview_questions/
   README.md                     this guide
-  01-llm-foundations.md         }
-  02-prompting-and-output-control.md
-  03-rag-and-retrieval.md       }  166 unique questions,
-  04-rag-system-design.md       }  in study order
-  05-agents-tools-and-memory.md
-  06-evaluation.md
-  07-production-cost-and-scale.md
-  08-security-and-safety.md
-  09-fine-tuning-and-customization.md
-  10-general-engineering.md
-  90-llm-terms-glossary.md                 }
-  91-ai-engineer-interview-patterns.md     }  reference docs
-  92-llm-interview-patterns.md             }
-  93-llm-architecture-patterns.md          }
-  orig/                         the original docs, archived unchanged
+  content/
+    topics/                     01-10 + 90-93 .md — 166 unique questions + reference docs
+    summaries/                  authored title / summary / key-points per topic
+    jiuwen/                     authored plain-language Jiuwen answers per topic
+    diagrams.json               concept-vs-technical diagram assignments
+  source/                       the original docs, archived unchanged
+  pipeline/                     build scripts + mkdocs config
+  apps/android/                 native offline study app (Room + FSRS)
+  build/                        generated outputs (gitignored)
 ```
 
 The numbered `01`–`10` files were assembled from the archived docs: near-identical and same-concept questions were merged, so each question appears once. Patterns and the glossary are reference material, not questions.
 
 ## Study offline (plane / phone)
 
-The `study/` folder holds a generated offline kit built from these docs:
+`pipeline/` builds an offline kit from these docs into `build/`:
 
-- `study/dist/jiuwenswarm-interview-offline.html` — one self-contained file with search, tap-to-reveal answers, and Mermaid; works with no network on Windows and Android.
-- `study/site/index.html` — a fully local website build (MkDocs Material) for desktop reading.
-- `study/dist/jiuwen-interview.apkg` — an Anki deck for spaced repetition (Anki / AnkiDroid).
+- `build/dist/jiuwenswarm-interview-offline.html` — one self-contained file with search, tap-to-reveal answers, and diagrams; works with no network on Windows and Android.
+- `build/site/index.html` — a fully local website build (MkDocs Material) for desktop reading.
+- `build/dist/jiuwen-interview.apkg` — an Anki deck for spaced repetition (Anki / AnkiDroid).
+- `build/dist/jiuwenswarm-interview.epub` — an EPUB for e-readers.
+- `build/interview_questions-vault.zip` — an Obsidian vault.
 
-Rebuild instructions are in `study/README.md`.
+Rebuild instructions are in `pipeline/README.md`.
 
 ## Read in this order
 
@@ -72,4 +68,4 @@ The numbered files are in recommended study order: foundations → prompting →
 
 - **Anchors** use full repository paths and are `file:line`; they may drift as code changes. Where a mechanism is absent, config-gated, or inert, that is stated rather than implied. All anchors were verified to resolve to a real file and line when written, and their line contents spot-checked.
 - **Layers.** "The framework" is `agent-core/openjiuwen` — the thin `core/` SDK plus the heavier `harness/`, `agent_teams/`, `extensions/`, and `auto_harness/` layers. The product built on it is `jiuwenswarm/jiuwenswarm/`. Answers say which layer carries a mechanism.
-- **Paths** are relative to the repository root. The uncompressed originals live in [`orig/`](orig/README.md).
+- **Paths** are relative to the repository root. The uncompressed originals live in [`source/`](source/README.md).
