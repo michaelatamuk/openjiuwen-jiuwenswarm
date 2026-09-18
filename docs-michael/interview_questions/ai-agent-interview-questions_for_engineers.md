@@ -2,9 +2,9 @@
 
 Based on the list *The Most Repeated AI Agent Questions in AI Engineer Interviews* (Core Concepts; Planning and Reasoning; Tool Use and Reliability; Memory; Multi-Agent Systems; Cost and Production; Safety). Each section heading is the original question.
 
-For each question: a short general answer, then how the Jiuwen codebase actually implements it (verified against source). Code references are collected in an **Anchors** list under each Jiuwen answer so the prose stays readable.
+See [README](README.md) for the shared conventions (answer shape, anchor format, repo layers).
 
-Anchors use full repository paths and are `file:line`; they may drift as code changes. Where a mechanism is absent or config-gated, that is stated rather than implied.
+> **The pattern worth noticing:** almost every agent question is really asking one thing — can this system be trusted to act on its own, and what stops it when something goes wrong.
 
 ---
 
@@ -33,7 +33,7 @@ flowchart TD
         M["model call"] --> D{"tool calls?"}
         D -->|yes| T["run tools"] --> M
     end
-    D -->|"no tool calls"| A(["final answer"])
+    D -->|"no tool calls "| A(["final answer"])
     T ~~~ A
 ```
 
@@ -369,7 +369,7 @@ flowchart TD
     M -.->|"append turn"| ST
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `agent-core/openjiuwen/core/memory/manage/mem_model/memory_unit.py` — memory type taxonomy<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:56` — product hybrid memory index</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `../../../agent-core/openjiuwen/core/memory/manage/mem_model/memory_unit.py` — memory type taxonomy<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:56` — product hybrid memory index</sub>
 
 ## 14. How do you decide what to store in memory versus what to discard
 
@@ -441,7 +441,7 @@ flowchart TD
     SUM --> REINJ["reinject plan / task / skills"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:407` — summary + boundary marker<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:183` — full-compact config<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:192` — progressive summary passes<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/bm25.py` — recall of archived chunks<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/reinjection/builders.py` — reinject state after compaction<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:637` — structured background notes</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:407` — summary + boundary marker<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:183` — full-compact config<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:192` — progressive summary passes<br>&bull; `../../../agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/bm25.py` — recall of archived chunks<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/reinjection/builders.py` — reinject state after compaction<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:637` — structured background notes</sub>
 
 ---
 
@@ -461,7 +461,7 @@ flowchart TD
     Q -->|yes| M(["multi-agent justified"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/` — leader/teammate team stack<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/` — intra-agent delegation<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194` — isolated subagent session<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/assembly.py:260` — product swarm assembly</sub>
+<sub>**Anchors:**<br>&bull; `../../../agent-core/openjiuwen/agent_teams` — leader/teammate team stack<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/` — intra-agent delegation<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194` — isolated subagent session<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/assembly.py:260` — product swarm assembly</sub>
 
 ## 18. What's the planner-executor pattern, and when do you need it
 
@@ -481,7 +481,7 @@ flowchart TB
     R --> L
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92/208/239` — `TeamScheduler` scan/dispatch/review<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/` — supervisor routing<br>&bull; `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — dedicated plan subagent</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92/208/239` — `TeamScheduler` scan/dispatch/review<br>&bull; `../../../agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus` — supervisor routing<br>&bull; `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — dedicated plan subagent</sub>
 
 ## 19. How do multiple agents communicate and hand off work to each other
 
@@ -513,7 +513,7 @@ flowchart TD
     OWN --> WT["isolated worktree"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581` — one-active-task-per-member<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634` — atomic CAS claim<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1673` — reassign instead of release<br>&bull; `agent-core/openjiuwen/agent_teams/agent/spawn_manager.py:73` — teammate spawn idempotency<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/control.py:169` — reject live subagent re-spawn<br>&bull; `agent-core/openjiuwen/agent_teams/worktree/` — per-member worktree isolation<br>&bull; `agent-core/openjiuwen/agent_teams/reliability/` — conflict detectors</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581` — one-active-task-per-member<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634` — atomic CAS claim<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1673` — reassign instead of release<br>&bull; `agent-core/openjiuwen/agent_teams/agent/spawn_manager.py:73` — teammate spawn idempotency<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/control.py:169` — reject live subagent re-spawn<br>&bull; `../../../agent-core/openjiuwen/agent_teams/worktree` — per-member worktree isolation<br>&bull; `agent-core/openjiuwen/agent_teams/reliability/` — conflict detectors</sub>
 
 ---
 
