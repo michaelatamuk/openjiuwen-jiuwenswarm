@@ -1,3 +1,4 @@
+import { AssetPublishHost } from './components/AssetPublishDrawer';
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 
 /**
@@ -8,6 +9,8 @@
 
 import { useState, useCallback, useEffect, useRef, Component, ReactNode, useMemo, lazy, Suspense, type PointerEvent as ReactPointerEvent } from 'react';
 import { ChatPanel } from './components/ChatPanel';
+import { SideConversationPanel } from './components/ChatPanel/SideConversationPanel';
+import { DesktopTextEditContextMenu } from './components/DesktopTextEditContextMenu';
 import { SessionSidebar } from './components/SessionSidebar';
 import { SkillPanel } from './components/SkillPanel';
 import { AgentManagementPanel } from './components/AgentManagementPanel';
@@ -24,6 +27,7 @@ import { ToolPanel } from './components/ToolPanel';
 import { UpdatePanel } from './components/UpdatePanel';
 import { ExternalCliInstallDialog, type ExternalCliInstallStatuses } from './components/ExternalCliInstallDialog';
 import { PersonalContextPanel } from './components/PersonalContext';
+import { ToastStack } from './components/ui';
 import { SettingsPage } from './features/settings/SettingsPage';
 import type { SettingsPageDefinition } from './features/settings/registry/types';
 import type { SettingsRequest } from './features/settings/services/settingsContract';
@@ -33,6 +37,7 @@ import {
   type SettingsModuleTarget,
 } from './features/settings/settingsNavigation';
 import { ConnectorMarketPanel } from './components/ConnectorMarket';
+import { LoginDialog } from './components/LoginDialog';
 import { TrajectoryPanel } from './components/TraceHound';
 import {
   ShareImageDocument,
@@ -71,11 +76,20 @@ import { readAgentTemplateName } from './features/agentIdentity';
 import { normalizeTeamLeaderIdentity } from './features/teamLeaderIdentity';
 import { useWebSocket, mergePersistedGoalCompletionMessages, stampGoalObjectiveMessages, useResponsiveLayout, useResponsivePanelResize } from './hooks';
 import { webRequest } from './services/webClient';
+import { getArchiveErrorCode } from './features/workspace/archivedTaskClient';
 import type { WorkflowRun } from './components/teamArea/workflowTypes';
 import { processOAuthCallback } from './utils/gitcodeOAuth';
 import { useTeamPanelState } from './features/teamPanelState';
 import { useSingleAgentPanelState } from './features/singleAgentPanelState';
-import { AgentMode, MediaItem, UserAnswer, ModelEntry, type Session } from './types';
+import { useBrowserAgentActivity } from './features/browserAgentActivity';
+import {
+  AgentMode,
+  MediaItem,
+  UserAnswer,
+  ModelEntry,
+  type MessageForkPoint,
+  type Session,
+} from './types';
 import type { WorkMode } from './features/workspace/projectTypes';
 import {
   EXTERNAL_CLI_AGENT_KINDS,
@@ -103,11 +117,9 @@ import {
 } from './stores';
 import { useChatRoute } from './multi-session/routing/useChatRoute';
 import { ConversationSidebar, type NewConversationOptions } from './multi-session/sidebar/ConversationSidebar';
-import { DeleteDialog } from './multi-session/dialogs/Dialogs';
 import {
   NEW_CONVERSATION_ID,
   createConversationTitle,
-  forgetCreatedConversation,
   isConversationMissing,
   registerCreatedConversation,
   resolveNewConversationEntrySettings,
@@ -190,6 +202,12 @@ type ChatPanelResizeDrag = {
   startX: number;
   startPct: number;
   containerWidth: number;
+};
+
+type SideConversationState = {
+  session: Session;
+  parentSessionId: string;
+  parentTitle: string;
 };
 const PREVIEW_MODEL_SETUP_GUIDE = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('modelSetupGuide') === '1';
@@ -405,12 +423,17 @@ function AppContent({
   const [appliedWithoutRestart, setAppliedWithoutRestart] = useState(false);
   const [saveToastVisible, setSaveToastVisible] = useState(false);
   const [proactiveToastVisible, setProactiveToastVisible] = useState(false);
+  const [authToastVisible, setAuthToastVisible] = useState(false);
   const [proactiveToastMessage, setProactiveToastMessage] = useState('');
   const [securityAlertVisible, setSecurityAlertVisible] = useState(false);
   const [securityAlertContent, setSecurityAlertContent] = useState('');
   const [externalCliInstallDialogOpen, setExternalCliInstallDialogOpen] = useState(false);
   const [externalCliInstallStatuses, setExternalCliInstallStatuses] = useState<ExternalCliInstallStatuses>({});
   const [hasVisitedAgents, setHasVisitedAgents] = useState(false);
+  const [agentManagementNavigationRequest, setAgentManagementNavigationRequest] = useState<{
+    target: 'agent' | 'group';
+    requestId: number;
+  } | null>(null);
   // Deferred CLI agent choices held here (not inside Settings) so they survive
   // leaving/returning to Settings and a full page refresh while an install runs.
   const [externalCliPendingChoices, setExternalCliPendingChoices] =
@@ -426,6 +449,7 @@ function AppContent({
   const [tracePanelOpen, setTracePanelOpen] = useState(false);
   const {
     isMobile,
+    isToolPanelAutoHideViewport,
     conversationSidebarCollapsed,
     setConversationSidebarCollapsed,
     conversationSidebarFloating,
@@ -434,9 +458,6 @@ function AppContent({
   } = useResponsiveLayout();
 
   const [modelSetupGuideStep, setModelSetupGuideStep] = useState<ModelSetupGuideStep | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
-  const [dialogBusy, setDialogBusy] = useState(false);
-  const [dialogError, setDialogError] = useState<string | null>(null);
   const [composerFocusNonce, setComposerFocusNonce] = useState(0);
   const [missingSessionId, setMissingSessionId] = useState<string | null>(null);
   const startupUpdateCheckRef = useRef(false);
@@ -516,6 +537,7 @@ function AppContent({
   const restartAutoCloseTimerRef = useRef<number | null>(null);
   const saveToastTimerRef = useRef<number | null>(null);
   const proactiveToastTimerRef = useRef<number | null>(null);
+  const authToastTimerRef = useRef<number | null>(null);
   const settingsHasChangesRef = useRef(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [historyPrepending, setHistoryPrepending] = useState(false);
@@ -524,6 +546,8 @@ function AppContent({
   );
   /** 仅用于强制重跑「首屏 history」effect：从会话列表恢复时若 sessionId 未变，也要重新拉 history 并恢复 historyPagerMeta */
   const [historyBootstrapKey, setHistoryBootstrapKey] = useState(0);
+  const [sideConversation, setSideConversation] = useState<SideConversationState | null>(null);
+  const sideConversationRef = useRef<SideConversationState | null>(null);
   const sessionIdRef = useRef(sessionId);
   const sessionRestoreQueueRef = useRef<Promise<void>>(Promise.resolve());
   const kvcViewIdRef = useRef(generateUuidV4());
@@ -664,13 +688,6 @@ function AppContent({
     useSubagentStore.getState().hydrateRuntime(sessionId);
   }, [sessionId]);
 
-  useEffect(() => {
-    if (!initialDataLoaded) {
-      return;
-    }
-    void loadProjects();
-  }, [initialDataLoaded, loadProjects]);
-
   const {
     setCurrentSession,
     setAvailableModels,
@@ -687,6 +704,14 @@ function AppContent({
       : sessions.find((s) => s.session_id === sessionId);
     const raw = session?.title?.trim() ?? '';
     return toDisplaySessionTitle(raw);
+  }, [currentSession, sessions, sessionId]);
+  const continuedFromSessionId = useMemo(() => {
+    const session = currentSession?.session_id === sessionId
+      ? currentSession
+      : sessions.find((item) => item.session_id === sessionId);
+    if (session?.ephemeral) return null;
+    const sourceSessionId = session?.forked_from?.trim() ?? '';
+    return sourceSessionId && sourceSessionId !== sessionId ? sourceSessionId : null;
   }, [currentSession, sessions, sessionId]);
   const sessionProjectName = useMemo(() => {
     const session = currentSession?.session_id === sessionId
@@ -722,6 +747,7 @@ function AppContent({
   const teamTaskEvents = useSessionStore((s) => s.runtimes[sessionId]?.teamTaskEvents ?? []);
   const teamTasks = useSessionStore((s) => s.runtimes[sessionId]?.teamTasks ?? []);
   const teamMembers = useSessionStore((s) => s.runtimes[sessionId]?.teamMembers ?? []);
+  const browserAgentActive = useBrowserAgentActivity(sessionId);
   const [chatPanelWidthPct, setChatPanelWidthPct] = useState(CHAT_PANEL_DEFAULT_WIDTH_PCT);
   const chatPanelResizeDragRef = useRef<ChatPanelResizeDrag | null>(null);
   const [codeReviewTarget, setCodeReviewTarget] = useState<CodeReviewTarget | null>(null);
@@ -769,6 +795,20 @@ function AppContent({
     }
     setSingleAgentPanelExpanded(expanded);
   }, [mode, setSingleAgentPanelExpanded, setTeamAreaActiveTab, setTeamAreaExpanded, teamAreaActiveTab]);
+
+  const browserAutoExpandedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!window.jiuwenDesktop?.isElectron || !browserAgentActive) return;
+    // Electron 内置浏览器页签只在浏览器 Agent 真正被调用后出现；每个会话只自动
+    // 展开一次，之后尊重用户手动收起的选择。team 模式不抢 tab，等回到单 agent
+    // 模式再展开。
+    if (mode === 'team') return;
+    if (browserAutoExpandedSessionRef.current === sessionId) return;
+    browserAutoExpandedSessionRef.current = sessionId;
+    setToolPanelHidden(false);
+    setSingleAgentPanelActiveTab('browser');
+    setSingleAgentPanelExpanded(true);
+  }, [browserAgentActive, mode, sessionId, setSingleAgentPanelActiveTab, setSingleAgentPanelExpanded, setToolPanelHidden]);
 
   const handleOpenCodeReview = useCallback((target: CodeReviewTarget) => {
     setHeartbeatPanelOpen(false);
@@ -966,7 +1006,11 @@ function AppContent({
   const proactiveNotificationMessage = useHarnessStore((s) => s.proactiveNotificationMessage);
   const setProactiveNotification = useHarnessStore((s) => s.setProactiveNotification);
 
+  const isElectron = Boolean(window.jiuwenDesktop?.isElectron);
   const toolPanelHasContent = useMemo(() => {
+    // Electron 下工具面板始终可达（内置浏览器页签等桌面能力），但新建会话首页
+    // 没有任何会话内容，悬浮收起条不应出现（tool-panel-collapsed 首页闪现 bug）。
+    if (isElectron) return sessionId !== NEW_CONVERSATION_ID;
     const hasMessages = messages.length > 0;
     const hasCodeEnvironment = sessionProject?.work_mode === 'code' && sessionId !== NEW_CONVERSATION_ID;
     switch (mode) {
@@ -980,18 +1024,18 @@ function AppContent({
           || hasMessages
           || hasCodeEnvironment;
     }
-  }, [mode, todos.length, subagentCount, teamTaskEvents.length, teamTasks.length, teamMembers.length, extensionReady?.runtimePath, messages.length, isRestoringTeamHistory, sessionId, sessionProject?.work_mode]);
+  }, [isElectron, mode, todos.length, subagentCount, teamTaskEvents.length, teamTasks.length, teamMembers.length, extensionReady?.runtimePath, messages.length, isRestoringTeamHistory, sessionId, sessionProject?.work_mode]);
   // 单 agent 模式同样复用集群模式的展开布局（百分比宽度 + 可拖拽分割线），
   // 避免右侧面板与聊天面板平分空间导致宽度与集群模式不一致；auto_harness 走收起态分支。
   const panelExpanded = mode === 'team' ? teamAreaExpanded : singleAgentPanelExpanded;
   // 心跳面板打开时，团队/代码审核面板让出右侧工作区（两者互斥，不共同占用宽度）。
-  const isTeamAreaExpanded = mode !== 'auto_harness' && panelExpanded && toolPanelHasContent && !heartbeatPanelOpen && !toolPanelHidden;
+  const isTeamAreaExpanded = mode !== 'auto_harness' && panelExpanded && toolPanelHasContent && !heartbeatPanelOpen && !toolPanelHidden && !sideConversation;
 
   useEffect(() => {
-    if (panelExpanded && toolPanelHidden) {
+    if (panelExpanded && toolPanelHidden && !sideConversation) {
       setToolPanelHidden(false);
     }
-  }, [panelExpanded, toolPanelHidden, setToolPanelHidden]);
+  }, [panelExpanded, sideConversation, toolPanelHidden, setToolPanelHidden]);
 
   const { shouldFullscreen } = useResponsivePanelResize({
     isTeamAreaExpanded,
@@ -1331,6 +1375,7 @@ function AppContent({
             formatted_args: n.formatted_args,
             display_name: n.display_name,
             memberName: n.memberName,
+            reviewer: n.reviewer,
           },
           {
             startedAt: item.at,
@@ -1353,6 +1398,7 @@ function AppContent({
             ...(n.mermaid ? { mermaid: n.mermaid } : {}),
             ...(n.timedOut ? { timedOut: true } : {}),
             ...(n.beamSearch ? { beamSearch: n.beamSearch } : {}),
+            reviewer: n.reviewer,
           },
           { updatedAt: item.at }
         );
@@ -1409,6 +1455,8 @@ function AppContent({
       const store = useChatStore.getState();
       const current = store.runtimes[sid]?.reasoningSegments ?? [];
       const currentItems = current.map((segment) => ({
+        // 后台逐批恢复会反复合并该列表；沿用 ID，避免已发布的折叠节点被重新挂载。
+        id: segment.id,
         at: new Date(segment.startedAt + 1).toISOString(),
         text: segment.text,
         agentTemplateName: segment.agentTemplateName,
@@ -1595,21 +1643,45 @@ function AppContent({
     }
   }, []);
 
+  const registerSideConversation = useCallback((session: Session): SideConversationState | null => {
+    const parentSessionId = session.side_parent_session_id?.trim() ?? '';
+    if (!session.ephemeral || !parentSessionId) return null;
+    const sessionStore = useSessionStore.getState();
+    const parent = sessionStore.sessions.find((item) => item.session_id === parentSessionId);
+    const state: SideConversationState = {
+      session,
+      parentSessionId,
+      parentTitle: toDisplaySessionTitle(parent?.title?.trim() || tRef.current('multiSession.untitled')),
+    };
+    sideConversationRef.current = state;
+    setSideConversation(state);
+    return state;
+  }, []);
+
   const loadSessionMetadata = useCallback(async (targetSessionId: string): Promise<Session | null> => {
     try {
       const session = await request<Session>('session.get_metadata', {
         session_id: targetSessionId,
       });
-      upsertSessionMetadata(session, { setCurrent: sessionIdRef.current === targetSessionId });
-      useWorkspaceStore.getState().upsertSession(session);
-      // is_processing 由 Gateway 在 session.get_metadata 响应入队前读取当前
-      // session 的运行态并覆盖，不是磁盘 metadata 的历史值。刷新页面时用这条
-      // 明确状态恢复停止按钮；之后同一 WebSocket 上的 processing_status 事件
-      // 继续按发送顺序推进状态机。
-      if (typeof session.is_processing === 'boolean') {
-        setProcessing(targetSessionId, session.is_processing);
-        if (!session.is_processing) {
-          setThinking(targetSessionId, false);
+      const isSideConversation = Boolean(session.ephemeral && session.side_parent_session_id?.trim());
+      if (isSideConversation) {
+        useSessionStore.getState().removeSession(targetSessionId);
+        if (sessionIdRef.current === targetSessionId) {
+          useSessionStore.getState().setCurrentSession(session);
+        }
+        registerSideConversation(session);
+      } else {
+        upsertSessionMetadata(session, { setCurrent: sessionIdRef.current === targetSessionId });
+        useWorkspaceStore.getState().upsertSession(session);
+        // is_processing 由 Gateway 在 session.get_metadata 响应入队前读取当前
+        // session 的运行态并覆盖，不是磁盘 metadata 的历史值。刷新页面时用这条
+        // 明确状态恢复停止按钮；之后同一 WebSocket 上的 processing_status 事件
+        // 继续按发送顺序推进状态机。
+        if (typeof session.is_processing === 'boolean') {
+          setProcessing(targetSessionId, session.is_processing);
+          if (!session.is_processing) {
+            setThinking(targetSessionId, false);
+          }
         }
       }
       if (session.session_equipment && typeof session.session_equipment === 'object') {
@@ -1674,7 +1746,7 @@ function AppContent({
       }
       return null;
     }
-  }, [request, setProcessing, setThinking, upsertSessionMetadata]);
+  }, [registerSideConversation, request, setProcessing, setThinking, upsertSessionMetadata]);
 
   // 获取服务端配置（通过 WS 方法）
   const fetchConfig = useCallback(async () => {
@@ -1805,6 +1877,24 @@ function AppContent({
     }
   }, [request, setAvailableModels]);
 
+  useEffect(() => {
+    const onAuthChanged = (event: Event) => {
+      void handleModelsRefresh();
+      if (!(event as CustomEvent<{ islogin?: boolean }>).detail?.islogin) return;
+      setAuthToastVisible(true);
+      if (authToastTimerRef.current != null) window.clearTimeout(authToastTimerRef.current);
+      authToastTimerRef.current = window.setTimeout(() => {
+        setAuthToastVisible(false);
+        authToastTimerRef.current = null;
+      }, 3000);
+    };
+    window.addEventListener('jiuwen:auth-changed', onAuthChanged);
+    return () => {
+      window.removeEventListener('jiuwen:auth-changed', onAuthChanged);
+      if (authToastTimerRef.current != null) window.clearTimeout(authToastTimerRef.current);
+    };
+  }, [handleModelsRefresh]);
+
   const detectExternalCli = useCallback(async (cliAgent: ExternalCliAgentKind, cliPath?: string) => {
     return request<{
       cli_agent: ExternalCliAgentKind;
@@ -1897,10 +1987,11 @@ function AppContent({
 
   const savePermissionSilent = useCallback(async (updates: Record<string, string>) => {
     try {
-      await request<{ updated?: string[]; applied_without_restart?: boolean }>('config.set', updates);
+      const payload = await request<{ canonical_config?: Record<string, string> }>('config.set', updates);
       setServerConfig((prev) => {
-        if (!prev) return updates;
-        return { ...prev, ...updates };
+        const canonical = payload?.canonical_config ?? {};
+        if (!prev) return { ...updates, ...canonical };
+        return { ...prev, ...updates, ...canonical };
       });
     } catch (error) {
       console.error('Failed to save permission:', error);
@@ -1996,6 +2087,34 @@ function AppContent({
     })();
   }, [fetchConfig, initialDataLoaded, isConnected]);
 
+  const initialProjectsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialDataLoaded || !isConnected || initialProjectsLoadedRef.current) {
+      return;
+    }
+    let cancelled = false;
+    const retryDelaysMs = [2000, 5000, 10000, 15000, 30000];
+    const run = async () => {
+      if (await loadProjects()) {
+        if (!cancelled) initialProjectsLoadedRef.current = true;
+        return;
+      }
+      for (const delayMs of retryDelaysMs) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (cancelled) return;
+        if (await loadProjects()) {
+          if (!cancelled) initialProjectsLoadedRef.current = true;
+          return;
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialDataLoaded, isConnected, loadProjects]);
+
   useEffect(() => {
     if (!isConnected || !routeSessionId) {
       setMissingSessionId(null);
@@ -2018,7 +2137,7 @@ function AppContent({
       }
       void (async () => {
         const session = await loadSessionMetadata(sessionId);
-        if (session) {
+        if (session && !session.ephemeral) {
           useWorkspaceStore.getState().upsertSession(session);
         }
       })();
@@ -2223,6 +2342,7 @@ function AppContent({
                 formatted_args: n.formatted_args,
                 display_name: n.display_name,
                 memberName: n.memberName,
+                reviewer: n.reviewer,
               },
               {
                 startedAt: item.at,
@@ -2245,6 +2365,7 @@ function AppContent({
                 ...(n.mermaid ? { mermaid: n.mermaid } : {}),
                 ...(n.timedOut ? { timedOut: true } : {}),
                 ...(n.beamSearch ? { beamSearch: n.beamSearch } : {}),
+                reviewer: n.reviewer,
               },
               { updatedAt: item.at }
             );
@@ -2643,12 +2764,12 @@ function AppContent({
   }, [kvCacheAffinityEnabled, mode, request]);
 
   const handleUseAgent = useCallback((agentId: string) => {
-    enterNewConversation('agent');
+    enterNewConversation('agent', { forceMode: 'agent' });
     useSessionStore.getState().setAgentSelectionIntent(NEW_CONVERSATION_ID, { kind: 'select', id: agentId });
   }, [enterNewConversation]);
 
   const handleUseAgentPrompt = useCallback((agentId: string, prompt: string) => {
-    enterNewConversation('agent', { initialInputValue: prompt });
+    enterNewConversation('agent', { initialInputValue: prompt, forceMode: 'agent' });
     useSessionStore.getState().setAgentSelectionIntent(NEW_CONVERSATION_ID, { kind: 'select', id: agentId });
   }, [enterNewConversation]);
 
@@ -2945,7 +3066,9 @@ function AppContent({
         sessionState.currentSession?.session_id === currentSessionId
           ? sessionState.currentSession
           : sessionState.sessions.find((item) => item.session_id === currentSessionId);
-      await useWorkspaceStore.getState().refreshSessionWorkspace(session);
+      if (!session?.ephemeral) {
+        await useWorkspaceStore.getState().refreshSessionWorkspace(session);
+      }
     } else {
       useChatStore.getState().setInputValue(currentSessionId, content);
     }
@@ -3215,54 +3338,194 @@ function AppContent({
     [performSessionRestore],
   );
 
+  const handleOpenContinuedFromSession = useCallback(
+    (sourceSessionId: string): void => {
+      const sessionStore = useSessionStore.getState();
+      const sourceSession = sessionStore.sessions.find((session) => session.session_id === sourceSessionId);
+      void handleRestoreSession(sourceSessionId, sourceSession?.mode, sourceSession);
+    },
+    [handleRestoreSession],
+  );
+
+  const handleForkSession = useCallback(
+    async (
+      sourceSessionId: string,
+      forkPoint?: MessageForkPoint,
+    ): Promise<void> => {
+      if (!sourceSessionId || sourceSessionId === NEW_CONVERSATION_ID) {
+        throw new Error('A persisted session is required to fork');
+      }
+
+      const sourceSessionStore = useSessionStore.getState();
+      const sourceSession = sourceSessionStore.sessions.find((session) => session.session_id === sourceSessionId);
+      const sourceMode = sourceSession?.mode ?? sourceSessionStore.getRuntime(sourceSessionId)?.mode ?? mode;
+      const result = await request<{ session_id?: string }>(
+        'session.fork',
+        {
+          session_id: sourceSessionId,
+          source_session_id: sourceSessionId,
+          mode: sourceMode,
+          ...(forkPoint
+            ? {
+                fork_point: {
+                  message_id: forkPoint.messageId,
+                  role: forkPoint.role,
+                  content: forkPoint.content,
+                  timestamp: forkPoint.timestamp,
+                },
+              }
+            : {}),
+        },
+        { timeoutMs: 60_000 },
+      );
+      const forkSessionId = typeof result.session_id === 'string' ? result.session_id.trim() : '';
+      if (!forkSessionId) {
+        throw new Error('session.fork did not return a session id');
+      }
+      await handleRestoreSession(forkSessionId, sourceMode);
+    },
+    [handleRestoreSession, mode, request],
+  );
+
+  const removeSideConversationLocally = useCallback((sideSessionId: string) => {
+    disposeInFlightHistoryHandles(sideSessionId);
+    sessionIdsCreatedInThisPageRef.current.delete(sideSessionId);
+    useSessionStore.getState().removeSession(sideSessionId);
+    useSessionStore.getState().removeRuntime(sideSessionId);
+    useChatStore.getState().removeRuntime(sideSessionId);
+    useSubagentStore.getState().removeRuntime(sideSessionId);
+    useTodoStore.getState().removeRuntime(sideSessionId);
+    useHarnessStore.getState().removeRuntime(sideSessionId);
+    useGoalStore.getState().removeRuntime(sideSessionId);
+    sideConversationRef.current = null;
+    setSideConversation(null);
+  }, [disposeInFlightHistoryHandles]);
+
+  const deleteSideConversation = useCallback(async (sideSessionId: string): Promise<void> => {
+    await request('session.delete', { session_id: sideSessionId });
+    removeSideConversationLocally(sideSessionId);
+  }, [removeSideConversationLocally, request]);
+
+  const handleStartSideConversation = useCallback(async (
+    sourceSessionId: string,
+    initialPrompt?: string,
+  ): Promise<void> => {
+    if (!sourceSessionId || sourceSessionId === NEW_CONVERSATION_ID) {
+      throw new Error('A persisted session is required for a side conversation');
+    }
+    if (sideConversationRef.current) {
+      throw new Error('A side conversation is already open');
+    }
+
+    const sessionStore = useSessionStore.getState();
+    const sourceSession = sessionStore.currentSession?.session_id === sourceSessionId
+      ? sessionStore.currentSession
+      : sessionStore.sessions.find((item) => item.session_id === sourceSessionId);
+    const sourceRuntime = sessionStore.getRuntime(sourceSessionId);
+    const sourceMode = sourceSession?.mode ?? sourceRuntime?.mode ?? mode;
+    const result = await request<{
+      session_id?: string;
+      title?: string;
+      ephemeral?: boolean;
+    }>(
+      'session.fork',
+      {
+        session_id: sourceSessionId,
+        source_session_id: sourceSessionId,
+        mode: sourceMode,
+        side_conversation: true,
+      },
+      { timeoutMs: 60_000 },
+    );
+    const sideSessionId = typeof result.session_id === 'string' ? result.session_id.trim() : '';
+    if (!sideSessionId) {
+      throw new Error('session.fork did not return a side session id');
+    }
+
+    const now = new Date().toISOString();
+    const sideSession: Session = {
+      session_id: sideSessionId,
+      title: result.title?.trim() || 'Side chat',
+      project_id: sourceSession?.project_id ?? '',
+      project_dir: sourceSession?.project_dir ?? '',
+      work_mode: sourceSession?.work_mode,
+      mode: sourceMode as AgentMode,
+      status: 'active',
+      message_count: 0,
+      created_at: now,
+      updated_at: now,
+      model: sourceSession?.model ?? sourceRuntime?.selectedModelName ?? undefined,
+      session_equipment: sourceSession?.session_equipment,
+      forked_from: sourceSessionId,
+      ephemeral: true,
+      side_parent_session_id: sourceSessionId,
+    };
+    const registered = registerSideConversation(sideSession);
+    if (!registered) {
+      await request('session.delete', { session_id: sideSessionId });
+      throw new Error('invalid side conversation metadata');
+    }
+
+    sessionIdsCreatedInThisPageRef.current.add(sideSessionId);
+    ensureSessionRuntimes(sideSessionId);
+    const nextSessionStore = useSessionStore.getState();
+    nextSessionStore.setMode(sideSessionId, sourceMode as AgentMode);
+    nextSessionStore.setProjectDirectory(sideSessionId, sourceRuntime?.projectDirectory ?? sourceSession?.project_dir ?? null);
+    if (sourceRuntime?.selectedModelName) {
+      nextSessionStore.setSelectedModelName(sideSessionId, sourceRuntime.selectedModelName);
+    }
+    if (sourceRuntime) {
+      sourceRuntime.enabledPlugins.forEach((pluginId) => nextSessionStore.addEnabledPlugin(sideSessionId, pluginId));
+      sourceRuntime.enabledMcps.forEach((mcpName) => nextSessionStore.addEnabledMcp(sideSessionId, mcpName));
+      nextSessionStore.setAgentSelectionIntent(sideSessionId, sourceRuntime.agentSelectionIntent);
+    }
+    useChatStore.getState().ensureRuntime(sideSessionId);
+    useChatStore.getState().clearMessages(sideSessionId);
+
+    const prompt = initialPrompt?.trim();
+    if (prompt) {
+      await sendMessage(prompt, sideSessionId);
+    }
+  }, [mode, registerSideConversation, request, sendMessage]);
+
+  const handleSendSideConversationMessage = useCallback(async (content: string): Promise<boolean> => {
+    const side = sideConversationRef.current;
+    if (!side) return false;
+    return sendMessage(content, side.session.session_id);
+  }, [sendMessage]);
+
+  const handleCloseSideConversation = useCallback(async (): Promise<void> => {
+    const side = sideConversationRef.current;
+    if (!side) return;
+    try {
+      await deleteSideConversation(side.session.session_id);
+    } catch (error) {
+      console.error('Failed to close side conversation:', error);
+      window.alert(t(getArchiveErrorCode(error) === 'SESSION_BUSY'
+        ? 'multiSession.project.errors.deleteSessionBusy'
+        : 'multiSession.errors.delete'));
+    }
+  }, [deleteSideConversation, t]);
+
+  useEffect(() => {
+    const side = sideConversationRef.current;
+    if (!side || sessionId === side.parentSessionId) {
+      return;
+    }
+    void deleteSideConversation(side.session.session_id).catch((error) => {
+      console.warn('Failed to discard side conversation after navigation:', error);
+    });
+  }, [deleteSideConversation, sessionId]);
+
   const requestSessionNavigation = useCallback((target: Session | 'new', options?: NewConversationOptions) => {
     if (target === 'new') { enterNewConversation(mode, options); return; }
-    if (isMobile) {
+    if (isToolPanelAutoHideViewport) {
       setTeamAreaExpanded(false);
       setSingleAgentPanelExpanded(false);
       setToolPanelHidden(true);
     }
     void handleRestoreSession(target.session_id, target.mode, target);
-  }, [enterNewConversation, handleRestoreSession, isMobile, mode, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden]);
-
-  const handleDeleteConversation = useCallback(async () => {
-    if (!deleteTarget) return;
-    const runtime = useChatStore.getState().getRuntime(deleteTarget.session_id);
-    if (runtime?.isProcessing || runtime?.pendingQuestions[0]) {
-      setDialogError(t('multiSession.deleteRunningDisabled'));
-      return;
-    }
-    setDialogBusy(true); setDialogError(null);
-    try {
-      const deletedSession = deleteTarget;
-      await request('session.delete', { session_id: deleteTarget.session_id });
-      forgetCreatedConversation(deleteTarget.session_id);
-      useSessionStore.getState().removeSession(deleteTarget.session_id);
-      useSessionStore.getState().removeRuntime(deleteTarget.session_id);
-      useChatStore.getState().removeRuntime(deleteTarget.session_id);
-      useSubagentStore.getState().removeRuntime(deleteTarget.session_id);
-      useTodoStore.getState().removeRuntime(deleteTarget.session_id);
-      useHarnessStore.getState().removeRuntime(deleteTarget.session_id);
-      useGoalStore.getState().removeRuntime(deleteTarget.session_id);
-      const deletingCurrent = sessionIdRef.current === deleteTarget.session_id;
-      setDeleteTarget(null);
-      await useWorkspaceStore.getState().refreshSessionWorkspace(deletedSession);
-      // 删除 session 后刷新所属定时任务的触发会话列表
-      const cronStore = useCronStore.getState();
-      for (const [jobId, sessions] of Object.entries(cronStore.cronSessions)) {
-        if (sessions.some((s) => s.session_id === deletedSession.session_id)) {
-          const job = cronStore.jobs.find((j) => j.id === jobId);
-          void cronStore.loadCronSessions(job?.project_id || 'default', jobId);
-        }
-      }
-      if (deletingCurrent) {
-        // session.delete already owns B's KVC eviction. Do not carry the
-        // deleted Session into C's session.create as previous_session_id.
-        enterNewConversation(mode, {}, { clearPreviousSession: true });
-      }
-    } catch { setDialogError(t('multiSession.errors.delete')); }
-    finally { setDialogBusy(false); }
-  }, [deleteTarget, enterNewConversation, mode, request, t]);
+  }, [enterNewConversation, handleRestoreSession, isToolPanelAutoHideViewport, mode, setSingleAgentPanelExpanded, setTeamAreaExpanded, setToolPanelHidden]);
 
   const handleNavigate = useCallback(
     (nav: MainNavKey) => {
@@ -3293,6 +3556,17 @@ function AppContent({
       if (nav === 'personalContext') setHasVisitedPersonalContext(true);
     },
     [activeNav, isMobile, modelSetupGuideStep, setSingleAgentPanelExpanded, setHasVisitedPersonalContext, setRequestedSettingsModuleId, setTeamAreaExpanded, setToolPanelHidden, t],
+  );
+
+  const handleNavigateToAgentManagement = useCallback(
+    (target: 'agent' | 'group' = 'agent') => {
+      setAgentManagementNavigationRequest((current) => ({
+        target,
+        requestId: (current?.requestId ?? 0) + 1,
+      }));
+      handleNavigate('agents');
+    },
+    [handleNavigate],
   );
 
   const skipModelSetupGuide = useCallback(() => {
@@ -3501,7 +3775,6 @@ function AppContent({
                 activeSessionId={sessionId === NEW_CONVERSATION_ID ? null : sessionId}
                 onNew={(options) => requestSessionNavigation('new', options)}
                 onSelect={requestSessionNavigation}
-                onDelete={(session) => { setDialogError(null); setDeleteTarget(session); }}
                 onOpenCron={() => handleNavigate('cron')}
                 isCronActive={false}
                 collapsed={conversationSidebarCollapsed}
@@ -3533,6 +3806,11 @@ function AppContent({
                       <ChatPanel
                         onSendMessage={handleSendMessage}
                         onEnsureSession={ensureApplicationPluginSession}
+                        onNewSession={handleNewSession}
+                        onForkSession={handleForkSession}
+                        onStartSideConversation={handleStartSideConversation}
+                        continuedFromSessionId={continuedFromSessionId}
+                        onOpenContinuedFromSession={handleOpenContinuedFromSession}
                         onInputIntent={kvCacheAffinityEnabled ? handleKVCInputIntent : undefined}
                         onPersistMedia={handlePersistMedia}
                         onPersistDocuments={handlePersistDocuments}
@@ -3551,9 +3829,16 @@ function AppContent({
                         teamAreaExpanded={toolPanelHidden ? null : isTeamAreaExpanded}
                         autoFocusKey={composerFocusKey}
                         onNavigateToSkills={() => handleNavigate('skills')}
-                        onNavigateToAgents={() => handleNavigate('agents')}
+                        onNavigateToAgents={handleNavigateToAgentManagement}
                         onToggleTeamArea={handleToggleDetailPanel}
                         onOpenCodeReview={handleOpenCodeReview}
+                        permissionProfile={
+                          serverConfig?.permissions_profile === 'automatic'
+                            ? 'automatic'
+                            : serverConfig?.permissions_enabled === 'false'
+                              ? 'full_access'
+                              : 'default'
+                        }
                         onOpenTrace={handleOpenTrace}
                         permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
                         heartbeatPanelOpen={heartbeatPanelOpen}
@@ -3564,6 +3849,7 @@ function AppContent({
                         onSetGoal={setGoalObjective}
                         onPauseGoal={pauseGoal}
                         onResumeGoal={resumeGoal}
+                        onRefreshGoal={refreshGoal}
                         onClearGoal={handleClearGoal}
                         onDrainTaskQueueIfIdle={drainTaskQueueIfIdle}
                       />
@@ -3593,6 +3879,15 @@ function AppContent({
                     trajectoryRequested={trajectoryUiRequested}
                   />
                 </div>
+
+                {sideConversation && sessionId === sideConversation.parentSessionId ? (
+                  <SideConversationPanel
+                    sessionId={sideConversation.session.session_id}
+                    parentTitle={sideConversation.parentTitle}
+                    onSendMessage={handleSendSideConversationMessage}
+                    onClose={() => { void handleCloseSideConversation(); }}
+                  />
+                ) : null}
 
                 {/* 可拖拽分割线 */}
                 {showWorkspaceDivider && (
@@ -3624,7 +3919,7 @@ function AppContent({
                 )}
 
                 {/* Tool Panel / Expanded Team Panel */}
-                {!toolPanelHidden && trajectoryTaskPanelAvailable && !showConversationNotFound && !heartbeatPanelOpen && !showTracePanel && (
+                {!sideConversation && !toolPanelHidden && trajectoryTaskPanelAvailable && !showConversationNotFound && !heartbeatPanelOpen && !showTracePanel && (
                   <ToolPanel
                     sessionId={sessionId}
                     project={sessionProject}
@@ -3655,7 +3950,7 @@ function AppContent({
                 )}
 
                 {/* 心跳面板：跟 ToolPanel 一样占用右侧工作区一栏，而不是浮在页面上方的浮层 */}
-                {heartbeatPanelOpen && sessionId && sessionId !== NEW_CONVERSATION_ID && !showConversationNotFound && (
+                {!sideConversation && heartbeatPanelOpen && sessionId && sessionId !== NEW_CONVERSATION_ID && !showConversationNotFound && (
                   <HeartbeatPanel sessionId={sessionId} onClose={() => setHeartbeatPanelOpen(false)} />
                 )}
               </div>
@@ -3681,10 +3976,10 @@ function AppContent({
               })}
               onCreateGroupViaChat={() => requestSessionNavigation('new', {
                 initialInputValue: t('agentManagement.group.actions.createViaChatPrompt'),
-                initialSelectedSkills: ['agent-creator'],
-                forceMode: 'team',
-                welcomeVariant: 'group-create',
+                initialSelectedSkills: ['agent-group-creator'],
+                forceMode: 'agent',
               })}
+              navigationRequest={agentManagementNavigationRequest}
             />
           </div>
         )}
@@ -3708,7 +4003,6 @@ function AppContent({
               activeSessionId={null}
               onNew={(options) => requestSessionNavigation('new', options)}
               onSelect={requestSessionNavigation}
-              onDelete={(session) => { setDialogError(null); setDeleteTarget(session); }}
               onOpenCron={() => handleNavigate('cron')}
               isCronActive
               collapsed={conversationSidebarCollapsed}
@@ -3839,15 +4133,8 @@ function AppContent({
         )}
       </main>
 
-      {deleteTarget && (
-        <DeleteDialog
-          title={deleteTarget.title || t('multiSession.untitled')}
-          deleting={dialogBusy}
-          error={dialogError}
-          onCancel={() => setDeleteTarget(null)}
-          onDelete={() => { void handleDeleteConversation(); }}
-        />
-      )}
+      {/* 全局命令式 toast 渲染出口（toast.open） */}
+      <ToastStack />
 
       {/* 连接状态提示 */}
       {!isConnected && (
@@ -3862,6 +4149,14 @@ function AppContent({
         <div className="app-toast-wrapper app-toast-wrapper--top-center" data-testid="app-save-toast">
           <div className="app-session-toast animate-rise" data-testid="app-save-toast-message">
             {t('common.saveSuccess')}
+          </div>
+        </div>
+      )}
+
+      {authToastVisible && (
+        <div className="app-toast-wrapper app-toast-wrapper--top-center" data-testid="app-auth-toast">
+          <div className="app-session-toast animate-rise" data-testid="app-auth-toast-message">
+            {t('auth.huawei.loginSuccessToast')}
           </div>
         </div>
       )}
@@ -3962,6 +4257,8 @@ function AppContent({
         onStatusChange={updateExternalCliInstallStatus}
       />
 
+      {/* 登录弹窗：默认不显示，由 requestLogin() 等事件唤起 */}
+      <LoginDialog />
     </div>
   );
 }
@@ -3975,6 +4272,7 @@ function App({
 }) {
   return (
     <ErrorBoundary>
+      <DesktopTextEditContextMenu />
       <AppContent
         settingsPageDefinition={settingsPageDefinition}
         resolveSettingsRequest={resolveSettingsRequest}
@@ -4005,6 +4303,10 @@ function AppWithAuth({
   const [remote, setRemote] = useState(false);
 
   useEffect(() => {
+    if (window.jiuwenDesktop?.isElectron) {
+      setAuthStatus('noIam');
+      return;
+    }
     let cancelled = false;
     // 先拿 web-config: 如果 iam_enabled=false, 直接跳过鉴权探测
     fetch('/api/web-config', { credentials: 'same-origin' })
@@ -4064,6 +4366,7 @@ function AppWithAuth({
     <>
       {remote && <LogoutButton />}
       <App settingsPageDefinition={settingsPageDefinition} resolveSettingsRequest={resolveSettingsRequest} />
+      <AssetPublishHost />
     </>
   );
 }
