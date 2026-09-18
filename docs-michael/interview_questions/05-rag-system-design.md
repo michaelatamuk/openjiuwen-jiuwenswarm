@@ -17,7 +17,7 @@ flowchart TD
     Q --> AUD["permission engine + audit (tool/file path, not doc ACL)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:53` — `RetrievalConfig.filters`; `agent-core/openjiuwen/core/retrieval/retriever/base.py:19` — abstract `retrieve` has no `filters`; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:186` — KB passes `filters`; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88` / `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:81` — hardcoded `filters=None`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:215` — Milvus filter expr; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:265` — `where`; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:332` — JSONB<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:102` — `kb_{kb_id}_chunks`<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/core.py:272` — `check_permission` (tool/file/net, not retrieval)<br>&bull; `agent-core/openjiuwen/core/common/security/user_config.py:61` — sensitive-path config (filesystem, not doc ACL)</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:53` — `RetrievalConfig.filters`; `agent-core/openjiuwen/core/retrieval/retriever/base.py:19` — abstract `retrieve` has no `filters`; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:186` — KB passes `filters`; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88` / `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:81` — hardcoded `filters=None`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:215` — Milvus filter expr; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:265` — `where`; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:474` — JSONB<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:102` — `kb_{kb_id}_chunks`<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/core.py:272` — `check_permission` (tool/file/net, not retrieval)<br>&bull; `agent-core/openjiuwen/core/common/security/user_config.py:69` — sensitive-path config (filesystem, not doc ACL)</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
@@ -72,7 +72,7 @@ flowchart TD
     PG["PG store: INSERT ... ON CONFLICT DO UPDATE (upsert)"] -.->|"no PG indexer wraps it"| X["unused upsert path"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:158` — abstract `delete_documents` / `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:192` — `delete_documents`; `:219` `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/chroma_indexer.py:198` — `update_index` = delete + build; `:217` delete by `doc_id`; `:142` duplicate guard<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:209` — delete + flush + rebuild; `:231` filter delete `document_id == doc_id`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:300` — `INSERT ... ON CONFLICT DO UPDATE`<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:253` — delete chunk + triple index; `:294` update = delete + re-add</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:176/184` — abstract `delete_documents` / `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:192` — `delete_documents`; `:219` `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/chroma_indexer.py:198` — `update_index` = delete + build; `:217` delete by `doc_id`; `:142` duplicate guard<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:209` — delete + flush + rebuild; `:231` filter delete `document_id == doc_id`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:300` — `INSERT ... ON CONFLICT DO UPDATE`<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:253` — delete chunk + triple index; `:294` update = delete + re-add</sub>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical, rag-retrieval, rag-system._</sub>
 
@@ -90,7 +90,7 @@ flowchart TD
     D -.->|"in-repo"| X["no autoscaling · managed-service integration · ops tooling"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — local; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — server; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — relational<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects hybrid<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:129` — local; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — server; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — relational<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects hybrid<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`</sub>
 
 ---
 
@@ -115,7 +115,7 @@ flowchart TD
     EMPTY -.->|"absent in KB path"| ABS["'not enough information' / clarify (Symphony only)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → sparse; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97` — same<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241` — empty results → empty context<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:250/305` — `is_abstain`; `agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94`; `agent-core/openjiuwen/symphony/retrieval/search/runtime/progressive.py:1060` — `abstain_no_backfill`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → sparse; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97` — same<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241` — empty results → empty context<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305` — `is_abstain`; `agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94`; `agent-core/openjiuwen/symphony/retrieval/search/runtime/progressive.py:1060` — `abstain_no_backfill`</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
@@ -139,13 +139,13 @@ flowchart TD
 
 **General:** At small scale, a local in-process index (FAISS/Chroma) is fine. At large scale you need a dedicated vector DB with tuned ANN indexes (HNSW/IVF/quantization), sharding/partitioning, replication, and batch ingestion; you also start caring about memory, index build time, and recall/latency tuning per query. The interface stays the same but the operational envelope changes.
 
-**Jiuwen:** Scale-out is delegated to the backend: Chroma = local persistent HNSW (small/medium), Milvus = server ANN with selectable AUTO/HNSW/IVF/SCANN and quantization variants (large), PGVector = pgvector HNSW/IVFFlat (relational). Writes are batched (128) and flushed. Milvus BM25 for hybrid is native (`SPARSE_INVERTED_INDEX`) plus a jieba analyzer. The architecture is a single collection per KB (`kb_{kb_id}_chunks`) with one ANN index created once at collection creation. There is no sharding, partitioning, replica, or multi-collection fan-out anywhere.
+**Jiuwen:** Scale-out is delegated to the backend: Chroma = local persistent HNSW (small/medium), Milvus = server ANN with selectable AUTO/HNSW/IVF/SCANN and quantization variants (large), PGVector = pgvector HNSW (relational; the field type also declares `ivfflat`, but no IVFFlat index branch is implemented). Writes are batched (128) and flushed. Milvus BM25 for hybrid is native (`SPARSE_INVERTED_INDEX`) plus a jieba analyzer. The architecture is a single collection per KB (`kb_{kb_id}_chunks`) with one ANN index created once at collection creation. There is no sharding, partitioning, replica, or multi-collection fan-out anywhere.
 
 ```mermaid
 flowchart LR
     S["scale"] --> SM["~10K: Chroma (local HNSW)"]
     S --> LG["millions: Milvus (AUTO/HNSW/IVF/SCANN + quantization)"]
-    S --> REL["relational: PGVector (HNSW/IVFFlat)"]
+    S --> REL["relational: PGVector (HNSW)"]
     SM --> W["batched writes (128)"]
     LG --> W
     REL --> W
@@ -193,7 +193,7 @@ flowchart TD
 
 ## 11. What database would you choose for the vector store, and why that one over the alternatives
 
-**General:** Choose by scale and features, not familiarity: local/embedded (FAISS/Chroma) for prototypes; a managed vector DB (Pinecone/Milvus/Zilliz) for scale and hybrid search; or pgvector when you already run Postgres and want one datastore, transactions, and metadata joins. Evaluate hybrid support, filtering, operational cost, and lock-in.
+**General:** Choose by scale and features, not familiarity: local/embedded (FAISS/Chroma) for prototypes; a managed vector DB (Pinecone / Zilliz Cloud) for scale and hybrid search; or pgvector when you already run Postgres and want one datastore, transactions, and metadata joins. Evaluate hybrid support, filtering, operational cost, and lock-in.
 
 **Jiuwen:** Three backends behind one factory: Chroma (local persisted, **vector-only** — sparse/hybrid rejected), Milvus (server, native BM25 + hybrid with RRF), PostgreSQL+pgvector (server, `tsvector` sparse + vector). The KB selects the index type (`hybrid` default). So hybrid/RRF requires Milvus or PG; Chroma is the small/local choice.
 
@@ -205,7 +205,7 @@ flowchart TD
     F --> PG["PGVector: server, tsvector sparse + vector"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory dispatch; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType = Milvus | Chroma | PGVector`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — `PersistentClient` (local); `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — `MilvusClient(uri=...)` (server); `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — `create_async_engine(...)`<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects sparse/hybrid in local mode<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:32/60` — index types `hybrid`/`bm25`/`vector`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory dispatch; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType = Milvus | Chroma | PGVector`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:129` — `PersistentClient` (local); `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — `MilvusClient(uri=...)` (server); `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — `create_async_engine(...)`<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects sparse/hybrid in local mode<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:32/60` — index types `hybrid`/`bm25`/`vector`</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
@@ -224,7 +224,7 @@ flowchart TD
     DB -.->|"absent"| X["circuit breaker · health probe · replica · cache fallback"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:357` — `hybrid_search` → `_hybrid_search_fallback`; `:284` `sparse_search` returns `[]`; `:519` `_ensure_loaded` timeouts<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:326` — sparse/text returns `[]` on error<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:300` — `retrieve_multi_kb` swallows per-KB errors<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:114` — re-raises `build_error`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:357` — `hybrid_search` → `_hybrid_search_fallback`; `:284` `sparse_search` returns `[]`; `:519` `_ensure_loaded` timeouts<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:326` — sparse/text returns `[]` on error<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:300` — `retrieve_multi_kb` swallows per-KB errors<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:123` — re-raises `build_error`</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 

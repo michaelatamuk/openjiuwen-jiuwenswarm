@@ -86,7 +86,7 @@ flowchart LR
 
 **General:** If the answer spans a chunk boundary, the chunk that ranks may contain only half of it, so the model sees an incomplete fact. Remedies: overlap chunks, split on sentence/structure boundaries rather than fixed characters, and at serve time expand a hit with its neighbors. Sentence-aware chunking with overlap is the common fix; fixed-character splitting is the usual culprit.
 
-**Jiuwen:** Protection is inconsistent by chunker. `SentenceSplitter` builds chunks from whole `pysbd` sentences, carries trailing sentences into the next chunk for overlap, and sub-splits over-long sentences losslessly; `HybridChunker` keeps table rows/columns whole. But `CharChunker`/`CharSplitter` (and the memory default `chunk_unit="char"`) hard-cut at fixed offsets, `WhitespaceNormalizer` collapses newlines and destroys paragraph structure before splitting, and downstream `budget_guard`/`round_level_compressor` truncate head/tail (dropping the middle) rather than extracting the answer span.
+**Jiuwen:** Protection is inconsistent by chunker. `SentenceSplitter` builds chunks from whole `pysbd` sentences, carries trailing sentences into the next chunk for overlap, and sub-splits over-long sentences losslessly; `HybridChunker` keeps table rows/columns whole. But `CharChunker`/`CharSplitter` (whose `chunk_unit="char"` default sets the unit) hard-cut at fixed offsets, `WhitespaceNormalizer` collapses newlines and destroys paragraph structure before splitting, and downstream `budget_guard`/`round_level_compressor` truncate head/tail (dropping the middle) rather than extracting the answer span.
 
 ```mermaid
 flowchart TD
@@ -196,7 +196,7 @@ flowchart TD
     K -.->|"absent"| SEM["embedding-similarity breakpoints · recursive delimiter hierarchy"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/char_chunker.py:12` — `CharChunker` "fixed size based on character length"; `:47` builds `CharSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:34` — `CharSplitter.split` slices `text[start:end]`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:17` — `TokenizerChunker` builds `IndexSentenceSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:92` — `SentenceSplitter.__call__` (pysbd); `:142` `_sentences_with_spans`; `:173` long-sentence sub-split<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — `HybridChunker` no-split predicate; `:66` delegation<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117` — only `"char"`/`"hybrid"` registered<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:98` — `splitter_config` normalized but not forwarded</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/char_chunker.py:12` — `CharChunker` "fixed size based on character length"; `:47` builds `CharSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:47` — `CharSplitter.split` slices `text[start:end]`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:17` — `TokenizerChunker` builds `IndexSentenceSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:92` — `SentenceSplitter.__call__` (pysbd); `:142` `_sentences_with_spans`; `:173` long-sentence sub-split<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — `HybridChunker` no-split predicate; `:66` delegation<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117` — only `"char"`/`"hybrid"` registered<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:98` — `splitter_config` normalized but not forwarded</sub>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
@@ -420,7 +420,7 @@ flowchart TD
 
 **General:** Detect ambiguity and either ask a clarifying question or rewrite to the most likely intent. The cheap path is a rewrite that resolves coreference/ellipsis; the interactive path is a clarification turn when the ambiguity would change the retrieval target. Most production systems rewrite by default and clarify only when confidence is low.
 
-**Jiuwen:** Ambiguity is not resolved by asking the user pre-retrieval. `QueryRewriter.rewrite` returns `intention`, `standalone_query`, `references`, and a `missing` list; when a gap cannot be filled from history it marks it with `(…)` under `missing` but still proceeds with a best-effort query. Asking the user is a separate, opt-in mechanism: `AskUserRail`/`AskUserTool` interrupt the tool loop and return the answer as a tool result. None of these is wired automatically into the RAG flow as an ambiguity gate.
+**Jiuwen:** Ambiguity is not resolved by asking the user pre-retrieval. `QueryRewriter.rewrite` returns `intention`, `standalone_query`, `references`, and a `missing` list; when a gap cannot be filled from history it marks the gap with `(…)` in the standalone query and records it in `missing` but still proceeds with a best-effort query. Asking the user is a separate, opt-in mechanism: `AskUserRail`/`AskUserTool` interrupt the tool loop and return the answer as a tool result. None of these is wired automatically into the RAG flow as an ambiguity gate.
 
 ```mermaid
 flowchart TD
@@ -437,7 +437,7 @@ flowchart TD
 
 **General:** Use a multilingual/alignment embedding model so queries and documents land in one space; if no good multilingual model exists for a language, translate either at index time (normalize the corpus) or query time (translate the query), and store language metadata so you can route and evaluate per language. Cross-lingual rerankers help at the top.
 
-**Jiuwen:** Effectively bilingual zh/en at the processing layer, with no translation. `SentenceSplitter` resolves `lan` via a Chinese-character-ratio heuristic (→ zh or en) for `pysbd`; explicit codes are a passthrough but undocumented. The query rewriter's `prompt_lang` only picks a `_zh.md`/`_en.md` template and never translates. Embedding clients expose no language parameter — multilingual support exists only if the operator picks a multilingual embedding model. No language metadata is persisted and there is no language routing.
+**Jiuwen:** Effectively bilingual zh/en at the processing layer, with no translation. `SentenceSplitter` resolves `lan` via a Chinese-character-ratio heuristic (→ zh or en) for `pysbd`; explicit codes are passed through (documented in the splitter docstrings). The query rewriter's `prompt_lang` only picks a `_zh.md`/`_en.md` template and never translates. Embedding clients expose no language parameter — multilingual support exists only if the operator picks a multilingual embedding model. No language metadata is persisted and there is no language routing.
 
 ```mermaid
 flowchart TD
@@ -514,7 +514,7 @@ flowchart LR
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_embedding.py:16` — `EmbeddingConfig`; `:24` `Embedding` ABC; `:29` `embed_query`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/openai_embedding.py:67` — Matryoshka `dimension`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:105` — Dashscope `dimension`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45` — `max_batch_size=8`; `:46` `max_concurrent=50`; `:175` batch splitting/concurrency<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/vllm_embedding.py:17` — `VLLMEmbedding`</sub>
 
-**Gap.** No `create_embedding` factory or model-selection helper in `core/retrieval` (only `create_vector_store` exists), and no evaluation/benchmark to justify model size.
+**Gap.** No `create_embedding` factory or model-selection helper in `core/retrieval` (only `create_vector_store` exists there; embedding factories live elsewhere, e.g. `create_embedding_provider` in the memory subsystem), and no evaluation/benchmark to justify model size.
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical, rag-retrieval._</sub>
 
@@ -573,7 +573,7 @@ flowchart TD
     E -.->|"absent in core"| X["no seed / no model fingerprint at retrieval level"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:137` — hard-codes `"temperature": 0`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:101` — rerank params (no temperature/seed)<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:311` — rewrite LLM `temperature=0.0`<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:265` — temperature from config; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:210` — default `None`<br>&bull; `agent-core/openjiuwen/core/memory/lite/embeddings.py:78` — `config_fingerprint`; `agent-core/openjiuwen/core/memory/lite/manager.py:888` — `_should_full_reindex`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:58` — `seed=1223` (skill-retrieval subsystem only)</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:137` — hard-codes `"temperature": 0`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:101` — rerank params (no temperature/seed)<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:311` — rewrite LLM `temperature=0.0`<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:265` — temperature from config; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:210` — default `None`<br>&bull; `agent-core/openjiuwen/core/memory/lite/embeddings.py:78` — `config_fingerprint`; `agent-core/openjiuwen/core/memory/lite/manager.py:873` — `_should_full_reindex`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:58` — `seed=1223` (skill-retrieval subsystem only)</sub>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
@@ -581,7 +581,7 @@ flowchart TD
 
 **General:** Yes — queries and documents must be embedded by the same model, and for asymmetric models you must also apply the correct role prefix (e.g. `query:` vs `passage:`) to each side. Mixing models produces incomparable vectors; dropping the role prefix on an instruction-tuned model measurably degrades retrieval.
 
-**Jiuwen:** In the KB pipeline they do: one `embed_model` instance is held on the KB, passed to `build_index` for documents and to the constructed `VectorRetriever`/`HybridRetriever` for queries. Query embedding uses `embed_query`; document embedding uses `embed_documents`. For OpenAI-compatible/Dashscope, `embed_query` delegates to the document path (Dashscope literally calls `embed_documents([text])`), so there is no query-vs-passage prefix distinction. Only `VLLMEmbedding.embed_multimodal` supports an `instruction`. Nothing validates that the retriever's model matches the indexer's (only dimension is indirectly constrained by the collection schema).
+**Jiuwen:** In the KB pipeline they do: one `embed_model` instance is held on the KB, passed to `build_index` for documents and to the constructed `VectorRetriever`/`HybridRetriever` for queries. Query embedding uses `embed_query`; document embedding uses `embed_documents`. For Dashscope, `embed_query` literally calls `embed_documents([text])` (the OpenAI-compatible client calls the same shared embedding method directly), so there is no query-vs-passage prefix distinction. Only `VLLMEmbedding.embed_multimodal` supports an `instruction`. Nothing validates that the retriever's model matches the indexer's (only dimension is indirectly constrained by the collection schema).
 
 ```mermaid
 flowchart LR
@@ -605,7 +605,7 @@ flowchart LR
 
 **General:** Isolate each stage so one failure degrades rather than aborts: retrieval returns an empty/flagged result, reranking falls back to the pre-rerank order, generation surfaces a structured error. Use typed errors per stage, explicit fallbacks, retries only for transient failures, and a top-level handler that converts failure into a model-readable message instead of a crash.
 
-**Jiuwen:** Failures are mostly contained per stage. Retrievers implement stage-local fallbacks: `VectorRetriever` falls back to BM25 when vector search is empty, `HybridRetriever` falls back to vector or sparse, and `GraphRetriever` falls back to sparse. Model-call failures are handled by rails: `ModelAnomalyDetectionRail.on_model_exception` retries stream-timeout/repetition with backoff, and `ToolCallResilienceRail` retries transport/timeout tool errors. In `AbilityManager`, any tool/workflow/sub-agent exception is caught and converted to an error `ToolMessage` so the round continues. Workflow HTTP components have per-component retry (`HttpRetryConfig`, 429/5xx) and rate-limit config. Pregel node failure cancels siblings via `FIRST_EXCEPTION`.
+**Jiuwen:** Failures are mostly contained per stage. Retrievers implement stage-local fallbacks: `VectorRetriever` falls back to BM25 when vector search is empty, `HybridRetriever` falls back to sparse when dense search is empty (in `mode="vector"` only), and `GraphRetriever` falls back to sparse only in its `mode="sparse"` branch. Model-call failures are handled by rails: `ModelAnomalyDetectionRail.on_model_exception` retries stream-timeout/repetition with backoff, and `ToolCallResilienceRail` retries transport/timeout tool errors. In `AbilityManager`, any tool/workflow/sub-agent exception is caught and converted to an error `ToolMessage` so the round continues. Workflow HTTP components have per-component retry (`HttpRetryConfig`, 429/5xx) and rate-limit config. Pregel node failure cancels siblings via `FIRST_EXCEPTION`.
 
 ```mermaid
 flowchart TD
@@ -619,7 +619,7 @@ flowchart TD
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → BM25 fallback; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97/194` — fallback branches; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:462` — fallback to sparse<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:236` — `on_model_exception` retry classification; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:106` — tool exception retry decision<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1186` — exception rendered into a `ToolMessage`<br>&bull; `agent-core/openjiuwen/core/workflow/components/tool/http/http_request_component.py:102` — `HttpRetryConfig`; `:110` `HttpRateLimitConfig`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/task.py:47` — FIRST_EXCEPTION cancels siblings</sub>
 
-**Gap.** No circuit breaker or pipeline-level compensation. Reranker failure aborts retrieval rather than degrading to the pre-rerank order, and a failed `embed_query` has no sparse fallback. Failures are swallowed into model-visible text, so downstream cannot distinguish "empty" from "broken".
+**Gap.** No retrieval-stage circuit breaker or pipeline-level compensation (a generic runner `CircuitBreakerFilter` exists but is not wired into the retrieval stages). Reranker failure aborts retrieval rather than degrading to the pre-rerank order, and a failed `embed_query` has no sparse fallback. Failures are swallowed into model-visible text, so downstream cannot distinguish "empty" from "broken".
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
@@ -754,7 +754,7 @@ flowchart TD
     R0 --- GRAPH
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:213` — `for turn in range(1, max_iter+1)`; `:237` `_read` triples + `batch_extend_memory`; `:244` `_rewrite` → append<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:100` — beam expansion `range(max_length-1)`; `:190` endpoint entities `{triple[0], triple[-1]}`; `:402` `graph_hops = kwargs.get("graph_hops", 2)`<br>&bull; `agent-core/openjiuwen/core/retrieval/common/triple_beam.py:12` — `TripleBeam`; `agent-core/openjiuwen/core/retrieval/common/triple_memory.py:31` — `extend_memory` dedup<br>&bull; `agent-core/openjiuwen/core/memory/config/graph.py:86` — `bfs_k`/`bfs_depth`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:122` — fixed single-pass retrieve</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:213` — `for turn in range(1, max_iter+1)`; `:237` `_read` triples + `batch_extend_memory`; `:244` `_rewrite` → append<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:100` — beam expansion `range(max_length-1)`; `:190` endpoint entities `{triple[0], triple[-1]}`; `:402` `graph_hops = kwargs.get("graph_hops", 2)`<br>&bull; `agent-core/openjiuwen/core/retrieval/common/triple_beam.py:12` — `TripleBeam`; `agent-core/openjiuwen/core/retrieval/common/triple_memory.py:31` — `extend_memory` dedup<br>&bull; `agent-core/openjiuwen/core/memory/config/graph.py:86` — `bfs_k`/`bfs_depth`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:38` — fixed single-pass retrieve</sub>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
 
@@ -762,7 +762,7 @@ flowchart TD
 
 **General:** Query rewriting makes a query self-contained (resolves coreference/ellipsis, fixes typos, removes reliance on prior turns) — it improves multi-turn and malformed queries. Query expansion adds terms/synonyms or generates a hypothetical answer (HyDE) to bridge vocabulary mismatch. Rewriting helps conversational and noisy queries; expansion helps when the corpus uses different wording than the user.
 
-**Jiuwen:** `QueryRewriter` performs context-aware rewriting, not expansion: it produces a self-contained `standalone_query`, corrects typos, detects gibberish, summarizes intent, and lists gaps. When history exceeds `compress_range` it first LLM-compresses history into a `{theme, summary}` system message, then rewrites from the recent turns — history compression, not query expansion. There is no synonym expansion and no HyDE.
+**Jiuwen:** `QueryRewriter` performs context-aware rewriting, not expansion: it produces a self-contained `standalone_query`, corrects typos, detects gibberish, summarizes intent, and lists gaps. When history reaches `compress_range` it first LLM-compresses history into a `{theme, summary}` system message, then rewrites from the recent turns — history compression, not query expansion. There is no synonym expansion and no HyDE.
 
 ```mermaid
 flowchart TD
