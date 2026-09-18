@@ -231,15 +231,15 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val loader = remember(context) { svgLoader(context) }
-    val dark = isSystemInDarkTheme()
-    val darkSurface = dark && data.svgDark.isNotBlank()
-    var useSvg by remember(data) { mutableStateOf(true) }
+    // Display PNG (Mermaid SVG is not rendered correctly by AndroidSVG).
+    var useSvg by remember(data) { mutableStateOf(false) }
     val asset = when {
-        dark && data.svgDark.isNotBlank() -> data.svgDark
-        useSvg && data.svg.isNotBlank() -> data.svg
-        data.image.isNotBlank() -> data.image
-        else -> data.svg
+        !useSvg && data.image.isNotBlank() -> data.image
+        data.svgDark.isNotBlank() && isSystemInDarkTheme() -> data.svgDark
+        data.svg.isNotBlank() -> data.svg
+        else -> data.image
     }
+    val darkSurface = false
 
     var full by remember { mutableStateOf(false) }
     var step by remember { mutableIntStateOf(-1) }
@@ -260,7 +260,7 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
         Box(
             Modifier.fillMaxWidth()
                 .background(
-                    if (darkSurface) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFF4F5FA),
+                    if (darkSurface) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFFFFFFF),
                     RoundedCornerShape(12.dp),
                 )
                 .aspectRatio(if (data.h > 0f && data.w > 0f) data.w / data.h else 1.6f)
@@ -347,8 +347,8 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TechnicalDetail(text: String, citations: List<CitationDto>) {
-    if (text.isBlank() && citations.isEmpty()) return
+fun TechnicalDetail(text: String, citations: List<CitationDto>, diagram: DiagramData? = null) {
+    if (text.isBlank() && citations.isEmpty() && diagram == null) return
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         TextButton(onClick = { open = !open }) {
@@ -358,6 +358,10 @@ fun TechnicalDetail(text: String, citations: List<CitationDto>) {
             if (text.isNotBlank()) MarkdownText(text)
             Spacer(Modifier.height(6.dp))
             CitationChips(citations)
+            if (diagram != null) {
+                Spacer(Modifier.height(8.dp))
+                DiagramView(diagram, citations)
+            }
         }
     }
 }

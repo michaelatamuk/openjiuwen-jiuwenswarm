@@ -57,6 +57,15 @@ class Repo(private val db: AppDatabase) {
         )
     }
 
+    fun diagramTechnical(q: QuestionEntity): DiagramData? {
+        val d = runCatching { json.decodeFromString<DiagramDto>(q.diagramTechJson) }.getOrNull() ?: return null
+        if (d.image.isBlank() && d.svg.isBlank()) return null
+        return DiagramData(
+            svg = d.svg, image = d.image, svgDark = d.svgDark, w = d.width, h = d.height,
+            alt = d.alt, steps = d.steps, nodes = d.nodes,
+        )
+    }
+
     private inline fun <reified T> decodeList(s: String): List<T> =
         runCatching { json.decodeFromString<List<T>>(s) }.getOrDefault(emptyList())
 

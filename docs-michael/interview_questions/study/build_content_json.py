@@ -25,6 +25,7 @@ SVG_CACHE = os.path.join(HERE, ".mmd-cache")
 PNG_CACHE = os.path.join(HERE, ".mmd-png")
 AUTH = os.path.join(HERE, "authored_summaries.json")
 AUTH_J = os.path.join(HERE, "authored_jiuwen_plain.json")
+AUTH_D = os.path.join(HERE, "authored_diagrams.json")
 
 MH = re.compile(r"^##\s*(?:(\d+)\.\s*)?(.+)$")
 DIAGRAM = re.compile(r"```mermaid\r?\n(.*?)```", re.S)
@@ -299,6 +300,28 @@ def parse_file(path):
     return title, questions
 
 
+EMPTY_DIAGRAM = {"source": "", "svg": "", "image": "", "svgDark": "", "width": 0.0, "height": 0.0,
+                 "alt": "", "steps": [], "nodes": []}
+
+
+def build_diagram(code, mmdc, question):
+    if not code:
+        return None
+    light = render_svg(code, "default", mmdc)
+    if light is None:
+        return None
+    png = render_png(code, mmdc)
+    h = hashlib.sha1(("svg2\x00" + code).encode("utf-8")).hexdigest()
+    shutil.copyfile(light, os.path.join(OUT, "diagrams", h + ".svg"))
+    shutil.copyfile(png, os.path.join(OUT, "diagrams", h + ".png"))
+    w, ht, nodes = svg_geometry(light, node_labels(code))
+    return {
+        "source": code, "svg": "diagrams/" + h + ".svg", "image": "diagrams/" + h + ".png",
+        "svgDark": "", "width": w, "height": ht, "alt": f"Diagram for: {question}",
+        "steps": mermaid_steps(code), "nodes": nodes,
+    }
+
+
 def main():
     if "--fix-cache" in sys.argv:
         n = 0
@@ -309,6 +332,7 @@ def main():
     mmdc = find_mmdc()
     authored = json.load(open(AUTH, encoding="utf-8")) if os.path.isfile(AUTH) else {}
     authored_j = json.load(open(AUTH_J, encoding="utf-8")) if os.path.isfile(AUTH_J) else {}
+    authored_d = json.load(open(AUTH_D, encoding="utf-8")) if os.path.isfile(AUTH_D) else {}
     files = sorted(f for f in glob.glob(os.path.join(BASE, "*.md"))
                    if re.match(r"^(0[1-9]|10|9[0-9])-", os.path.basename(f)))
     os.makedirs(os.path.join(OUT, "diagrams"), exist_ok=True)
@@ -343,35 +367,35 @@ def main():
             if cm:
                 sources.append(cm.group(1).strip())
 
-            diagram = {"source": "", "svg": "", "image": "", "svgDark": "", "width": 0.0, "height": 0.0,
-                       "alt": "", "steps": [], "nodes": []}
+            diagram = EMPTY_DIAGRAM
+            diagram_tech = EMPTY_DIAGRAM
             dia = DIAGRAM.search(body)
-            if dia:
-                code = dia.group(1).replace("\r", "").strip()
-                try:
-                    light = render_svg(code, "default", mmdc)
-                    if light is None:
+            fence = dia.group(1).replace("\r", "").strip() if dia else ""
+            authd = authored_d.get(key, {})
+            if authd.get("technical") == "__existing__":
+                concept_src = authd.get("concept", "")
+                tech_src = fence
+            else:
+                concept_src = authd.get("concept") or fence
+                tech_src = authd.get("technical", "")
+            try:
+                if concept_src:
+                    d = build_diagram(concept_src, mmdc, q["question"])
+                    if d is None:
                         pending += 1
                     else:
-                        png = render_png(code, mmdc)
-                        h = hashlib.sha1(("svg2\x00" + code).encode("utf-8")).hexdigest()
-                        shutil.copyfile(light, os.path.join(OUT, "diagrams", h + ".svg"))
-                        shutil.copyfile(png, os.path.join(OUT, "diagrams", h + ".png"))
-                        w, ht, nodes = svg_geometry(light, node_labels(code))
-                        diagram = {
-                            "source": code,
-                            "svg": "diagrams/" + h + ".svg",
-                            "image": "diagrams/" + h + ".png",
-                            "svgDark": "",
-                            "width": w, "height": ht,
-                            "alt": f"Diagram for: {q['question']}",
-                            "steps": mermaid_steps(code),
-                            "nodes": nodes,
-                        }
+                        diagram = d
                         rendered += 1
-                except Exception as e:
-                    missing += 1
-                    print("diagram render failed:", str(e)[:120])
+                if tech_src:
+                    d = build_diagram(tech_src, mmdc, q["question"])
+                    if d is None:
+                        pending += 1
+                    else:
+                        diagram_tech = d
+                        rendered += 1
+            except Exception as e:
+                missing += 1
+                print("diagram render failed:", str(e)[:120])
 
             t["questions"].append({
                 "id": f"{prefix}-{qi}", "topicId": prefix, "topicTitle": title, "number": qi,
@@ -380,6 +404,7 @@ def main():
                 "citations": citations,
                 "pitfalls": sentences(gap), "followups": [],
                 "diagram": diagram,
+                "diagramTechnical": diagram_tech,
                 "meta": {"difficulty": "advanced" if qtype in ("design", "compare", "mechanism") else "core",
                          "tags": [prefix],
                          "related": [f"{prefix}-{j}" for j in (qi - 1, qi + 1) if 1 <= j <= n]},

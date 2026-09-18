@@ -36,6 +36,7 @@ data class QuestionEntity(
     val diagramSource: String,
     val diagramStepsJson: String,
     val diagramNodesJson: String,
+    val diagramTechJson: String,
     val metaJson: String,
     val provenanceJson: String,
     val searchBlob: String,

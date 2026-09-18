@@ -161,6 +161,7 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
     val pitfalls = remember(item) { repo.pitfalls(item.question) }
     val citations = remember(item) { repo.citations(item.question) }
     val diagram = remember(item) { repo.diagram(item.question) }
+    val techDiagram = remember(item) { repo.diagramTechnical(item.question) }
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -187,22 +188,20 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
             }
             if (reveal >= 2) {
                 Section("Explanation", item.question.explain)
-                BulletList("Pitfalls", pitfalls)
-            }
-            if (reveal >= 3) {
-                Section("Jiuwen", item.question.jiuwenPlain)
-                TechnicalDetail(item.question.mechanism, citations)
-            }
-            if (reveal >= 4) {
                 if (diagram != null) {
                     Spacer(Modifier.height(8.dp))
                     DiagramView(diagram, citations)
                 }
+                BulletList("Pitfalls", pitfalls)
+            }
+            if (reveal >= 3) {
+                Section("Jiuwen", item.question.jiuwenPlain)
+                TechnicalDetail(item.question.mechanism, citations, techDiagram)
                 TextButton(onClick = { onOpen(item.question.id) }) { Text("Open full topic page") }
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (reveal < 4) {
+        if (reveal < 3) {
             Button(onClick = { reveal++ }, Modifier.fillMaxWidth().height(52.dp)) {
                 Text(if (reveal == 0) "Show answer" else "Show more")
             }
@@ -274,6 +273,7 @@ fun QuestionScreen(repo: Repo, questionId: String) {
     val followups = remember(item) { repo.followups(item) }
     val citations = remember(item) { repo.citations(item) }
     val diagram = remember(item) { repo.diagram(item) }
+    val techDiagram = remember(item) { repo.diagramTechnical(item) }
     val meta = remember(item) { repo.meta(item) }
     val prov = remember(item) { repo.provenance(item) }
 
@@ -298,12 +298,12 @@ fun QuestionScreen(repo: Repo, questionId: String) {
         Spacer(Modifier.height(12.dp))
         PointsList(points)
         Section("Explanation", item.explain)
-        Section("Jiuwen", item.jiuwenPlain)
-        TechnicalDetail(item.mechanism, citations)
         if (diagram != null) {
             Spacer(Modifier.height(8.dp))
             DiagramView(diagram, citations)
         }
+        Section("Jiuwen", item.jiuwenPlain)
+        TechnicalDetail(item.mechanism, citations, techDiagram)
         BulletList("Pitfalls", pitfalls)
         BulletList("Likely follow-ups", followups)
         Spacer(Modifier.height(8.dp))
