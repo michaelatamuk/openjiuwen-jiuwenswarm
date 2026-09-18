@@ -9144,6 +9144,29 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
+    def _build_failure_memory_rail(config_base: dict[str, Any]) -> FailureMemoryRail | None:
+        """Build FailureMemoryRail: keep a running summary of failed approaches.
+
+        Only added to the rail set when ``failure_memory.enabled`` is true (see
+        ``_build_agent_rails``). Reads ``failure_memory.max_failures`` (default
+        10). The rail records tool failures in session state and injects a
+        summary into the system prompt so the agent knows which approaches have
+        already failed and should not be retried.
+        """
+        try:
+            _fm_cfg = config_base.get("failure_memory") or {}
+            _max_failures = parse_int(_fm_cfg.get("max_failures"), 10)
+            rail = FailureMemoryRail(_max_failures)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] FailureMemoryRail attached (max_failures=%d)",
+                _max_failures,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning("[JiuWenSwarmDeepAdapter] Failed to attach FailureMemoryRail: %s", exc)
+            return None
+
+    @staticmethod
     def _build_autonomous_mode_rail(config_base: dict[str, Any]) -> AutonomousModeRail | None:
         """Build AutonomousModeRail: override interactive hedging when running unattended.
 
@@ -9839,6 +9862,20 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_context_headroom_rail",
                     self._build_context_headroom_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Failure-pattern memory: record failed approaches in session state and
+        # surface them in the system prompt. Disabled by default — only inserted
+        # when enabled so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _fm_cfg = config_base.get("failure_memory") or {}
+        if bool(_fm_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_failure_memory_rail",
+                    self._build_failure_memory_rail,
                     {"config_base": config_base},
                 )
             )
