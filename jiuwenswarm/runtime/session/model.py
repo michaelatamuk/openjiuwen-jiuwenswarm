@@ -9,6 +9,27 @@ from enum import Enum
 from typing import Any
 
 
+class SessionExecutionEndedError(RuntimeError):
+    """Control input completed after the execution that asked for it was gone.
+
+    Deliberately not an ``asyncio.CancelledError``: the delivering task was
+    never cancelled, and reporting cancellation would make upstream stream
+    handlers treat a real, user-visible failure as a silent abort.
+    """
+
+
+class SessionCloseTimeoutError(RuntimeError):
+    """A Session still owns tasks and cannot release its runtime resources."""
+
+    def __init__(self, session_id: str, execution_ids: tuple[str, ...]) -> None:
+        self.session_id = session_id
+        self.execution_ids = execution_ids
+        super().__init__(
+            f"session {session_id} still has running executions: "
+            f"{', '.join(execution_ids)}"
+        )
+
+
 class RuntimeSessionState(str, Enum):
     READY = "ready"
     ACTIVE = "active"
@@ -23,13 +44,24 @@ class SessionPersistencePolicy(str, Enum):
 class SessionWorkKind(str, Enum):
     CHAT_UNARY = "chat_unary"
     CHAT_STREAM = "chat_stream"
+    SESSION_MESSAGE = "session_message"
     GOAL_STREAM = "goal_stream"
     GOAL_CONTROL = "goal_control"
     GOAL_ATTACH = "goal_attach"
     CONTROL_INPUT = "control_input"
+    SESSION_INPUT = "session_input"
+    HEARTBEAT = "heartbeat"
 
     @property
     def scheduled(self) -> bool:
+        return self in {
+            SessionWorkKind.CHAT_UNARY,
+            SessionWorkKind.CHAT_STREAM,
+            SessionWorkKind.SESSION_MESSAGE,
+        }
+
+    @property
+    def latest_first(self) -> bool:
         return self in {
             SessionWorkKind.CHAT_UNARY,
             SessionWorkKind.CHAT_STREAM,
@@ -69,6 +101,8 @@ class SessionExecutionHandle:
     error: str | None = None
     cancellation_requested: bool = False
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
+    terminal_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    retain_owner_task: bool = field(default=False, repr=False)
 
     def snapshot(self) -> SessionExecutionSnapshot:
         return SessionExecutionSnapshot(
