@@ -26,3 +26,6 @@ android-app-2026/app/src/main/assets/content.json
 android-app-2026/app/src/main/assets/diagrams/
 
 node_modules/
+
+# Kotlin build session state
+android-app-2026/.kotlin/
