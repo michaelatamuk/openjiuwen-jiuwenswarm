@@ -46,6 +46,17 @@ class Repo(private val db: AppDatabase) {
     fun provenance(q: QuestionEntity): ProvenanceDto =
         runCatching { json.decodeFromString<ProvenanceDto>(q.provenanceJson) }.getOrDefault(ProvenanceDto())
 
+    fun diagram(q: QuestionEntity): DiagramData? {
+        if (q.diagramImage.isBlank() && q.diagramSvg.isBlank()) return null
+        val nodes = runCatching { json.decodeFromString<List<DiagramNodeDto>>(q.diagramNodesJson) }
+            .getOrDefault(emptyList())
+        return DiagramData(
+            svg = q.diagramSvg, image = q.diagramImage, svgDark = q.diagramSvgDark,
+            w = q.diagramW, h = q.diagramH,
+            alt = q.diagramAlt, steps = decodeList(q.diagramStepsJson), nodes = nodes,
+        )
+    }
+
     private inline fun <reified T> decodeList(s: String): List<T> =
         runCatching { json.decodeFromString<List<T>>(s) }.getOrDefault(emptyList())
 
@@ -100,3 +111,14 @@ class Repo(private val db: AppDatabase) {
 }
 
 data class StudyItem(val question: QuestionEntity, val card: CardEntity)
+
+data class DiagramData(
+    val svg: String,
+    val image: String,
+    val svgDark: String,
+    val w: Float,
+    val h: Float,
+    val alt: String,
+    val steps: List<String>,
+    val nodes: List<DiagramNodeDto>,
+)

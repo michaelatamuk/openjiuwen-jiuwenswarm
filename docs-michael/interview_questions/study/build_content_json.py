@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 """Convert the interview markdown docs into a TYPED, LAYERED content.json (v2)
-for the native Android app, plus the diagram images (PNG) it references.
+for the native Android app, plus DIAGRAM assets.
 
-Layered/atomic model per question:
-  type, tldr, points[] (recall targets), explain, mechanism,
-  citations[] (structured code refs), pitfalls[], follow-ups[],
-  diagram {source, image, steps}, meta {difficulty, tags, related}, provenance.
+Diagrams now ship as SVG (light + dark) with parsed node geometry so the app can
+highlight nodes, tap-to-inspect, and tint by theme. No Mermaid runtime is used.
 
 Output: study/android-app-2026/app/src/main/assets/content.json (+ diagrams/)
 """
@@ -16,20 +14,129 @@ import json
 import html
 import hashlib
 import shutil
+import subprocess
 from datetime import date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.dirname(HERE)
 OUT = os.path.join(HERE, "android-app-2026", "app", "src", "main", "assets")
+SVG_CACHE = os.path.join(HERE, ".mmd-cache")
 PNG_CACHE = os.path.join(HERE, ".mmd-png")
 
-MH = re.compile(r"^## (\d+)\.\s*(.+)$")
+MH = re.compile(r"^##\s*(?:(\d+)\.\s*)?(.+)$")
 DIAGRAM = re.compile(r"```mermaid\r?\n(.*?)```", re.S)
 ANCHORS = re.compile(r"<details>\s*<summary>Anchors</summary>\s*\n\s*<sub>(.*?)</sub>\s*\n\s*</details>", re.S)
 CODE = re.compile(r"<code>(.*?)</code>", re.S)
 CANON = re.compile(r"_Canonical source:\s*`([^`]+)`(.*?)_</sub>", re.S)
 NODE = re.compile(r'([A-Za-z0-9_]+)\s*(?:\[|\(|\{)\s*"?(.*?)"?\s*(?:\]|\)|\})')
 EDGE = re.compile(r"([A-Za-z0-9_]+)\s*(?:-->|---|-\.->|==>|~~~|--x|--o)\s*(?:\|[^|]*\|\s*)?([A-Za-z0-9_]+)")
+# node groups in mermaid SVG
+GNODE = re.compile(r'<g[^>]*class="node[^"]*"[^>]*>')
+GATTR = {}
+
+
+def find_mmdc():
+    env = os.environ.get("MMDC")
+    if env and os.path.isfile(env):
+        return [env]
+    for name in ("mmdc.cmd", "mmdc"):
+        p = os.path.join(HERE, "node_modules", ".bin", name)
+        if os.path.isfile(p):
+            return [p]
+    return ["npx", "--yes", "@mermaid-js/mermaid-cli"]
+
+
+PUPPETEER = os.path.join(SVG_CACHE, "puppeteer.json")
+
+
+def _puppeteer():
+    os.makedirs(SVG_CACHE, exist_ok=True)
+    if not os.path.isfile(PUPPETEER):
+        with open(PUPPETEER, "w", encoding="utf-8") as fh:
+            json.dump({"args": ["--no-sandbox", "--disable-setuid-sandbox"]}, fh)
+    return PUPPETEER
+
+
+def render_png(code, mmdc):
+    """Render to PNG (2x) for reliable on-device display."""
+    h = hashlib.sha1(code.encode("utf-8")).hexdigest()
+    out = os.path.join(PNG_CACHE, h + ".png")
+    if os.path.isfile(out):
+        return out
+    os.makedirs(PNG_CACHE, exist_ok=True)
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        inp = os.path.join(d, "in.mmd")
+        with open(inp, "w", encoding="utf-8") as fh:
+            fh.write(code)
+        cmd = mmdc + ["-i", inp, "-o", out, "-b", "white", "-s", "2", "-p", _puppeteer()]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return out
+
+
+def render_svg(code, theme, mmdc):
+    """Light SVG only, keyed by sha1(code) so it reuses the site build cache."""
+    h = hashlib.sha1(code.encode("utf-8")).hexdigest()
+    out = os.path.join(SVG_CACHE, h + ".svg")
+    if os.path.isfile(out):
+        return out
+    os.makedirs(SVG_CACHE, exist_ok=True)
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        inp = os.path.join(d, "in.mmd")
+        with open(inp, "w", encoding="utf-8") as fh:
+            fh.write(code)
+        cmd = mmdc + ["-i", inp, "-o", out, "-b", "transparent", "-t", "default", "-p", _puppeteer()]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return out
+
+
+def node_labels(code):
+    labels = {}
+    for m in NODE.finditer(code):
+        labels.setdefault(m.group(1), (m.group(2) or m.group(1)).strip())
+    return labels
+
+
+def svg_geometry(path, labels):
+    """Return (width, height, nodes [{label,x,y}]) using source labels by node id."""
+    text = open(path, encoding="utf-8", errors="replace").read()
+    vb = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', text)
+    w, h = (float(vb.group(1)), float(vb.group(2))) if vb else (800.0, 400.0)
+    nodes = []
+    for m in GNODE.finditer(text):
+        tag = m.group(0)
+        tm = re.search(r'transform="translate\(\s*([-\d.]+)[,\s]+([-\d.]+)\s*\)"', tag)
+        if not tm:
+            continue
+        x, y = float(tm.group(1)), float(tm.group(2))
+        gid = re.search(r'id="flowchart-([A-Za-z0-9_]+)-\d+"', tag) or re.search(r'id="[^"]*?([A-Za-z0-9_]+)-\d+"', tag)
+        nid = gid.group(1) if gid else ""
+        label = labels.get(nid, "")
+        if not label:
+            window = text[m.end():m.end() + 1200]
+            fm = re.search(r"<foreignObject[^>]*>(.*?)</foreignObject>", window, re.S)
+            if fm:
+                label = html.unescape(re.sub(r"<[^>]+>", "", fm.group(1))).strip()
+            else:
+                lm = re.search(r"<text[^>]*>(.*?)</text>", window, re.S)
+                if lm:
+                    label = html.unescape(re.sub(r"<[^>]+>", "", lm.group(1))).strip()
+        nodes.append({"label": label or nid, "x": x, "y": y})
+    return w, h, nodes
+
+
+def mermaid_steps(code):
+    labels = node_labels(code)
+    order = []
+    for m in EDGE.finditer(code):
+        for nid in (m.group(1), m.group(2)):
+            if nid in labels and nid not in order:
+                order.append(nid)
+    for nid in labels:
+        if nid not in order:
+            order.append(nid)
+    return [labels[i] for i in order][:12]
 
 
 def sentences(text):
@@ -55,16 +162,13 @@ def parse_anchors(body):
         rest = chunk.split("</code>", 1)[1] if "</code>" in chunk else ""
         rest = re.sub(r"<[^>]+>", "", rest)
         rest = html.unescape(rest).replace("&bull;", "").strip(" —-:").strip()
-        # symbol: first token that looks like an identifier in the description
-        sym = ""
         sm = re.search(r"([A-Za-z_][A-Za-z0-9_\.]{2,})", rest)
-        if sm:
-            sym = sm.group(1)
         lines = ""
         lm = re.search(r":(\d+(?:[/-]\d+)*)\s*$", ref)
         if lm:
             lines = lm.group(1)
-        out.append({"kind": "code", "ref": ref, "symbol": sym, "lines": lines, "desc": rest})
+        out.append({"kind": "code", "ref": ref, "symbol": sm.group(1) if sm else "",
+                    "lines": lines, "desc": rest})
     return out
 
 
@@ -72,7 +176,7 @@ def infer_type(q, citations):
     ql = q.lower()
     if "tell me about a time" in ql or "a time when" in ql:
         return "behavioral"
-    if ("difference between" in ql or " vs " in ql or " versus " in ql or ql.startswith("compare")):
+    if "difference between" in ql or " vs " in ql or " versus " in ql or ql.startswith("compare"):
         return "compare"
     if "design a" in ql or "how would you design" in ql or "architect" in ql or "what's your strategy" in ql:
         return "design"
@@ -104,16 +208,26 @@ def parse_file(path):
             title = ln[2:].strip()
             break
     lines = text.split("\n")
-    idx = next((i for i, l in enumerate(lines) if MH.match(l)), None)
+    idx = next((i for i, l in enumerate(lines) if l.startswith("## ")), None)
     if idx is None:
         return title, []
-    questions, cur = [], None
+    questions, cur, auto = [], None, 0
     for ln in lines[idx:]:
+        if ln.startswith("### "):
+            if cur is not None:
+                cur["body"].append(ln)
+            continue
         m = MH.match(ln)
-        if m:
+        if m and ln.startswith("## "):
             if cur:
                 questions.append(cur)
-            cur = {"number": int(m.group(1)), "question": m.group(2).strip(), "body": []}
+                cur = None
+            qtext = m.group(2).strip()
+            if re.match(r"^(summary|why this matters)", qtext, re.I):
+                continue
+            num = m.group(1)
+            auto += 1
+            cur = {"number": int(num) if num else auto, "question": qtext, "body": []}
         elif ln.startswith("# "):
             if cur:
                 questions.append(cur)
@@ -126,12 +240,12 @@ def parse_file(path):
 
 
 def main():
-    files = sorted(glob.glob(os.path.join(BASE, "[01][0-9]-*.md")))
+    mmdc = find_mmdc()
+    files = sorted(f for f in glob.glob(os.path.join(BASE, "*.md"))
+                   if re.match(r"^(0[1-9]|10|9[0-9])-", os.path.basename(f)))
     os.makedirs(os.path.join(OUT, "diagrams"), exist_ok=True)
     today = date.today().isoformat()
-    topics = []
-    missing = 0
-    total = 0
+    topics, missing, total, rendered = [], 0, 0, 0
     for f in files:
         prefix = os.path.basename(f)[:2]
         title, questions = parse_file(f)
@@ -140,67 +254,66 @@ def main():
         for qi, q in enumerate(questions, 1):
             total += 1
             body = "\n".join(q["body"])
-            explain = strip_md_header(body, "General")
+            explain = (strip_md_header(body, "General") or strip_md_header(body, "Definition")
+                       or strip_md_header(body, "Pattern"))
             mechanism = strip_md_header(body, "Jiuwen")
-            gap = strip_md_header(body, "Gap")
+            gap = (strip_md_header(body, "Gap") or strip_md_header(body, "Where it bites")
+                   or strip_md_header(body, "Used for"))
             citations = parse_anchors(body)
             qtype = infer_type(q["question"], citations)
-
             sents = sentences(explain)
             tldr = sents[0] if sents else q["question"]
             points = sents[:6] if len(sents) >= 2 else ([tldr] if tldr else [])
-            pitfalls = sentences(gap)
             sources = []
             cm = CANON.search(body)
             if cm:
                 sources.append(cm.group(1).strip())
 
-            diagram = {"source": "", "image": "", "alt": "", "steps": []}
+            diagram = {"source": "", "svg": "", "image": "", "svgDark": "", "width": 0.0, "height": 0.0,
+                       "alt": "", "steps": [], "nodes": []}
             dia = DIAGRAM.search(body)
             if dia:
                 code = dia.group(1).replace("\r", "").strip()
-                h = hashlib.sha1(code.encode("utf-8")).hexdigest()
-                src = os.path.join(PNG_CACHE, h + ".png")
-                if os.path.isfile(src):
-                    shutil.copyfile(src, os.path.join(OUT, "diagrams", h + ".png"))
+                try:
+                    light = render_svg(code, "default", mmdc)
+                    png = render_png(code, mmdc)
+                    h = hashlib.sha1(code.encode("utf-8")).hexdigest()
+                    shutil.copyfile(light, os.path.join(OUT, "diagrams", h + ".svg"))
+                    shutil.copyfile(png, os.path.join(OUT, "diagrams", h + ".png"))
+                    w, ht, nodes = svg_geometry(light, node_labels(code))
                     diagram = {
                         "source": code,
+                        "svg": "diagrams/" + h + ".svg",
                         "image": "diagrams/" + h + ".png",
+                        "svgDark": "",
+                        "width": w, "height": ht,
                         "alt": f"Diagram for: {q['question']}",
                         "steps": mermaid_steps(code),
+                        "nodes": nodes,
                     }
-                else:
+                    rendered += 1
+                except Exception as e:
                     missing += 1
+                    print("diagram render failed:", str(e)[:120])
 
             t["questions"].append({
-                "id": f"{prefix}-{qi}",
-                "topicId": prefix,
-                "topicTitle": title,
-                "number": qi,
-                "type": qtype,
-                "question": q["question"],
-                "tldr": tldr,
-                "points": points,
-                "explain": explain,
-                "mechanism": mechanism,
-                "citations": citations,
-                "pitfalls": pitfalls,
-                "followups": [],
+                "id": f"{prefix}-{qi}", "topicId": prefix, "topicTitle": title, "number": qi,
+                "type": qtype, "question": q["question"], "tldr": tldr, "points": points,
+                "explain": explain, "mechanism": mechanism, "citations": citations,
+                "pitfalls": sentences(gap), "followups": [],
                 "diagram": diagram,
-                "meta": {
-                    "difficulty": "advanced" if qtype in ("design", "compare", "mechanism") else "core",
-                    "tags": [prefix],
-                    "related": [f"{prefix}-{j}" for j in (qi - 1, qi + 1) if 1 <= j <= n],
-                },
+                "meta": {"difficulty": "advanced" if qtype in ("design", "compare", "mechanism") else "core",
+                         "tags": [prefix],
+                         "related": [f"{prefix}-{j}" for j in (qi - 1, qi + 1) if 1 <= j <= n]},
                 "provenance": {"sources": sources, "reviewedAt": today},
             })
         topics.append(t)
 
-    data = {"version": 2, "topics": topics}
+    data = {"version": 3, "topics": topics}
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, "content.json"), "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=1)
-    print(f"topics={len(topics)} questions={total} missing_diagrams={missing}")
+    print(f"topics={len(topics)} questions={total} diagrams={rendered} failed={missing}")
 
 
 if __name__ == "__main__":

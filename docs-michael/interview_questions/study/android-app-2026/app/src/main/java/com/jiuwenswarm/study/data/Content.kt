@@ -48,9 +48,21 @@ data class CitationDto(
 @Serializable
 data class DiagramDto(
     val source: String = "",
+    val svg: String = "",
     val image: String = "",
+    val svgDark: String = "",
+    val width: Float = 0f,
+    val height: Float = 0f,
     val alt: String = "",
     val steps: List<String> = emptyList(),
+    val nodes: List<DiagramNodeDto> = emptyList(),
+)
+
+@Serializable
+data class DiagramNodeDto(
+    val label: String = "",
+    val x: Float = 0f,
+    val y: Float = 0f,
 )
 
 @Serializable

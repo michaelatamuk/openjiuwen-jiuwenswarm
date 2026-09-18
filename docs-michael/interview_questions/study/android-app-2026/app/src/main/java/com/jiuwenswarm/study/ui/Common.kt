@@ -1,6 +1,5 @@
 package com.jiuwenswarm.study.ui
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -15,18 +14,21 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -40,26 +42,27 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -69,7 +72,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.SvgDecoder
 import com.jiuwenswarm.study.data.CitationDto
+import com.jiuwenswarm.study.data.DiagramData
+import com.jiuwenswarm.study.data.DiagramNodeDto
+import kotlinx.coroutines.delay
 
 /** Minimal, dependency-free markdown renderer: **bold** and `code` spans. */
 fun renderMarkdown(text: String): AnnotatedString {
@@ -139,16 +148,10 @@ fun PointsList(points: List<String>) {
     val checked = remember(points) { mutableStateListOf<Boolean>().apply { repeat(points.size) { add(false) } } }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         points.forEachIndexed { i, p ->
-            Row(
-                Modifier.fillMaxWidth().clickable { checked[i] = !checked[i] },
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(
-                    if (checked[i]) "✓" else "${i + 1}",
-                    fontWeight = FontWeight.Bold,
+            Row(Modifier.fillMaxWidth().clickable { checked[i] = !checked[i] }, verticalAlignment = Alignment.Top) {
+                Text(if (checked[i]) "✓" else "${i + 1}", fontWeight = FontWeight.Bold,
                     color = if (checked[i]) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.width(24.dp),
-                )
+                    modifier = Modifier.width(24.dp))
                 Text(p, style = MaterialTheme.typography.bodyLarge)
             }
         }
@@ -180,9 +183,7 @@ fun CitationChips(citations: List<CitationDto>) {
                 if (c.lines.isNotBlank()) Text("lines ${c.lines}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { clip.setText(AnnotatedString("${c.ref}\n${c.desc}")); selected = null }) {
-                        Text("Copy")
-                    }
+                    TextButton(onClick = { clip.setText(AnnotatedString("${c.ref}\n${c.desc}")); selected = null }) { Text("Copy") }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -190,93 +191,155 @@ fun CitationChips(citations: List<CitationDto>) {
     }
 }
 
-@Composable
-fun DiagramStepper(steps: List<String>) {
-    if (steps.size < 2) return
-    var idx by remember { mutableIntStateOf(0) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { if (idx > 0) idx-- }, enabled = idx > 0) {
-            Icon(Icons.Filled.ChevronLeft, "Previous step")
-        }
-        Column(Modifier.weight(1f)) {
-            Text("Step ${idx + 1} / ${steps.size}", style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(steps[idx], style = MaterialTheme.typography.bodyMedium)
-        }
-        IconButton(onClick = { if (idx < steps.size - 1) idx++ }, enabled = idx < steps.size - 1) {
-            Icon(Icons.Filled.ChevronRight, "Next step")
-        }
-    }
-}
+// --------------------------------------------------------------------- diagram
 
-/** Pinch-to-zoom, drag-to-pan, double-tap-to-toggle image. */
+private fun svgLoader(context: android.content.Context): ImageLoader =
+    ImageLoader.Builder(context).components { add(SvgDecoder.Factory()) }.build()
+
 @Composable
-private fun ZoomableImage(bitmap: ImageBitmap, modifier: Modifier = Modifier) {
+private fun SvgZoomDialog(asset: String, loader: ImageLoader, onClose: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    val state = rememberTransformableState { zoomChange, panChange, _ ->
-        val ns = (scale * zoomChange).coerceIn(1f, 12f)
-        scale = ns
-        offset = if (ns <= 1f) Offset.Zero else offset + panChange
+    val state = rememberTransformableState { z, pan, _ ->
+        val ns = (scale * z).coerceIn(1f, 12f); scale = ns
+        offset = if (ns <= 1f) Offset.Zero else offset + pan
     }
-    Box(
-        modifier.fillMaxSize().pointerInput(Unit) {
-            detectTapGestures(onDoubleTap = {
-                if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 3f
-            })
-        },
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            bitmap = bitmap, contentDescription = "diagram", contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().graphicsLayer {
-                scaleX = scale; scaleY = scale
-                translationX = offset.x; translationY = offset.y
-            }.transformable(state),
-        )
-    }
-}
-
-@Composable
-private fun DiagramViewer(bitmap: ImageBitmap, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color(0xF0000000))) {
-            ZoomableImage(bitmap, Modifier.fillMaxSize())
+            AsyncImage(
+                model = "file:///android_asset/$asset", imageLoader = loader, contentDescription = "diagram",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 3f })
+                }.graphicsLayer {
+                    scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
+                }.transformable(state),
+            )
             IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
-                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                Icon(Icons.Filled.Close, "Close", tint = Color.White)
             }
-            Text("Pinch to zoom · drag to pan · double-tap to toggle", color = Color.White,
+            Text("Pinch to zoom · drag to pan · double-tap", color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp))
         }
     }
 }
 
-/** Inline diagram; tap to open the full-screen zoomable viewer. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiagramImage(path: String, modifier: Modifier = Modifier) {
-    if (path.isBlank()) return
+fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
     val context = LocalContext.current
-    val bitmap = remember(path) {
-        runCatching { context.assets.open(path).use { BitmapFactory.decodeStream(it) } }.getOrNull()
+    val haptic = LocalHapticFeedback.current
+    val loader = remember(context) { svgLoader(context) }
+    val dark = isSystemInDarkTheme()
+    val asset = when {
+        dark && data.svgDark.isNotBlank() -> data.svgDark
+        data.image.isNotBlank() -> data.image
+        else -> data.svg
     }
-    val image = remember(bitmap) { bitmap?.asImageBitmap() }
-    if (image == null) return
-    var open by remember { mutableStateOf(false) }
-    Column(modifier) {
+    val darkSurface = dark && data.svgDark.isNotBlank()
+
+    var full by remember { mutableStateOf(false) }
+    var step by remember { mutableIntStateOf(-1) }
+    var playing by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<DiagramNodeDto?>(null) }
+
+    val currentLabel = if (step in data.steps.indices) data.steps[step] else null
+    LaunchedEffect(playing) {
+        if (playing) {
+            while (step < data.steps.size - 1) {
+                delay(1300); step++; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+            playing = false
+        }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
-                .clickable { open = true }.padding(8.dp),
+                .background(
+                    if (darkSurface) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFF4F5FA),
+                    RoundedCornerShape(12.dp),
+                )
+                .aspectRatio(if (data.h > 0f && data.w > 0f) data.w / data.h else 1.6f)
+                .pointerInput(data, step) {
+                    detectTapGestures { off ->
+                        val sw = if (data.w > 0f) data.w else size.width.toFloat()
+                        val sh = if (data.h > 0f) data.h else size.height.toFloat()
+                        val sx = size.width / sw; val sy = size.height / sh
+                        val hit = data.nodes.minByOrNull { n ->
+                            val dx = n.x * sx - off.x; val dy = n.y * sy - off.y; dx * dx + dy * dy
+                        }
+                        if (hit != null) {
+                            val dx = hit.x * sx - off.x; val dy = hit.y * sy - off.y
+                            val r = size.width * 0.12f
+                            if (dx * dx + dy * dy < r * r) {
+                                selected = hit; haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
-            Image(bitmap = image, contentDescription = "diagram",
-                contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth())
+            AsyncImage(model = "file:///android_asset/$asset", imageLoader = loader,
+                contentDescription = data.alt.ifBlank { "diagram" }, contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize())
+            Canvas(Modifier.fillMaxSize()) {
+                currentLabel?.let { lbl ->
+                    val sw = if (data.w > 0f) data.w else size.width
+                    val sh = if (data.h > 0f) data.h else size.height
+                    val sx = size.width / sw; val sy = size.height / sh
+                    data.nodes.filter { it.label == lbl }.forEach { n ->
+                        val c = Offset(n.x * sx, n.y * sy)
+                        drawCircle(Color(0x334C5BD4), radius = size.minDimension * 0.1f, center = c)
+                        drawCircle(Color(0xFF4C5BD4), radius = size.minDimension * 0.1f, center = c,
+                            style = Stroke(width = 5f))
+                    }
+                }
+            }
+            TextButton(onClick = { full = true }, modifier = Modifier.align(Alignment.TopEnd)) { Text("Expand") }
         }
-        Text("Tap to zoom", style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        if (data.steps.size >= 2) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = { if (step > 0) { step--; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) } }, enabled = step > 0) {
+                    Icon(Icons.Filled.ChevronLeft, "Previous step")
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(if (step >= 0) "Step ${step + 1} / ${data.steps.size}" else "Step through the flow",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(currentLabel ?: "Tap play", style = MaterialTheme.typography.bodyMedium)
+                }
+                IconButton(onClick = { if (step < data.steps.size - 1) { step++; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) } }, enabled = step < data.steps.size - 1) {
+                    Icon(Icons.Filled.ChevronRight, "Next step")
+                }
+                IconButton(onClick = { if (playing) playing = false else { if (step >= data.steps.size - 1) step = -1; playing = true } }) {
+                    Icon(Icons.Filled.PlayArrow, "Play")
+                }
+            }
+        }
     }
-    if (open) DiagramViewer(image) { open = false }
+
+    if (full) SvgZoomDialog(asset, loader) { full = false }
+
+    selected?.let { node ->
+        ModalBottomSheet(onDismissRequest = { selected = null }, sheetState = rememberModalBottomSheetState()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(node.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                val match = citations.firstOrNull {
+                    it.symbol.isNotBlank() && (it.symbol.equals(node.label, true) ||
+                        it.desc.contains(node.label, true) || node.label.contains(it.symbol, true))
+                }
+                if (match != null) {
+                    Text(match.ref, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
+                    if (match.desc.isNotBlank()) Text(match.desc, style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text("Part of the flow above.", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
 }
 
 @Composable
@@ -286,8 +349,7 @@ fun RatingBar(onRate: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         labels.forEachIndexed { i, label ->
             Button(
-                onClick = { onRate(i + 1) },
-                modifier = Modifier.weight(1f),
+                onClick = { onRate(i + 1) }, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = colors[i], contentColor = Color.White),
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),

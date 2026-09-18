@@ -160,7 +160,7 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
     val points = remember(item) { repo.points(item.question) }
     val pitfalls = remember(item) { repo.pitfalls(item.question) }
     val citations = remember(item) { repo.citations(item.question) }
-    val steps = remember(item) { repo.steps(item.question) }
+    val diagram = remember(item) { repo.diagram(item.question) }
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,10 +190,9 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
                 CitationChips(citations)
             }
             if (reveal >= 4) {
-                if (item.question.diagramImage.isNotBlank()) {
+                if (diagram != null) {
                     Spacer(Modifier.height(8.dp))
-                    DiagramImage(item.question.diagramImage)
-                    DiagramStepper(steps)
+                    DiagramView(diagram, citations)
                 }
                 TextButton(onClick = { onOpen(item.question.id) }) { Text("Open full topic page") }
             }
@@ -270,7 +269,7 @@ fun QuestionScreen(repo: Repo, questionId: String) {
     val pitfalls = remember(item) { repo.pitfalls(item) }
     val followups = remember(item) { repo.followups(item) }
     val citations = remember(item) { repo.citations(item) }
-    val steps = remember(item) { repo.steps(item) }
+    val diagram = remember(item) { repo.diagram(item) }
     val meta = remember(item) { repo.meta(item) }
     val prov = remember(item) { repo.provenance(item) }
 
@@ -294,10 +293,9 @@ fun QuestionScreen(repo: Repo, questionId: String) {
         Section("Explanation", item.explain)
         Section("Evidence (Jiuwen)", item.mechanism)
         CitationChips(citations)
-        if (item.diagramImage.isNotBlank()) {
+        if (diagram != null) {
             Spacer(Modifier.height(8.dp))
-            DiagramImage(item.diagramImage)
-            DiagramStepper(steps)
+            DiagramView(diagram, citations)
         }
         BulletList("Pitfalls", pitfalls)
         BulletList("Likely follow-ups", followups)
