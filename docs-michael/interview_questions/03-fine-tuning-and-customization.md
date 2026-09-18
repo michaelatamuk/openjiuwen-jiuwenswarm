@@ -1,6 +1,6 @@
 # Fine-tuning and customization
 
-7 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+6 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. What is instruction tuning, and how is it different from base model pretraining
 
@@ -130,29 +130,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai._</sub>
 
-## 6. When is fine-tuning worth the cost compared to prompt engineering or RAG
-
-**General:** Fine-tune when the behavior is hard to specify in words (style, tone, domain jargon, strict output schema), when you need to compress a long few-shot prompt into the weights for latency/cost, when you have many labeled examples, or when the task is high-volume enough that a smaller tuned model is cheaper. Prefer prompting when the task is general, examples are few, the requirement changes often, or you need to iterate quickly; prefer RAG when the gap is knowledge. Prompt changes ship in seconds, fine-tunes in hours/days.
-
-**Jiuwen:** The repo contains conceptual guidance plus two separate mechanisms, not a decision function. A design doc states the rationale directly: fine-tuning on bad cases is expensive and its fix cycle is tied to model release versions, so openJiuwen instead does automatic prompt/instruction-and-example optimization. The practical default is `Trainer` + `InstructionOptimizer`/`JointOptimizer`, and `dev_tools` positions prompt tuning as offline/dev-time iteration with solidified configs in production. Weight-level SFT/LoRA exists as a heavier escalation path, but no selection criteria are encoded.
-
-```mermaid
-flowchart TD
-    Q{"need better behavior?"} --> P["prompt/instruction optimization (default)"]
-    P --> IO["InstructionOptimizer: textual gradients → evaluate → keep best"]
-    Q --> W["weight training (escalation, optional)"]
-    W --> LORA["LoRA SFT / PPO"]
-    Q --> R["knowledge gap → RAG (see Q10)"]
-    Q -.->|"no decision function in code"| X["tune-vs-prompt-vs-RAG criteria not encoded"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/optimizer/llm_call/instruction_optimizer.py:30` — prompt rewrite via textual gradients<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241` — evaluate candidate prompt-config updates, keep best<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44` — weight-training path<br>&bull; `agent-core/openjiuwen/dev_tools/tune/trainer/trainer.py:38` — `early_stop_score` gate<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:133` — model routing (availability/cost, not accuracy)</sub>
-
-**Gap.** No explicit "fine-tuning is worth it when…" guidance, no dataset-size/domain-shift/cost thresholds, no RAG-vs-fine-tune tradeoff.
-
-<sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai._</sub>
-
-## 7. When would you fine-tune instead of using a longer, more detailed prompt
+## 6. When would you fine-tune instead of using a longer, more detailed prompt
 
 **General:** Fine-tune when the behavior is hard to specify in words (style, tone, domain jargon, strict output schema), when you need to compress a long few-shot prompt into the weights for latency/cost, when you have many labeled examples of the desired behavior, or when the task is high-volume and a smaller tuned model is cheaper. Prefer prompting when the task is general, examples are few, the requirement changes often, or you need to iterate quickly — prompt changes ship in seconds, fine-tunes in hours/days.
 
@@ -177,4 +155,4 @@ flowchart TD
 
 # Model behavior
 
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: genai, llm-fund._</sub>

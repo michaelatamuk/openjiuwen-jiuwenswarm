@@ -1,6 +1,6 @@
 # RAG and retrieval
 
-54 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+41 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Bi-encoder for retrieval vs. cross-encoder for reranking
 
@@ -82,26 +82,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
 
-## 4. Codebase changing daily: incremental re-indexing on commit, not full re-embedding
-
-**General:** Re-index only what changed: give every document a stable ID, delete-by-ID the old chunks, then re-chunk/re-embed/insert just that document. Keep it idempotent and trigger on commit/CI. Full re-embeds are reserved for model or index changes. The hard parts are atomicity and eventual consistency.
-
-**Jiuwen:** The contract is delete-by-`doc_id` + rebuild. Chroma/Milvus indexers scan a doc's chunk IDs, delete them, then re-chunk/re-embed/write (Milvus flushes to defeat eventual consistency). Adding documents appends into the pre-existing ANN index — no full re-index. `doc_id` is a first-class, scalar-inverted field. PG is the only store with native upsert-by-primary-key, but no PG indexer wraps it. A crash between delete and rebuild is not transactional.
-
-```mermaid
-flowchart TD
-    UP["document changed"] --> DEL["delete_index(doc_id): filter delete all chunks"]
-    DEL --> RE["re-chunk + re-embed + build_index"]
-    RE --> FL["Milvus flush (consistency)"]
-    ADD["new document"] --> APP["append into existing ANN index (no full re-index)"]
-    DEL -.->|"crash here"| LOSS["document lost (no transaction)"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:192` — `delete_documents`; `:219` `update_documents`; `:74` `add_documents` appends<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/chroma_indexer.py:198` — `update_index` = delete + build; `:217` delete by `doc_id`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:209` — delete + flush + rebuild; `:231` filter delete; `:346` `INVERTED` scalar index<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:300` — `INSERT ... ON CONFLICT DO UPDATE` (no PG indexer)</sub>
-
-<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
-
-## 5. Context relevant but answer vague: chunk boundaries likely cut the answer mid context
+## 4. Context relevant but answer vague: chunk boundaries likely cut the answer mid context
 
 **General:** If the answer spans a chunk boundary, the chunk that ranks may contain only half of it, so the model sees an incomplete fact. Remedies: overlap chunks, split on sentence/structure boundaries rather than fixed characters, and at serve time expand a hit with its neighbors. Sentence-aware chunking with overlap is the common fix; fixed-character splitting is the usual culprit.
 
@@ -125,7 +106,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 6. Cutting tokens without losing quality: tighter reranking, summarizing long chunks
+## 5. Cutting tokens without losing quality: tighter reranking, summarizing long chunks
 
 **General:** Reduce prompt tokens by retrieving fewer but better chunks (rerank a larger candidate set down to a small k), summarizing long chunks/passages before insertion, and trimming conversation history. Reranking preserves quality while cutting k; summarization trades fidelity for tokens. Both beat blindly lowering k.
 
@@ -147,7 +128,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 7. Deciding chunk size, and what breaks at each extreme
+## 6. Deciding chunk size, and what breaks at each extreme
 
 **General:** Chunk size trades context against precision. Too small and each chunk lacks the context to answer (and the answer may be split across chunks); too large and a chunk covers many topics, diluting the embedding and wasting the prompt budget. Practical defaults are a few hundred tokens with modest overlap, then tune against a retrieval eval. Size is usually measured in tokens (what the model sees), not characters.
 
@@ -172,7 +153,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: engineering, rag-retrieval, llm-applied, rag-1, rag-practical._</sub>
 
-## 8. Dense vs. sparse retrieval, and fusing both with reciprocal rank fusion
+## 7. Dense vs. sparse retrieval, and fusing both with reciprocal rank fusion
 
 **General:** Dense retrieval embeds queries/documents and searches a vector index; it matches meaning but can miss rare exact terms. Sparse retrieval (BM25/TF-IDF) matches literal terms with term-frequency weighting; strong on exact tokens but fails on paraphrase. Fuse both — RRF (`Σ 1/(k+rank)`) is the robust default because it needs no score calibration.
 
@@ -197,9 +178,9 @@ flowchart LR
 
 # Common failure scenarios
 
-<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
+<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical, rag-retrieval._</sub>
 
-## 9. Fixed-size vs. semantic chunking, the actual retrieval tradeoff
+## 8. Fixed-size vs. semantic chunking, the actual retrieval tradeoff
 
 **General:** Fixed-size chunking is deterministic and cheap but cuts mid-sentence or mid-table, producing fragments that embed poorly. Semantic / structure-aware chunking splits on natural boundaries (sentences, paragraphs, headings, records) so each chunk is coherent, at the cost of variable size and extra processing. Sentence-window and recursive-delimiter strategies sit between the two.
 
@@ -219,7 +200,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
-## 10. Handling a question requiring information from multiple documents
+## 9. Handling a question requiring information from multiple documents
 
 **General:** Retrieve a candidate set per sub-query or per entity, then merge and deduplicate, and let the generator synthesize across them (or do an aggregation/summarization step). The hard parts are merging ranked lists from different queries, keeping per-document provenance for citation, and ensuring no single document dominates. Recall must be high because every needed document must be present.
 
@@ -240,9 +221,9 @@ flowchart TD
 
 **Gap.** No explicit cross-document synthesis or evidence-linking step; merging is score/rank fusion, not reasoning over combined docs.
 
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
+<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
 
-## 11. Handling multiple document types and formats in the same system
+## 10. Handling multiple document types and formats in the same system
 
 **General:** Normalize everything to one record shape (text + metadata + id) at ingestion, with a parser per format behind a registry keyed by MIME/extension, and preserve format-specific structure as metadata. Chunking and indexing then operate on the uniform record. The risks are silent format gaps (a parser that drops structure) and mixed semantics (tables vs prose) needing different chunk policies.
 
@@ -259,54 +240,9 @@ flowchart LR
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_parser.py:23` — `AutoParser` URL vs file routing; `:48` `parse`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:24` — `@register_parser(file_extensions)` registry; `:98` extension dispatch; `:121` enriches `doc_id`/`title`/`file_path`/`file_ext`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/txt_md_parser.py:14` — `.txt/.md/.markdown`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/pdf_parser.py:16` `.pdf`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/word_parser.py:63` `.docx`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:131` `.xlsx/.csv/.tsv`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/html_file_parser.py:89` `.htm/.html`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/json_parser.py:15` `.json`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/image_parser.py:15` images<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:29` — uniform `Document{id_, text, metadata}`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:91` — `chunk_documents` uniform conversion</sub>
 
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
+<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval, rag-system._</sub>
 
-## 12. How do you combine sparse retrieval (BM25/keyword-based) with dense retrieval (embeddings) into one ranked result set
-
-**General:** Two families: score-based fusion (normalize scores and combine with a weight) and rank-based fusion (Reciprocal Rank Fusion, `Σ 1/(k+rank)`), which needs no score calibration. RRF is the robust default; weighted score fusion lets you bias toward one signal but requires comparable scores. Dedupe the merged list.
-
-**Jiuwen:** Every KB backend uses RRF, not alpha weighting: Milvus native `RRFRanker(k=60)`, Chroma/PG `rrf_fusion(..., k=60)` scoring each deduped text by `Σ 1/(k+rank)`, keyed by `text`. The only true weighted fusion is `WeightedRankConfig` in the graph store. So the `alpha` parameter on `HybridRetriever` is effectively dead.
-
-```mermaid
-flowchart LR
-    Q(["query"]) --> D["dense: top-k"]
-    Q --> S["sparse: top-k"]
-    D --> F{"fusion"}
-    S --> F
-    F -->|Milvus| M["RRFRanker(k=60)"]
-    F -->|Chroma/PG| C["rrf_fusion(k=60): Σ 1/(k+rank), dedupe by text"]
-    F -.->|"graph store only"| W["WeightedRankConfig (alpha truly applied)"]
-    M --> R(["ranked result"])
-    C --> R
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:26` — `alpha` (ignored by stores)<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:15` — `rrf_fusion`; `:39` `1.0/(k+rank)`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:348` — native `RRFRanker(k=60)`; `:381` fallback `rrf_fusion`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:390` — Chroma RRF; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:418` — PG RRF<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:61` — `WeightedRankConfig` (only real weights)</sub>
-
-<sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
-
-## 13. How do you decide between a hosted vector database and a self-managed one at scale
-
-**General:** Hosted (Pinecone/Zilliz Cloud): less ops, elastic scaling, predictable latency, but cost scales with data/queries and there is vendor lock-in. Self-managed (Milvus/Qdrant/pgvector): control, cost at steady state, data residency, but you own scaling, backups, upgrades, and on-call. Decide by team ops capacity, data sensitivity, query volume, and elasticity needs — not by the library API.
-
-**Jiuwen:** `create_vector_store` dispatches Chroma (local/embedded), Milvus (server, fits hosted or self-managed), and PostgreSQL+pgvector (self-managed relational). The choice is pure config; there is no autoscaling, managed-service integration, or ops tooling in-repo. Chroma local cannot do hybrid, so production hybrid means Milvus or PG.
-
-```mermaid
-flowchart TD
-    D{"hosted vs self-managed"} --> LOCAL["Chroma: local/embedded (prototype, vector-only)"]
-    D --> SRV["Milvus: server (hosted or self-managed), hybrid"]
-    D --> PG["PGVector: self-managed relational"]
-    D -.->|"in-repo"| X["no autoscaling · managed-service integration · ops tooling"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — local; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — server; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — relational<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects hybrid<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`</sub>
-
----
-
-# Data freshness and consistency
-
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 14. How do you decide between retrieving 5 documents versus 20
+## 11. How do you decide between retrieving 5 documents versus 20
 
 **General:** It is a recall-vs-precision/token/latency tradeoff. Retrieve more when the question is multi-part, aggregative, or high-stakes and recall matters; fewer when answers are localized and you want precision and low token cost. The robust pattern is retrieve a larger candidate set (e.g. 20–50), rerank to a small k (3–5), and pass only the reranked top-k to the generator — so you keep recall without paying context cost. Tune k on an eval set; do not hardcode a gut number.
 
@@ -328,7 +264,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
-## 15. How do you handle hallucinations when retrieved context doesn't actually answer the question
+## 12. How do you handle hallucinations when retrieved context doesn't actually answer the question
 
 **General:** First detect that the context is insufficient, then answer only from what is supported: gate on retrieval score/answerability, allow an explicit "I don't know" abstention, and verify claims against the context (citations/groundedness). Without an answerability gate, a model will still produce a fluent answer from irrelevant context. The failure mode is under-specified retrieval, not just a bad generator.
 
@@ -351,7 +287,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai, llm-applied, rag-1._</sub>
 
-## 16. How do you handle retrieval when documents contain conflicting or outdated information on the same topic
+## 13. How do you handle retrieval when documents contain conflicting or outdated information on the same topic
 
 **General:** Prefer precedence rules before generation: recency (timestamp), source authority, or an explicit priority field; dedupe/reconcile; and either surface the conflict to the model with the metadata or abstain. Outdated facts are usually handled by recency-weighted ranking or by versioning/tombstoning superseded documents. Unchecked, the model picks the first or most fluent version.
 
@@ -375,7 +311,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical._</sub>
 
-## 17. How do you know if your reranker is actually improving results, or just reordering noise, without an A/B test
+## 14. How do you know if your reranker is actually improving results, or just reordering noise, without an A/B test
 
 **General:** You cannot tell from the order alone. Offline, hold out a labeled set of (query, relevant docs) and compare ranking metrics (NDCG@k, MRR, precision@k) with and without the reranker on the same candidate set. If NDCG does not improve, the reranker is reordering noise. Watch for it merely promoting longer/more generic chunks. A/B is better but needs traffic; offline label-based comparison is the first check.
 
@@ -396,9 +332,9 @@ flowchart TD
 
 # Generation evaluation
 
-<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
+<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-retrieval._</sub>
 
-## 18. How do you measure whether your retrieval step is actually working
+## 15. How do you measure whether your retrieval step is actually working
 
 **General:** Use retrieval metrics against a labeled set of (query, relevant docs): Recall@k (did the relevant docs appear in top-k?), Precision@k (of the top-k, how many are relevant?), MRR (rank of the first relevant hit), and NDCG (position-weighted with graded relevance). Track zero-result rate and score distributions in production, and check that a reranker actually improves NDCG rather than just reordering.
 
@@ -415,7 +351,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
-## 19. How much latency reranking adds, and deciding if it's worth it
+## 16. How much latency reranking adds, and deciding if it's worth it
 
 **General:** Reranking latency scales with the number of candidates and whether the model scores them in one batch or one-by-one. A cross-encoder over ~50–100 candidates typically adds tens to low-hundreds of milliseconds; an LLM-judge reranker is one call per document and can add seconds. Worth it when precision@k matters more than latency, when the candidate count is bounded, and when you can cache.
 
@@ -439,7 +375,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
 
-## 20. How would you decompose a complex, multi-part question into smaller retrievable sub-questions
+## 17. How would you decompose a complex, multi-part question into smaller retrievable sub-questions
 
 **General:** Split "compare A and B on X and Y" into independently answerable sub-questions, retrieve for each (often in parallel), then synthesize. A dedicated LLM decomposition call or an agentic loop generates the sub-questions; a planner can produce a DAG when there are dependencies.
 
@@ -461,30 +397,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
 
-## 21. How would you design a system where answering one question requires retrieving and reasoning over multiple documents in sequence
-
-**General:** Keep the runs stateful: seed a query list, retrieve, extract intermediate facts, decide whether they are sufficient, and if not generate the next query conditioned on what you have — then fuse the per-round candidate sets (rank fusion) rather than concatenating. Track per-round provenance so you can attribute and dedupe. Cap the rounds.
-
-**Jiuwen:** The agentic loop keeps `queries` and `history_results` (one list per round) and accumulates triples across rounds in one `TripleMemory`, so later rounds see prior evidence. Final merging is RRF: graph mode fuses triple-linked passages with all round results (`rrf_fusion(ret + history_results)`), generic mode fuses the round histories. `graph_expansion` (default on in the graph path) pulls triple-linked chunks and fuses them. Cross-KB, `retrieve_multi_kb` gathers all KBs concurrently and dedups by exact text keeping the max score.
-
-```mermaid
-flowchart TD
-    Q["query"] --> LOOP["queries + history_results + TripleMemory"]
-    LOOP --> RD["each round: retrieve → extract triples (shared memory)"]
-    RD --> SM{"sufficient?"}
-    SM -->|no| NQ["next_question → append (sequential)"] --> RD
-    SM -->|yes| F["RRF fuse round results (+ triple-linked passages)"]
-    F --> KB["multi-KB: concurrent gather, dedup by text, max score"]
-    F --> OUT(["ranked evidence"])
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:209` — `queries`/`history_results`/`TripleMemory` init; `:237` cross-round triple accumulation; `:207` `graph_expansion` default true<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:250` — `rrf_fusion(ret + history_results)[:top_k]` (graph mode); `:295` `rrf_fusion(history_results)[:top_k]` (generic)<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:522` — `rrf_fusion([new_chunks, chunks], k=60)`<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:39` — RRF `1/(k+rank)` keyed by `result.text`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:304` — concurrent multi-KB gather + dedupe/max-score</sub>
-
-**Gap.** "Sequential" is not document-planned — no per-round reranker or doc-level dependency tracking; RRF keys on exact text so near-duplicates count as separate votes.
-
-<sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
-
-## 22. How would you design retrieval to work across structured data (SQL tables) and unstructured data (documents) in the same system
+## 18. How would you design retrieval to work across structured data (SQL tables) and unstructured data (documents) in the same system
 
 **General:** Keep the two paths explicit: route structured questions to a text-to-SQL/table-query tool (schema-aware, validable) and unstructured questions to document retrieval, then merge/ground the results. Do not flatten tables into text and hope; and do not let a free-form shell tool be the only SQL path, because it is unverified. An orchestrator or router picks the source(s), and the answer cites which.
 
@@ -503,30 +416,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
-## 23. How would you handle a question that requires combining information from two documents that never explicitly reference each other
-
-**General:** Bridge through a shared key: entity linking (both mention the same entity/ID), a knowledge graph with typed relations, or an LLM decomposition that surfaces the connecting entity as a new query. Without a shared surface form, you need entity resolution/aliasing and relation-aware traversal, not just text overlap.
-
-**Jiuwen:** The only bridge is shared entities in a triple index: each extracted triple is stored with `{"triple": "[s,p,o]", "chunk_id": ...}`, and `TripleBeamSearch._search_candidates` re-queries from the beam's last-triple endpoints and discards candidates whose subject/object is not in that entity set. `AgenticRetriever` also runs `_link_triples` (nearest KB triple per extracted triple) and `_link_passages`, then RRF-merges. Bridging is emergent from entity-text overlap plus the LLM's `next_question` — there is no dedicated bridge component or entity disambiguation/aliasing.
-
-```mermaid
-flowchart TD
-    D1["doc A: X → P → Y"] --> G["triple index (shared entities)"]
-    D2["doc B: Y → Q → Z"] --> G
-    G --> B["beam expands from Y to doc B"]
-    B --> F["RRF merge linked triples + passages"]
-    D1 -.->|"no shared surface entity"| X["nothing links them: no bridge reasoning / aliasing"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:190` — triple endpoints seed next hop; `:217` candidate rejected unless entity shared<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:226` — proximal triples → `_link_triples` → `graph_expansion`; `:249` `_link_passages` then RRF; `:88` bridge example in `_REWRITE_PROMPT`; `:465` `deduplicate(..., key=lambda node: node.id)`<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:146` — triple text + `chunk_id` metadata<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:305` — cross-KB merge is exact-text + max score (cannot bridge)</sub>
-
----
-
-# Hybrid search
-
-<sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
-
-## 24. How would you handle a vague or ambiguous user query before it even reaches retrieval
+## 19. How would you handle a vague or ambiguous user query before it even reaches retrieval
 
 **General:** Detect ambiguity and either ask a clarifying question or rewrite to the most likely intent. The cheap path is a rewrite that resolves coreference/ellipsis; the interactive path is a clarification turn when the ambiguity would change the retrieval target. Most production systems rewrite by default and clarify only when confidence is low.
 
@@ -543,84 +433,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
-## 25. How would you reduce cost for a high-volume RAG system without degrading answer quality
-
-**General:** Cut the dominant (input-token/generation) cost: rerank a larger candidate set down to a smaller k, cache (exact and semantic), route easy queries to smaller models, shorten prompts (fewer examples, tighter context), summarize long chunks, and cap the agent's iterations. Prefer quality-preserving levers (rerank+tighten, cache, route) over blind k reduction.
-
-**Jiuwen:** The product tracks provider-reported session cost and enforces a per-session cap; core caps repetition via `max_iterations`, team `BudgetLedger`, and anomaly/dedup rails; conversation compaction reduces context tokens. But embedding cost is never tracked, there is no semantic/response cache, no rerank-to-K lever in the KB, and no query-difficulty/cost-aware model routing.
-
-```mermaid
-flowchart TD
-    COST["cut cost"] --> M["meter generation (session cost cap)"]
-    COST --> L["loop caps: max_iterations · ledger · anomaly/dedup rails"]
-    COST --> CE["context compaction (conversation tokens)"]
-    COST -.->|"absent"| X["rerank-to-K · semantic cache · cost-aware model routing"]
-```
-
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171/196` — session cost cap<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27` — `BudgetLedger`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k compaction<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:559` — availability routing (not cost/quality)</sub>
-
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 26. How would you weight or fuse scores from two different retrieval methods, and how do you tune that weighting
-
-**General:** Prefer RRF when scores are not comparable (different scales/calibrations) because it only needs ranks and is hard to misconfigure. If you use score fusion, normalize each list (min-max or z-score) and tune the weight on a labeled eval set with a ranking metric. Tune by validating on held-out queries, not by eyeballing.
-
-**Jiuwen:** In practice the KB path uses RRF with a fixed `k=60`; `alpha` is accepted by `HybridRetriever` but ignored by all three stores. True weighted fusion exists only as `WeightedRankConfig` in the graph store (weights normalized, zero channels dropped). There is no weight-tuning loop or eval-based calibration.
-
-```mermaid
-flowchart TD
-    F{"fuse two retrieval lists"} --> RRF["RRF (rank-based, no calibration) — used by all KB stores"]
-    F --> W["weighted score fusion (needs normalization) — graph store only"]
-    W --> TUNE["tune weight on labeled eval"] -.->|"absent"| X["no weight-tuning / calibration"]
-    RRF --> K["fixed k=60"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:26` — `alpha` ignored<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:15/39` — `rrf_fusion` + formula<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:61/85` — `WeightedRankConfig` / `RRFRankConfig`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:348` — native RRF k=60</sub>
-
----
-
-# Agentic RAG
-
-<sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
-
-## 27. Keeping retrieval fast as the vector database grows, without a full re-index
-
-**General:** Append-only incremental indexing into a pre-built ANN index avoids full rebuilds; deletes/filters stay fast with scalar/inverted indexes; search-time parameters (efSearch, nprobe) tune the recall/latency dial without reindexing. At some point you need compaction/merge of segments and periodic index rebuilds — that is an operational concern, not a query-time one.
-
-**Jiuwen:** Growth is handled by append-only batched writes into a pre-existing ANN index; existing vectors are untouched, so adding documents triggers no full re-index. Fast deletes/filters use the Milvus inverted scalar index on `document_id`/`chunk_id`. `get_search_params` derives `ef = top_k * efSearchFactor` per query (a search-time recall knob). `lazy_load` defers heavy module imports (Milvus/Chroma/parsers), not data. There is **no query result cache**, no reindex/compaction trigger, and no `ALTER INDEX` path — once the collection is created, ANN algorithm/params cannot change.
-
-```mermaid
-flowchart TD
-    ADD["add_documents"] --> APP["append into existing ANN index (batched, no rebuild)"]
-    ADD --> SC["scalar inverted index on document_id/chunk_id → fast delete/filter"]
-    Q["query"] --> SP["get_search_params: ef = top_k × efSearchFactor (tune without reindex)"]
-    APP -.->|"absent"| CACHE["no query cache · no compaction trigger · no ALTER INDEX"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:519` — `_ensure_loaded` lazy load; `:144` index_type change guard; `:117` `get_search_params` ef dial; `:199` flush after write<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:321` — `_ensure_collection` no-op if exists; `:346` inverted scalar indexes<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:157` — reflects existing table; `:203` index created once<br>&bull; `agent-core/openjiuwen/core/retrieval/lazy_load.py:143` — `lazy_load` (module imports)<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:74` — `add_documents` appends via `build_index`</sub>
-
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
-
-## 28. Knowing if a reranker is actually improving results, or just reordering noise
-
-**General:** You cannot tell from the order alone — you need labels and a rank-aware metric (nDCG@k, MRR, recall@k) plus an A/B over the same candidate set with and without reranking. If precision@k/nDCG does not improve on a held-out set, the reranker is reordering noise. Watch for the reranker merely promoting longer/more generic chunks.
-
-**Jiuwen:** There is no built-in metric/eval harness (no nDCG/MRR/recall anywhere in `core/retrieval`). The only evidence mechanism is a manual comparison in `examples/store/showcase_milvus_graph_store.py`: it searches with `reranker=RERANKER` and again with `reranker=None`, then `_log_score_comparison` prints per-rank scores, a diff, and min/max ranges. The graph store supports a `min_score` threshold to drop low-scoring candidates. Nothing logs candidate counts before/after and no ground-truth labels are used, so "reordering" vs "improving" cannot be distinguished in-code.
-
-```mermaid
-flowchart TD
-    CAND["same candidate set"] --> A["search(reranker=RERANKER)"]
-    CAND --> B["search(reranker=None)"]
-    A --> CMP["_log_score_comparison: per-rank scores, diff, min/max"]
-    B --> CMP
-    CMP --> R(["eyeball delta — no labels, no nDCG/MRR/recall"])
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/examples/store/showcase_milvus_graph_store.py:51` — `_log_score_comparison`; `:63` per-rank with/without reranker scores<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:453` — `min_score` candidate filtering; `:444` `_rank_results` (no metrics logged)<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:29` — `Document{id_, text, metadata}`</sub>
-
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
-
-## 29. Multilingual documents: multilingual embedding models, translate at query or index time
+## 20. Multilingual documents: multilingual embedding models, translate at query or index time
 
 **General:** Use a multilingual/alignment embedding model so queries and documents land in one space; if no good multilingual model exists for a language, translate either at index time (normalize the corpus) or query time (translate the query), and store language metadata so you can route and evaluate per language. Cross-lingual rerankers help at the top.
 
@@ -640,7 +453,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 30. No relevant documents exist: expected behavior is a confidence-gated "not enough information"
+## 21. No relevant documents exist: expected behavior is a confidence-gated "not enough information"
 
 **General:** When retrieval returns nothing relevant, the system should abstain rather than answer from noise: gate on a retrieval-score threshold or an explicit answerability check, and return "not enough information" (or ask a clarifying question). Without this, the model will still produce a fluent answer from irrelevant context.
 
@@ -659,7 +472,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical._</sub>
 
-## 31. Overlapping vs. non-overlapping chunks
+## 22. Overlapping vs. non-overlapping chunks
 
 **General:** A small overlap preserves context that straddles a boundary, improving recall for answers that span a cut; too much overlap duplicates content, inflates the index, and can return near-identical hits that crowd out diverse results. Non-overlapping is cheaper and deduplicated but risks losing boundary context.
 
@@ -679,7 +492,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-retrieval._</sub>
 
-## 32. Picking an embedding model, and whether bigger always means better retrieval
+## 23. Picking an embedding model, and whether bigger always means better retrieval
 
 **General:** Bigger is not automatically better: retrieval quality depends on domain fit, the language, whether the model is asymmetric (query vs passage prefixes), the dimension you can afford, and latency/cost. A smaller in-domain model often beats a large general one, and dimensionality reduction (Matryoshka) can trade a little recall for large storage savings. The right way to pick is to measure recall on your own data, not to read a leaderboard.
 
@@ -705,7 +518,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical, rag-retrieval._</sub>
 
-## 33. RAG vs. pasting retrieved text into a long-context prompt
+## 24. RAG vs. pasting retrieved text into a long-context prompt
 
 **General:** With a large context window you can skip retrieval and paste whole documents. That is simpler and avoids chunking errors, but it is expensive (you pay for every token every call), slow (TTFT grows with context), noisy (irrelevant text dilutes attention), and limited to what fits. RAG pays a one-time indexing cost and per-query retrieval, keeps the prompt small, and scales to corpora far larger than any window. The trade is a retrieval system and its failure modes for token efficiency and scale.
 
@@ -726,7 +539,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 34. Retrieval looks correct, answer is wrong: check if the chunk actually contains the answer
+## 25. Retrieval looks correct, answer is wrong: check if the chunk actually contains the answer
 
 **General:** "Looked relevant" is not "contains the answer". The first diagnostic is to read the retrieved chunks and confirm the answer span is actually present — if it is not, retrieval failed (bad chunking, wrong index, query mismatch); if it is present but the answer is wrong, the problem is generation or grounding. This is why faithfulness evaluation needs the retrieved context, not just answer-vs-reference.
 
@@ -743,9 +556,9 @@ flowchart TD
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`<br>&bull; `agent-core/openjiuwen/harness/tools/web/free_search.py:299` — lexical relevance only<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator` (no context input)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — parses `result: true/false`, no context/attribution<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension on the output</sub>
 
-<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
+<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical._</sub>
 
-## 35. Same question, different answers on different days: non-deterministic reranking or embedding drift
+## 26. Same question, different answers on different days: non-deterministic reranking or embedding drift
 
 **General:** Run-to-run variation comes from sampling (temperature/seed), non-deterministic remote rerankers, and embedding drift (the provider updates the embedding model behind the same name, or you change models). Remedies: pin temperature/seed, store a model/version fingerprint with the index, and re-index when the fingerprint changes. Identical inputs should otherwise be reproducible.
 
@@ -764,7 +577,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 36. Should queries and documents use the same embedding model
+## 27. Should queries and documents use the same embedding model
 
 **General:** Yes — queries and documents must be embedded by the same model, and for asymmetric models you must also apply the correct role prefix (e.g. `query:` vs `passage:`) to each side. Mixing models produces incomparable vectors; dropping the role prefix on an instruction-tuned model measurably degrades retrieval.
 
@@ -788,7 +601,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
 
-## 37. Structuring error handling for a pipeline where retrieval, reranking, or generation can each fail independently
+## 28. Structuring error handling for a pipeline where retrieval, reranking, or generation can each fail independently
 
 **General:** Isolate each stage so one failure degrades rather than aborts: retrieval returns an empty/flagged result, reranking falls back to the pre-rerank order, generation surfaces a structured error. Use typed errors per stage, explicit fallbacks, retries only for transient failures, and a top-level handler that converts failure into a model-readable message instead of a crash.
 
@@ -810,7 +623,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
-## 38. The pipeline: query embedding, vector search, context assembly, prompt construction, generation
+## 29. The pipeline: query embedding, vector search, context assembly, prompt construction, generation
 
 **General:** Ingest: parse → chunk → embed → index. Query: embed the query → retrieve top-k (dense and/or sparse) → rerank → assemble the retrieved context into the prompt → generate → optionally cite. Each stage is separable; failures and quality drops can occur at any of them.
 
@@ -836,7 +649,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
-## 39. Vocabulary mismatch, where the answer exists but uses different wording
+## 30. Vocabulary mismatch, where the answer exists but uses different wording
 
 **General:** The document says "myocardial infarction", the user says "heart attack". Mitigations: better embeddings (semantic match), query expansion/synonyms, HyDE (generate a hypothetical answer and retrieve with it), and hybrid search so exact terms still match. Pure dense handles paraphrase but not rare terms; pure sparse handles rare terms but not paraphrase.
 
@@ -856,7 +669,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
-## 40. Walking through a RAG pipeline end to end, query to final answer
+## 31. Walking through a RAG pipeline end to end, query to final answer
 
 **General:** Ingest: parse → chunk → embed → index. Query: embed the query → retrieve top-k (dense and/or sparse) → rerank → assemble the retrieved context into the prompt → generate → optionally cite. Each stage is separable; failures and quality drops can occur at any of them.
 
@@ -882,7 +695,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied, rag-1._</sub>
 
-## 41. What happens if your chunks are too small or too large
+## 32. What happens if your chunks are too small or too large
 
 **General:** Too small: each chunk lacks the context to answer, the answer gets split across chunks, and recall of the *answer-bearing* chunk drops while index size/overhead grows. Too large: the embedding averages multiple topics so relevance dilutes, retrieval precision drops, and each hit wastes prompt tokens; it can also exceed the embedding model's max sequence length and get truncated. Both extremes lower end-to-end quality, for opposite reasons.
 
@@ -900,28 +713,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
-## 42. What is hybrid search, and why isn't dense vector retrieval alone always enough
-
-**General:** Hybrid search runs dense (embedding) and sparse (BM25/keyword) retrieval and fuses the results. Dense alone misses rare exact terms — error codes, IDs, names, jargon the model never learned — where the embedding has little signal; sparse alone misses paraphrase. Together they cover both.
-
-**Jiuwen:** Dense is `VectorRetriever`; sparse is `SparseRetriever`, which on Milvus is real BM25 (`metric_type="BM25"` against a `SPARSE_FLOAT_VECTOR` field with `SPARSE_INVERTED_INDEX`). Chroma falls back to a TF-IDF text query; PG uses full-text search. `HybridRetriever` takes an `alpha` but every backend actually uses RRF: Milvus `RRFRanker(k=60)`, Chroma/PG `rrf_fusion(..., k=60)`. There is no MMR, calibration, or cross-encoder in the KB path.
-
-```mermaid
-flowchart LR
-    Q(["query"]) --> D["dense: top-k"]
-    Q --> S["sparse: top-k (BM25)"]
-    D --> F["fuse (RRF)"]
-    S --> F
-    F --> R(["ranked result"])
-    D -.->|"misses exact terms"| X1["codes · IDs · names"]
-    S -.->|"misses paraphrase"| X2["vocabulary mismatch"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/sparse_retriever.py:19` — `SparseRetriever` (BM25); `:62` delegates to `sparse_search`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:277` — `metric_type: "BM25"`; `:348` `RRFRanker(k=60)`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:390` — Milvus `Function(BM25)`; `:399` `SPARSE_INVERTED_INDEX`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:300` — TF-IDF (no BM25); `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:375` — FTS<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:141` — retriever selection by `index_type`</sub>
-
-<sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
-
-## 43. What is Modular RAG, and how is it different from a simple RAG pipeline
+## 33. What is Modular RAG, and how is it different from a simple RAG pipeline
 
 **General:** A simple RAG pipeline is a fixed linear chain (retrieve → stuff → generate). Modular RAG decomposes it into interchangeable modules — indexing, retrieval, fusion, reranking, query rewriting, generation, orchestration — with routing and scheduling, so you can swap or add modules (rewrite, rerank, iterative/multi-hop retrieval) and branch conditionally per query. It is "RAG as a configurable graph of components" rather than one hardcoded path. The cost is more moving parts and the need for a router/orchestrator.
 
@@ -942,7 +734,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
-## 44. What is multi-hop retrieval, and when does single-pass retrieval fail to answer a question
+## 34. What is multi-hop retrieval, and when does single-pass retrieval fail to answer a question
 
 **General:** Multi-hop retrieval runs more than one retrieval step, using what the first hop found to form the next query, because the answer needs a bridging entity that is not in the original query (e.g. "who employed the founder of X" needs X → founder → employer). Single-pass fails when the supporting evidence is only reachable through that intermediate entity, so the top-k for the original query never contains it. Graph/triple stores make hops explicit; query-decomposition approaches generate sub-queries.
 
@@ -966,7 +758,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
 
-## 45. What is query rewriting or query expansion, and when does it meaningfully improve retrieval quality
+## 35. What is query rewriting or query expansion, and when does it meaningfully improve retrieval quality
 
 **General:** Query rewriting makes a query self-contained (resolves coreference/ellipsis, fixes typos, removes reliance on prior turns) — it improves multi-turn and malformed queries. Query expansion adds terms/synonyms or generates a hypothetical answer (HyDE) to bridge vocabulary mismatch. Rewriting helps conversational and noisy queries; expansion helps when the corpus uses different wording than the user.
 
@@ -986,26 +778,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
-## 46. What is reranking, and where does it fit in the pipeline
-
-**General:** First-stage retrieval optimizes recall with cheap approximate similarity over the whole corpus. A reranker then scores each candidate *jointly with the query* using an expensive cross-encoder, reordering the top-k for precision before generation. It fits between retrieval and prompt assembly; it improves precision@k but cannot recover documents retrieval never returned.
-
-**Jiuwen:** A `Reranker` ABC exists (`StandardReranker`, `ChatReranker` (experimental), `DashscopeReranker`), but it is integrated only in the graph store: `milvus_support.py` accepts an optional `reranker` and calls it in `_rank_results`, and it is a no-op unless the caller passes one. Neither `SimpleKnowledgeBase.retrieve` nor `GraphKnowledgeBase.retrieve` constructs or forwards a reranker, so RAG retrieval is first-stage-only.
-
-```mermaid
-flowchart LR
-    Q["query"] --> FR["first-stage retrieval (cheap, recall)"]
-    FR --> CAND["top-N candidates"]
-    CAND --> CFG{"reranker passed?"}
-    CFG -->|"graph store only"| XE["cross-encoder re-sort → precision@k"]
-    CFG -->|"KB path"| NONE["no rerank — order preserved"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:37` — `Reranker` ABC; `:41` abstract `rerank`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`); `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:22` — `ChatReranker` (experimental)<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458` — reranker applied only when truthy<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — no reranker in KB `retrieve`</sub>
-
-<sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
-
-## 47. What reranking adds that initial retrieval doesn't already do
+## 36. What reranking adds that initial retrieval doesn't already do
 
 **General:** First-stage retrieval optimizes recall with cheap approximate similarity over the whole corpus. A reranker scores each candidate *jointly with the query* using an expensive cross-encoder, reordering the top-k for precision. It cannot recover documents retrieval never returned.
 
@@ -1028,9 +801,9 @@ flowchart LR
 
 # Agents and tool use
 
-<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, rag-retrieval._</sub>
+<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, rag-retrieval, rag-1._</sub>
 
-## 48. When keyword search outperforms semantic search
+## 37. When keyword search outperforms semantic search
 
 **General:** Keyword search wins when the query contains exact identifiers, codes, rare names, or domain jargon that the embedding model never learned to map, and when the corpus is small or the terms are highly distinctive. Dense search wins on paraphrase and intent. The strongest approach is a router that picks by query type (or always runs hybrid and fuses).
 
@@ -1053,7 +826,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical, rag-retrieval._</sub>
 
-## 49. When to skip RAG and rely on parametric knowledge instead
+## 38. When to skip RAG and rely on parametric knowledge instead
 
 **General:** Skip retrieval when the question is general knowledge the model already holds (definitions, common facts, reasoning, code), when latency/cost matter and the corpus is unlikely to add signal, or when the query is conversational and context is already in the window. Retrieve when the answer depends on private, recent, or verifiable facts. The decision is often made by the model choosing whether to call a retrieval tool; a cheap classifier is the alternative.
 
@@ -1080,27 +853,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical._</sub>
 
-## 50. Where cost concentrates: embedding is cheap and one-time, generation scales with traffic
-
-**General:** Embedding is a one-time (or change-only) indexing cost and is cheap per token; the recurring, traffic-scaling cost is generation — especially input tokens when you stuff long context. So optimization effort should go to the generation loop (fewer iterations, smaller context, cheaper model) more than to embeddings. Measure input vs output tokens separately.
-
-**Jiuwen:** Embedding is batched and effectively one-time: `APIEmbedding` chunks texts (`max_batch_size=8`, `max_concurrent=50`) and `compute_chunk_embeddings` runs at index/update time. Generation is what is metered: `usage_cost.add_session_usage` accumulates provider-reported `input_tokens`/`output_tokens`/`total_tokens` (and optional costs) per session, fed by every `chat.usage_metadata` event. Core tracks KV/prompt-cache hit rates (tokens, not dollars). The only per-token dollar rates are hardcoded estimates in the auto-harness budget rail.
-
-```mermaid
-flowchart LR
-    EMB["embedding (one-time)"] --> B["batched, concurrent, at index time (not metered as cost)"]
-    GEN["generation (per traffic)"] --> U["usage_cost.add_session_usage: input/output/total tokens + optional cost"]
-    GEN --> C["core: KV/prompt-cache hit-rate tokens (not $)"]
-    GEN --> E["auto-harness budget rail: hardcoded 3e-6 in / 15e-6 out per token"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45` — `max_batch_size: int = 8`, `max_concurrent: int = 50`; `:167` batch + gather<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21` — `compute_chunk_embeddings` at index/update time<br>&bull; `agent-core/openjiuwen/core/context_engine/usage/provider_usage.py:14` — normalizes input/cache tokens; `agent-core/openjiuwen/core/context_engine/usage/session_aggregator.py:45` — cache hit-rate aggregation<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:101` — `add_session_usage`; `jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:17212` — usage events<br>&bull; `agent-core/openjiuwen/auto_harness/rails/budget_rail.py:24` — input `3e-6` / output `15e-6` USD per token; `:85` cost computed</sub>
-
-**Gap.** Embedding cost is never tracked, there is no embedding result cache, and session totals are in-process (lost on restart).
-
-<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
-
-## 51. Why a purely semantic system can fail on queries with exact codes, IDs, or names
+## 39. Why a purely semantic system can fail on queries with exact codes, IDs, or names
 
 **General:** Embedding models are trained on natural-language co-occurrence; short opaque tokens (error codes, SKUs, UUIDs, version strings, rare proper nouns) carry little semantic signal and get mapped to near-random neighbors. A semantically "close" but wrong chunk can outrank the exact hit, and because dense results are rarely empty, no lexical fallback fires. The fix is metadata/exact filtering, a sparse leg, or an explicit exact-match boost.
 
@@ -1124,7 +877,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: engineering, rag-practical, rag-retrieval, genai, llm-applied, rag-1._</sub>
 
-## 52. Why swapping embedding models forces a full re-embedding of the corpus
+## 40. Why swapping embedding models forces a full re-embedding of the corpus
 
 **General:** Stored vectors are the output of one specific model. A different model — even at the same dimension — projects into a different space, so old and new vectors are not comparable; distance computations become meaningless. You must re-embed every chunk (and often rebuild the index, since the vector width may change too). Good systems persist a model fingerprint/version with the index so a mismatch is detected rather than silently corrupted.
 
@@ -1144,7 +897,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
-## 53. Would you rerank every query, or only some, and how do you decide
+## 41. Would you rerank every query, or only some, and how do you decide
 
 **General:** Rerank only when it improves the top-k enough to justify its latency: for high-stakes or ambiguous queries where first-stage precision is low, and when the candidate count is bounded. Skip it for exact-match lookups, high-volume cheap queries, or when latency dominates. Measure NDCG/precision with and without rerank on a labeled set to decide, and cache.
 
@@ -1161,22 +914,3 @@ flowchart TD
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — KB retrieve has no reranker<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87` — `rerank` in graph store<br>&bull; `agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:645` — `config_e.rerank` gate<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`)<br>&bull; `agent-core/examples/store/showcase_milvus_graph_store.py:51` — before/after rerank demo (no labels)</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 54. Your retrieval looks correct but the answer is still wrong, where do you look first
-
-**General:** Check whether the retrieved chunk actually *contains* the answer. If it does not, retrieval failed (bad chunking, wrong index, query mismatch) even if the top hits look on-topic. If it does, the problem is generation or grounding (model ignored/distorted the evidence), or the context was truncated. This requires reading the retrieved spans against the answer, and is why faithfulness eval needs the context.
-
-**Jiuwen:** There is no tooling for "does the chunk contain the answer": `score_threshold` defaults to `None` (weak chunks pass), relevance checks are lexical, and the judges (`AccuracyEvaluator`, `LLMAsJudgeMetric`) do not receive the retrieved context, so they cannot distinguish "context lacks the answer" from "model ignored it".
-
-```mermaid
-flowchart TD
-    A["retrieval looks correct, answer wrong"] --> Q{"answer present in chunk?"}
-    Q -->|no| R["retrieval failure: chunking · index · query mismatch"]
-    Q -->|yes| G["generation/grounding failure"]
-    R --> X["no tool checks this; score_threshold defaults None"]
-    G --> Y["judges do not receive retrieved context → cannot localize"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` default `None`<br>&bull; `agent-core/openjiuwen/harness/tools/web/free_search.py:299` — lexical relevance only<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator` (no context input)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — parses `result: true/false`, no context<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension on the output</sub>
-
-<sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>

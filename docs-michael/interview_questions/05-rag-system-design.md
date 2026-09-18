@@ -1,6 +1,6 @@
 # RAG system design
 
-16 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+13 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Design a document search system for a legal firm with millions of confidential documents
 
@@ -74,9 +74,31 @@ flowchart TD
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:158` — abstract `delete_documents` / `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:192` — `delete_documents`; `:219` `update_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/chroma_indexer.py:198` — `update_index` = delete + build; `:217` delete by `doc_id`; `:142` duplicate guard<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:209` — delete + flush + rebuild; `:231` filter delete `document_id == doc_id`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:300` — `INSERT ... ON CONFLICT DO UPDATE`<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:253` — delete chunk + triple index; `:294` update = delete + re-add</sub>
 
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-retrieval, rag-system._</sub>
+<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical, rag-retrieval, rag-system._</sub>
 
-## 5. How do you design for the case where retrieval returns zero relevant documents
+## 5. How do you decide between a hosted vector database and a self-managed one at scale
+
+**General:** Hosted (Pinecone/Zilliz Cloud): less ops, elastic scaling, predictable latency, but cost scales with data/queries and there is vendor lock-in. Self-managed (Milvus/Qdrant/pgvector): control, cost at steady state, data residency, but you own scaling, backups, upgrades, and on-call. Decide by team ops capacity, data sensitivity, query volume, and elasticity needs — not by the library API.
+
+**Jiuwen:** `create_vector_store` dispatches Chroma (local/embedded), Milvus (server, fits hosted or self-managed), and PostgreSQL+pgvector (self-managed relational). The choice is pure config; there is no autoscaling, managed-service integration, or ops tooling in-repo. Chroma local cannot do hybrid, so production hybrid means Milvus or PG.
+
+```mermaid
+flowchart TD
+    D{"hosted vs self-managed"} --> LOCAL["Chroma: local/embedded (prototype, vector-only)"]
+    D --> SRV["Milvus: server (hosted or self-managed), hybrid"]
+    D --> PG["PGVector: self-managed relational"]
+    D -.->|"in-repo"| X["no autoscaling · managed-service integration · ops tooling"]
+```
+
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — factory<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — local; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108` — server; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108` — relational<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:59` — Chroma rejects hybrid<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`</sub>
+
+---
+
+# Data freshness and consistency
+
+<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
+
+## 6. How do you design for the case where retrieval returns zero relevant documents
 
 **General:** Detect it (score threshold or answerability) and abstain: return "I don't have enough information" or ask a clarifying question, rather than answering from noise. Optionally fall back to a broader retrieval (sparse), a knowledge-graph hop, or parametric knowledge with a caveat. Log zero-result queries — they signal coverage gaps.
 
@@ -97,7 +119,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
-## 6. How do you shard or partition a vector database as it grows
+## 7. How do you shard or partition a vector database as it grows
 
 **General:** Options: partition by a key (tenant/category) so queries hit one partition; shard by hash/range across nodes; or replicate + route by collection. Most vector DBs expose partition keys or collections; plan for metadata routing and rebalancing. Sharding trades query fan-out for per-shard size.
 
@@ -112,38 +134,6 @@ flowchart TD
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:102` — `kb_{kb_id}_chunks`<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:79` — `database_name`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:512` — `delete_table`/drop granularity only</sub>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 7. How do you version prompts the same way you'd version code
-
-**General:** Treat prompts as versioned artifacts: store them in source control (or a prompt store), give each version an immutable ID/content hash, track diffs and metadata, allow activate/rollback without redeploying, and tie a version to the model/parameters it was tested with. Ideally prompts are assembled from composable, individually versioned pieces.
-
-**Jiuwen:** Prompts are assembled from named `PromptSection`s ordered by priority (`SystemPromptBuilder.add_section`/`build`), extended by `harness.prompts.builder` with a `PromptMode` filter, and JiuwenSwarm supplies a static priority registry. Sections carry only name/priority/category — no version, hash, or ID. Diagnostics exist (`PromptReport`) but are not versioning. Prompt optimization overwrites the operator's `system_prompt`/`user_prompt` in place; the only persistence is `EvolveCheckpoint.version` storing `operators_state` for resume. Real versioning/rollback exists only at the RSI harness-package level (content-addressed `installation_id`, `list_versions`, `rollback` with hash re-validation) and config migration.
-
-```mermaid
-flowchart TD
-    PR["PR"] --> L["lint"] --> TC["type-check"] --> G{"gate (ci_gate.yaml)"}
-    G -->|"configured"| LINT["lint + type-check only"]
-    G -.->|"not configured"| PY["pytest level0 (advertised, not invoked)"]
-    EVAL["evaluator_pipeline / Trainer"] -.->|"offline CLI, no baseline threshold"| Q["quality regression gate ABSENT"]
-```
-
-```mermaid
-flowchart TD
-    OPT["prompt optimizer"] --> MUT["overwrites system_prompt/user_prompt in place"]
-    OPT --> CKPT["EvolveCheckpoint.version (operators_state, for resume)"]
-    SEC["PromptSection: name/priority/category — no version/hash"] --> ASM["SystemPromptBuilder.build()"]
-    RSI["RSI harness package: installation_id=sha, list_versions, rollback"] -.->|"package-level only"| X["no prompt registry/diff/rollback"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:24` — `PromptSection` (no version); `:97` `add_section`; `:219` `build`<br>&bull; `agent-core/openjiuwen/harness/prompts/builder.py:31` — `PromptMode` filtering; `agent-core/openjiuwen/harness/prompts/sections/__init__.py:6` — `SectionName` constants<br>&bull; `agent-core/openjiuwen/harness/prompts/report.py:38` — `PromptReport` diagnostics (no hash/version)<br>&bull; `agent-core/openjiuwen/harness/manifest/models.py:43` — `HarnessElementDescriptor` (no version field)<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/prompt/priority_registry.py:19` — static priority registry<br>&bull; `agent-core/openjiuwen/core/operator/llm_call/base.py:107` — `get_state`/`load_state` snapshot prompt content<br>&bull; `agent-core/openjiuwen/agent_evolving/checkpointing/manager.py:43` — `EvolveCheckpoint.version` for resume<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback`; `:587` `list_versions`; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218` — RPC list/rollback<br>&bull; `jiuwenswarm/jiuwenswarm/common/utils.py:882` — `config_version` migration</sub>
-
-**Gap.** No prompt-as-code versioning: no prompt registry, per-section version/hash, diff, or activate/rollback for prompts. Optimization mutates in place; RSI versioning applies only to whole harness packages.
-
----
-
-# Safety and ethics
-
-<sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai, llm-applied._</sub>
 
 ## 8. How retrieval architecture changes from 10,000 to 10 million documents
 
@@ -164,27 +154,9 @@ flowchart LR
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — `create_vector_store` (Milvus/Chroma/PGVector); `agent-core/openjiuwen/core/retrieval/common/config.py:67` — store type enum<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:433` — index type AUTOINDEX/HNSW/IVF/FLAT/SCANN; `:346` inverted scalar indexes<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:282` — `MilvusHNSW` (M=30, efConstruction=360); `:100` IVFFlat defaults; `:164` SCANN<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:203` — HNSW index; `agent-core/openjiuwen/core/foundation/store/vector_fields/pg_fields.py:37` — pgvector defaults<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector_fields/chroma_fields.py:47` — Chroma HNSW defaults<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/base.py:57` — `add(..., batch_size=128)`</sub>
 
-<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
+<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-retrieval, rag-system._</sub>
 
-## 9. How would this architecture change going from 10,000 to 10 million documents
-
-**General:** At small scale a local in-process index is fine. At millions you need a dedicated vector DB with tuned ANN indexes (HNSW/IVF/quantization), sharding/partitioning, replication, batch ingestion, and recall/latency tuning per query. Memory, index build time, and cost become first-class; the interface stays the same but the operational envelope changes.
-
-**Jiuwen:** Scale-out is delegated to the backend: Chroma = local persistent HNSW (small/medium), Milvus = server ANN with AUTO/HNSW/IVF/SCANN and quantization (large), PGVector = pgvector HNSW/IVFFlat (relational). Writes are batched (128) and flushed. It is one collection per KB with one ANN index created once. There is no sharding, partitioning, replica, or multi-collection fan-out.
-
-```mermaid
-flowchart LR
-    S["scale"] --> SM["~10K: Chroma (local HNSW)"]
-    S --> LG["millions: Milvus (ANN + quantization)"]
-    S --> REL["relational: PGVector (HNSW/IVFFlat)"]
-    W["batched writes (128)"] -.->|"absent"| SHARD["no sharding · partition · replica · fan-out"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — `create_vector_store`; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:433` — AUTOINDEX/HNSW/IVF/FLAT/SCANN; `:346` scalar indexes<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:203` — HNSW; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — local HNSW<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:282` — HNSW defaults; `:100` IVF; `:164` SCANN<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/base.py:57` — `add(..., batch_size=128)`</sub>
-
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 10. How would you design the system so users never get an answer based on stale, outdated information
+## 9. How would you design the system so users never get an answer based on stale, outdated information
 
 **General:** Attach timestamps/versions to documents, prefer recency in ranking (or hard-filter to a freshness window), tombstone superseded versions, and surface recency to the generator. Propagate deletes promptly from the source (event-driven) so the index matches source-of-truth, and reconcile periodically.
 
@@ -201,25 +173,25 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
-## 11. How would you scale a RAG system from 1,000 to 1 million documents
+## 10. Keeping retrieval fast as the vector database grows, without a full re-index
 
-**General:** Move from an in-process index to a dedicated vector DB with tuned ANN indexes (HNSW/IVF/quantization), sharding/partitioning, replication, and batch ingestion. Add hybrid retrieval and a reranker to keep precision as the corpus grows, and introduce caching and cost controls. Memory, index build time, and per-query latency/recall tuning become first-class.
+**General:** Append-only incremental indexing into a pre-built ANN index avoids full rebuilds; deletes/filters stay fast with scalar/inverted indexes; search-time parameters (efSearch, nprobe) tune the recall/latency dial without reindexing. At some point you need compaction/merge of segments and periodic index rebuilds — that is an operational concern, not a query-time one.
 
-**Jiuwen:** Scale-out is delegated to the backend: Chroma = local HNSW (small/medium), Milvus = server ANN with AUTO/HNSW/IVF/SCANN and quantization (large), PGVector = pgvector HNSW/IVFFlat. Writes are batched (128) and flushed, and adding documents appends to the existing index (no full rebuild). There is no sharding, partitioning, replication, or autoscaling.
+**Jiuwen:** Growth is handled by append-only batched writes into a pre-existing ANN index; existing vectors are untouched, so adding documents triggers no full re-index. Fast deletes/filters use the Milvus inverted scalar index on `document_id`/`chunk_id`. `get_search_params` derives `ef = top_k * efSearchFactor` per query (a search-time recall knob). `lazy_load` defers heavy module imports (Milvus/Chroma/parsers), not data. There is **no query result cache**, no reindex/compaction trigger, and no `ALTER INDEX` path — once the collection is created, ANN algorithm/params cannot change.
 
 ```mermaid
-flowchart LR
-    S["1K → 1M docs"] --> SM["~1K: Chroma (local HNSW)"]
-    S --> LG["1M: Milvus (ANN + quantization)"]
-    S --> REL["relational: PGVector"]
-    W["batched writes (128)"] -.->|"absent"| SHARD["no sharding · replication · autoscaling"]
+flowchart TD
+    ADD["add_documents"] --> APP["append into existing ANN index (batched, no rebuild)"]
+    ADD --> SC["scalar inverted index on document_id/chunk_id → fast delete/filter"]
+    Q["query"] --> SP["get_search_params: ef = top_k × efSearchFactor (tune without reindex)"]
+    APP -.->|"absent"| CACHE["no query cache · no compaction trigger · no ALTER INDEX"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — `create_vector_store`; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:433` — AUTO/HNSW/IVF/SCANN; `:346` scalar indexes<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:203` — HNSW; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120` — local HNSW<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/base.py:57` — `add(..., batch_size=128)`; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:74` — append via `build_index`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:519` — `_ensure_loaded` lazy load; `:144` index_type change guard; `:117` `get_search_params` ef dial; `:199` flush after write<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:321` — `_ensure_collection` no-op if exists; `:346` inverted scalar indexes<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:157` — reflects existing table; `:203` index created once<br>&bull; `agent-core/openjiuwen/core/retrieval/lazy_load.py:143` — `lazy_load` (module imports)<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:74` — `add_documents` appends via `build_index`</sub>
 
-<sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
+<sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-retrieval._</sub>
 
-## 12. What database would you choose for the vector store, and why that one over the alternatives
+## 11. What database would you choose for the vector store, and why that one over the alternatives
 
 **General:** Choose by scale and features, not familiarity: local/embedded (FAISS/Chroma) for prototypes; a managed vector DB (Pinecone/Milvus/Zilliz) for scale and hybrid search; or pgvector when you already run Postgres and want one datastore, transactions, and metadata joins. Evaluate hybrid support, filtering, operational cost, and lock-in.
 
@@ -237,7 +209,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
-## 13. What happens to the user experience if the vector database is down, what's your fallback
+## 12. What happens to the user experience if the vector database is down, what's your fallback
 
 **General:** Decide the degradation: fail fast with a clear message, serve cached results, fall back to a secondary index (sparse/BM25 or a replica), or disable retrieval and answer from parametric knowledge with a caveat. Add a circuit breaker, health checks, and timeouts so one dependency cannot hang the request. Replicate the index so a single node is not a SPOF.
 
@@ -256,50 +228,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
-## 14. What's your rollback plan if a prompt or model update degrades output quality?
-
-**General:** Make every change reversible and observable: version the prompt/model, ship behind a flag or canary, define a one-command rollback, and gate broad rollout on a fixed eval. Monitor quality (not just errors) so you detect the degradation, and keep the previous version warm.
-
-**Jiuwen:** Rollback exists for whole RSI **harness packages**: `rollback(installation_id)` refuses while tasks are active, validates the target hash, hot-reloads the prior version, and compensates if the pointer write fails — exposed over the WebSocket protocol. Behavior is gated by `enable_*` flags and a human `accept`/`reject` activation step. But there is **no prompt-level rollback** and no eval-threshold release gate, so a bad prompt change is only reversible if it was packaged as a harness version.
-
-```mermaid
-flowchart TD
-    BAD["bad prompt/model update"] --> PKG["RSI harness rollback: validate hash + hot reload (package-level)"]
-    BAD --> FLAG["enable_* flags + human accept/reject activation"]
-    BAD -.->|"absent"| P["prompt-level rollback · eval-threshold gate · canary"]
-```
-
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback`; `:682` `_assert_rollback_allowed`; `:694` validate target hash<br>&bull; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218/224` — versions list + rollback RPC<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448` — `enable_*` flags<br>&bull; `agent-core/openjiuwen/auto_harness/stages/activate.py:99` — explicit `accept`/`reject`<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — no eval gate</sub>
-
----
-
-# Security
-
-<sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>
-
-## 15. What's your strategy for handling documents in multiple formats, PDFs, spreadsheets, scanned images, in the same pipeline
-
-**General:** Normalize at ingestion with a parser per format behind a registry, preserving structure as metadata (sheet/row, heading path, page, image path). For scanned images, run OCR (or a VLM) to get text before chunking; for images, caption and/or use a multimodal embedding. Keep a uniform record so chunking/indexing is format-agnostic.
-
-**Jiuwen:** A parser registry dispatches by extension and stamps uniform metadata. Images are handled by **VLM captioning** plus optional **multimodal embedding** (`embed_multimodal` unless `use_caption_for_images=True`); PDFs extract text via pdfplumber and caption embedded images. But **true OCR is not integrated** into indexing: a scanned PDF with no text layer yields no text, and OCR exists only as an agent tool (`ImageOCRTool`) or an external `local-doc-ocr` (RapidOCR) skill.
-
-```mermaid
-flowchart TD
-    F["multiple formats"] --> REG["parser registry → uniform Document + metadata"]
-    REG --> IMG["images: VLM caption + embed_multimodal"]
-    REG --> PDF["PDF: text layer (pdfplumber) + embedded image captions"]
-    PDF -.->|"absent"| OCR["pipeline OCR for scanned PDFs (ImageOCRTool / local-doc-ocr skill only)"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:21/109/123` — registry, dispatch, uniform metadata<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/pdf_parser.py:78` — pdfplumber text + image captions; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/image_parser.py:27` — image caption + `image_path`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/captioner.py:30/81` — VLM captioner<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:40` — `embed_multimodal`; `agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:199` — `embed_multimodal`<br>&bull; `agent-core/openjiuwen/harness/tools/multimodal/vision.py:182` — `ImageOCRTool`</sub>
-
----
-
-# Reliability and failure handling
-
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
-
-## 16. Your system needs sub-500ms responses, walk me through where you'd spend that budget across retrieval, reranking, and generation
+## 13. Your system needs sub-500ms responses, walk me through where you'd spend that budget across retrieval, reranking, and generation
 
 **General:** Budget roughly: embedding + vector search tens of ms, rerank tens–low-hundreds of ms, generation the rest (and generation dominates when you stream, because TTFT is what the user perceives). To hit 500ms: stream tokens, cache embeddings/results, keep top-k small, rerank only when it pays, route to a fast model, and parallelize independent steps. Measure TTFT, not total.
 

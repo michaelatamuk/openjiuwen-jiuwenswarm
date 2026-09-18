@@ -1,6 +1,6 @@
 # Production, cost and scale
 
-6 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+8 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Designing caching for repeated or semantically similar queries
 
@@ -74,7 +74,25 @@ flowchart TD
 
 <sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai._</sub>
 
-## 4. Multithreading vs. multiprocessing, which matters more for I/O-bound LLM API calls
+## 4. How would you reduce cost for a high-volume RAG system without degrading answer quality
+
+**General:** Cut the dominant (input-token/generation) cost: rerank a larger candidate set down to a smaller k, cache (exact and semantic), route easy queries to smaller models, shorten prompts (fewer examples, tighter context), summarize long chunks, and cap the agent's iterations. Prefer quality-preserving levers (rerank+tighten, cache, route) over blind k reduction.
+
+**Jiuwen:** The product tracks provider-reported session cost and enforces a per-session cap; core caps repetition via `max_iterations`, team `BudgetLedger`, and anomaly/dedup rails; conversation compaction reduces context tokens. But embedding cost is never tracked, there is no semantic/response cache, no rerank-to-K lever in the KB, and no query-difficulty/cost-aware model routing.
+
+```mermaid
+flowchart TD
+    COST["cut cost"] --> M["meter generation (session cost cap)"]
+    COST --> L["loop caps: max_iterations · ledger · anomaly/dedup rails"]
+    COST --> CE["context compaction (conversation tokens)"]
+    COST -.->|"absent"| X["rerank-to-K · semantic cache · cost-aware model routing"]
+```
+
+<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171/196` — session cost cap<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27` — `BudgetLedger`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k compaction<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:559` — availability routing (not cost/quality)</sub>
+
+<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
+
+## 5. Multithreading vs. multiprocessing, which matters more for I/O-bound LLM API calls
 
 **General:** For I/O-bound work (network calls to LLM APIs, vector DBs), async I/O or threads beat multiprocessing: the CPU is idle while waiting, so you want concurrency, not extra processes. Async is the most efficient (no thread-per-request overhead) when your stack is async end to end; threads are the fallback for blocking SDKs. Multiprocessing only pays off for CPU-bound work (local inference, heavy parsing) because it escapes the GIL.
 
@@ -96,7 +114,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
-## 5. Reducing latency in a multi-step LLM pipeline
+## 6. Reducing latency in a multi-step LLM pipeline
 
 **General:** Stream tokens so time-to-first-token matters more than total; run independent steps in parallel; cache prompts/prefixes and embeddings; route easy steps to faster/smaller models; and avoid blocking the event loop. Measure TTFT and per-stage latency to find the bottleneck.
 
@@ -118,7 +136,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied, rag-1._</sub>
 
-## 6. What happens to your architecture at 10x current traffic
+## 7. What happens to your architecture at 10x current traffic
 
 **General:** You hit dependencies and queues before arithmetic: provider rate limits and 429s, serialized tool/DB access, memory pressure from context, and connection pools. Costs scale roughly linearly with tokens but can super-linearly if retries or coordination rise. Fixes are caching, concurrency limits, queues/shards, backpressure, and cheaper routing — plus autoscaling at the process boundary.
 
@@ -142,3 +160,23 @@ flowchart TD
 **Gap.** No HPA/autoscaling, no global/distributed rate limiter or admission control, no cross-tenant bulkheads. Connection caps and cost totals are per-process, so N replicas multiply the effective limit.
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: ai-agent, engineering, genai._</sub>
+
+## 8. Where cost concentrates: embedding is cheap and one-time, generation scales with traffic
+
+**General:** Embedding is a one-time (or change-only) indexing cost and is cheap per token; the recurring, traffic-scaling cost is generation — especially input tokens when you stuff long context. So optimization effort should go to the generation loop (fewer iterations, smaller context, cheaper model) more than to embeddings. Measure input vs output tokens separately.
+
+**Jiuwen:** Embedding is batched and effectively one-time: `APIEmbedding` chunks texts (`max_batch_size=8`, `max_concurrent=50`) and `compute_chunk_embeddings` runs at index/update time. Generation is what is metered: `usage_cost.add_session_usage` accumulates provider-reported `input_tokens`/`output_tokens`/`total_tokens` (and optional costs) per session, fed by every `chat.usage_metadata` event. Core tracks KV/prompt-cache hit rates (tokens, not dollars). The only per-token dollar rates are hardcoded estimates in the auto-harness budget rail.
+
+```mermaid
+flowchart LR
+    EMB["embedding (one-time)"] --> B["batched, concurrent, at index time (not metered as cost)"]
+    GEN["generation (per traffic)"] --> U["usage_cost.add_session_usage: input/output/total tokens + optional cost"]
+    GEN --> C["core: KV/prompt-cache hit-rate tokens (not $)"]
+    GEN --> E["auto-harness budget rail: hardcoded 3e-6 in / 15e-6 out per token"]
+```
+
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45` — `max_batch_size: int = 8`, `max_concurrent: int = 50`; `:167` batch + gather<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21` — `compute_chunk_embeddings` at index/update time<br>&bull; `agent-core/openjiuwen/core/context_engine/usage/provider_usage.py:14` — normalizes input/cache tokens; `agent-core/openjiuwen/core/context_engine/usage/session_aggregator.py:45` — cache hit-rate aggregation<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:101` — `add_session_usage`; `jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:17212` — usage events<br>&bull; `agent-core/openjiuwen/auto_harness/rails/budget_rail.py:24` — input `3e-6` / output `15e-6` USD per token; `:85` cost computed</sub>
+
+**Gap.** Embedding cost is never tracked, there is no embedding result cache, and session totals are in-process (lost on restart).
+
+<sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>

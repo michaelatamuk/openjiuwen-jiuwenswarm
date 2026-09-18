@@ -1,6 +1,6 @@
 # Agents, tools and memory
 
-44 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+45 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Controlling cost when an agent can call tools repeatedly
 
@@ -680,7 +680,34 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
-## 28. Preventing an agent from getting stuck in an infinite tool-calling loop
+## 28. How would you summarize conversation history without losing important details
+
+**General:** Keep the most recent turns verbatim, summarize older turns into a structured note (goal, decisions, files/state, open tasks, next step) rather than free prose, and re-inject the durable state (plan, task status, key artifacts) separately so it is not lost inside a summary. Boundary markers separate summary from live turns, and the summary should be updated incrementally so each pass only processes new messages.
+
+**Jiuwen:** Compaction replaces the active segment with a structured summary plus a boundary `SystemMessage`, then re-injects high-value state as separate `UserMessage` blocks: plan/task status, recent skill-read rounds, read-file snapshots, and the team collaboration policy (returned as messages so they escape `state_snapshot_max_chars` truncation). `FullCompactProcessor` uses a 9-section summary prompt and boundary markers (`[FULL_COMPACT_BOUNDARY]`, `[FULL_COMPACT_STATE]`, `[SESSION_MEMORY_BOUNDARY]`). The session-memory path runs a background updater triggered at 0.7×context window, summarizes only completed API rounds, writes to a pending file and atomically renames on commit, and records `notes_upto_message_id` so only un-summarized messages are processed next time.
+
+```mermaid
+flowchart TD
+    HIST["conversation history"] --> SPLIT{"split at last boundary"}
+    SPLIT --> KEEP["keep newest N messages verbatim"]
+    SPLIT --> SUM["older → structured 9-section summary (boundary marker)"]
+    SPLIT --> SMEM["session memory template (16 sections, updated at 0.7×window)"]
+    SUM --> REINJ["re-inject state: plan · task status · skills · read-files · team policy"]
+    SMEM --> REINJ
+    REINJ --> PROMPT(["prompt (summary + live turns + explicit state)"])
+```
+
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:69` — `BASE_COMPACT_PROMPT`; `:167` boundary markers; `:342` `_build_replacement_messages()`; `:774` `build_reinjected_state_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/util.py:242` — `build_skill_reinjected_content()`; `:294` `build_task_status_reinjected_content()`; `:105` `build_team_policy_reinjected_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:37` — 16-section template; `:738` `should_update()`; `:824` `_update_background()`; `:529` `invalidate_session_memory_anchor()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/reinjection/builders.py:29` — forked reinjection builders</sub>
+
+**Gap.** The non-session-memory fallback re-injects only plan/skills/task status; `build_plan_reinjected_content` in the non-forked `util.py` is a stub returning `""`. No automatic verification that the summary retained all critical facts beyond the prompt's structured sections.
+
+---
+
+# Prompting
+
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: ai-agent, llm-fund._</sub>
+
+## 29. Preventing an agent from getting stuck in an infinite tool-calling loop
 
 **General:** Cap iterations, detect repetition (same tool and arguments repeatedly), nudge or abort when no progress is made, and also cap rounds, tokens, and wall time. Detection should compare canonicalized arguments, not raw strings.
 
@@ -702,7 +729,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: ai-agent, engineering, genai, llm-applied._</sub>
 
-## 29. What decides when an agent stops and returns a final answer instead of calling another tool
+## 30. What decides when an agent stops and returns a final answer instead of calling another tool
 
 **General:** Usually the model itself: when it emits no tool calls, the answer is final. Around that sit hard limits — max iterations, token/time budgets, and explicit stop conditions — so a confused agent does not loop forever.
 
@@ -729,7 +756,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 30. What does an agent framework actually give you that raw API calls don't
+## 31. What does an agent framework actually give you that raw API calls don't
 
 **General:** A raw API call is request → response. A framework adds the machinery around it: a session/state object that survives across turns, a context manager that trims and compresses history, a tool registry that turns functions into model-facing schemas and dispatches calls, a provider-agnostic model client, a loop with stop conditions, error handling, and observability. You do not re-implement conversation state, schema extraction, provider quirks, and tracing for every app.
 
@@ -751,7 +778,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 31. What happens when the framework's abstractions don't match how your actual business logic needs to work
+## 32. What happens when the framework's abstractions don't match how your actual business logic needs to work
 
 **General:** Prefer escape hatches: implement the base interface directly, call the primitive (model/tool) without the high-level wrapper, override hooks, or replace a component. If the framework has no seam, you fork it or drop it. Good frameworks make the low-level primitive reachable from the high-level API.
 
@@ -773,7 +800,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 32. What is agentic RAG, and how is it different from a standard fixed RAG pipeline
+## 33. What is agentic RAG, and how is it different from a standard fixed RAG pipeline
 
 **General:** A fixed RAG pipeline always retrieves once and feeds the top-k to the generator. Agentic RAG adds a decision loop: the model chooses whether and when to retrieve, may rewrite or decompose the query, retrieves again based on what it found, and stops when it has enough. It trades latency/cost and non-determinism for better answers on complex questions.
 
@@ -794,7 +821,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
-## 33. What tradeoffs come with choosing a heavier framework versus writing a lighter custom orchestration layer
+## 34. What tradeoffs come with choosing a heavier framework versus writing a lighter custom orchestration layer
 
 **General:** Heavy frameworks give you batteries — tools, memory, permissions, teams, observability — at the cost of startup time, learning curve, config surface, and update churn. Light custom code is transparent and fast but you rebuild context management, retries, tracing, and safety. Choose by how much of the battery you would otherwise write yourself.
 
@@ -821,7 +848,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 34. What's the difference between a chatbot and an agent
+## 35. What's the difference between a chatbot and an agent
 
 **General:** A chatbot maps one input to one model reply. An agent runs a loop: it calls the model, may call tools, feeds results back, and repeats until a stopping condition is met. The defining trait is the tool/reason loop and a termination rule, not the size of the model.
 
@@ -852,7 +879,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent, genai._</sub>
 
-## 35. What's the difference between a graph-based framework like LangGraph and a role-based framework like CrewAI
+## 36. What's the difference between a graph-based framework like LangGraph and a role-based framework like CrewAI
 
 **General:** Graph-based frameworks make control flow an explicit graph of nodes and edges over shared state; routing is deterministic, inspectable, and easy to persist. Role-based frameworks make the unit an agent with a role/persona and let agents collaborate through messages and a task board; control flow is emergent and driven by the model plus a manager. Graph = you author the topology; role = you author the team.
 
@@ -881,7 +908,34 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 36. What's the difference between a single-step agent and a multi-step planning agent
+## 37. What's the difference between a linear chain and a graph with conditional branches
+
+**General:** A linear chain is a fixed sequence where each step always activates the next. A graph adds branching and merging: a router selects successors based on state at runtime, and a join/barrier decides when a merge node is ready (all predecessors, or any of an exclusive group).
+
+**Jiuwen:** Both are built on the same `PregelGraph`. `add_connection` registers a static edge; at compile time `PregelGraph._compile` turns static edges into `StaticRouter` (1→N) or `BarrierChannel` (N→1, with CNF OR-groups for mutually exclusive predecessors). `add_conditional_connection` registers a branch router compiled to `ConditionalRouter`, whose `dispatch` calls the user selector and emits `TriggerMessage`s only for the chosen targets. A linear chain always activates its single successor; a conditional graph activates only the selector's targets, and `BranchRouter` raises `COMPONENT_BRANCH_EXECUTION_ERROR` if none match.
+
+```mermaid
+flowchart TD
+    subgraph LIN["Linear chain"]
+    direction LR
+    L1(["start"]) --> L2["step"] --> L3["step"] --> L4(["end"])
+    end
+    subgraph COND["Conditional graph"]
+    direction TB
+    S(["start"]) --> P["step"] --> R{"BranchRouter / ConditionalRouter"}
+    R -->|"condition x"| X["branch x"] --> M["BarrierChannel (merge)"]
+    R -->|"condition y"| Y["branch y"] --> M
+    M --> E(["end"])
+    end
+```
+
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:279` — `add_connection` (static); `:311` — `add_conditional_connection`<br>&bull; `agent-core/openjiuwen/core/workflow/_workflow.py:221` — `BaseWorkflow.add_connection` → `self._graph.add_edge`; `:255` — `add_conditional_connection` wraps `BranchRouter` + `register_branch_targets`<br>&bull; `agent-core/openjiuwen/core/graph/graph.py:103` — `add_edge`; `:122` — `add_conditional_edges`; `:267` `_compile`; `:300` adds branches to the Pregel builder<br>&bull; `agent-core/openjiuwen/core/graph/pregel/builder.py:28` — `add_edge` (N→1 `BarrierChannel`, 1→N `StaticRouter`); `:67` `add_branch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/router.py:11` — `StaticRouter.dispatch`; `:26` `ConditionalRouter.dispatch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/channels.py:104` — `TriggerChannel`; `:129` `BarrierChannel`; `:166` `is_ready` (CNF OR-groups)<br>&bull; `agent-core/openjiuwen/core/workflow/components/flow/branch_router.py:92` — `BranchRouter.__call__`</sub>
+
+**Gap.** `branch_targets` (used for CNF OR-group resolution) is only populated for `BranchRouter`; arbitrary callable routers go through a `new_router` wrapper and never register target sets, so exclusive-branch merging degrades to plain AND barriers. There is no static validation that a conditional router's targets are declared nodes, and `ConditionalRouter.dispatch` passes `state=None` to selectors, so selectors cannot read graph state directly.
+
+<sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
+
+## 38. What's the difference between a single-step agent and a multi-step planning agent
 
 > **Note on the wording:** the question conflates two independent axes. **Number of steps** (single vs multi) is separate from **whether an explicit plan exists** (reactive vs planning). A multi-step agent does not have to plan — a plain ReAct loop takes many steps reactively, with no plan artifact.
 
@@ -942,7 +996,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 37. What's the difference between a supervisor pattern and a peer-to-peer pattern in these frameworks
+## 39. What's the difference between a supervisor pattern and a peer-to-peer pattern in these frameworks
 
 **General:** A supervisor is one controller that plans and dispatches to workers (often workers-as-tools); control is top-down and data returns synchronously up the call stack. Peer-to-peer has agents share a board/bus and claim/communicate directly; control is distributed, needs arbitration (atomic claims, one-active-task invariants), but scales autonomy.
 
@@ -972,7 +1026,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 38. What's the difference between a workflow and an agent
+## 40. What's the difference between a workflow and an agent
 
 **General:** A workflow is a pre-declared graph: you author the steps, edges, and branches, and execution follows that topology. An agent decides its next step at runtime from model output. Workflows are predictable and cheap; agents are flexible and variable. They compose: a workflow can contain an agent node.
 
@@ -1005,7 +1059,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 39. What's the difference between short-term and long-term memory in an agent
+## 41. What's the difference between short-term and long-term memory in an agent
 
 **General:** Short-term is the live working context (recent turns, current task state) needed for the next model call. Long-term is durable knowledge distilled across sessions — facts, preferences, summaries — retrieved on demand.
 
@@ -1032,7 +1086,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 40. What's the planner-executor pattern, and when do you need it
+## 42. What's the planner-executor pattern, and when do you need it
 
 **General:** A planner produces the plan/steps; one or more executors carry them out, often with a supervisor re-planning. Useful when planning needs a global view while execution is parallelizable or specialized, and when separating "decide" from "do" improves reliability.
 
@@ -1054,7 +1108,7 @@ flowchart TB
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 41. What's the ReAct pattern, and why interleave reasoning with actions instead of planning everything upfront
+## 43. What's the ReAct pattern, and why interleave reasoning with actions instead of planning everything upfront
 
 **General:** ReAct alternates thought → action → observation. Interleaving lets each action's real result inform the next thought, which corrects drift and grounds reasoning in observed state. A fully upfront plan cannot react to what the tools actually return.
 
@@ -1081,7 +1135,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
-## 42. When does a framework add unnecessary abstraction instead of solving a real problem
+## 44. When does a framework add unnecessary abstraction instead of solving a real problem
 
 **General:** When the app is a single model call, when the framework's node/agent/state model forces you to reshape business logic to fit, or when the graph is actually a straight line. Warning signs: you fight the state schema, wrap everything in adapters, or need an escape hatch on the happy path. The abstraction pays for itself only when you actually need the loop, state, tools, and observability.
 
@@ -1102,7 +1156,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 43. When is a multi-agent system overkill compared to a single well-designed agent
+## 45. When is a multi-agent system overkill compared to a single well-designed agent
 
 **General:** Multi-agent is justified when you need genuinely separated context/ownership: parallel independent workstreams, distinct tool/permission scopes, or specialization that would otherwise fight for one context window. It is overkill when a single agent with good tools, memory, and a clear prompt can do the job — multi-agent adds coordination cost, latency, and new failure modes (ping-pong, conflicting results) without adding "intelligence".
 
@@ -1123,32 +1177,3 @@ flowchart TD
 # Evaluation
 
 <sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: ai-agent, engineering, genai, llm-applied, rag-practical._</sub>
-
-## 44. When would you summarize past context instead of storing it in full
-
-**General:** Summarize when old content is mostly used for gist, when raw tokens would crowd out the working context, or when detail can be re-fetched on demand. Keep verbatim what must be exact (recent turns, active file contents, decisions); summarize the rest and keep a way to recall it.
-
-**Jiuwen:** `FullCompactProcessor` triggers at a token threshold, keeps the last N messages verbatim, and replaces the rest with a summary plus a boundary marker. `RoundLevelCompressor` does progressively aggressive summary passes at a context ratio and falls back to head/tail truncation. Replaced messages are archived and BM25-recalled, and state (plan, task, skills) is reinjected after compaction. A `SessionMemoryManager` writes structured background notes.
-
-```mermaid
-flowchart TD
-    subgraph LOOP["ReAct loop"]
-    direction TB
-        PRE["before model call: check token threshold"] --> M["model call"]
-        M --> D{"tool calls?"}
-        D -->|yes| T["run tools"] --> M
-    end
-    D -->|"no tool calls"| A(["final answer"])
-    T ~~~ A
-    PRE -->|"over threshold"| SUM["summarize + boundary marker"]
-    SUM --> ARCH["archive replaced messages"] --> REC(["BM25 recall on demand"])
-    SUM --> REINJ["reinject plan / task / skills"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:407` — summary + boundary marker<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:183` — full-compact config<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:192` — progressive summary passes<br>&bull; `../../../agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/bm25.py` — recall of archived chunks<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/reinjection/builders.py` — reinject state after compaction<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:637` — structured background notes</sub>
-
----
-
-# Multi-agent systems
-
-<sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>

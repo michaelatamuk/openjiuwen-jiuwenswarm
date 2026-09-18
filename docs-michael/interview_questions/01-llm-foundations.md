@@ -1,6 +1,6 @@
 # LLM foundations
 
-15 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+14 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Explain how self-attention works in a transformer
 
@@ -66,26 +66,29 @@ flowchart TD
 
 **Gap.** No pre-call hard rejection/backpressure before the provider call — overflow is discovered by proactive thresholds or the provider error path. Windowing (`default_window_message_num`/`round_num`) is opt-in and separate from compaction.
 
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-applied, llm-fund._</sub>
 
-## 4. What happens when you exceed a model's context window?
+## 4. What is hallucination, and why does it happen even in a well-trained model
 
-**General:** The provider either rejects the request or you must shrink the prompt. Robust systems pre-empt it: count tokens and drop/truncate oldest history, offload large tool outputs, and/or summarize old turns, always preserving recent turns. Overflow is a budget-management problem.
+**General:** Hallucination is fluent output that is not grounded in fact or in the provided context. It arises because the objective is next-token likelihood, not truth: the model optimizes plausibility, has no built-in fact database, generalizes patterns that sometimes fabricate specifics, and cannot reliably know the boundary of its own knowledge. Mitigations are grounding (retrieval/citations), verification, constrained formats, and abstention — not a property of the weights you can simply "fix".
 
-**Jiuwen:** The context engine budgets the window (`effective_context_budget` = strictest bound), offloads large tool results to disk, compacts at thresholds (`RoundLevelCompressor` 0.9×, `FullCompactProcessor` 180k), and falls back to a FIFO drop beyond `max_context_message_num`. If the provider still rejects, `recover_from_model_exception` force-compacts and retries.
+**Jiuwen:** The repo does not model or detect low-level hallucination; it implements downstream mitigations: (1) retrieval-augmentation infrastructure to supply evidence; (2) a dedicated **verification agent** restricted to read-only/command tools that must show verbatim command output with a PASS/FAIL/PARTIAL verdict; (3) an LLM quality reviewer scoring CORRECTNESS/COMPLETENESS; (4) model-anomaly rails that catch degenerate repetition/loops (not false claims); and (5) security guardrails/sanitization for injection and secret leakage. There is no claim-to-source attribution checker.
 
 ```mermaid
 flowchart TD
-    MSG["messages added"] --> BUD["effective_context_budget = min(window, call, model)"]
-    BUD --> OFF["offload large tool results"]
-    BUD --> COMP["compact at 0.9× / 180k"]
-    BUD --> FIFO["FIFO drop beyond max_context_message_num"]
-    BUD -->|"provider overflow"| REC["recover_from_model_exception → force compact + retry"]
+    GEN["model output"] --> G1["retrieval augmentation (supply evidence)"]
+    GEN --> G2["verification agent (read-only tools, verbatim evidence, PASS/FAIL/PARTIAL)"]
+    GEN --> G3["LLM reviewer (CORRECTNESS/COMPLETENESS)"]
+    GEN --> G4["anomaly rails (repetition/loop, not factuality)"]
+    GEN --> G5["security guardrails (injection / secrets)"]
+    G2 -.->|"absent"| X["claim-to-source attribution / faithfulness metric"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:20/404` — window resolution<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37` — `effective_context_budget`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34` — offload threshold<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k<br>&bull; `agent-core/openjiuwen/core/context_engine/context_engine.py:372` — `recover_from_model_exception`</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:110-117` — repeated stream output / timeouts / tool-call loops (degeneracy, not factual errors)<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92-108` — `VerificationRail` tool allowlist; `:165-196` blocks disallowed tools, requires evidence<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:26-58` — LLM reviewer dimension "CORRECTNESS"<br>&bull; `agent-core/openjiuwen/core/security/guardrail/backends.py:39-80` — guardrail detection backends; `agent-core/openjiuwen/core/security/guardrail/context.py:115-202` confidence thresholds → risk levels<br>&bull; `agent-core/openjiuwen/harness/tools/web/paid_search.py:221-222` — extracts citation URLs (no claim linkage)<br>&bull; `agent-core/openjiuwen/agent_evolving/tools/skill.py:284` — "cite only available evidence"</sub>
 
-<sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>
+**Gap.** No hallucination/attribution detector, no grounded-claim verification, no faithfulness metric. Retrieval is optional plumbing.
+
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
 ## 5. What is positional encoding, and why do transformers need it if attention has no inherent sense of order
 
@@ -229,25 +232,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
-## 12. Why do larger context windows sometimes hurt performance instead of helping?
-
-**General:** Attention spreads over more tokens, diluting signal for any one of them, and models use the beginning/end of context better than the middle ("lost in the middle"). Long irrelevant context also adds distractors and can override instructions. Fitting the window is necessary but not sufficient; relevance and ordering matter.
-
-**Jiuwen:** There is no explicit lost-in-the-middle mitigation; the system keeps the window small and biases toward recency — compressors protect the newest tail, offloaders keep the newest K results, and truncation keeps head/middle/tail. Optional BM25 recall can re-surface archived chunks by query.
-
-```mermaid
-flowchart TD
-    BIG["large context"] --> BIAS["recency bias: protect newest tail"]
-    BIG --> TRUNC["head + middle + tail truncation"]
-    BIG --> BM25["optional BM25 recall of archived chunks"]
-    BIG -.->|"absent"| X["lost-in-the-middle awareness / importance reordering"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:119` — `keep_recent_messages`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_summary_offloader.py:697` — head/middle/tail<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:114` — `_build_head_tail()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27` — BM25 recall</sub>
-
-<sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>
-
-## 13. Why do LLMs struggle with tasks like counting or basic arithmetic
+## 12. Why do LLMs struggle with tasks like counting or basic arithmetic
 
 **General:** The model operates on tokens, not characters or digits-as-numbers; counting letters requires character-level reasoning that BPE hides, and multi-digit arithmetic requires carrying/positional algorithms that are error-prone to learn implicitly. Models also have no scratchpad guarantee unless asked to show work. The reliable fix is tool use — call a calculator or run code — rather than expecting the forward pass to do exact math.
 
@@ -270,7 +255,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
-## 14. Why does greedy decoding sometimes produce worse output than sampling-based decoding
+## 13. Why does greedy decoding sometimes produce worse output than sampling-based decoding
 
 **General:** Greedy picks the single highest-probability token each step. That is locally optimal but not globally: it can lock into repetitive, degenerate, or bland sequences, and it cannot recover from one early bad choice. Sampling explores alternatives, which often yields more natural and diverse text; a moderate temperature with top-p is a common default. For tasks with a single correct answer (extraction, classification), greedy/`T=0` is usually preferred.
 
@@ -294,7 +279,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
-## 15. Why does model performance sometimes degrade with very long context, even when the context fits
+## 14. Why does model performance sometimes degrade with very long context, even when the context fits
 
 **General:** Attention spreads over more tokens, diluting the signal for any one of them, and models are empirically better at using information at the beginning and end of the context than in the middle ("lost in the middle"). Irrelevant long context also introduces distractors and can override instructions. Fitting the window is necessary but not sufficient; relevance and ordering matter too.
 
@@ -312,4 +297,4 @@ flowchart TD
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:119` — `keep_recent_messages`; `:1088` `_build_head_tail_truncated_text()`; `:112` `target_total_tokens=160000`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:194` — `messages_to_keep=10`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:63` — `keep_last_round=True`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_summary_offloader.py:697` — `_smart_truncate_content()` head/middle/tail<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:114` — `_build_head_tail()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/archive.py:48` — archive in 3000-token chunks / 300 overlap; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27` BM25 `recall_compressed_context()`</sub>
 
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-applied, llm-fund._</sub>

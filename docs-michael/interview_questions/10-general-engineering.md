@@ -1,6 +1,6 @@
 # General engineering
 
-9 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+5 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. A stakeholder wants to ship before your eval scores are ready, how do you handle it
 
@@ -43,79 +43,32 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
-## 3. How would you build an eval dataset from scratch if you don't have one yet
+## 3. How do you evaluate whether a framework will scale with your team, not just your first prototype
 
-**General:** Mine queries from real logs or user questions, then label relevance by (a) synthetic queries generated from known documents (the document is the gold target), (b) LLM answering and treating cited chunks as relevant, or (c) a small hand-labeled calibration set. Start small (50–200 queries), cover query types including exact-match and multi-hop, and iterate. For retrieval you can bootstrap (query, source-doc) pairs with no answer labels at all.
+**General:** Look for declarative registration and plugins, stable extension contracts, provider and config abstraction, schema'd configuration, and real documentation. Be wary of frameworks where every change means patching internals. Prototype speed is not the same as team-scale maintainability.
 
-**Jiuwen:** The advertised `rsi/dataset_generator` is not runnable source: `DatasetGenerator` exists only as compiled bytecode, and `case_generator`/`task_analyzer`/`coverage_validator` are stubs raising `NotImplementedError`; the harness "never generates a dataset". The one runnable label-free builder is the PerStream example (`generate_dataset.sh` → GPT-4o-mini QA/memory generation). There is no query-generation loop integrated with the core evaluator.
-
-```mermaid
-flowchart TD
-    LOGS["real queries"] --> MINE["mine"]
-    DOCS["known documents"] --> SYN["synthetic queries (doc = gold)"]
-    MINE --> SET["small labeled eval set (50–200, multiple types)"]
-    SYN --> SET
-    SET --> MET["Recall@k · Precision@k · MRR · NDCG"]
-    SYN -.->|"rsi generator: stub/bytecode"| X["no runnable core generator (PerStream example only)"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134` — "never generates a dataset"<br>&bull; `agent-core/examples/PerStream/scripts/generate_dataset.sh:31` — LLM-driven QA/memory generation (example)<br>&bull; `agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc` — `NotImplementedError` stubs (no source)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — metric interface lacks ranked-list eval</sub>
-
-<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
-
-## 4. How would you compare two models for a specific task, not just a general leaderboard score
-
-**General:** Run both models on the same held-out task set with the same prompts/decoding, score with task-appropriate metrics (exact match, tests, rubric judge), and compare accuracy plus latency and cost; check statistical significance and inspect failure cases. A leaderboard is a prior, not a decision — task fit, cost, latency, and controllability often matter more than a few points of general score.
-
-**Jiuwen:** Model selection here is infrastructure routing, not benchmark comparison. `agent_teams/models/pool.py` defines `ModelRouterConfig` (one endpoint, many model names) and `IntelliRouterConfig` (many deployments behind a reliable client router), with allocator strategies chosen by `build_model_allocator`. IntelliRouter routes by adaptive multi-factor scoring (health, tokens, RPM, latency) and fails over — it does **not** choose by task accuracy. For comparing configs/attempts there is real per-task evaluation: `Trainer` evaluates each candidate on a validation set and keeps the highest score; `rsi best_of_n` ranks attempts by tests/diff/lint; the online judge uses `num_votes` voting. Comparing two models for a task therefore means running your own eval, not a leaderboard feature.
+**Jiuwen:** Extension is registry/manifest based rather than patch based. Provider modules declare `@harness_element(kind, name, ...)` descriptors; `register_from_catalog()` converts the catalog into class registrations, and `DeepAgent.load_plugin` / `load_agent_template` / `load_harness_config` hot-load packages through one `BuildContext` apply path. Model providers auto-register via `BaseModelClient.__init_subclass__` into `ClientRegistry`, and team infrastructure uses `register_transport`/`register_storage` name→config registries. `Runner.resource_mgr` centralizes tool/workflow/agent/team/model/prompt managers, and the product demonstrates the pattern: `jiuwenswarm/agents/swarm/registry.py` imports provider modules and drives registration from the manifest catalog.
 
 ```mermaid
 flowchart TD
-    CMP{"compare two models"} --> ROUTE["IntelliRouter (availability/cost/latency — NOT accuracy)"]
-    CMP --> EVAL["run both on same held-out task set"]
-    EVAL --> TR["Trainer: per-candidate validation score → keep best"]
-    EVAL --> BON["best_of_n: tests / diff / lint"]
-    EVAL --> JUDGE["judge: num_votes voting"]
-    TR --> DEC(["task-specific decision"])
-    BON --> DEC
-    JUDGE --> DEC
-    ROUTE -.->|"absent"| X["no leaderboard / A-B model-accuracy harness"]
+    DEV(["new extension"]) --> E["@harness_element descriptor"]
+    E --> CAT["catalog: register_from_catalog()"]
+    CAT --> BC["BuildContext apply path"]
+    BC --> PL["DeepAgent.load_plugin / load_agent_template / load_harness_config"]
+    MC["BaseModelClient subclass"] --> CR["ClientRegistry (__init_subclass__)"]
+    TEAM["team transport/storage"] --> RR["register_transport / register_storage"]
+    PL --> RM["Runner.resource_mgr (tool/workflow/agent/team/model/prompt managers)"]
+    CR --> RM
+    RR --> RM
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:133-235` — `ModelRouterConfig`; `:314-392` — `IntelliRouterConfig` / deployments<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559` — allocator strategies + `build_model_allocator`<br>&bull; `agent-core/examples/intelli_router/intelliRouter_demo.py:142-160` — adaptive routing weights; `:249-264` route within a pinned model pool<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272` — per-candidate validation scoring, commits best<br>&bull; `agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119` — rank by tests/lint/diff<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38/58` — `num_votes` judge voting</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/manifest/catalog.py:67` — `@harness_element`; `:55` `list_elements()`; `agent-core/openjiuwen/harness/manifest/registration.py:31` — `register_from_catalog`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2027` — `load_plugin`; `:2076` `load_agent_template`; `:2190` `load_harness_config`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53` — `__init_subclass__` auto-registration; `agent-core/openjiuwen/core/common/clients/client_registry.py:19/50/94`<br>&bull; `agent-core/openjiuwen/core/runner/resources_manager/resource_registry.py:13` — `ResourceRegistry`<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:248`; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:354` — config schema (Pydantic)<br>&bull; `agent-core/openjiuwen/agent_teams/schema/team.py:81` — `TransportSpec`/`StorageSpec` registry pattern<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/registry.py:8-12` — product-side provider registration via the catalog</sub>
 
-**Gap.** No leaderboard, no A/B model-comparison harness, no per-task model-accuracy registry. Routing optimizes availability/cost/latency, not task quality.
+**Gap.** There is no visible semantic-versioning or deprecation policy for `@harness_element` names or config fields — the descriptor stores a factory ref and an input JSON schema but no version. Adding a new tool/rail also requires touching prompt/description contracts (a documentation discipline, not enforced by types). The legacy `single_agent/legacy/` surface shows the cost of past API drift.
 
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
+<sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 5. How would you summarize conversation history without losing important details
-
-**General:** Keep the most recent turns verbatim, summarize older turns into a structured note (goal, decisions, files/state, open tasks, next step) rather than free prose, and re-inject the durable state (plan, task status, key artifacts) separately so it is not lost inside a summary. Boundary markers separate summary from live turns, and the summary should be updated incrementally so each pass only processes new messages.
-
-**Jiuwen:** Compaction replaces the active segment with a structured summary plus a boundary `SystemMessage`, then re-injects high-value state as separate `UserMessage` blocks: plan/task status, recent skill-read rounds, read-file snapshots, and the team collaboration policy (returned as messages so they escape `state_snapshot_max_chars` truncation). `FullCompactProcessor` uses a 9-section summary prompt and boundary markers (`[FULL_COMPACT_BOUNDARY]`, `[FULL_COMPACT_STATE]`, `[SESSION_MEMORY_BOUNDARY]`). The session-memory path runs a background updater triggered at 0.7×context window, summarizes only completed API rounds, writes to a pending file and atomically renames on commit, and records `notes_upto_message_id` so only un-summarized messages are processed next time.
-
-```mermaid
-flowchart TD
-    HIST["conversation history"] --> SPLIT{"split at last boundary"}
-    SPLIT --> KEEP["keep newest N messages verbatim"]
-    SPLIT --> SUM["older → structured 9-section summary (boundary marker)"]
-    SPLIT --> SMEM["session memory template (16 sections, updated at 0.7×window)"]
-    SUM --> REINJ["re-inject state: plan · task status · skills · read-files · team policy"]
-    SMEM --> REINJ
-    REINJ --> PROMPT(["prompt (summary + live turns + explicit state)"])
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:69` — `BASE_COMPACT_PROMPT`; `:167` boundary markers; `:342` `_build_replacement_messages()`; `:774` `build_reinjected_state_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/util.py:242` — `build_skill_reinjected_content()`; `:294` `build_task_status_reinjected_content()`; `:105` `build_team_policy_reinjected_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:37` — 16-section template; `:738` `should_update()`; `:824` `_update_background()`; `:529` `invalidate_session_memory_anchor()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/reinjection/builders.py:29` — forked reinjection builders</sub>
-
-**Gap.** The non-session-memory fallback re-injects only plan/skills/task status; `build_plan_reinjected_content` in the non-forked `util.py` is a stub returning `""`. No automatic verification that the summary retained all critical facts beyond the prompt's structured sections.
-
----
-
-# Prompting
-
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
-
-## 6. Larger model vs. smaller, faster one for a given task
+## 4. Larger model vs. smaller, faster one for a given task
 
 **General:** Match model capability to task difficulty: use a large model for reasoning/ambiguity and a small/fast one for classification, extraction, routing, and formatting. Measure quality per task and weigh latency and cost; route by task, and fall back to the larger model only when needed. A leaderboard score is a prior, not a per-task decision.
 
@@ -137,71 +90,23 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
-## 7. What is hallucination, and why does it happen even in a well-trained model
+## 5. What's your rollback plan if a prompt or model update degrades output quality?
 
-**General:** Hallucination is fluent output that is not grounded in fact or in the provided context. It arises because the objective is next-token likelihood, not truth: the model optimizes plausibility, has no built-in fact database, generalizes patterns that sometimes fabricate specifics, and cannot reliably know the boundary of its own knowledge. Mitigations are grounding (retrieval/citations), verification, constrained formats, and abstention — not a property of the weights you can simply "fix".
+**General:** Make every change reversible and observable: version the prompt/model, ship behind a flag or canary, define a one-command rollback, and gate broad rollout on a fixed eval. Monitor quality (not just errors) so you detect the degradation, and keep the previous version warm.
 
-**Jiuwen:** The repo does not model or detect low-level hallucination; it implements downstream mitigations: (1) retrieval-augmentation infrastructure to supply evidence; (2) a dedicated **verification agent** restricted to read-only/command tools that must show verbatim command output with a PASS/FAIL/PARTIAL verdict; (3) an LLM quality reviewer scoring CORRECTNESS/COMPLETENESS; (4) model-anomaly rails that catch degenerate repetition/loops (not false claims); and (5) security guardrails/sanitization for injection and secret leakage. There is no claim-to-source attribution checker.
-
-```mermaid
-flowchart TD
-    GEN["model output"] --> G1["retrieval augmentation (supply evidence)"]
-    GEN --> G2["verification agent (read-only tools, verbatim evidence, PASS/FAIL/PARTIAL)"]
-    GEN --> G3["LLM reviewer (CORRECTNESS/COMPLETENESS)"]
-    GEN --> G4["anomaly rails (repetition/loop, not factuality)"]
-    GEN --> G5["security guardrails (injection / secrets)"]
-    G2 -.->|"absent"| X["claim-to-source attribution / faithfulness metric"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:110-117` — repeated stream output / timeouts / tool-call loops (degeneracy, not factual errors)<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92-108` — `VerificationRail` tool allowlist; `:165-196` blocks disallowed tools, requires evidence<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:26-58` — LLM reviewer dimension "CORRECTNESS"<br>&bull; `agent-core/openjiuwen/core/security/guardrail/backends.py:39-80` — guardrail detection backends; `agent-core/openjiuwen/core/security/guardrail/context.py:115-202` confidence thresholds → risk levels<br>&bull; `agent-core/openjiuwen/harness/tools/web/paid_search.py:221-222` — extracts citation URLs (no claim linkage)<br>&bull; `agent-core/openjiuwen/agent_evolving/tools/skill.py:284` — "cite only available evidence"</sub>
-
-**Gap.** No hallucination/attribution detector, no grounded-claim verification, no faithfulness metric. Retrieval is optional plumbing.
-
-<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
-
-## 8. What's the difference between a linear chain and a graph with conditional branches
-
-**General:** A linear chain is a fixed sequence where each step always activates the next. A graph adds branching and merging: a router selects successors based on state at runtime, and a join/barrier decides when a merge node is ready (all predecessors, or any of an exclusive group).
-
-**Jiuwen:** Both are built on the same `PregelGraph`. `add_connection` registers a static edge; at compile time `PregelGraph._compile` turns static edges into `StaticRouter` (1→N) or `BarrierChannel` (N→1, with CNF OR-groups for mutually exclusive predecessors). `add_conditional_connection` registers a branch router compiled to `ConditionalRouter`, whose `dispatch` calls the user selector and emits `TriggerMessage`s only for the chosen targets. A linear chain always activates its single successor; a conditional graph activates only the selector's targets, and `BranchRouter` raises `COMPONENT_BRANCH_EXECUTION_ERROR` if none match.
+**Jiuwen:** Rollback exists for whole RSI **harness packages**: `rollback(installation_id)` refuses while tasks are active, validates the target hash, hot-reloads the prior version, and compensates if the pointer write fails — exposed over the WebSocket protocol. Behavior is gated by `enable_*` flags and a human `accept`/`reject` activation step. But there is **no prompt-level rollback** and no eval-threshold release gate, so a bad prompt change is only reversible if it was packaged as a harness version.
 
 ```mermaid
 flowchart TD
-    subgraph LIN["Linear chain"]
-    direction LR
-    L1(["start"]) --> L2["step"] --> L3["step"] --> L4(["end"])
-    end
-    subgraph COND["Conditional graph"]
-    direction TB
-    S(["start"]) --> P["step"] --> R{"BranchRouter / ConditionalRouter"}
-    R -->|"condition x"| X["branch x"] --> M["BarrierChannel (merge)"]
-    R -->|"condition y"| Y["branch y"] --> M
-    M --> E(["end"])
-    end
+    BAD["bad prompt/model update"] --> PKG["RSI harness rollback: validate hash + hot reload (package-level)"]
+    BAD --> FLAG["enable_* flags + human accept/reject activation"]
+    BAD -.->|"absent"| P["prompt-level rollback · eval-threshold gate · canary"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:279` — `add_connection` (static); `:311` — `add_conditional_connection`<br>&bull; `agent-core/openjiuwen/core/workflow/_workflow.py:221` — `BaseWorkflow.add_connection` → `self._graph.add_edge`; `:255` — `add_conditional_connection` wraps `BranchRouter` + `register_branch_targets`<br>&bull; `agent-core/openjiuwen/core/graph/graph.py:103` — `add_edge`; `:122` — `add_conditional_edges`; `:267` `_compile`; `:300` adds branches to the Pregel builder<br>&bull; `agent-core/openjiuwen/core/graph/pregel/builder.py:28` — `add_edge` (N→1 `BarrierChannel`, 1→N `StaticRouter`); `:67` `add_branch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/router.py:11` — `StaticRouter.dispatch`; `:26` `ConditionalRouter.dispatch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/channels.py:104` — `TriggerChannel`; `:129` `BarrierChannel`; `:166` `is_ready` (CNF OR-groups)<br>&bull; `agent-core/openjiuwen/core/workflow/components/flow/branch_router.py:92` — `BranchRouter.__call__`</sub>
+<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback`; `:682` `_assert_rollback_allowed`; `:694` validate target hash<br>&bull; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218/224` — versions list + rollback RPC<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448` — `enable_*` flags<br>&bull; `agent-core/openjiuwen/auto_harness/stages/activate.py:99` — explicit `accept`/`reject`<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — no eval gate</sub>
 
-**Gap.** `branch_targets` (used for CNF OR-group resolution) is only populated for `BranchRouter`; arbitrary callable routers go through a `new_router` wrapper and never register target sets, so exclusive-branch merging degrades to plain AND barriers. There is no static validation that a conditional router's targets are declared nodes, and `ConditionalRouter.dispatch` passes `state=None` to selectors, so selectors cannot read graph state directly.
+---
 
-<sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
+# Security
 
-## 9. Why exact-match scoring fails when a correct answer can be phrased multiple valid ways
-
-**General:** Exact match requires the output string to equal the reference, so "Paris" vs "The capital is Paris" both fail even when correct. It is brittle to wording, formatting, articles, and ordering. Use it only for tasks with a canonical form (classification labels, IDs, single tokens); otherwise use semantic/normalized metrics (LLM judge, embedding similarity, or task-specific parsers).
-
-**Jiuwen:** Two exact-match implementations exist. `ExactMatchMetric` normalizes lowercase/strip/whitespace but still requires full-string equality; RSI's `ExactMatchJudger` is strict `==` with no normalization. The LLM judges cover paraphrase — the `LLMAsJudgeMetric` prompt judges semantic consistency, and PerStream's GPT judge explicitly accepts synonyms/paraphrases — but they are non-deterministic and uncalibrated, and there is no deterministic paraphrase-robust metric (e.g. normalized/embedding similarity).
-
-```mermaid
-flowchart TD
-    ANS["answer"] --> EM{"exact match?"}
-    EM -->|"normalized == (ExactMatchMetric)"| OK["pass only on identical form"]
-    EM -->|"strict == (RSI)"| OK
-    ANS --> LLM["LLM semantic judge (accepts paraphrase)"]
-    LLM --> N["non-deterministic, uncalibrated"]
-    ANS -.->|"absent"| X["deterministic paraphrase-robust metric"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:36` — normalized equality; `:40` `_normalize` (lower/strip/collapse)<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/exact_match.py:50` — strict `== expected`; `:30` rejects rubric/files<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:4` — semantic consistency judge<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:520` — exact-match shortcut then LLM fallback<br>&bull; `agent-core/examples/PerStream/src/eval/score_passive_judge.py:57` — "Consider synonyms or paraphrases as valid matches"</sub>
-
-<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
+<sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>

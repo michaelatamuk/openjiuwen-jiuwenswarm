@@ -1,6 +1,6 @@
 # Evaluation
 
-23 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+21 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
 
 ## 1. Building a regression test suite to catch a quality drop before it ships
 
@@ -20,32 +20,9 @@ flowchart TD
 
 **Gap.** No model/agent-quality regression gate in CI, no golden/snapshot tests for prompts/retrieval/outputs, and credential-requiring system tests are skipped. A quality drop would not be caught before ship by the configured automation.
 
-<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
+<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied, rag-eval, rag-1._</sub>
 
-## 2. Catching a regression after a chunking or prompt change, before users notice, using a fixed regression suite
-
-**General:** Keep a fixed, versioned eval suite (queries + expected retrieval targets/metrics) and run it on every change to chunking, embeddings, prompts, or models. Store a baseline and fail the build when a metric drops beyond a threshold; add golden/snapshot tests for prompts and outputs. This is what turns an eval script into a regression gate.
-
-**Jiuwen:** The CI gate is real but runs **only static checks**: `ci_gate.yaml` defines exactly `lint` and `type-check`, executed by `CIGateRunner`; there is no pytest or quality gate and no CI workflow file in the repo. The pytest `level0`/`level1` markers label tests but nothing invokes them. Offline quality machinery exists inside `agent_evolving` (`Trainer` best-score gating, `evaluator_pipeline` pass-rate), but it is a benchmark optimization loop, not a fixed suite guarding prompt/chunking changes.
-
-```mermaid
-flowchart TD
-    PR["chunking/prompt change"] --> G{"regression suite?"}
-    G -.->|"absent"| X["no fixed quality suite; no CI test/quality gate"]
-    PR --> CI["ci_gate.yaml: lint + type-check only"]
-    PR --> L0["level0 'PR gate' markers (not invoked)"]
-    PR --> EV["evaluator_pipeline pass_rate (benchmark loop, no baseline gate)"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — gates are only `lint` and `type-check`<br>&bull; `agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:147` — `CIGateRunner`; `:1153` `run()`<br>&bull; `agent-core/pyproject.toml:236` — `level0`/`level1` markers ("PR gate must stay green")<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217` — `improved = val_score > progress.best_score`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:314` — stops when `eval_result.passed`; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/models.py:101` `EvalResult(passed, pass_rate)`</sub>
-
----
-
-# Business-facing evaluation
-
-<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
-
-## 3. Computing faithfulness: decomposing an answer into atomic claims, scoring each against the source with an NLI model or LLM-as-judge
+## 2. Computing faithfulness: decomposing an answer into atomic claims, scoring each against the source with an NLI model or LLM-as-judge
 
 **General:** Faithfulness = supported claims / total claims. Decompose the answer into atomic, verifiable claims; for each, ask an NLI model or LLM judge whether the retrieved source entails it; average. It needs the source context and is claim-level, not answer-level. Low faithfulness with high relevance points at the generator skipping or distorting retrieved evidence.
 
@@ -65,7 +42,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 4. Evaluating continuously in production, not just once before launch
+## 3. Evaluating continuously in production, not just once before launch
 
 **General:** Sample live traffic, score it on a schedule or on feedback, and alert on quality drops — separate from error/latency monitoring. Look for drift in query distribution and retrieval hit rates, track online metrics (thumbs, task success, escalation), and periodically re-run the offline suite on fresh data. The goal is to detect degradation before users report it.
 
@@ -82,9 +59,9 @@ flowchart TD
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:59` — `CapturePipeline`; `:73` before; `:110` after; `:170` `submit_reward`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/gateway/trajectory/judge_dispatcher.py:30` — flush + judge on follow-up/session end<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:28` — live LLM judge score<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:304` — `TrajectoryStore`; `:307` 7-day retention (diagnostic)<br>&bull; `jiuwenswarm/jiuwenswarm/observability/sink.py:578` — `TrajectorySessionSinkRouter`; `jiuwenswarm/jiuwenswarm/observability/runtime.py:69` — runtime<br>&bull; `agent-core/openjiuwen/harness/observability/rail.py:355` — span emission</sub>
 
-<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
+<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: ai-agent, rag-eval, rag-system._</sub>
 
-## 5. Faithfulness vs. relevance in RAG evaluation
+## 4. Faithfulness vs. relevance in RAG evaluation
 
 **General:** Relevance asks whether retrieved passages are on-topic for the query (context precision/recall). Faithfulness/groundedness asks whether the answer's claims are actually supported by the retrieved context (does it hallucinate beyond the evidence). A system can retrieve relevant context and still be unfaithful, or be faithful to irrelevant context. Measuring faithfulness requires giving the judge the context and checking claim support/citations, not just answer-vs-reference correctness.
 
@@ -106,7 +83,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, llm-applied, rag-1, genai, rag-eval._</sub>
 
-## 6. High eval scores but users still complaining — what does that gap tell you about your eval set
+## 5. High eval scores but users still complaining — what does that gap tell you about your eval set
 
 **General:** The gap means the eval set does not represent real usage: too-easy or synthetic queries, no adversarial or long-tail cases, missing slices (language, domain, intent), a metric that rewards style over usefulness, or unmeasured dimensions (latency, verbosity, tone, refusals). The fix is to mine real complaints/failed sessions for queries, add them to the set, and re-baseline — the eval set is a moving target aligned to production.
 
@@ -124,7 +101,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 7. How do you detect when your retrieval quality has degraded over time
+## 6. How do you detect when your retrieval quality has degraded over time
 
 **General:** Monitor retrieval-specific signals over time — zero-result rate, top-score distributions, click/select rate, and a periodic re-run of a frozen labeled set (Recall@k/NDCG) — and alert on shifts. Slice by query type/tenant/language, since degradation is often localized (a new format, a corpus change, an embedding-model update). Pair it with generation-side faithfulness/relevance tracking so you can tell a retrieval regression from a generation one.
 
@@ -145,7 +122,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
-## 8. How do you evaluate an LLM's output beyond "it looks correct"
+## 7. How do you evaluate an LLM's output beyond "it looks correct"
 
 **General:** Combine automatic metrics (exact match, F1, ROUGE/BLEU where applicable, functional/tests for code), an LLM-as-judge with a rubric for open-ended quality, and human review for a sample. Build a held-out eval set with representative and adversarial cases, score consistently, and track regressions across changes. The judge itself must be validated against human agreement; a single metric rarely captures "quality".
 
@@ -173,7 +150,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied, llm-fund, rag-eval, rag-1._</sub>
 
-## 9. How do you evaluate when there's no ground truth answer, only a query and a corpus
+## 8. How do you evaluate when there's no ground truth answer, only a query and a corpus
 
 **General:** Bootstraps without gold labels: (a) generate synthetic queries from known documents and treat the source document as the gold retrieval target (cheap, works well for retrieval metrics); (b) use an LLM to answer and treat cited passages as relevant (RAGAS-style); (c) judge faithfulness against the retrieved context rather than a reference answer; (d) sample and label by hand a small set to calibrate. The key is that retrieval can be graded with synthetic (query, source-doc) pairs even when answers are unlabeled.
 
@@ -197,32 +174,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 10. How do you evaluate whether a framework will scale with your team, not just your first prototype
-
-**General:** Look for declarative registration and plugins, stable extension contracts, provider and config abstraction, schema'd configuration, and real documentation. Be wary of frameworks where every change means patching internals. Prototype speed is not the same as team-scale maintainability.
-
-**Jiuwen:** Extension is registry/manifest based rather than patch based. Provider modules declare `@harness_element(kind, name, ...)` descriptors; `register_from_catalog()` converts the catalog into class registrations, and `DeepAgent.load_plugin` / `load_agent_template` / `load_harness_config` hot-load packages through one `BuildContext` apply path. Model providers auto-register via `BaseModelClient.__init_subclass__` into `ClientRegistry`, and team infrastructure uses `register_transport`/`register_storage` name→config registries. `Runner.resource_mgr` centralizes tool/workflow/agent/team/model/prompt managers, and the product demonstrates the pattern: `jiuwenswarm/agents/swarm/registry.py` imports provider modules and drives registration from the manifest catalog.
-
-```mermaid
-flowchart TD
-    DEV(["new extension"]) --> E["@harness_element descriptor"]
-    E --> CAT["catalog: register_from_catalog()"]
-    CAT --> BC["BuildContext apply path"]
-    BC --> PL["DeepAgent.load_plugin / load_agent_template / load_harness_config"]
-    MC["BaseModelClient subclass"] --> CR["ClientRegistry (__init_subclass__)"]
-    TEAM["team transport/storage"] --> RR["register_transport / register_storage"]
-    PL --> RM["Runner.resource_mgr (tool/workflow/agent/team/model/prompt managers)"]
-    CR --> RM
-    RR --> RM
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/manifest/catalog.py:67` — `@harness_element`; `:55` `list_elements()`; `agent-core/openjiuwen/harness/manifest/registration.py:31` — `register_from_catalog`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2027` — `load_plugin`; `:2076` `load_agent_template`; `:2190` `load_harness_config`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53` — `__init_subclass__` auto-registration; `agent-core/openjiuwen/core/common/clients/client_registry.py:19/50/94`<br>&bull; `agent-core/openjiuwen/core/runner/resources_manager/resource_registry.py:13` — `ResourceRegistry`<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:248`; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:354` — config schema (Pydantic)<br>&bull; `agent-core/openjiuwen/agent_teams/schema/team.py:81` — `TransportSpec`/`StorageSpec` registry pattern<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/registry.py:8-12` — product-side provider registration via the catalog</sub>
-
-**Gap.** There is no visible semantic-versioning or deprecation policy for `@harness_element` names or config fields — the descriptor stores a factory ref and an input JSON schema but no version. Adding a new tool/rail also requires touching prompt/description contracts (a documentation discipline, not enforced by types). The legacy `single_agent/legacy/` surface shows the cost of past API drift.
-
-<sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
-
-## 11. How many examples before eval results are statistically meaningful, not just noise
+## 9. How many examples before eval results are statistically meaningful, not just noise
 
 **General:** It depends on the effect size and metric variance. As a rule of thumb, ~100–200 examples give a usable signal for a common metric, but if you are comparing two systems you need enough to detect the delta above noise — report confidence intervals (bootstrap) and use paired significance tests on the same examples. For rare events (e.g. hallucination) you need far more, and minority-slice analysis needs hundreds per slice. Never quote a bare average without an error bound.
 
@@ -240,68 +192,52 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 12. How would you build a regression test suite for a prompt-based system
+## 10. How would you build an eval dataset from scratch if you don't have one yet
 
-**General:** Combine fast deterministic unit tests on the pipeline components with a quality eval suite on a fixed dataset scored by the same metrics each time; store a baseline and fail the build when the score drops beyond a threshold. Add golden/snapshot tests for prompts and outputs, and gate merges on the suite.
+**General:** Mine queries from real logs or user questions, then label relevance by (a) synthetic queries generated from known documents (the document is the gold target), (b) LLM answering and treating cited chunks as relevant, or (c) a small hand-labeled calibration set. Start small (50–200 queries), cover query types including exact-match and multi-hop, and iterate. For retrieval you can bootstrap (query, source-doc) pairs with no answer labels at all.
 
-**Jiuwen:** Tests split into `tests/unit_tests/` (fast, deterministic, CI) and `tests/system_tests/` (E2E, usually skipped). `pytest` defines markers `level0` ("smoke / happy-path; PR gate must stay green") and `level1`. Quality evaluation exists separately: `evaluator_pipeline` emits `pass_rate`/improvement/convergence, and `Trainer` compares a candidate's validation score against `best_score` and commits only improvements. But the CI gate that blocks merges (`ci_gate.yaml`) declares only `lint` and `type-check` — no pytest gate and no eval threshold.
-
-```mermaid
-flowchart TD
-    PR["PR"] --> L["lint"] --> TC["type-check"] --> G{"gate (ci_gate.yaml)"}
-    G -->|"configured"| LINT["lint + type-check only"]
-    G -.->|"not configured"| PY["pytest level0 (advertised PR gate, not invoked)"]
-    EVAL["evaluator_pipeline / Trainer"] -.->|"offline CLI, no baseline threshold"| Q["quality regression gate ABSENT"]
-```
-
-<sub>**Anchors:**<br>&bull; `agent-core/pyproject.toml:230` — pytest config + `level0`/`level1` markers<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — gates are only `lint` and `type-check`<br>&bull; `agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:1098` — gate dispatch; `agent-core/openjiuwen/auto_harness/stages/verify.py:451` `ci_gate.run("all")`; `:509` revert on exhaustion<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217` — `improved = val_score > progress.best_score`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:664` — `_compute_evolution_metrics`</sub>
-
-**Gap.** No model/agent-quality regression gate in CI, no golden/snapshot tests for prompts/retrieval/outputs, and credential-requiring system tests are skipped.
-
-<sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai, llm-applied._</sub>
-
-## 13. How would you build a regression test suite to catch quality drops before they ship
-
-**General:** Keep a fixed, versioned eval suite (queries + expected retrieval targets/metrics) and run it on every change to chunking, embeddings, prompts, or models. Store a baseline and fail the build when a metric drops beyond a threshold; add golden/snapshot tests for prompts and outputs. This turns an eval script into a gate.
-
-**Jiuwen:** The CI gate runs only `lint` and `type-check` (`ci_gate.yaml`), with no pytest or quality gate and no CI workflow file; the pytest `level0`/`level1` markers label tests but nothing invokes them. Offline quality machinery (`Trainer` best-score, `evaluator_pipeline` pass-rate) is a benchmark loop, not a fixed suite guarding changes.
+**Jiuwen:** The advertised `rsi/dataset_generator` is not runnable source: `DatasetGenerator` exists only as compiled bytecode, and `case_generator`/`task_analyzer`/`coverage_validator` are stubs raising `NotImplementedError`; the harness "never generates a dataset". The one runnable label-free builder is the PerStream example (`generate_dataset.sh` → GPT-4o-mini QA/memory generation). There is no query-generation loop integrated with the core evaluator.
 
 ```mermaid
 flowchart TD
-    PR["chunking/prompt change"] --> G{"regression suite?"}
-    G -.->|"absent"| X["no fixed quality suite; no CI test/quality gate"]
-    PR --> CI["ci_gate.yaml: lint + type-check only"]
-    PR --> L0["level0 'PR gate' markers (not invoked)"]
-    PR --> EV["evaluator_pipeline pass_rate (benchmark loop, no baseline gate)"]
+    LOGS["real queries"] --> MINE["mine"]
+    DOCS["known documents"] --> SYN["synthetic queries (doc = gold)"]
+    MINE --> SET["small labeled eval set (50–200, multiple types)"]
+    SYN --> SET
+    SET --> MET["Recall@k · Precision@k · MRR · NDCG"]
+    SYN -.->|"rsi generator: stub/bytecode"| X["no runnable core generator (PerStream example only)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — gates are only `lint`/`type-check`<br>&bull; `agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:147` — `CIGateRunner`<br>&bull; `agent-core/pyproject.toml:236` — `level0`/`level1` markers ("PR gate must stay green")<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217` — best-score gate<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:314` — stops when passed</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134` — "never generates a dataset"<br>&bull; `agent-core/examples/PerStream/scripts/generate_dataset.sh:31` — LLM-driven QA/memory generation (example)<br>&bull; `agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc` — `NotImplementedError` stubs (no source)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — metric interface lacks ranked-list eval</sub>
 
-<sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
+<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 14. How would you monitor this system in production to catch a quality drop before users complain
+## 11. How would you compare two models for a specific task, not just a general leaderboard score
 
-**General:** Monitor both operations (latency, error rate, saturation, cost) and **quality** (retrieval hit rate, faithfulness, answer relevance, refusal rate), sampled from live traffic and scored offline or by a judge; alert on metric regressions and slice by query type/tenant. Keep a golden set and replay it; capture user feedback. Distinguish error monitoring from quality monitoring — they catch different failures.
+**General:** Run both models on the same held-out task set with the same prompts/decoding, score with task-appropriate metrics (exact match, tests, rubric judge), and compare accuracy plus latency and cost; check statistical significance and inspect failure cases. A leaderboard is a prior, not a decision — task fit, cost, latency, and controllability often matter more than a few points of general score.
 
-**Jiuwen:** Production observability is span/trajectory-based: OTel spans with error status (`has_error`), per-session lossless trajectory store, usage/cost facts, and streaming frames. That is error/latency/trajectory monitoring. There are **no quality metrics, drift detection, or quality alerts**, and no OTel metric instruments; offline evaluation exists in RSI/`agent_evolving` but is not an online quality monitor.
+**Jiuwen:** Model selection here is infrastructure routing, not benchmark comparison. `agent_teams/models/pool.py` defines `ModelRouterConfig` (one endpoint, many model names) and `IntelliRouterConfig` (many deployments behind a reliable client router), with allocator strategies chosen by `build_model_allocator`. IntelliRouter routes by adaptive multi-factor scoring (health, tokens, RPM, latency) and fails over — it does **not** choose by task accuracy. For comparing configs/attempts there is real per-task evaluation: `Trainer` evaluates each candidate on a validation set and keeps the highest score; `rsi best_of_n` ranks attempts by tests/diff/lint; the online judge uses `num_votes` voting. Comparing two models for a task therefore means running your own eval, not a leaderboard feature.
 
 ```mermaid
 flowchart TD
-    P["production"] --> SP["OTel spans: error/latency/trajectory (present)"]
-    P --> CO["usage/cost facts · stream frames (present)"]
-    P -.->|"absent"| Q["quality metrics (faithfulness/relevance/recall) · drift · alerts"]
-    P --> OFF["offline RSI/agent_evolving eval (not online)"]
+    CMP{"compare two models"} --> ROUTE["IntelliRouter (availability/cost/latency — NOT accuracy)"]
+    CMP --> EVAL["run both on same held-out task set"]
+    EVAL --> TR["Trainer: per-candidate validation score → keep best"]
+    EVAL --> BON["best_of_n: tests / diff / lint"]
+    EVAL --> JUDGE["judge: num_votes voting"]
+    TR --> DEC(["task-specific decision"])
+    BON --> DEC
+    JUDGE --> DEC
+    ROUTE -.->|"absent"| X["no leaderboard / A-B model-accuracy harness"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/observability/run_span.py:289` — error status recorded; `agent-core/openjiuwen/harness/observability/setup.py:54` — OTel lifecycle<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:102` — `has_error`; `:137` `trajectory_current_records`<br>&bull; `jiuwenswarm/jiuwenswarm/observability/models.py:375` — `CommittedTraceUpdate`/usage watermarks<br>&bull; `agent-core/openjiuwen/extensions/observability/span_record_processor.py:106` — span record handling</sub>
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:133-235` — `ModelRouterConfig`; `:314-392` — `IntelliRouterConfig` / deployments<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559` — allocator strategies + `build_model_allocator`<br>&bull; `agent-core/examples/intelli_router/intelliRouter_demo.py:142-160` — adaptive routing weights; `:249-264` route within a pinned model pool<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272` — per-candidate validation scoring, commits best<br>&bull; `agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119` — rank by tests/lint/diff<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38/58` — `num_votes` judge voting</sub>
 
----
+**Gap.** No leaderboard, no A/B model-comparison harness, no per-task model-accuracy registry. Routing optimizes availability/cost/latency, not task quality.
 
-# Security and access control
+<sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: ai-agent, rag-system._</sub>
-
-## 15. Known limitations of using an LLM as a judge
+## 12. Known limitations of using an LLM as a judge
 
 **General:** LLM judges are biased (position/order, verbosity, self-preference), noisy, non-deterministic, and can be gamed or prompt-injected. They need position-swapping, multiple votes, agreement reporting, human calibration on a golden set, and must distinguish "judge failed" from "answer wrong". A single unvalidated judge score is a weak signal.
 
@@ -328,7 +264,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, rag-eval._</sub>
 
-## 16. Measuring hallucination rate: claim extraction from the output, then verification against retrieved context
+## 13. Measuring hallucination rate: claim extraction from the output, then verification against retrieved context
 
 **General:** Extract atomic claims from the answer, then verify each against the retrieved context (LLM-judge or NLI). Hallucination rate = unsupported claims / total claims (or fraction of answers with any unsupported claim). This is stricter than "is the answer correct": it catches answers that are plausible but not grounded, and it requires passing the retrieved context to the checker.
 
@@ -348,7 +284,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 17. MRR, and when it matters more than Recall@k
+## 14. MRR, and when it matters more than Recall@k
 
 **General:** MRR is the mean of `1/rank` of the first relevant result. It matters when the user/system mostly needs the single best hit and the position of the first correct answer is what counts (FAQ lookup, "open the right doc", navigation). Recall@k matters when a set of results is consumed together (context stuffing). MRR ignores everything after the first relevant hit, so it is blind to recall.
 
@@ -366,7 +302,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-retrieval._</sub>
 
-## 18. NDCG: weights relevant results by position against an ideal ranking — why position matters beyond "was it retrieved"
+## 15. NDCG: weights relevant results by position against an ideal ranking — why position matters beyond "was it retrieved"
 
 **General:** NDCG discounts each relevant result by `log2(rank+1)` and normalizes by the ideal (best-possible) ordering, so it rewards putting the most relevant documents at the top and supports graded relevance (not just binary). It matters when ranking quality — not just presence — drives the user experience, and is the standard metric for reranker comparisons. Recall@k treats all positions within k equally; NDCG does not.
 
@@ -385,7 +321,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 19. Precision@k = relevant docs in top k / k — how it differs from Recall@k, and why both can be low even when the pipeline "looks" fine
+## 16. Precision@k = relevant docs in top k / k — how it differs from Recall@k, and why both can be low even when the pipeline "looks" fine
 
 **General:** Precision@k is the fraction of the top-k that are relevant; recall@k is the fraction of all relevant docs that were retrieved. They trade off: raising k raises recall but usually lowers precision. Both can be low if the embedding/chunking is wrong (nothing relevant ranked) or if the corpus lacks the answer. "Looks fine" is exactly why you need numbers — a plausible top-3 can still be mostly irrelevant.
 
@@ -403,7 +339,7 @@ flowchart LR
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-1, rag-retrieval._</sub>
 
-## 20. Recall@k, and what a low score tells you about your retrieval setup
+## 17. Recall@k, and what a low score tells you about your retrieval setup
 
 **General:** Recall@k is the fraction of queries whose relevant document appears in the top-k. A low score means retrieval (not generation) is the failure: relevant content is missing from the candidate set, so no reranker or prompt can recover it. Diagnose by checking chunking (answer split/lost), embedding fit, whether the query and index use the same model, and whether exact-match terms need a sparse leg.
 
@@ -425,7 +361,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-retrieval._</sub>
 
-## 21. Tying an eval metric back to a business outcome a stakeholder actually cares about
+## 18. Tying an eval metric back to a business outcome a stakeholder actually cares about
 
 **General:** Translate model quality into the business proxy it moves: task success rate, deflection/containment, time-to-resolution, conversion, retention, or cost-per-resolution. Build a labeled bridge — correlate your offline metric with the business KPI on a sample — and report both. A metric no stakeholder can act on will not survive budget season; pick one that maps to money or time saved.
 
@@ -442,7 +378,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
-## 22. What is perplexity, and what does a lower score actually tell you
+## 19. What is perplexity, and what does a lower score actually tell you
 
 **General:** Perplexity is the exponentiated average negative log-likelihood the model assigns to a token sequence: `exp(-(1/N)·Σ log p(token_i))`. Lower means the model finds the text more predictable — useful for comparing language models on the same data or detecting distribution shift/overfitting. It does not measure factuality, reasoning, instruction-following, or usefulness, and it is only comparable across models that share a tokenizer and data.
 
@@ -464,7 +400,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
-## 23. Why evaluate retrieval and generation as two separate stages instead of one end-to-end score
+## 20. Why evaluate retrieval and generation as two separate stages instead of one end-to-end score
 
 **General:** An end-to-end score tells you "the answer was wrong" but not why. If retrieval missed the document, no generator can fix it; if the document was retrieved but the answer is wrong, the generator (or grounding) is at fault. Stage-level metrics — Recall@k / precision@k / NDCG for retrieval, faithfulness / correctness for generation — let you attribute the failure and fix the right component. End-to-end stays as the final acceptance check.
 
@@ -481,5 +417,25 @@ flowchart TD
 ```
 
 <sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — `Metric.compute(prediction, label)`, no ranked-list/k signature<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11` — exports only `Metric`, `ExactMatchMetric`, `LLMAsJudgeMetric`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47` — judge gets question/expected/answer, not retrieved context<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:314` — end-to-end `pass_rate`<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193` — end-to-end weighted score</sub>
+
+<sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
+
+## 21. Why exact-match scoring fails when a correct answer can be phrased multiple valid ways
+
+**General:** Exact match requires the output string to equal the reference, so "Paris" vs "The capital is Paris" both fail even when correct. It is brittle to wording, formatting, articles, and ordering. Use it only for tasks with a canonical form (classification labels, IDs, single tokens); otherwise use semantic/normalized metrics (LLM judge, embedding similarity, or task-specific parsers).
+
+**Jiuwen:** Two exact-match implementations exist. `ExactMatchMetric` normalizes lowercase/strip/whitespace but still requires full-string equality; RSI's `ExactMatchJudger` is strict `==` with no normalization. The LLM judges cover paraphrase — the `LLMAsJudgeMetric` prompt judges semantic consistency, and PerStream's GPT judge explicitly accepts synonyms/paraphrases — but they are non-deterministic and uncalibrated, and there is no deterministic paraphrase-robust metric (e.g. normalized/embedding similarity).
+
+```mermaid
+flowchart TD
+    ANS["answer"] --> EM{"exact match?"}
+    EM -->|"normalized == (ExactMatchMetric)"| OK["pass only on identical form"]
+    EM -->|"strict == (RSI)"| OK
+    ANS --> LLM["LLM semantic judge (accepts paraphrase)"]
+    LLM --> N["non-deterministic, uncalibrated"]
+    ANS -.->|"absent"| X["deterministic paraphrase-robust metric"]
+```
+
+<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:36` — normalized equality; `:40` `_normalize` (lower/strip/collapse)<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/exact_match.py:50` — strict `== expected`; `:30` rejects rubric/files<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:4` — semantic consistency judge<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:520` — exact-match shortcut then LLM fallback<br>&bull; `agent-core/examples/PerStream/src/eval/score_passive_judge.py:57` — "Consider synonyms or paraphrases as valid matches"</sub>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>

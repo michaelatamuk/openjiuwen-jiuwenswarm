@@ -10,7 +10,7 @@ interview_questions/
   01-llm-foundations.md         }
   02-prompting-and-output-control.md
   03-fine-tuning-and-customization.md
-  04-rag-and-retrieval.md       }  190 unique questions,
+  04-rag-and-retrieval.md       }  166 unique questions,
   05-rag-system-design.md       }  one place each
   06-agents-tools-and-memory.md
   07-evaluation.md
@@ -30,16 +30,16 @@ The numbered `01`–`10` files were assembled from the archived docs: near-ident
 
 | File | Questions | Focus |
 |---|---|---|
-| [01-llm-foundations.md](01-llm-foundations.md) | 15 | Tokens, embeddings, self-attention, encoder/decoder, positional encoding, sampling, context window |
-| [02-prompting-and-output-control.md](02-prompting-and-output-control.md) | 8 | Zero/few-shot/CoT, system vs user prompts, JSON output |
-| [03-fine-tuning-and-customization.md](03-fine-tuning-and-customization.md) | 7 | Full FT vs LoRA, instruction tuning, when to fine-tune, small-dataset risk |
-| [04-rag-and-retrieval.md](04-rag-and-retrieval.md) | 54 | Chunking, embeddings, dense/sparse, reranking, query understanding, RAG failure modes |
-| [05-rag-system-design.md](05-rag-system-design.md) | 16 | Whiteboard design prompts, scale, freshness, multi-tenancy, access control |
-| [06-agents-tools-and-memory.md](06-agents-tools-and-memory.md) | 44 | Function calling, loops, frameworks, state, planning, memory, multi-agent |
-| [07-evaluation.md](07-evaluation.md) | 23 | Retrieval metrics, faithfulness, LLM-as-judge, regression suites, production eval |
-| [08-production-cost-and-scale.md](08-production-cost-and-scale.md) | 6 | Cost, latency, caching, concurrency, 10x scaling |
+| [01-llm-foundations.md](01-llm-foundations.md) | 14 | Tokens, embeddings, self-attention, encoder/decoder, positional encoding, sampling, context window |
+| [02-prompting-and-output-control.md](02-prompting-and-output-control.md) | 5 | Zero/few-shot/CoT, system vs user prompts, JSON output |
+| [03-fine-tuning-and-customization.md](03-fine-tuning-and-customization.md) | 6 | Full FT vs LoRA, instruction tuning, when to fine-tune, small-dataset risk |
+| [04-rag-and-retrieval.md](04-rag-and-retrieval.md) | 41 | Chunking, embeddings, dense/sparse, reranking, query understanding, RAG failure modes |
+| [05-rag-system-design.md](05-rag-system-design.md) | 13 | Whiteboard design prompts, scale, freshness, multi-tenancy, access control |
+| [06-agents-tools-and-memory.md](06-agents-tools-and-memory.md) | 45 | Function calling, loops, frameworks, state, planning, memory, multi-agent |
+| [07-evaluation.md](07-evaluation.md) | 21 | Retrieval metrics, faithfulness, LLM-as-judge, regression suites, production eval |
+| [08-production-cost-and-scale.md](08-production-cost-and-scale.md) | 8 | Cost, latency, caching, concurrency, 10x scaling |
 | [09-security-and-safety.md](09-security-and-safety.md) | 8 | Prompt injection, untrusted content, sensitive data, harmful output, jailbreaks |
-| [10-general-engineering.md](10-general-engineering.md) | 9 | Retries, error isolation, model choice, stakeholder judgment, rule-based vs LLM |
+| [10-general-engineering.md](10-general-engineering.md) | 5 | Model selection, framework/team fit, rule-based vs LLM, release safety, stakeholder tradeoffs |
 
 ## Reference docs
 
