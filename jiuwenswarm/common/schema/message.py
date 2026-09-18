@@ -91,6 +91,8 @@ class ReqMethod(Enum):
     CONFIG_CACHE_CLEAR = "config.cache_clear"
     AGENT_RELOAD_CONFIG = "agent.reload_config"
     AGENT_PREWARM_SYNC = "agent.prewarm.sync"
+    # Gateway → AgentServer：登录模型凭据续期后的新 token / 会话注销后的撤销
+    AUTH_CREDENTIALS_UPDATE = "auth.credentials.update"
 
     MEMORY_COMPUTE = "memory.compute"
     # TUI memory management (Phase 3: execute in the target AgentServer's
@@ -117,11 +119,11 @@ class ReqMethod(Enum):
     SESSION_ARCHIVE = "session.archive"
     SESSION_UNARCHIVE = "session.unarchive"
     SESSION_ARCHIVED_LIST = "session.archived.list"
-    PROJECT_ARCHIVED_LIST = "project.archived.list"
+    CRON_SESSIONS_DELETE = "cron.sessions.delete"
     PROJECT_DELETE = "project.delete"
     PROJECT_LIFECYCLE = "project.lifecycle"
-    PROJECT_ARCHIVE = "project.archive"
-    PROJECT_UNARCHIVE = "project.unarchive"
+    PROJECT_SESSIONS_ARCHIVE = "project.sessions.archive"
+    PROJECT_SESSIONS_DELETE_ARCHIVED = "project.sessions.delete_archived"
     PROJECT_GIT_STATUS = "project.git.status"
     PROJECT_GIT_PROBE = "project.git.probe"
     PROJECT_GIT_INIT = "project.git.init"
@@ -182,6 +184,14 @@ class ReqMethod(Enum):
     AGENT_SWITCH = "3rdagent.switch"
     AGENT_LIST = "3rdagent.list"
 
+    # Unified asset publishing; dispatched by AgentServer independently of chats.
+    ASSETS_PUBLISH_DESCRIBE = "assets.publish.describe"
+    ASSETS_PUBLISH_PREPARE = "assets.publish.prepare"
+    ASSETS_PUBLISH_COMMIT = "assets.publish.commit"
+    ASSETS_PUBLISH_STATUS = "assets.publish.status"
+    ASSETS_PUBLISH_RECORDS = "assets.publish.records"
+    ASSETS_PUBLISH_LOCAL_STATUS = "assets.publish.local_status"
+
     # mcp management.
     MCP_LIST = "mcp.list"
     MCP_SHOW = "mcp.show"
@@ -210,6 +220,7 @@ class ReqMethod(Enum):
     SKILLS_VISIBILITY_SET = "skills.visibility.set"
     SKILLS_VISIBILITY_UPDATE = "skills.visibility.update"
     SKILLS_INSTALL = "skills.install"
+    SKILLS_PACK_MEMBER_INSTALL = "skills.pack_member.install"
     SKILLS_IMPORT_LOCAL = "skills.import_local"
     SKILLS_IMPORT_UPLOAD = "skills.import_upload"
     SKILLS_CREATE_FROM_KNOWLEDGE = "skills.create_from_knowledge"
@@ -252,6 +263,8 @@ class ReqMethod(Enum):
     SKILLS_GRAPH_STATUS = "skills.graph.status"
     SKILLS_GRAPH_GET = "skills.graph.get"
     SKILLS_GRAPH_CANCEL = "skills.graph.cancel"
+    SKILLS_EXPERIENCE_LIST = "skills.experience.list"
+    SKILLS_EXPERIENCE_REQUEST = "skills.experience.request"
 
     PERSONAL_CONTEXT_RUNTIME_STATUS = "personal_context.runtime.status"
     PERSONAL_CONTEXT_RUNTIME_START_COLLECTION = (
@@ -316,6 +329,8 @@ class ReqMethod(Enum):
     AGENT_TEMPLATES_FILE_LIST = "agent_templates.file.list"
     AGENT_TEMPLATES_FILE_READ = "agent_templates.file.read"
     AGENT_TEMPLATES_CREATE = "agent_templates.create"
+    AGENT_TEMPLATES_UPDATE = "agent_templates.update"
+    AGENT_TEMPLATES_DELETE = "agent_templates.delete"
     AGENT_TEMPLATES_IMPORT_LOCAL = "agent_templates.import_local"
     AGENT_TEMPLATES_INSTALL = "agent_templates.install"
     AGENT_TEMPLATES_UNINSTALL = "agent_templates.uninstall"
@@ -435,8 +450,6 @@ class EventType(Enum):
     SESSION_ARCHIVED = "session.archived"
     SESSION_UNARCHIVED = "session.unarchived"
     SESSION_DELETED = "session.deleted"
-    PROJECT_ARCHIVED = "project.archived"
-    PROJECT_UNARCHIVED = "project.unarchived"
     PROJECT_DELETED = "project.deleted"
     SESSION_LIFECYCLE_UPDATED = "session.lifecycle.updated"
     PROJECT_LIFECYCLE_UPDATED = "project.lifecycle.updated"
@@ -454,6 +467,7 @@ class EventType(Enum):
     CHAT_TOOL_UPDATE = "chat.tool_update"
     CHAT_TOOL_RESULT = "chat.tool_result"
     CHAT_SYMPHONY_STATUS = "chat.symphony_status"
+    CHAT_MESSAGE_UPDATED = "chat.message_updated"
     CONTEXT_USAGE = "context.usage"
     TODO_UPDATED = "todo.updated"
     CHAT_PROCESSING_STATUS = "chat.processing_status"

@@ -6,11 +6,44 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from jiuwenswarm.gateway.cron.controller import CronController
 from jiuwenswarm.server.runtime.session.project_store import CronProjectBinding
+
+
+@pytest.mark.asyncio
+async def test_delete_job_stops_runs_and_removes_sessions_before_job() -> None:
+    calls = []
+    job = SimpleNamespace(id="job_a", enabled=True, mode="code", user_id="alice")
+
+    async def update_job(job_id, patch):
+        calls.append("disable")
+
+    async def reload():
+        calls.append("reload")
+
+    async def stop_job_runs(job_id):
+        calls.append("stop")
+
+    async def delete_sessions(job_id, user_id):
+        calls.append("sessions")
+
+    async def delete_job(job_id, *, force=False):
+        calls.append("job")
+        return True
+
+    store = SimpleNamespace(
+        get_job=AsyncMock(return_value=job), update_job=update_job, delete_job=delete_job
+    )
+    scheduler = SimpleNamespace(
+        reload=reload, stop_job_runs=stop_job_runs, delete_cron_sessions=delete_sessions
+    )
+    controller = CronController(store=store, scheduler=scheduler)
+    assert await controller.delete_job("job_a")
+    assert calls == ["disable", "reload", "stop", "sessions", "job", "reload"]
 
 
 class _RecordingStore:
@@ -64,7 +97,6 @@ async def test_create_job_tolerates_user_side_project_id(monkeypatch) -> None:
             work_mode="work",
             error=f"project not found: {project_id!r}",
             code="NOT_FOUND",
-            hidden=False,
         ),
     )
     cc = _make_controller()
@@ -91,20 +123,19 @@ async def test_create_job_tolerates_user_side_project_id(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_job_still_rejects_hidden_project(monkeypatch) -> None:
-    """命中隐藏项目（本地项目表存在但 hidden）仍拒绝，不落入容忍分支。"""
+async def test_create_job_rejects_missing_project(monkeypatch) -> None:
+    """不存在的项目仍拒绝新增 cron 绑定。"""
     monkeypatch.setattr(
         "jiuwenswarm.server.runtime.session.project_store.resolve_cron_project_binding",
         lambda project_id, project_dir, work_mode: CronProjectBinding(
             project_id="",
             work_mode="work",
-            error=f"project is hidden: {project_id!r}",
+            error=f"project not found: {project_id!r}",
             code="NOT_FOUND",
-            hidden=True,
         ),
     )
     cc = _make_controller()
-    with pytest.raises(ValueError, match="project is hidden"):
+    with pytest.raises(ValueError, match="project not found"):
         await cc.create_job(
             {
                 "name": "daily",
@@ -127,7 +158,6 @@ async def test_create_job_rejects_unresolved_project_in_single_user(monkeypatch)
             work_mode="work",
             error=f"project not found: {project_id!r}",
             code="NOT_FOUND",
-            hidden=False,
         ),
     )
     with pytest.raises(ValueError, match="project not found"):
@@ -179,7 +209,6 @@ async def test_create_job_normalizes_and_passes_mcp_to_store(monkeypatch) -> Non
             work_mode="work",
             error=None,
             code="",
-            hidden=False,
         ),
     )
     cc = _make_controller()
@@ -208,7 +237,6 @@ async def test_create_job_without_mcp_passes_none(monkeypatch) -> None:
             work_mode="work",
             error=None,
             code="",
-            hidden=False,
         ),
     )
     cc = _make_controller()

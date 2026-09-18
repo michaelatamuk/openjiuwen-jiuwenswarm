@@ -6,7 +6,7 @@ import { webRequest } from '../../services/webClient';
 import { getSkillAvatar } from '../../utils/skillAvatar';
 import { useAdaptiveTooltip } from '../../hooks/useAdaptiveTooltip';
 import { PickerPanel } from './PickerPanel';
-import SearchIcon from '../../assets/agent-management/agent-search.svg?react';
+import { PickerSearchInput } from './PickerSearchInput';
 
 /** 输入栏下拉所需的最小技能数据结构（与 SkillPanel 中的 SkillItem 保持一致） */
 type SkillItem = {
@@ -48,6 +48,8 @@ interface SkillPickerPanelProps {
   panelRef: RefObject<HTMLDivElement>;
   /** 单 agent → skill_type==='skill'；集群 → skill_type==='swarm_skill' */
   isTeamMode: boolean;
+  /** An existing/pending AgentGroup owns the Team skill set for this session. */
+  selectionLocked?: boolean;
   /** 一级"+"菜单展开方向：up 时面板与触发项底边齐平向上生长（见 PickerPanel direction） */
   direction?: 'up' | 'down';
   onNavigateToSkills?: () => void;
@@ -64,6 +66,7 @@ export function SkillPickerPanel({
   onClose,
   panelRef,
   isTeamMode,
+  selectionLocked = false,
   direction,
   onNavigateToSkills,
   onInsertSkill,
@@ -162,6 +165,7 @@ export function SkillPickerPanel({
 
   const handleToggleSkill = useCallback(
     (skillName: string) => {
+      if (selectionLocked) return;
       const sid = useChatStore.getState().activeSessionId;
       if (!sid) return;
       const store = useSessionStore.getState();
@@ -173,7 +177,7 @@ export function SkillPickerPanel({
         onInsertSkill?.(skillName);
       }
     },
-    [selectedSkills, onInsertSkill, onRemoveSkill],
+    [selectedSkills, onInsertSkill, onRemoveSkill, selectionLocked],
   );
 
   return (
@@ -186,21 +190,21 @@ export function SkillPickerPanel({
       rowHeight={LIST_ROW_HEIGHT}
       itemCount={filteredSkills.length}
       search={
-        <div className="chat-picker-panel__search" data-testid="chat-panel-skill-select-search">
-          <div className="chat-picker-panel__search-inner">
-            <SearchIcon aria-hidden="true" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('chat.skillsSearchPlaceholder')}
-              data-testid="chat-panel-skill-select-search-input"
-            />
-          </div>
-        </div>
+        <PickerSearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t('chat.skillsSearchPlaceholder')}
+          inputTestId="chat-panel-skill-select-search-input"
+          wrapperTestId="chat-panel-skill-select-search"
+        />
       }
       footer={{ label: t('chat.skillsManage'), onClick: handleOpenSkillsPage }}
     >
+      {selectionLocked && (
+        <div className="chat-skill-select__lock-note" role="status" data-testid="chat-panel-skill-select-locked">
+          {t('chat.agentGroupSkillsLocked')}
+        </div>
+      )}
       {loading && (
         <div className="chat-skill-select__state" data-testid="chat-panel-skill-select-state" data-variant="loading">{t('skills.detailLoading')}</div>
       )}
@@ -221,6 +225,8 @@ export function SkillPickerPanel({
             type="button"
             key={skill.name}
             onClick={() => handleToggleSkill(skill.name)}
+            disabled={selectionLocked}
+            aria-disabled={selectionLocked}
             className={clsx(
               'chat-skill-select__item',
               isSelected && 'chat-skill-select__item--selected',

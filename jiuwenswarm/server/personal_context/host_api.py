@@ -12,6 +12,7 @@ import contextlib
 from copy import deepcopy
 import os
 from pathlib import Path
+import logging
 import stat
 import tempfile
 from collections.abc import Awaitable, Callable
@@ -23,6 +24,8 @@ import yaml
 from openjiuwen.harness.personal_context import PersonalContext
 
 from jiuwenswarm.common.config import get_config, get_default_models
+
+_LOGGER = logging.getLogger(__name__)
 
 
 _CONFIG_FILENAME = "personal_context.yaml"
@@ -672,6 +675,7 @@ class PersonalContextHostAPI:
         payload: bytes,
         *,
         known_previous_active: bool | None = None,
+        known_status: object | None = None,
     ) -> None:
         """Apply one validated complete configuration while the Host lock is held."""
 
@@ -682,13 +686,23 @@ class PersonalContextHostAPI:
         )
 
         previous_active = False
+        has_active_fetch = False
         if previous is not None:
-            if known_previous_active is not None:
+            if known_status is not None:
+                previous_active = _is_runtime_active(known_status)
+                has_active_fetch = any(
+                    s in {"RUNNING", "STOPPING"}
+                    for s in getattr(known_status, "fetch_service_states", {}).values()
+                )
+            elif known_previous_active is not None:
                 previous_active = known_previous_active
             else:
                 try:
-                    previous_active = _is_runtime_active(
-                        await self._personal_context.snapshot()
+                    status = await self._personal_context.snapshot()
+                    previous_active = _is_runtime_active(status)
+                    has_active_fetch = any(
+                        s in {"RUNNING", "STOPPING"}
+                        for s in getattr(status, "fetch_service_states", {}).values()
                     )
                 except asyncio.CancelledError:
                     raise
@@ -703,6 +717,18 @@ class PersonalContextHostAPI:
             return
 
         temporary: Path | None = _stage_yaml(self._config_path, payload)
+
+        # A running fetch round must not be silently cancelled by a config
+        # update: reject the change so the caller can surface a clear
+        # "task is running, please try later" message to the user.
+        if previous_active and has_active_fetch:
+            if temporary is not None:
+                with contextlib.suppress(OSError):
+                    temporary.unlink()
+            _raise_host_error(
+                "A fetch task is running",
+                status_name="CONTEXT_PROACTIVE_STATE_INVALID",
+            )
         disabling = (
             previous is not None
             and previous.collection_enabled
@@ -1155,7 +1181,7 @@ class PersonalContextHostAPI:
                     candidate,
                     stored,
                     _serialize_config(stored),
-                    known_previous_active=_is_runtime_active(status),
+                    known_status=status,
                 )
             except BaseException as exc:
                 restore_error: BaseException | None = None
@@ -1429,9 +1455,13 @@ class PersonalContextHostAPI:
         self,
         provider: str,
         credentials: dict[str, object] | None = None,
+        *,
+        reauthorize: bool = False,
     ) -> dict[str, object]:
         """Check or begin user authorization for a configured provider."""
 
+        if not isinstance(reauthorize, bool):
+            _raise_host_error("reauthorize must be a boolean")
         async with self._operation_lock:
             if not isinstance(provider, str) or not provider.strip():
                 _raise_host_error("provider must be a non-empty string")
@@ -1462,10 +1492,48 @@ class PersonalContextHostAPI:
                 )
                 provider_credentials[normalized_provider] = {field: normalized_secret}
                 stored["provider_credentials"] = provider_credentials
+                matching_service_ids: set[str] = set()
+                if reauthorize:
+                    services = cast(list[dict[str, object]], stored["fetch_services"])
+                    for service in services:
+                        if service.get("provider") == normalized_provider:
+                            service["credentials"] = {field: normalized_secret}
+                            service_id = service.get("service_id")
+                            if isinstance(service_id, str):
+                                matching_service_ids.add(service_id)
                 stored, candidate = _prepare_stored_config(stored)
                 payload = _serialize_config(stored)
                 if self._stored_config is None:
                     await self._apply_configuration_locked(candidate, stored, payload)
+                elif reauthorize and matching_service_ids:
+                    current = self._config
+                    if current is None:
+                        _raise_host_error("PersonalContext is not configured")
+                    previous_services = tuple(
+                        item
+                        for item in current.fetch_services
+                        if item.service_id in matching_service_ids
+                    )
+                    candidate_services = tuple(
+                        item
+                        for item in candidate.fetch_services
+                        if item.service_id in matching_service_ids
+                    )
+                    await self._apply_live_update_locked(
+                        candidate,
+                        stored,
+                        payload,
+                        apply=lambda: (
+                            self._personal_context._replace_fetch_service_credentials(  # pylint: disable=protected-access
+                                candidate_services
+                            )
+                        ),
+                        rollback=lambda: (
+                            self._personal_context._replace_fetch_service_credentials(  # pylint: disable=protected-access
+                                previous_services
+                            )
+                        ),
+                    )
                 else:
                     try:
                         _publish_yaml(self._config_path, payload)
@@ -1491,7 +1559,8 @@ class PersonalContextHostAPI:
                 )
             try:
                 return await self._personal_context.authorize_provider(
-                    normalized_provider
+                    normalized_provider,
+                    reauthorize=reauthorize,
                 )
             except asyncio.CancelledError:
                 raise
@@ -1578,7 +1647,11 @@ class PersonalContextHostAPI:
             timeout_seconds=_STOP_TIMEOUT_SECONDS
         )
         if previous is None:
+            previous_instance = self._personal_context
             self._personal_context = PersonalContext(home=self._home)
+            discard = getattr(previous_instance, "shutdown", None)
+            if callable(discard):
+                discard()
             self._config = None
             self._stored_config = None
             return

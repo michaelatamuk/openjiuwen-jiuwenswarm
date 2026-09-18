@@ -24,7 +24,7 @@ from jiuwenswarm.gateway.cron.models import (
     validate_cron_model,
 )
 from jiuwenswarm.gateway.cron.scheduler import CronSchedulerService, _cron_next_push_dt
-from jiuwenswarm.gateway.cron.store import CronJobStore
+from jiuwenswarm.gateway.cron.store_base import CronJobStoreBackend
 
 
 def _serialize_mutation(method):
@@ -43,7 +43,7 @@ class CronController:
 
     _instance: ClassVar[CronController | None] = None
 
-    def __init__(self, *, store: CronJobStore, scheduler: CronSchedulerService) -> None:
+    def __init__(self, *, store: CronJobStoreBackend, scheduler: CronSchedulerService) -> None:
         self._store = store
         self._scheduler = scheduler
         if not hasattr(scheduler, "_lifecycle_mutation_lock"):
@@ -68,7 +68,7 @@ class CronController:
     def get_instance(
         cls,
         *,
-        store: CronJobStore | None = None,
+        store: CronJobStoreBackend | None = None,
         scheduler: CronSchedulerService | None = None,
     ) -> CronController:
         """Return the singleton instance.
@@ -169,8 +169,8 @@ class CronController:
         ]
 
     @_serialize_mutation
-    async def stop_project_jobs(
-        self, project_id: str, *, user_id=None, delete=False, checkpoint=None, plan=None
+    async def delete_project_jobs(
+        self, project_id: str, *, user_id=None, checkpoint=None, plan=None
     ) -> dict:
         jobs = []
         for job in await self._store.list_jobs():
@@ -178,22 +178,18 @@ class CronController:
                 jobs.append(job)
         if plan:
             await plan([job.id for job in jobs])
-        stopped = 0
         for job in jobs:
             if job.enabled:
                 await self._store.update_job(job.id, {"enabled": False})
-                stopped += 1
         await self._scheduler.reload()
-        if delete:
-            await self._scheduler.stop_project_runs(project_id, user_id)
+        await self._scheduler.stop_project_runs(project_id, user_id)
         for job in jobs:
-            if delete:
-                # Preserve store protection rules; no blanket force deletion.
-                await self.delete_job(job.id)
+            # Project finish deletes its sessions after cron jobs are removed.
+            await self._store.delete_job(job.id)
             if checkpoint:
                 await checkpoint(job.id)
         await self._scheduler.reload()
-        return {"stopped_cron_jobs": stopped}
+        return {"deleted_cron_jobs": len(jobs)}
 
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
         job = await self._store.get_job(job_id)
@@ -296,7 +292,7 @@ class CronController:
         if not await self._scheduler.project_execution_allowed(
             resolved_project_id, user_id
         ):
-            raise ValueError("PROJECT_ARCHIVED: project execution is blocked")
+            raise ValueError("OPERATION_IN_PROGRESS: project execution is blocked")
         job = await self._store.create_job(
             job_id=str(params.get("id") or "").strip() or None,
             name=name,
@@ -397,12 +393,25 @@ class CronController:
             if not await self._scheduler.project_execution_allowed(
                 patch.get("project_id", existing.project_id), existing.user_id
             ):
-                raise ValueError("PROJECT_ARCHIVED: project execution is blocked")
+                raise ValueError("OPERATION_IN_PROGRESS: project execution is blocked")
         job = await self._store.update_job(job_id, patch)
         await self._scheduler.reload()
         return job.to_dict()
 
-    async def delete_job(self, job_id: str, *, force: bool = False) -> bool:
+    async def delete_job(
+        self, job_id: str, *, force: bool = False, delete_sessions: bool = True
+    ) -> bool:
+        existing = await self._store.get_job(job_id)
+        if existing is None:
+            return False
+        if not force and str(getattr(existing, "mode", "") or "").strip().lower() == "proactive.tick":
+            return await self._store.delete_job(job_id)
+        if delete_sessions:
+            if existing.enabled:
+                await self._store.update_job(job_id, {"enabled": False})
+                await self._scheduler.reload()
+            await self._scheduler.stop_job_runs(job_id)
+            await self._scheduler.delete_cron_sessions(job_id, existing.user_id)
         deleted = await self._store.delete_job(job_id, force=force)
         if deleted:
             await self._scheduler.reload()
@@ -416,7 +425,7 @@ class CronController:
         if enabled and not await self._scheduler.project_execution_allowed(
             existing.project_id, existing.user_id
         ):
-            raise ValueError("PROJECT_ARCHIVED: project execution is blocked")
+            raise ValueError("OPERATION_IN_PROGRESS: project execution is blocked")
         job = await self._store.update_job(job_id, {"enabled": bool(enabled)})
         await self._scheduler.reload()
         return job.to_dict()
