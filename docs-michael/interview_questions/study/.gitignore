@@ -17,4 +17,11 @@ android-app/.gradle/
 android-app/local.properties
 android-app/app/src/main/assets/wiki/
 
+android-app-2026/build/
+android-app-2026/app/build/
+android-app-2026/.gradle/
+android-app-2026/local.properties
+android-app-2026/app/src/main/assets/content.json
+android-app-2026/app/src/main/assets/diagrams/
+
 node_modules/
