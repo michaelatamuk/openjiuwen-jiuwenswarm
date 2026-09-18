@@ -9,18 +9,18 @@ interview_questions/
   README.md                     this guide
   01-llm-foundations.md         }
   02-prompting-and-output-control.md
-  03-fine-tuning-and-customization.md
-  04-rag-and-retrieval.md       }  166 unique questions,
-  05-rag-system-design.md       }  one place each
-  06-agents-tools-and-memory.md
-  07-evaluation.md
-  08-production-cost-and-scale.md
-  09-security-and-safety.md
+  03-rag-and-retrieval.md       }  166 unique questions,
+  04-rag-system-design.md       }  in study order
+  05-agents-tools-and-memory.md
+  06-evaluation.md
+  07-production-cost-and-scale.md
+  08-security-and-safety.md
+  09-fine-tuning-and-customization.md
   10-general-engineering.md
-  90-ai-engineer-interview-patterns.md     }
-  91-llm-interview-patterns.md             }  reference docs
-  92-llm-architecture-patterns.md          }
-  93-llm-terms-glossary.md                 }
+  90-llm-terms-glossary.md                 }
+  91-ai-engineer-interview-patterns.md     }  reference docs
+  92-llm-interview-patterns.md             }
+  93-llm-architecture-patterns.md          }
   orig/                         the original docs, archived unchanged
 ```
 
@@ -38,27 +38,29 @@ Rebuild instructions are in `study/README.md`.
 
 ## Read in this order
 
+The numbered files are in recommended study order: foundations → prompting → RAG → agents → evaluation → production → security → fine-tuning → general, with reference docs first (glossary) and last (architecture patterns).
+
 | File | Questions | Focus |
 |---|---|---|
 | [01-llm-foundations.md](01-llm-foundations.md) | 14 | Tokens, embeddings, self-attention, encoder/decoder, positional encoding, sampling, context window |
 | [02-prompting-and-output-control.md](02-prompting-and-output-control.md) | 5 | Zero/few-shot/CoT, system vs user prompts, JSON output |
-| [03-fine-tuning-and-customization.md](03-fine-tuning-and-customization.md) | 6 | Full FT vs LoRA, instruction tuning, when to fine-tune, small-dataset risk |
-| [04-rag-and-retrieval.md](04-rag-and-retrieval.md) | 41 | Chunking, embeddings, dense/sparse, reranking, query understanding, RAG failure modes |
-| [05-rag-system-design.md](05-rag-system-design.md) | 13 | Whiteboard design prompts, scale, freshness, multi-tenancy, access control |
-| [06-agents-tools-and-memory.md](06-agents-tools-and-memory.md) | 45 | Function calling, loops, frameworks, state, planning, memory, multi-agent |
-| [07-evaluation.md](07-evaluation.md) | 21 | Retrieval metrics, faithfulness, LLM-as-judge, regression suites, production eval |
-| [08-production-cost-and-scale.md](08-production-cost-and-scale.md) | 8 | Cost, latency, caching, concurrency, 10x scaling |
-| [09-security-and-safety.md](09-security-and-safety.md) | 8 | Prompt injection, untrusted content, sensitive data, harmful output, jailbreaks |
+| [03-rag-and-retrieval.md](03-rag-and-retrieval.md) | 41 | Pipeline, chunking, embeddings, dense/sparse, reranking, query understanding, failure modes |
+| [04-rag-system-design.md](04-rag-system-design.md) | 13 | Whiteboard design prompts, scale, freshness, multi-tenancy, access control |
+| [05-agents-tools-and-memory.md](05-agents-tools-and-memory.md) | 45 | Function calling, loops, tools, planning, memory, frameworks, multi-agent |
+| [06-evaluation.md](06-evaluation.md) | 21 | Retrieval metrics, faithfulness, LLM-as-judge, regression suites, production eval |
+| [07-production-cost-and-scale.md](07-production-cost-and-scale.md) | 8 | Cost, latency, caching, concurrency, 10x scaling |
+| [08-security-and-safety.md](08-security-and-safety.md) | 8 | Prompt injection, untrusted content, sensitive data, harmful output, jailbreaks |
+| [09-fine-tuning-and-customization.md](09-fine-tuning-and-customization.md) | 6 | Full FT vs LoRA, instruction tuning, when to fine-tune, small-dataset risk |
 | [10-general-engineering.md](10-general-engineering.md) | 5 | Model selection, framework/team fit, rule-based vs LLM, release safety, stakeholder tradeoffs |
 
 ## Reference docs
 
 | File | Scope |
 |---|---|
-| [90-ai-engineer-interview-patterns.md](90-ai-engineer-interview-patterns.md) | 7 recurring technical-interview dynamics |
-| [91-llm-interview-patterns.md](91-llm-interview-patterns.md) | 7 recurring LLM interview dynamics |
-| [92-llm-architecture-patterns.md](92-llm-architecture-patterns.md) | 7 recurring LLM architecture patterns |
-| [93-llm-terms-glossary.md](93-llm-terms-glossary.md) | 20-term glossary with where each term bites |
+| [90-llm-terms-glossary.md](90-llm-terms-glossary.md) | 20-term glossary with where each term bites (read first) |
+| [91-ai-engineer-interview-patterns.md](91-ai-engineer-interview-patterns.md) | 7 recurring technical-interview dynamics |
+| [92-llm-interview-patterns.md](92-llm-interview-patterns.md) | 7 recurring LLM interview dynamics |
+| [93-llm-architecture-patterns.md](93-llm-architecture-patterns.md) | 7 recurring LLM architecture patterns (read last) |
 
 ## How to read an answer
 

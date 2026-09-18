@@ -1,34 +1,7 @@
 # General engineering
 
 5 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
-
-## 1. A stakeholder wants to ship before your eval scores are ready, how do you handle it
-
-**General:** This is mostly process. De-risk instead of refusing: ship behind a flag or to a small canary, define a rollback path, cap the blast radius, agree on a minimal offline eval before broad rollout, and add monitoring so a quality drop is caught quickly. Make the tradeoff explicit (what's unmeasured, what the fallback is) and put a date on the missing eval.
-
-**Jiuwen:** The closest code mechanisms are CI gates and explicit human activation, not an eval-score gate. The auto-harness `CIGateRunner` loads gates from `ci_gate.yaml` and returns pass/fail; the activate stage requires an explicit user `accept`/`reject` before an extension is hot-loaded; and the product's RSI harness activation supports rollback (refuses while tasks are active, validates the target hash, hot-loads the old version). Behavior gating is done with `enable_*` config flags. There is no release gate tied to eval thresholds and no canary/percentage rollout.
-
-```mermaid
-flowchart TD
-    SHIP{"ship before evals ready"} --> FLAG["config enable_* flags (opt-in behavior)"]
-    SHIP --> CI["CI gate: lint/type-check (no eval threshold)"]
-    SHIP --> ACT["activate stage: explicit accept/reject"]
-    SHIP --> RB["RSI rollback: validate hash + hot reload"]
-    SHIP -.->|"absent"| CANARY["canary / staged rollout / eval-threshold gate"]
-```
-
-<details>
-<summary>Anchors</summary>
-
-<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:168</code> load gates; <code>:1153</code> run + aggregate <code>passed</code><br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/activate.py:118</code> — explicit <code>accept</code>/<code>reject</code> interaction before hot-load<br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/merge.py:95</code> — static-check retry (max 3) then fail-fast<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> <code>rollback</code>; <code>:682</code> <code>_assert_rollback_allowed</code>; <code>:694</code> validate target hash<br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448</code> — <code>enable_*</code> config flags</sub>
-
-</details>
-
-**Gap.** No eval-threshold release gate and no canary/percentage rollout; the decision is human process, supported only by feature flags, explicit activation, CI checks, and manual rollback.
-
-<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
-
-## 2. Deciding when a problem actually needs an LLM versus a simpler rule-based system
+## 1. Deciding when a problem actually needs an LLM versus a simpler rule-based system
 
 **General:** Use a rule-based/deterministic system when the logic is enumerable, must be auditable, or needs exact reproducibility (validation, routing by known patterns, permission checks, arithmetic, parsing). Use an LLM when the task is semantic, open-ended, or handles ambiguity that rules cannot enumerate (summarization, intent, extraction from messy text). Rules for control, LLM for meaning; often both.
 
@@ -50,6 +23,34 @@ flowchart TD
 </details>
 
 **Gap.** The boundary is principled but implicit — no single "classifier vs LLM" decision function or policy table exists; each subsystem chooses independently.
+
+<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
+
+## 2. Larger model vs. smaller, faster one for a given task
+
+**General:** Match model capability to task difficulty: use a large model for reasoning/ambiguity and a small/fast one for classification, extraction, routing, and formatting. Measure quality per task and weigh latency and cost; route by task, and fall back to the larger model only when needed. A leaderboard score is a prior, not a per-task decision.
+
+**Jiuwen:** Model selection here is about availability and endpoint distribution, not task quality. A team can declare a `model_pool` of endpoints or a `ModelRouterConfig`/`IntelliRouterConfig` convenience shape; allocators (`RoundRobin`, `ByModelName`, `Router`, `IntelliRouter`) pick an entry by rotation or an explicit `model_name` hint supplied per agent/task. IntelliRouter is rate-aware only through `tpm`/`rpm` budgets. The `ModelPoolEntry` metadata comment ("weights, affinity hints") is documented but not implemented.
+
+```mermaid
+flowchart TD
+    TASK["task"] --> HINT["caller-supplied model_name hint (per agent/task)"]
+    HINT --> ALLOC{"allocator"}
+    ALLOC --> RR["RoundRobin"]
+    ALLOC --> BN["ByModelName"]
+    ALLOC --> RT["RouterAllocator"]
+    ALLOC --> IR["IntelliRouter (tpm/rpm rate-aware, failover)"]
+    IR -.->|"not accuracy-based"| X["no cost/latency/quality-based model selection"]
+```
+
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:38</code> — <code>ModelPoolEntry</code>; <code>:133</code> <code>ModelRouterConfig</code>; <code>:241</code> <code>IntelliRouterDeployment</code>; <code>:314</code> <code>IntelliRouterConfig</code>; <code>:278</code> tpm/rpm rate-aware; <code>:95</code> "weights/affinity hints" (documented, not implemented)<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:176</code> round-robin; <code>:240</code> by-model-name; <code>:452</code> IntelliRouter; <code>:559</code> <code>build_model_allocator</code>; <code>:28</code> allocation-vs-reliability docstring<br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:242</code> / <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:441</code> — per-agent/task model config</sub>
+
+</details>
+
+**Gap.** Routing is not accuracy-based and has no cost/latency/quality-based selection. Choosing a smaller cheap model is a caller/human decision expressed as a `model_name` hint.
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
 
@@ -83,35 +84,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
-## 4. Larger model vs. smaller, faster one for a given task
-
-**General:** Match model capability to task difficulty: use a large model for reasoning/ambiguity and a small/fast one for classification, extraction, routing, and formatting. Measure quality per task and weigh latency and cost; route by task, and fall back to the larger model only when needed. A leaderboard score is a prior, not a per-task decision.
-
-**Jiuwen:** Model selection here is about availability and endpoint distribution, not task quality. A team can declare a `model_pool` of endpoints or a `ModelRouterConfig`/`IntelliRouterConfig` convenience shape; allocators (`RoundRobin`, `ByModelName`, `Router`, `IntelliRouter`) pick an entry by rotation or an explicit `model_name` hint supplied per agent/task. IntelliRouter is rate-aware only through `tpm`/`rpm` budgets. The `ModelPoolEntry` metadata comment ("weights, affinity hints") is documented but not implemented.
-
-```mermaid
-flowchart TD
-    TASK["task"] --> HINT["caller-supplied model_name hint (per agent/task)"]
-    HINT --> ALLOC{"allocator"}
-    ALLOC --> RR["RoundRobin"]
-    ALLOC --> BN["ByModelName"]
-    ALLOC --> RT["RouterAllocator"]
-    ALLOC --> IR["IntelliRouter (tpm/rpm rate-aware, failover)"]
-    IR -.->|"not accuracy-based"| X["no cost/latency/quality-based model selection"]
-```
-
-<details>
-<summary>Anchors</summary>
-
-<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:38</code> — <code>ModelPoolEntry</code>; <code>:133</code> <code>ModelRouterConfig</code>; <code>:241</code> <code>IntelliRouterDeployment</code>; <code>:314</code> <code>IntelliRouterConfig</code>; <code>:278</code> tpm/rpm rate-aware; <code>:95</code> "weights/affinity hints" (documented, not implemented)<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:176</code> round-robin; <code>:240</code> by-model-name; <code>:452</code> IntelliRouter; <code>:559</code> <code>build_model_allocator</code>; <code>:28</code> allocation-vs-reliability docstring<br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:242</code> / <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:441</code> — per-agent/task model config</sub>
-
-</details>
-
-**Gap.** Routing is not accuracy-based and has no cost/latency/quality-based selection. Choosing a smaller cheap model is a caller/human decision expressed as a `model_name` hint.
-
-<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>
-
-## 5. What's your rollback plan if a prompt or model update degrades output quality?
+## 4. What's your rollback plan if a prompt or model update degrades output quality?
 
 **General:** Make every change reversible and observable: version the prompt/model, ship behind a flag or canary, define a one-command rollback, and gate broad rollout on a fixed eval. Monitor quality (not just errors) so you detect the degradation, and keep the previous version warm.
 
@@ -131,8 +104,32 @@ flowchart TD
 
 </details>
 
----
 
-# Security
 
 <sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>
+
+## 5. A stakeholder wants to ship before your eval scores are ready, how do you handle it
+
+**General:** This is mostly process. De-risk instead of refusing: ship behind a flag or to a small canary, define a rollback path, cap the blast radius, agree on a minimal offline eval before broad rollout, and add monitoring so a quality drop is caught quickly. Make the tradeoff explicit (what's unmeasured, what the fallback is) and put a date on the missing eval.
+
+**Jiuwen:** The closest code mechanisms are CI gates and explicit human activation, not an eval-score gate. The auto-harness `CIGateRunner` loads gates from `ci_gate.yaml` and returns pass/fail; the activate stage requires an explicit user `accept`/`reject` before an extension is hot-loaded; and the product's RSI harness activation supports rollback (refuses while tasks are active, validates the target hash, hot-loads the old version). Behavior gating is done with `enable_*` config flags. There is no release gate tied to eval thresholds and no canary/percentage rollout.
+
+```mermaid
+flowchart TD
+    SHIP{"ship before evals ready"} --> FLAG["config enable_* flags (opt-in behavior)"]
+    SHIP --> CI["CI gate: lint/type-check (no eval threshold)"]
+    SHIP --> ACT["activate stage: explicit accept/reject"]
+    SHIP --> RB["RSI rollback: validate hash + hot reload"]
+    SHIP -.->|"absent"| CANARY["canary / staged rollout / eval-threshold gate"]
+```
+
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:168</code> load gates; <code>:1153</code> run + aggregate <code>passed</code><br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/activate.py:118</code> — explicit <code>accept</code>/<code>reject</code> interaction before hot-load<br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/merge.py:95</code> — static-check retry (max 3) then fail-fast<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> <code>rollback</code>; <code>:682</code> <code>_assert_rollback_allowed</code>; <code>:694</code> validate target hash<br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448</code> — <code>enable_*</code> config flags</sub>
+
+</details>
+
+**Gap.** No eval-threshold release gate and no canary/percentage rollout; the decision is human process, supported only by feature flags, explicit activation, CI checks, and manual rollback.
+
+<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering._</sub>

@@ -1,33 +1,32 @@
 # Security and safety
 
 8 unique questions, deduplicated from the archived docs. Each `##` is one question; identical questions from other docs were merged. Full source files are in `orig/`.
+## 1. What prompt injection is, and how you'd defend against it
 
-## 1. Design a multi-tenant RAG system where each customer's data must stay isolated from others
+**General:** Prompt injection is untrusted input containing instructions that hijack the model (direct user input, or indirect via retrieved/tool content). Defenses: treat content as data not instructions, delimit/label untrusted content, never let it trigger privileged actions without a permission re-check, and enforce controls outside the model (tool policy, sandboxing, egress rules). Instructions in the prompt alone are not a control.
 
-**General:** Isolation choices, strongest first: a separate index/collection (or DB) per tenant; a tenant partition key with mandatory pre-filtering; or row-level security in a relational store. The key is that the tenant filter is applied inside the vector search and cannot be forgotten by a caller. Also isolate embeddings, caches, and logs per tenant, and audit cross-tenant access.
-
-**Jiuwen:** The only separation primitive is the collection name derived from `kb_id` (`kb_{kb_id}_chunks`/`_triples`) plus a configurable `database_name` — this isolates **knowledge bases, not tenants**; if tenants share a `kb_id`, their chunks land in the same collection with no tenant column. The product tracks `user_id` in auth sessions but never propagates it into retrieval. There is no tenant/namespace field on documents, and the retriever drops filters, so per-tenant pre-filtering is not available.
+**Jiuwen:** The codebase separates prompt-level from enforced defenses. Prompt-level: `SafetyPromptRail` injects a bilingual safety section into the system prompt before each call (instruction, not control). Enforced: shell command/process substitution is blocked before execution, the permission engine merges tiered tool policy + file guard + net guard by "strictest" and floors risky shell structures to ASK, and builtin YAML denies reverse shells, disk writes, shutdown, and sensitive paths. A pluggable guardrail framework exists for injection detection, and the auto-harness adds an input heuristic that force-finishes on "ignore previous instructions".
 
 ```mermaid
 flowchart TD
-    T["tenants"] --> KB["per-KB collection kb_{kb_id}_chunks (not per-tenant)"]
-    T -.->|"absent"| ISO["tenant partition key + mandatory pre-filter"]
-    T --> PROD["product user_id in auth session — not wired to retrieval"]
-    KB --> RISK["shared kb_id → shared collection, no tenant column"]
+    INJ["prompt injection"] --> P["prompt-level: SafetyPromptRail adds safety text (advice)"]
+    INJ --> ENF["enforced: tool policy + file guard + net guard (strictest)"]
+    ENF --> ASK["risky shell structure → ASK floor (tree-sitter AST)"]
+    ENF --> DENY["builtin rules: reverse shell / disk / shutdown / sensitive paths"]
+    INJ --> SH["shell: block backtick / `$()` before execution"]
+    INJ --> G["guardrail framework (injection detect) — no production registration"]
 ```
 
 <details>
 <summary>Anchors</summary>
 
-<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:102</code> — <code>kb_{kb_id}_chunks</code>; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:196</code> — <code>kb_{kb_id}_triples</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:75</code> — <code>VectorStoreConfig(database_name, collection_name, …)</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/common/auth/session_store.py:198</code> — <code>user_id</code> in auth session (not retrieval)<br>&bull; <code>jiuwenswarm/jiuwenswarm/gateway/app_gateway.py:660</code> — WS <code>user_id</code> for routing/sandbox (not KB scoping)</sub>
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16</code> — <code>SafetyPromptRail</code>; <code>:38</code> injects safety section; <code>agent-core/openjiuwen/harness/prompts/sections/safety.py:14</code> — static safety text<br>&bull; <code>agent-core/openjiuwen/harness/tools/shell/bash/_security.py:29</code> — substitution regex; <code>:40</code> <code>check_injection</code> blocks<br>&bull; <code>agent-core/openjiuwen/harness/resources/builtin_rules.yaml:59</code> — reverse-shell deny; <code>:35</code> disk deny; <code>:99</code> shutdown; <code>:148</code> sensitive paths<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588</code> — tiered policy; <code>:409</code> shell AST floor; <code>:502</code> ASK fallback; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/shell_ast.py:82</code> — deterministic parse; <code>agent-core/openjiuwen/harness/security/permission_engine/core.py:272</code> — merge<br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:60</code> — <code>PromptInjectionGuardrail</code>; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:184</code> — default patterns<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/auto_harness/rails/security_rail.py:119</code> — input heuristic → <code>request_force_finish</code></sub>
 
 </details>
 
----
+**Gap.** The configurable `PromptInjectionGuardrail` has no production registration; `SafetyPromptRail` only adds system-prompt text and never inspects or rewrites user/tool content. Enforcement comes from the shell/permission layer, not from injection detection.
 
-# Scale and infrastructure
-
-<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
+<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied._</sub>
 
 ## 2. Handling untrusted content from a tool result or retrieved document
 
@@ -104,32 +103,7 @@ flowchart TD
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
-## 5. How do you prevent a model from generating harmful or biased content
-
-**General:** Layer defenses: a safety instruction in the system prompt, input and output content classifiers/moderation, policy filters on generated output, and refusal behavior validated by red-teaming. Because a prompt is advice not a control, real safety needs an enforced output filter. Bias specifically needs measurement (bias probes, disaggregated evals) and mitigation, not just a "be safe" instruction.
-
-**Jiuwen:** Two layers. Prompt-level (advisory): `SafetyPromptRail` is production-registered and, on each model call, appends a static bilingual safety section to the system prompt then always returns allow — it never inspects or rewrites content. Enforced-but-unwired: `core/security/guardrail/` provides `BaseGuardrail` + backends; `PromptInjectionGuardrail` can raise `AbortError`/`GuardrailError` on risky input/output, and an optional local `AutoModelForSequenceClassification` / QwenGuard classifier exists — but none has a production caller. There is no bias, toxicity, or content-policy detector anywhere.
-
-```mermaid
-flowchart TD
-    M["model"] --> ADV["SafetyPromptRail: append safety section (advisory, always allow)"]
-    M --> ENF["guardrail framework: PromptInjectionGuardrail + ML classifier (unwired)"]
-    M --> MOD["toxicity / harm / content policy filter"]
-    MOD -.->|"absent"| X["no content moderation, no bias detection"]
-```
-
-<details>
-<summary>Anchors</summary>
-
-<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16</code> — <code>SafetyPromptRail</code>; <code>:38</code> injects section; <code>:41</code> always returns allow<br>&bull; <code>agent-core/openjiuwen/harness/prompts/sections/safety.py:14</code> (CN) / <code>:26</code> (EN) — static safety text; <code>:44</code> <code>build_safety_section</code>; <code>:57</code> priority<br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:93</code> — production import of <code>SecurityRail</code>; <code>:8577</code> <code>_build_security_rail()</code>; <code>jiuwenswarm/jiuwenswarm/agents/harness/team/team_runtime_inheritance.py:248</code> — team members create <code>SecurityRail()</code><br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:60</code> — <code>PromptInjectionGuardrail</code>; <code>agent-core/openjiuwen/core/security/guardrail/guardrail.py:378</code> — raises <code>AbortError</code>/<code>GuardrailError</code><br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:445</code> — <code>LocalModelBackend</code> (<code>AutoModelForSequenceClassification</code>); <code>agent-core/openjiuwen/core/security/guardrail/context.py:207</code> — <code>QwenGuardParser</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/base_security_rail.py:58</code> — <code>SecurityReject</code>/<code>SecurityInterrupt</code>/<code>SecurityAlert</code></sub>
-
-</details>
-
-**Gap.** The ML guardrail and content classifier are implemented but have no production callers; only `SafetyPromptRail` (advisory) is mounted. No bias/toxicity/content-policy detection exists.
-
-<sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai._</sub>
-
-## 6. How do you prevent an agent from taking a destructive or irreversible action by mistake
+## 5. How do you prevent an agent from taking a destructive or irreversible action by mistake
 
 **General:** Layer defenses: classify actions by risk, deny known-dangerous patterns, require approval for the ambiguous middle, and prefer reversible operations (dry-run, snapshot, sandbox) over hard blocks alone. Fail closed — unknown should mean "ask", not "allow".
 
@@ -165,6 +139,31 @@ flowchart TD
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
+## 6. How do you prevent a model from generating harmful or biased content
+
+**General:** Layer defenses: a safety instruction in the system prompt, input and output content classifiers/moderation, policy filters on generated output, and refusal behavior validated by red-teaming. Because a prompt is advice not a control, real safety needs an enforced output filter. Bias specifically needs measurement (bias probes, disaggregated evals) and mitigation, not just a "be safe" instruction.
+
+**Jiuwen:** Two layers. Prompt-level (advisory): `SafetyPromptRail` is production-registered and, on each model call, appends a static bilingual safety section to the system prompt then always returns allow — it never inspects or rewrites content. Enforced-but-unwired: `core/security/guardrail/` provides `BaseGuardrail` + backends; `PromptInjectionGuardrail` can raise `AbortError`/`GuardrailError` on risky input/output, and an optional local `AutoModelForSequenceClassification` / QwenGuard classifier exists — but none has a production caller. There is no bias, toxicity, or content-policy detector anywhere.
+
+```mermaid
+flowchart TD
+    M["model"] --> ADV["SafetyPromptRail: append safety section (advisory, always allow)"]
+    M --> ENF["guardrail framework: PromptInjectionGuardrail + ML classifier (unwired)"]
+    M --> MOD["toxicity / harm / content policy filter"]
+    MOD -.->|"absent"| X["no content moderation, no bias detection"]
+```
+
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16</code> — <code>SafetyPromptRail</code>; <code>:38</code> injects section; <code>:41</code> always returns allow<br>&bull; <code>agent-core/openjiuwen/harness/prompts/sections/safety.py:14</code> (CN) / <code>:26</code> (EN) — static safety text; <code>:44</code> <code>build_safety_section</code>; <code>:57</code> priority<br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:93</code> — production import of <code>SecurityRail</code>; <code>:8577</code> <code>_build_security_rail()</code>; <code>jiuwenswarm/jiuwenswarm/agents/harness/team/team_runtime_inheritance.py:248</code> — team members create <code>SecurityRail()</code><br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:60</code> — <code>PromptInjectionGuardrail</code>; <code>agent-core/openjiuwen/core/security/guardrail/guardrail.py:378</code> — raises <code>AbortError</code>/<code>GuardrailError</code><br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:445</code> — <code>LocalModelBackend</code> (<code>AutoModelForSequenceClassification</code>); <code>agent-core/openjiuwen/core/security/guardrail/context.py:207</code> — <code>QwenGuardParser</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/base_security_rail.py:58</code> — <code>SecurityReject</code>/<code>SecurityInterrupt</code>/<code>SecurityAlert</code></sub>
+
+</details>
+
+**Gap.** The ML guardrail and content classifier are implemented but have no production callers; only `SafetyPromptRail` (advisory) is mounted. No bias/toxicity/content-policy detection exists.
+
+<sub>_Canonical source: `orig/genai-interview-questions_for_engineers.md`; also covered in: genai._</sub>
+
 ## 7. Preventing sensitive data from leaking into a model's context or output logs
 
 **General:** Detect and redact secrets before they reach the model or the logs: scrub known patterns (API keys, tokens, PII) from tool results and prompts, redact log fields (don't just drop whole fields), gate egress of secret-like payloads, and keep a path to audit without storing the secret. Detection alone is not redaction.
@@ -189,35 +188,31 @@ flowchart LR
 
 **Gap.** `SensitiveDataSanitize` is example-only; production redaction is partial and layer-specific (log redaction destroys debuggability rather than scrubbing payloads). Nothing guarantees secrets are stripped from model context on the normal path.
 
----
 
-# Judgment and tradeoffs
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai._</sub>
 
-## 8. What prompt injection is, and how you'd defend against it
+## 8. Design a multi-tenant RAG system where each customer's data must stay isolated from others
 
-**General:** Prompt injection is untrusted input containing instructions that hijack the model (direct user input, or indirect via retrieved/tool content). Defenses: treat content as data not instructions, delimit/label untrusted content, never let it trigger privileged actions without a permission re-check, and enforce controls outside the model (tool policy, sandboxing, egress rules). Instructions in the prompt alone are not a control.
+**General:** Isolation choices, strongest first: a separate index/collection (or DB) per tenant; a tenant partition key with mandatory pre-filtering; or row-level security in a relational store. The key is that the tenant filter is applied inside the vector search and cannot be forgotten by a caller. Also isolate embeddings, caches, and logs per tenant, and audit cross-tenant access.
 
-**Jiuwen:** The codebase separates prompt-level from enforced defenses. Prompt-level: `SafetyPromptRail` injects a bilingual safety section into the system prompt before each call (instruction, not control). Enforced: shell command/process substitution is blocked before execution, the permission engine merges tiered tool policy + file guard + net guard by "strictest" and floors risky shell structures to ASK, and builtin YAML denies reverse shells, disk writes, shutdown, and sensitive paths. A pluggable guardrail framework exists for injection detection, and the auto-harness adds an input heuristic that force-finishes on "ignore previous instructions".
+**Jiuwen:** The only separation primitive is the collection name derived from `kb_id` (`kb_{kb_id}_chunks`/`_triples`) plus a configurable `database_name` — this isolates **knowledge bases, not tenants**; if tenants share a `kb_id`, their chunks land in the same collection with no tenant column. The product tracks `user_id` in auth sessions but never propagates it into retrieval. There is no tenant/namespace field on documents, and the retriever drops filters, so per-tenant pre-filtering is not available.
 
 ```mermaid
 flowchart TD
-    INJ["prompt injection"] --> P["prompt-level: SafetyPromptRail adds safety text (advice)"]
-    INJ --> ENF["enforced: tool policy + file guard + net guard (strictest)"]
-    ENF --> ASK["risky shell structure → ASK floor (tree-sitter AST)"]
-    ENF --> DENY["builtin rules: reverse shell / disk / shutdown / sensitive paths"]
-    INJ --> SH["shell: block backtick / `$()` before execution"]
-    INJ --> G["guardrail framework (injection detect) — no production registration"]
+    T["tenants"] --> KB["per-KB collection kb_{kb_id}_chunks (not per-tenant)"]
+    T -.->|"absent"| ISO["tenant partition key + mandatory pre-filter"]
+    T --> PROD["product user_id in auth session — not wired to retrieval"]
+    KB --> RISK["shared kb_id → shared collection, no tenant column"]
 ```
 
 <details>
 <summary>Anchors</summary>
 
-<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16</code> — <code>SafetyPromptRail</code>; <code>:38</code> injects safety section; <code>agent-core/openjiuwen/harness/prompts/sections/safety.py:14</code> — static safety text<br>&bull; <code>agent-core/openjiuwen/harness/tools/shell/bash/_security.py:29</code> — substitution regex; <code>:40</code> <code>check_injection</code> blocks<br>&bull; <code>agent-core/openjiuwen/harness/resources/builtin_rules.yaml:59</code> — reverse-shell deny; <code>:35</code> disk deny; <code>:99</code> shutdown; <code>:148</code> sensitive paths<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588</code> — tiered policy; <code>:409</code> shell AST floor; <code>:502</code> ASK fallback; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/shell_ast.py:82</code> — deterministic parse; <code>agent-core/openjiuwen/harness/security/permission_engine/core.py:272</code> — merge<br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:60</code> — <code>PromptInjectionGuardrail</code>; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:184</code> — default patterns<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/auto_harness/rails/security_rail.py:119</code> — input heuristic → <code>request_force_finish</code></sub>
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:102</code> — <code>kb_{kb_id}_chunks</code>; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:196</code> — <code>kb_{kb_id}_triples</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:75</code> — <code>VectorStoreConfig(database_name, collection_name, …)</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/common/auth/session_store.py:198</code> — <code>user_id</code> in auth session (not retrieval)<br>&bull; <code>jiuwenswarm/jiuwenswarm/gateway/app_gateway.py:660</code> — WS <code>user_id</code> for routing/sandbox (not KB scoping)</sub>
 
 </details>
 
-**Gap.** The configurable `PromptInjectionGuardrail` has no production registration; `SafetyPromptRail` only adds system-prompt text and never inspects or rewrites user/tool content. Enforcement comes from the shell/permission layer, not from injection detection.
 
-<sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied._</sub>
+
+<sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>

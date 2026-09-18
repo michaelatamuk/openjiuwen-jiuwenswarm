@@ -21,13 +21,13 @@ DIST = os.path.join(HERE, "dist")
 TOPIC = {
     "01": "LLM foundations",
     "02": "Prompting & output",
-    "03": "Fine-tuning",
-    "04": "RAG & retrieval",
-    "05": "RAG system design",
-    "06": "Agents, tools & memory",
-    "07": "Evaluation",
-    "08": "Production & scale",
-    "09": "Security & safety",
+    "03": "RAG & retrieval",
+    "04": "RAG system design",
+    "05": "Agents, tools & memory",
+    "06": "Evaluation",
+    "07": "Production & scale",
+    "08": "Security & safety",
+    "09": "Fine-tuning",
     "10": "General engineering",
 }
 
