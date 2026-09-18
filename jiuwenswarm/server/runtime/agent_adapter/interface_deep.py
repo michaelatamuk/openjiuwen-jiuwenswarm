@@ -9144,6 +9144,33 @@ class JiuWenSwarmDeepAdapter:
             return None
 
     @staticmethod
+    def _build_verifier_circuit_breaker_rail(config_base: dict[str, Any]) -> VerifierCircuitBreakerRail | None:
+        """Build VerifierCircuitBreakerRail: force a strategy change on repeated verifier failures.
+
+        Reads ``verifier_circuit_breaker`` from the config snapshot (``enabled``
+        defaults False, ``break_after`` defaults 3). When the same verifier
+        failure repeats ``break_after`` times in a row without improvement, a
+        high-priority system-prompt section instructs the agent to abandon its
+        current approach. Only active when the user explicitly enables it.
+        """
+        try:
+            _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+            if not bool(_vcb_cfg.get("enabled", False)):
+                return None
+            _break_after = max(1, parse_int(_vcb_cfg.get("break_after"), 3))
+            rail = VerifierCircuitBreakerRail(_break_after)
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] VerifierCircuitBreakerRail attached (break_after=%d)",
+                _break_after,
+            )
+            return rail
+        except Exception as exc:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] Failed to attach VerifierCircuitBreakerRail: %s", exc
+            )
+            return None
+
+    @staticmethod
     def _build_step_back_rail(config_base: dict[str, Any]) -> StepBackRail | None:
         """Build StepBackRail: rethink the approach after consecutive shell failures.
 
@@ -9977,6 +10004,19 @@ class JiuWenSwarmDeepAdapter:
                 _RailBuildInfo(
                     "_tool_call_deduplication_rail",
                     self._build_tool_call_deduplication_rail,
+                    {"config_base": config_base},
+                )
+            )
+
+        # Verifier-aware circuit breaker: only inserted when explicitly enabled
+        # (default off) so the registry's "build returned None" warning is not
+        # spammed on every normal build.
+        _vcb_cfg = config_base.get("verifier_circuit_breaker") or {}
+        if bool(_vcb_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_verifier_circuit_breaker_rail",
+                    self._build_verifier_circuit_breaker_rail,
                     {"config_base": config_base},
                 )
             )
