@@ -18150,11 +18150,10 @@ class JiuWenSwarmDeepAdapter:
             summary["cache_tokens"] = cache_tokens
             summary["cache_hit_rate"] = f"{cache_tokens / input_tokens:.1%}"
         # 免费模型不报金额：用户这边按积分计量，SDK 按单价算出来的是服务端成本
-        if self._scoped_login_auth(request) is None:
-            for field in ("input_cost", "output_cost", "total_cost"):
-                if usage_accumulator[field] > 0:
-                    summary[field] = round(usage_accumulator[field], 6)
-        if usage_accumulator["cost_available"]:
+        if (
+            usage_accumulator["cost_available"]
+            and self._scoped_login_auth(request) is None
+        ):
             summary["input_cost"] = round(usage_accumulator["input_cost"], 6)
             summary["output_cost"] = round(usage_accumulator["output_cost"], 6)
             summary["total_cost"] = round(usage_accumulator["total_cost"], 6)
