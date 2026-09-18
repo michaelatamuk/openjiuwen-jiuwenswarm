@@ -14,6 +14,7 @@ import {
   Copy,
   Code2,
   FileText,
+  GitFork,
   Image as ImageIcon,
   Info,
   LoaderCircle,
@@ -26,7 +27,15 @@ import {
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useChatStore, useHarnessStore, useSessionStore, useTodoStore } from '../../stores';
-import { AgentMode, MediaItem, Message, UserAnswer, type ProjectInfo } from '../../types';
+import {
+  AgentMode,
+  MediaItem,
+  Message,
+  UserAnswer,
+  type MessageForkPoint,
+  type Permission,
+  type ProjectInfo,
+} from '../../types';
 import type { HumanShareCommand } from '../../stores/sessionStore';
 import type { AgentGroupIdentity } from '../../features/agentManagement';
 import { MessageList } from './MessageList';
@@ -58,7 +67,11 @@ import { CodeChangesCard } from '../../features/code-mode/CodeChangesCard';
 import { useCodeTurnDiffHistory } from '../../features/code-mode/useCodeTurnDiffHistory';
 import { turnDiffKey } from '../../features/code-mode/turnChangeState';
 import type { CodeReviewTarget } from '../../features/code-mode/types';
-import { canLoadOlderHistory, shouldShowHistoryRetry } from '../../features/historyPagination';
+import {
+  canLoadOlderHistory,
+  resolveHistoryPrependScrollTop,
+  shouldShowHistoryRetry,
+} from '../../features/historyPagination';
 import {
   DESKTOP_FILE_DRAG_EVENT,
   DESKTOP_LOCAL_FILES_EVENT,
@@ -73,8 +86,9 @@ import { ApplicationPluginTaskRuntimes } from '../../applicationPlugins/Applicat
 import { generateUuidV4 } from '../../utils/uuid';
 
 export interface ChatHistoryPagerProps {
-  loadedPages: number;
-  totalPages: number;
+  loadedBatchSeq: number;
+  publishedBatchSeq: number;
+  hasMore: boolean;
   loadingMore: boolean;
   prepending?: boolean;
   retryAvailable?: boolean;
@@ -84,6 +98,14 @@ export interface ChatHistoryPagerProps {
 interface ChatPanelProps {
   onSendMessage: (content: string, mediaItems?: MediaItem[]) => void;
   onEnsureSession: (initialTitle?: string) => Promise<string | null>;
+  onNewSession: () => void;
+  onForkSession: (
+    sourceSessionId: string,
+    forkPoint?: MessageForkPoint,
+  ) => Promise<void>;
+  onStartSideConversation: (sourceSessionId: string, prompt?: string) => Promise<void>;
+  continuedFromSessionId?: string | null;
+  onOpenContinuedFromSession?: (sourceSessionId: string) => void;
   onInputIntent?: (sessionId: string) => void;
   onPersistMedia: (
     content: string,
@@ -127,23 +149,24 @@ interface ChatPanelProps {
   autoFocusKey?: string | null;
   /** 跳转到技能管理页 */
   onNavigateToSkills?: () => void;
-  /** 跳转到智能体管理页 */
-  onNavigateToAgents?: () => void;
+  /** 跳转到专家管理页，可指定“我的专家”下的资产类型 */
+  onNavigateToAgents?: (target?: 'agent' | 'group') => void;
   /** 切换右侧紧缩面板展开状态，传 null 表示隐藏面板 */
   onToggleTeamArea?: (expanded: boolean | null) => void;
   /** 打开右侧面板并切换到代码审核 Tab */
   onOpenCodeReview?: (target: CodeReviewTarget) => void;
-  permissionsEnabled: boolean;
   /** 心跳面板展开状态：由 App.tsx 统一管理，跟团队/代码审核面板一样占用右侧工作区一栏 */
   heartbeatPanelOpen?: boolean;
   /** 切换心跳面板展开状态 */
   onToggleHeartbeatPanel?: () => void;
+  permissionProfile: Permission;
   onSavePermission: (updates: Record<string, string>) => Promise<void>;
   /** Goal（持续目标）控制，见 GoalBar 组件 */
-  onSetGoal?: (sessionId: string, objective: string) => void;
-  onPauseGoal?: (sessionId: string) => void;
-  onResumeGoal?: (sessionId: string) => void;
-  onClearGoal?: (sessionId: string) => void;
+  onSetGoal?: (sessionId: string, objective: string) => void | Promise<void>;
+  onPauseGoal?: (sessionId: string) => void | Promise<void>;
+  onResumeGoal?: (sessionId: string) => void | Promise<void>;
+  onRefreshGoal?: (sessionId: string) => void | Promise<void>;
+  onClearGoal?: (sessionId: string) => void | Promise<void>;
   /** 目标 active 但当前无处理中任务时，消息入队后主动排空一次，见 InputArea.tsx 对应调用点 */
   onDrainTaskQueueIfIdle?: (sessionId: string) => void;
   /** 专家团「通过聊天创建」入口的 4.9 高保真欢迎态。 */
@@ -882,8 +905,19 @@ function scrollToBottom(el: HTMLDivElement): void {
 }
 
 const BEE_ANIMATION_DURATION = 4536;
+const WELCOME_BUBBLE_HIDE_DELAY = 3000;
 
-function BeeBanner({ className, altText, onTrigger }: { className: string; altText: string; onTrigger: () => void }) {
+function BeeBanner({
+  className,
+  altText,
+  onTrigger,
+  onLeave,
+}: {
+  className: string;
+  altText: string;
+  onTrigger: () => void;
+  onLeave: () => void;
+}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -912,6 +946,7 @@ function BeeBanner({ className, altText, onTrigger }: { className: string; altTe
       alt={altText}
       data-testid="chat-panel-welcome-banner"
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={onLeave}
     />
   );
 }
@@ -924,6 +959,11 @@ function BeeBanner({ className, altText, onTrigger }: { className: string; altTe
 export const ChatPanel = React.memo(function ChatPanel({
   onSendMessage,
   onEnsureSession,
+  onNewSession,
+  onForkSession,
+  onStartSideConversation,
+  continuedFromSessionId = null,
+  onOpenContinuedFromSession,
   onInputIntent,
   onPersistMedia,
   onPersistDocuments,
@@ -948,11 +988,12 @@ export const ChatPanel = React.memo(function ChatPanel({
   onOpenCodeReview,
   heartbeatPanelOpen = false,
   onToggleHeartbeatPanel,
-  permissionsEnabled,
+  permissionProfile,
   onSavePermission,
   onSetGoal,
   onPauseGoal,
   onResumeGoal,
+  onRefreshGoal,
   onClearGoal,
   onDrainTaskQueueIfIdle,
   welcomeVariant = null,
@@ -983,7 +1024,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   const lastConsumedDesktopDropIdRef = useRef<string | null>(null);
   const historyLayoutSnapshotRef = useRef<{
     sessionId: string;
-    loadedPages: number;
+    publishedBatchSeq: number;
     scrollHeight: number;
     scrollTop: number;
   } | null>(null);
@@ -994,16 +1035,18 @@ export const ChatPanel = React.memo(function ChatPanel({
   const hasTimelineContent = messages.length > 0 || toolExecutionOrder.length > 0;
   const hasConversation = Boolean(isHistoryRestoring || historyPager || hasTimelineContent);
   const isGroupCreateWelcome = welcomeVariant === 'group-create';
-  const historyLoadedPages = historyPager?.loadedPages ?? 0;
-  const historyTotalPages = historyPager?.totalPages ?? 0;
+  const historyLoadedBatchSeq = historyPager?.loadedBatchSeq ?? 0;
+  const historyPublishedBatchSeq = historyPager?.publishedBatchSeq ?? 0;
+  const historyHasMore = historyPager?.hasMore ?? false;
   const historyLoadingMore = historyPager?.loadingMore ?? false;
   const historyPrepending = historyPager?.prepending ?? false;
   const historyRetryAvailable = historyPager?.retryAvailable ?? false;
   const historyOnLoadMore = historyPager?.onLoadMore;
   const hasHistoryPager = Boolean(historyPager);
   const historyLoadMoreState = {
-    loadedPages: historyLoadedPages,
-    totalPages: historyTotalPages,
+    loadedBatchSeq: historyLoadedBatchSeq,
+    publishedBatchSeq: historyPublishedBatchSeq,
+    hasMore: historyHasMore,
     loadingMore: historyLoadingMore,
     prepending: historyPrepending,
   };
@@ -1025,6 +1068,31 @@ export const ChatPanel = React.memo(function ChatPanel({
   const shouldShowHumanShare = mode === 'team' && teamHumanShareCommands.length > 0;
   const [humanShareOpen, setHumanShareOpen] = React.useState(false);
   const [bubbleVisible, setBubbleVisible] = useState(false);
+  const bubbleHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleBubbleShow = useCallback(() => {
+    if (bubbleHideTimerRef.current) {
+      clearTimeout(bubbleHideTimerRef.current);
+      bubbleHideTimerRef.current = null;
+    }
+    setBubbleVisible(true);
+  }, []);
+  const handleBubbleLeave = useCallback(() => {
+    if (bubbleHideTimerRef.current) {
+      clearTimeout(bubbleHideTimerRef.current);
+    }
+    bubbleHideTimerRef.current = setTimeout(() => {
+      bubbleHideTimerRef.current = null;
+      setBubbleVisible(false);
+    }, WELCOME_BUBBLE_HIDE_DELAY);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (bubbleHideTimerRef.current) {
+        clearTimeout(bubbleHideTimerRef.current);
+        bubbleHideTimerRef.current = null;
+      }
+    };
+  }, []);
   // 新会话占位符 'new' 还没有真实 session_id，隐藏心跳入口，见接口规格说明 §16.2
   const heartbeatAvailable = Boolean(activeSessionId && activeSessionId !== NEW_CONVERSATION_ID);
   const handlePluginConversationItem = useCallback((sid: string, role: 'user' | 'assistant', text: string, presentation?: 'tool_result') => {
@@ -1116,6 +1184,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   }, []);
   const {
     turnsByMessageId: codeTurnsByMessageId,
+    turnCardAnchors: codeTurnCardAnchors,
     loading: codeTurnHistoryLoading,
     reload: reloadCodeTurnHistory,
     latestTurnKey: latestCodeTurnKey,
@@ -1134,6 +1203,9 @@ export const ChatPanel = React.memo(function ChatPanel({
     (message: Message) => {
       const turns = codeTurnsByMessageId.get(message.id);
       if (!turns?.length) return null;
+      // 同一轮的多条消息共享同一个 id（后端每个 chat.final 一条记录、同一个
+      // `<request_id>:assistant`），只在锚点消息上出卡片，避免重复渲染多张。
+      if (!codeTurnCardAnchors.has(message)) return null;
       return turns.map((turn) => {
         const turnKey = turnDiffKey(turn);
         const isLatest = turnKey === latestCodeTurnKey;
@@ -1155,6 +1227,7 @@ export const ChatPanel = React.memo(function ChatPanel({
       });
     },
     [
+      codeTurnCardAnchors,
       codeTurnHistoryLoading,
       codeTurnsByMessageId,
       discardLatestTurn,
@@ -1166,6 +1239,72 @@ export const ChatPanel = React.memo(function ChatPanel({
       turnChangeError,
       turnChangeOperation,
     ],
+  );
+
+  const forkBoundaryMessageKey = useMemo(() => {
+    if (!continuedFromSessionId) return null;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.forkedFromSessionId === continuedFromSessionId) {
+        return message.renderKey ?? message.id;
+      }
+    }
+    return null;
+  }, [continuedFromSessionId, messages]);
+
+  const renderAfterMessage = useCallback(
+    (message: Message) => {
+      const codeChanges = renderCodeChangesAfterMessage(message);
+      const messageKey = message.renderKey ?? message.id;
+      if (
+        !forkBoundaryMessageKey ||
+        messageKey !== forkBoundaryMessageKey ||
+        !continuedFromSessionId ||
+        !onOpenContinuedFromSession
+      ) {
+        return codeChanges;
+      }
+      return (
+        <>
+          {codeChanges}
+          <button
+            type="button"
+            className="chat-fork-origin"
+            data-testid="chat-panel-continued-from-chat"
+            title={t('chat.openSourceChat')}
+            aria-label={t('chat.openSourceChat')}
+            onClick={() => onOpenContinuedFromSession(continuedFromSessionId)}
+          >
+            <span className="chat-fork-origin__label" data-testid="chat-panel-continued-from-chat-label">
+              <GitFork size={14} strokeWidth={1.75} aria-hidden="true" />
+              {t('chat.continuedFromChat')}
+            </span>
+          </button>
+        </>
+      );
+    },
+    [
+      continuedFromSessionId,
+      forkBoundaryMessageKey,
+      onOpenContinuedFromSession,
+      renderCodeChangesAfterMessage,
+      t,
+    ],
+  );
+
+  const handleForkFromMessage = useCallback(
+    (message: Message) => {
+      if (!activeSessionId || activeSessionId === NEW_CONVERSATION_ID) {
+        return Promise.reject(new Error('A persisted session is required to fork'));
+      }
+      return onForkSession(activeSessionId, {
+        messageId: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: message.completedAt ?? message.timestamp,
+      });
+    },
+    [activeSessionId, onForkSession],
   );
 
   // 跟踪用户是否正在查看历史消息（不在底部）
@@ -1187,12 +1326,12 @@ export const ChatPanel = React.memo(function ChatPanel({
     (sessionId: string, el: HTMLDivElement) => {
       historyLayoutSnapshotRef.current = {
         sessionId,
-        loadedPages: historyLoadedPages,
+        publishedBatchSeq: historyPublishedBatchSeq,
         scrollHeight: el.scrollHeight,
         scrollTop: el.scrollTop,
       };
     },
-    [historyLoadedPages],
+    [historyPublishedBatchSeq],
   );
 
   const restoreSessionScrollTop = useCallback(
@@ -1225,12 +1364,27 @@ export const ChatPanel = React.memo(function ChatPanel({
 
     const currentSessionId = activeSessionId ?? '';
     rememberSessionScrollTop(currentSessionId, el);
+    updateHistoryLayoutSnapshot(currentSessionId, el);
 
     // 当滚动到顶部且有更多历史消息时，加载更多
-    if (el.scrollTop <= LOAD_OLDER_THRESHOLD_PX && canRequestOlderHistory && historyOnLoadMore) {
+    const hasTimelineAdmissionBoundary = Boolean(
+      el.querySelector('[data-testid="chat-panel-timeline-history-sentinel"]')
+    );
+    if (
+      el.scrollTop <= LOAD_OLDER_THRESHOLD_PX
+      && !hasTimelineAdmissionBoundary
+      && canRequestOlderHistory
+      && historyOnLoadMore
+    ) {
       void historyOnLoadMore();
     }
-  }, [activeSessionId, canRequestOlderHistory, historyOnLoadMore, rememberSessionScrollTop]);
+  }, [
+    activeSessionId,
+    canRequestOlderHistory,
+    historyOnLoadMore,
+    rememberSessionScrollTop,
+    updateHistoryLayoutSnapshot,
+  ]);
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -1263,13 +1417,19 @@ export const ChatPanel = React.memo(function ChatPanel({
     (e: React.WheelEvent<HTMLDivElement>) => {
       // 只有向上滚动时才触发
       if (e.deltaY < 0) {
+        userScrolledUpRef.current = true;
         stickToBottomUntilStableRef.current = false;
       }
       if (e.deltaY < 0 && canRequestOlderHistory && historyOnLoadMore) {
         // 检查是否已经在顶部（没有滚动条时 scrollTop 始终为 0）
         const el = scrollContainerRef.current;
         if (el && el.scrollTop <= LOAD_OLDER_THRESHOLD_PX) {
-          void historyOnLoadMore();
+          const hasTimelineAdmissionBoundary = Boolean(
+            el.querySelector('[data-testid="chat-panel-timeline-history-sentinel"]'),
+          );
+          if (!hasTimelineAdmissionBoundary) {
+            void historyOnLoadMore();
+          }
         }
       }
     },
@@ -1304,17 +1464,34 @@ export const ChatPanel = React.memo(function ChatPanel({
     const snapshot = historyLayoutSnapshotRef.current;
     const currentSessionId = activeSessionId ?? '';
 
+    // 以真实布局为准补偿可能被主线程繁忙延迟的 scroll 事件：内容高度未变、
+    // scrollTop 却已变化时，按当前真实位置更新阅读意图，再处理新页。
+    if (
+      snapshot?.sessionId === currentSessionId &&
+      snapshot.scrollHeight === el.scrollHeight &&
+      snapshot.scrollTop !== el.scrollTop
+    ) {
+      const atBottom = isScrollAtBottom(el);
+      userScrolledUpRef.current = !atBottom;
+      if (!atBottom) {
+        stickToBottomUntilStableRef.current = false;
+      }
+    }
+
     if (
       lastSessionIdRef.current === currentSessionId &&
       hasHistoryPager &&
-      snapshot &&
-      snapshot.sessionId === currentSessionId &&
-      snapshot.loadedPages > 0 &&
-      historyLoadedPages > snapshot.loadedPages
+      snapshot?.sessionId === currentSessionId
     ) {
-      const delta = el.scrollHeight - snapshot.scrollHeight;
-      if (delta !== 0) {
-        el.scrollTop = snapshot.scrollTop + delta;
+      const nextScrollTop = resolveHistoryPrependScrollTop({
+        previousPublishedBatchSeq: snapshot.publishedBatchSeq,
+        publishedBatchSeq: historyPublishedBatchSeq,
+        previousScrollHeight: snapshot.scrollHeight,
+        scrollHeight: el.scrollHeight,
+        previousScrollTop: snapshot.scrollTop,
+      });
+      if (nextScrollTop !== null) {
+        el.scrollTop = nextScrollTop;
         suppressNextScrollToEndRef.current = true;
       }
     }
@@ -1323,7 +1500,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   }, [
     activeSessionId,
     hasHistoryPager,
-    historyLoadedPages,
+    historyPublishedBatchSeq,
     messages.length,
     toolExecutionOrder.length,
     updateHistoryLayoutSnapshot,
@@ -1379,7 +1556,7 @@ export const ChatPanel = React.memo(function ChatPanel({
     isThinking,
     contextCompressionRuntime,
     contextCompressionSummary,
-    historyLoadedPages,
+    historyPublishedBatchSeq,
     historyLoadingMore,
     historyPrepending,
     teamHumanShareCommands.length,
@@ -1448,7 +1625,8 @@ export const ChatPanel = React.memo(function ChatPanel({
 
   const ingestDesktopLocalFiles = useCallback(
     (detail: DesktopLocalFilesEventDetail | null | undefined, files: LocalFilePick[]) => {
-      if (detail?.source && detail.source !== 'drop') return;
+      // Native drop bridge uses source=drop; context-menu paste uses source=paste.
+      if (detail?.source && detail.source !== 'drop' && detail.source !== 'paste') return;
       if (!files.length) {
         clearDesktopFileDropZone();
         return;
@@ -1680,8 +1858,11 @@ export const ChatPanel = React.memo(function ChatPanel({
                 <>
                   <MessageList
                     messages={messages}
-                    renderAfterMessage={renderCodeChangesAfterMessage}
+                    renderAfterMessage={renderAfterMessage}
+                    canLoadOlderHistory={canRequestOlderHistory}
+                    onLoadOlderHistory={historyOnLoadMore}
                     teamGroupIdentityOverride={teamGroupIdentity}
+                    onForkFromMessage={handleForkFromMessage}
                   />
                   {shouldShowHumanShare && (
                     <HumanShareCard commands={teamHumanShareCommands} onShare={() => setHumanShareOpen(true)} />
@@ -1731,7 +1912,8 @@ export const ChatPanel = React.memo(function ChatPanel({
                     <BeeBanner
                       className="chat-welcome__banner chat-welcome__banner--bee"
                       altText={t('chat.welcomeLogoAlt')}
-                      onTrigger={() => setBubbleVisible(true)}
+                      onTrigger={handleBubbleShow}
+                      onLeave={handleBubbleLeave}
                     />
                   </>
                 )}
@@ -1743,6 +1925,9 @@ export const ChatPanel = React.memo(function ChatPanel({
                   ref={inputAreaRef}
                   onSubmit={handleSendMessage}
                   onEnsureSession={onEnsureSession}
+                  onNewSession={onNewSession}
+                  onForkSession={onForkSession}
+                  onStartSideConversation={onStartSideConversation}
                   onInputIntent={onInputIntent}
                   onPersistMedia={onPersistMedia}
                   onPersistDocuments={onPersistDocuments}
@@ -1754,9 +1939,12 @@ export const ChatPanel = React.memo(function ChatPanel({
                   onNavigateToSkills={onNavigateToSkills}
                   onNavigateToAgents={onNavigateToAgents}
                   onAgentGroupIdentityChange={setTeamGroupIdentity}
-                  permissionsEnabled={permissionsEnabled}
+                  permissionProfile={permissionProfile}
                   onSavePermission={onSavePermission}
                   onSetGoal={onSetGoal}
+                  onPauseGoal={onPauseGoal}
+                  onResumeGoal={onResumeGoal}
+                  onRefreshGoal={onRefreshGoal}
                   onClearGoal={onClearGoal}
                 />
               </div>
@@ -1813,6 +2001,9 @@ export const ChatPanel = React.memo(function ChatPanel({
             ref={inputAreaRef}
             onSubmit={handleSendMessage}
             onEnsureSession={onEnsureSession}
+            onNewSession={onNewSession}
+            onForkSession={onForkSession}
+            onStartSideConversation={onStartSideConversation}
             onInputIntent={onInputIntent}
             onPersistMedia={onPersistMedia}
             onPersistDocuments={onPersistDocuments}
@@ -1824,9 +2015,12 @@ export const ChatPanel = React.memo(function ChatPanel({
             onNavigateToSkills={onNavigateToSkills}
             onNavigateToAgents={onNavigateToAgents}
             onAgentGroupIdentityChange={setTeamGroupIdentity}
-            permissionsEnabled={permissionsEnabled}
+            permissionProfile={permissionProfile}
             onSavePermission={onSavePermission}
             onSetGoal={onSetGoal}
+            onPauseGoal={onPauseGoal}
+            onResumeGoal={onResumeGoal}
+            onRefreshGoal={onRefreshGoal}
             onClearGoal={onClearGoal}
             onDrainTaskQueueIfIdle={onDrainTaskQueueIfIdle}
           />

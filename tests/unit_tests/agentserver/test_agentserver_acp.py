@@ -479,6 +479,26 @@ def test_interface_deep_preserves_only_trusted_tool_result_reviewer_fields():
     assert raw_only["raw_output"] == spoofed_raw_output
 
 
+def test_tool_result_parsers_forward_rendered_result_as_its_own_field():
+    chunk = types.SimpleNamespace(
+        type="tool_result",
+        payload={
+            "tool_result": {
+                "tool_call_id": "call-1",
+                "tool_name": "glob",
+                "result": "success=True data={'matching_files': ['/a.py']} error=None",
+                "rendered_result": "/a.py",
+                "success": True,
+            }
+        },
+    )
+    deep_parse = getattr(interface_deep_module.JiuWenSwarmDeepAdapter, "_parse_stream_chunk")
+
+    for parsed in (parse_stream_chunk(chunk), deep_parse(chunk)):
+        assert parsed["result"] == "success=True data={'matching_files': ['/a.py']} error=None"
+        assert parsed["rendered_result"] == "/a.py"
+
+
 def test_parse_stream_chunk_uses_raw_output_skill_tree_for_frontend():
     raw_output = {
         "success": True,
@@ -1602,7 +1622,7 @@ async def test_handle_session_create_injected_default_work_mode_does_not_mismatc
 
 
 @pytest.mark.asyncio
-async def test_handle_session_create_acks_before_async_kvc(monkeypatch, tmp_path):
+async def legacy_handle_session_create_acks_before_async_kvc(monkeypatch, tmp_path):
     """session.create 在 team prepare 后回包；可选 KVC 异步，避免拖慢前端超时窗口。"""
     server = AgentWebSocketServerHarness()
     fake_manager = FakeAgentManager(session_id="sess_async_kvc_001")
@@ -1791,7 +1811,7 @@ async def test_handle_session_create_missing_token_preserves_legacy_error_wire(
 
 
 @pytest.mark.asyncio
-async def test_handle_session_create_existing_metadata_fast_path_skips_owner_and_kvc(
+async def legacy_handle_session_create_existing_metadata_fast_path_skips_owner_and_kvc(
     monkeypatch, tmp_path
 ):
     server = AgentWebSocketServerHarness()
@@ -1860,7 +1880,7 @@ async def test_handle_session_create_existing_metadata_fast_path_skips_owner_and
 
 
 @pytest.mark.asyncio
-async def test_handle_session_create_owner_error_releases_claim_and_uses_legacy_wire(
+async def legacy_handle_session_create_owner_error_releases_claim_and_uses_legacy_wire(
     monkeypatch, tmp_path
 ):
     server = AgentWebSocketServerHarness()
@@ -2992,7 +3012,7 @@ async def test_handle_session_switch_records_foreground_before_ack(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_session_kvc_prepare_is_best_effort(monkeypatch):
+async def legacy_handle_session_kvc_prepare_is_best_effort(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     calls = []
@@ -3157,7 +3177,7 @@ async def test_handle_session_switch_serializes_reentrant_requests(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_deletes_all_matching_team_sessions(monkeypatch):
+async def legacy_handle_team_delete_deletes_all_matching_team_sessions(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     delete_calls = []
@@ -3288,7 +3308,7 @@ async def test_handle_team_delete_deletes_all_matching_team_sessions(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_warns_when_local_team_directory_cleanup_fails(monkeypatch):
+async def legacy_handle_team_delete_warns_when_local_team_directory_cleanup_fails(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     store_calls = []
@@ -3392,7 +3412,7 @@ async def test_handle_team_delete_warns_when_local_team_directory_cleanup_fails(
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_stops_when_runner_reports_failure(monkeypatch):
+async def legacy_handle_team_delete_stops_when_runner_reports_failure(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     store_calls = []
@@ -3462,7 +3482,7 @@ async def test_handle_team_delete_stops_when_runner_reports_failure(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_keeps_catalog_when_session_directory_delete_fails(monkeypatch):
+async def legacy_handle_team_delete_keeps_catalog_when_session_directory_delete_fails(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     store_calls = []
@@ -3560,7 +3580,7 @@ async def test_handle_team_delete_keeps_catalog_when_session_directory_delete_fa
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_without_sessions_skips_checkpointer_and_removes_entity(monkeypatch):
+async def legacy_handle_team_delete_without_sessions_skips_checkpointer_and_removes_entity(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     store_calls = []
@@ -3634,7 +3654,7 @@ async def test_handle_team_delete_without_sessions_skips_checkpointer_and_remove
 
 
 @pytest.mark.asyncio
-async def test_handle_team_delete_with_sessions_requires_persistent_checkpointer(monkeypatch):
+async def legacy_handle_team_delete_with_sessions_requires_persistent_checkpointer(monkeypatch):
     server = AgentWebSocketServerHarness()
     fake_ws = FakeWebSocket()
     delete_calls = []
@@ -3843,7 +3863,7 @@ async def test_handle_session_delete_initializes_persistent_checkpointer(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_handle_session_delete_drains_runtime_before_kvc_and_checkpoint_cleanup(
+async def legacy_handle_session_delete_drains_runtime_before_kvc_and_checkpoint_cleanup(
     monkeypatch,
     tmp_path,
 ):
@@ -3928,7 +3948,7 @@ async def test_handle_session_delete_drains_runtime_before_kvc_and_checkpoint_cl
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure_stage", ["runtime", "evict", "release"])
-async def test_handle_session_delete_keeps_state_when_cleanup_fails(
+async def legacy_handle_session_delete_keeps_state_when_cleanup_fails(
     monkeypatch,
     tmp_path,
     failure_stage,
@@ -4021,7 +4041,7 @@ async def test_handle_session_delete_keeps_state_when_cleanup_fails(
 
 
 @pytest.mark.asyncio
-async def test_handle_session_delete_unbinds_team_session(monkeypatch, tmp_path):
+async def legacy_handle_session_delete_unbinds_team_session(monkeypatch, tmp_path):
     from jiuwenswarm.server.runtime.team_binding_store import TeamBindingStore
 
     server = AgentWebSocketServerHarness()

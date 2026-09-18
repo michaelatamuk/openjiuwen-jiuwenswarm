@@ -8,6 +8,7 @@ No process-local cache is used for admission decisions.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -19,6 +20,7 @@ from typing import Any, Iterator
 from jiuwenswarm.server.runtime.session.project_store import file_lock
 
 _HELD_LOCKS = threading.local()
+logger = logging.getLogger(__name__)
 
 
 def get_agent_sessions_dir() -> Path:
@@ -129,7 +131,9 @@ def save_locked(kind: str, resource_id: str, value: dict) -> None:
     atomic_json(resource_path(kind, resource_id), value)
 
 
-def begin(kind: str, resource_id: str, action: str, *, block_execution: bool = True) -> dict:
+def begin(
+    kind: str, resource_id: str, action: str, *, block_execution: bool = True
+) -> dict:
     with resource_lock(kind, resource_id):
         value = state(kind, resource_id)
         operation = value.get("operation")
@@ -167,7 +171,9 @@ def begin(kind: str, resource_id: str, action: str, *, block_execution: bool = T
             operation=operation,
             generation=generation,
             blocked=block_execution or value.get("blocked", False),
-            write_blocked=(action == "unarchive") if block_execution else value.get("write_blocked", False),
+            write_blocked=(action == "unarchive")
+            if block_execution
+            else value.get("write_blocked", False),
             drain_generation=generation - 1,
         )
         save_locked(kind, resource_id, value)
@@ -316,24 +322,54 @@ def raw_metadata(session_id: str) -> dict:
     return read_json(path / "metadata.json")
 
 
-def project_id_for(meta: dict) -> str:
+def build_project_lookup() -> tuple[
+    dict[str, list[tuple[str, str]]], dict[str, str]
+]:
+    """Build the legacy project-directory lookup once for a batch operation.
+
+    Session inventories can contain many old metadata files without a
+    ``project_id``.  Rebuilding this mapping per session turns that compatible
+    fallback into an N+1 read of ``projects.json``.  Callers that enumerate
+    sessions should build it lazily and pass it to :func:`project_id_for`.
+    """
+    from jiuwenswarm.server.runtime.session.project_store import (
+        list_projects,
+        _normalize_path_for_match,
+    )
+
+    projects = list_projects(include_hidden=True, cache_bust=True)
+    by_directory: dict[str, list[tuple[str, str]]] = {}
+    for project in projects:
+        if project.project_dir:
+            by_directory.setdefault(
+                _normalize_path_for_match(project.project_dir), []
+            ).append((project.project_id, project.work_mode))
+    return (
+        by_directory,
+        {project.project_id: project.work_mode for project in projects},
+    )
+
+
+def project_id_for(
+    meta: dict,
+    *,
+    project_lookup: tuple[dict[str, list[tuple[str, str]]], dict[str, str]]
+    | None = None,
+) -> str:
     if not meta.get("project_id") and meta.get("project_dir"):
         # Legacy list queries infer this association without writing it back.
         # Archive checks and cascade inventories must use the same association.
-        from jiuwenswarm.server.runtime.session.session_metadata import _apply_metadata_defaults_with_inference
-        from jiuwenswarm.server.runtime.session.project_store import list_projects, _normalize_path_for_match
+        from jiuwenswarm.server.runtime.session.session_metadata import (
+            _apply_metadata_defaults_with_inference,
+        )
 
-        projects = list_projects(include_hidden=True, cache_bust=True)
-        by_directory: dict[str, list[tuple[str, str]]] = {}
-        for project in projects:
-            if project.project_dir:
-                by_directory.setdefault(_normalize_path_for_match(project.project_dir), []).append(
-                    (project.project_id, project.work_mode)
-                )
+        by_directory, id_to_work_mode = project_lookup or build_project_lookup()
         meta = _apply_metadata_defaults_with_inference(
-            str(meta.get("session_id") or ""), dict(meta), enable_writeback=False,
+            str(meta.get("session_id") or ""),
+            dict(meta),
+            enable_writeback=False,
             dir_to_projects=by_directory,
-            id_to_work_mode={project.project_id: project.work_mode for project in projects},
+            id_to_work_mode=id_to_work_mode,
         )
     return str(
         meta.get("project_id")
@@ -341,10 +377,22 @@ def project_id_for(meta: dict) -> str:
     )
 
 
-def projection(kind: str, resource_id: str, *, project_id: str = "") -> dict:
-    from jiuwenswarm.server.runtime.session.project_store import get_project_by_id
+def projection(
+    kind: str,
+    resource_id: str,
+    *,
+    project_id: str = "",
+    value: dict | None = None,
+    project_value: dict | None = None,
+) -> dict:
+    """Lifecycle projection of one resource.
 
-    value = state(kind, resource_id)
+    Callers that just read the state file (e.g. event_snapshots) can pass it
+    via ``value`` — and the parent project's state via ``project_value`` — so
+    the same files are not read again per session entry.
+    """
+    if value is None:
+        value = state(kind, resource_id)
     operation = value.get("operation")
     if operation and operation["status"] == "completed":
         operation = None
@@ -352,12 +400,9 @@ def projection(kind: str, resource_id: str, *, project_id: str = "") -> dict:
     if kind == "session":
         blocked = blocked or session_paths(resource_id)[1].exists()
         if project_id:
-            parent = projection("project", project_id)
+            parent = projection("project", project_id, value=project_value)
             blocked = blocked or parent["execution_blocked"]
             operation = operation or parent["lifecycle_operation"]
-    else:
-        project = get_project_by_id(resource_id, cache_bust=True)
-        blocked = blocked or bool(project and project.hidden)
     keys = (
         "operation_id",
         "resource_type",
@@ -396,14 +441,9 @@ def guard(session_id: str = "", project_id: str = "") -> None:
             code = (
                 "OPERATION_IN_PROGRESS"
                 if value.get("operation", {}).get("status") != "completed"
-                else ("NOT_FOUND" if value.get("deleted") else "PROJECT_ARCHIVED")
+                else "NOT_FOUND"
             )
             raise LifecycleError(code, "project lifecycle blocks this operation")
-        from jiuwenswarm.server.runtime.session.project_store import get_project_by_id
-
-        project = get_project_by_id(project_id, cache_bust=True)
-        if project and project.hidden:
-            raise LifecycleError("PROJECT_ARCHIVED", "project is archived")
 
 
 def fence_writes(kind: str, resource_id: str) -> None:
@@ -449,11 +489,6 @@ def write_guard(session_id: str, generation: int | None = None) -> None:
     parent = state("project", pid)
     if parent.get("write_blocked", parent.get("blocked", False)):
         raise LifecycleError("OPERATION_IN_PROGRESS", "project writes are isolated")
-    from jiuwenswarm.server.runtime.session.project_store import get_project_by_id
-
-    project = get_project_by_id(pid, cache_bust=True)
-    if project and project.hidden:
-        raise LifecycleError("PROJECT_ARCHIVED", "project is archived")
 
 
 def assert_runtime_owner(session_id: str) -> None:
@@ -500,12 +535,9 @@ def release_runtime(session_id: str) -> None:
 
 
 def visible(meta: dict) -> bool:
-    from jiuwenswarm.server.runtime.session.project_store import get_project_by_id
-
-    project = get_project_by_id(project_id_for(meta), cache_bust=True)
     sid = str(meta.get("session_id") or "")
     archived = bool(sid and session_paths(sid)[1].exists())
-    return not archived and not (project and project.hidden)
+    return not archived
 
 
 def parse_ids(params: dict, *, delete: bool = False) -> list[str]:
@@ -544,7 +576,12 @@ def page(items: list[dict], params: dict, key: str, maximum: int) -> dict:
     for item in items:
         if work_mode is not None and item.get("work_mode") != work_mode:
             continue
-        if keyword not in str(item.get("title" if key == "sessions" else "name", "")).casefold():
+        if (
+            keyword
+            not in str(
+                item.get("title" if key == "sessions" else "name", "")
+            ).casefold()
+        ):
             continue
         if "project_id" in params and item.get("project_id") != params["project_id"]:
             continue
@@ -553,7 +590,7 @@ def page(items: list[dict], params: dict, key: str, maximum: int) -> dict:
     items = filtered
     items.sort(key=lambda item: (-float(item.get("archived_at") or 0), item[id_key]))
     total = len(items)
-    selected = items[offset: offset + limit]
+    selected = items[offset:offset + limit]
     return {
         key: selected,
         "total": total,
@@ -567,22 +604,37 @@ def event_snapshots() -> list[dict]:
     """Internal Gateway refresh feed. Resource revisions survive restarts."""
     directory = get_agent_root_dir() / "lifecycle" / "resources"
     result = []
+    # Sessions share few projects: cache each project state once per poll and
+    # hand every entry its own already-loaded value instead of letting
+    # projection() re-read the same resource file.
+    project_states: dict[str, dict] = {}
     for path in directory.glob("*.json") if directory.exists() else ():
         value = read_json(path)
         operation = value.get("operation")
         if not operation:
             continue
         kind, resource_id = operation["resource_type"], operation["resource_id"]
+        if kind == "project" and operation["kind"] != "delete":
+            continue
         project_id = operation.get(
             "project_id", resource_id if kind == "project" else "default"
         )
+        project_value = None
+        if kind == "session":
+            if project_id not in project_states:
+                project_states[project_id] = state("project", project_id)
+            project_value = project_states[project_id]
         payload = dict(
             resource_id=resource_id,
             operation_id=operation["operation_id"],
             revision=value["revision"],
             project_id=project_id,
             **projection(
-                kind, resource_id, project_id=project_id if kind == "session" else ""
+                kind,
+                resource_id,
+                project_id=project_id if kind == "session" else "",
+                value=value,
+                project_value=project_value,
             ),
         )
         if kind == "session":
@@ -597,3 +649,40 @@ def event_snapshots() -> list[dict]:
             )
         )
     return result
+
+
+def migrate_project_archives() -> None:
+    """One-time upgrade; never enable cron or clear session/delete fences."""
+    from jiuwenswarm.server.runtime.session import project_store
+
+    marker = get_agent_root_dir() / "lifecycle" / "project_delete_v2.json"
+    with file_lock(marker):
+        if marker.exists():
+            return
+        resources = marker.parent / "resources"
+        for path in resources.glob("project_*.json") if resources.exists() else ():
+            try:
+                value = read_json(path)
+                operation = value.get("operation") or {}
+                if operation.get("kind") not in {"archive", "unarchive"}:
+                    continue
+                pid = operation["resource_id"]
+                with resource_lock("project", pid):
+                    value = state("project", pid)
+                    if (value.get("operation") or {}).get("kind") not in {
+                        "archive",
+                        "unarchive",
+                    }:
+                        continue
+                    value.update(blocked=False, write_blocked=False)
+                    value["operation"].update(
+                        status="completed", stop_pending=False, result={}, migrated=True
+                    )
+                    save_locked("project", pid, value)
+            except Exception:
+                # 单个损坏的生命周期文件不应阻断其余项目的迁移。
+                logger.warning(
+                    "project archive migration skipped %s", path.name, exc_info=True
+                )
+        project_store.migrate_archived_projects()
+        atomic_json(marker, {"version": 2, "completed_at": time.time()})
