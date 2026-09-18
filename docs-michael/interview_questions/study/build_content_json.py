@@ -15,6 +15,7 @@ import html
 import hashlib
 import shutil
 import subprocess
+import sys
 from datetime import date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,8 @@ BASE = os.path.dirname(HERE)
 OUT = os.path.join(HERE, "android-app-2026", "app", "src", "main", "assets")
 SVG_CACHE = os.path.join(HERE, ".mmd-cache")
 PNG_CACHE = os.path.join(HERE, ".mmd-png")
+AUTH = os.path.join(HERE, "authored_summaries.json")
+AUTH_J = os.path.join(HERE, "authored_jiuwen_plain.json")
 
 MH = re.compile(r"^##\s*(?:(\d+)\.\s*)?(.+)$")
 DIAGRAM = re.compile(r"```mermaid\r?\n(.*?)```", re.S)
@@ -47,6 +50,24 @@ def find_mmdc():
 
 
 PUPPETEER = os.path.join(SVG_CACHE, "puppeteer.json")
+CONFIG = os.path.join(SVG_CACHE, "mermaid-config.json")
+SVG_BUDGET = int(next((a.split("=")[1] for a in sys.argv if a.startswith("--svg-budget=")), "10000"))
+_svg_renders = 0
+
+
+def _config():
+    os.makedirs(SVG_CACHE, exist_ok=True)
+    if not os.path.isfile(CONFIG):
+        with open(CONFIG, "w", encoding="utf-8") as fh:
+            json.dump({
+                "theme": "default",
+                "flowchart": {"htmlLabels": False, "useMaxWidth": False},
+                "sequence": {"useMaxWidth": False},
+                "class": {"htmlLabels": False},
+                "state": {"htmlLabels": False},
+                "er": {"htmlLabels": False},
+            }, fh)
+    return CONFIG
 
 
 def _puppeteer():
@@ -74,20 +95,59 @@ def render_png(code, mmdc):
     return out
 
 
+def fix_svg_size(path):
+    """Give the SVG root an explicit width/height so AndroidSVG has an intrinsic size."""
+    t = open(path, encoding="utf-8", errors="replace").read()
+    vb = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', t)
+    head = re.search(r"<svg[^>]*>", t)
+    if not (vb and head):
+        return
+    w, h = vb.group(1), vb.group(2)
+    tag = head.group(0)
+    new = re.sub(r'\swidth="[^"]*"', "", tag)
+    new = re.sub(r'\sheight="[^"]*"', "", new)
+    new = new[:-1] + f' width="{w}" height="{h}">'
+    t = t.replace(tag, new, 1)
+    open(path, "w", encoding="utf-8").write(t)
+
+
+def fix_svg_labels(path):
+    """Replace Mermaid's <foreignObject> labels with real <text> so AndroidSVG renders them."""
+    t = open(path, encoding="utf-8", errors="replace").read()
+    if "foreignObject" not in t:
+        return
+
+    def repl(m):
+        label = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
+        label = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return ('<text x="0" y="0" text-anchor="middle" dominant-baseline="central" '
+                'font-family="sans-serif" font-size="14" fill="#333333">' + label + "</text>")
+
+    t = re.sub(r"<foreignObject[^>]*>(.*?)</foreignObject>", repl, t, flags=re.S)
+    open(path, "w", encoding="utf-8").write(t)
+
+
 def render_svg(code, theme, mmdc):
-    """Light SVG only, keyed by sha1(code) so it reuses the site build cache."""
-    h = hashlib.sha1(code.encode("utf-8")).hexdigest()
+    """AndroidSVG-compatible SVG (htmlLabels off), keyed by content+config."""
+    global _svg_renders
+    h = hashlib.sha1(("svg2\x00" + code).encode("utf-8")).hexdigest()
     out = os.path.join(SVG_CACHE, h + ".svg")
     if os.path.isfile(out):
         return out
+    if _svg_renders >= SVG_BUDGET:
+        return None
     os.makedirs(SVG_CACHE, exist_ok=True)
     import tempfile
     with tempfile.TemporaryDirectory() as d:
         inp = os.path.join(d, "in.mmd")
         with open(inp, "w", encoding="utf-8") as fh:
             fh.write(code)
-        cmd = mmdc + ["-i", inp, "-o", out, "-b", "transparent", "-t", "default", "-p", _puppeteer()]
+        cmd = mmdc + ["-i", inp, "-o", out, "-b", "transparent", "-t", "default",
+                      "-c", _config(), "-p", _puppeteer()]
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    fix_svg_size(out)
+    fix_svg_labels(out)
+    _svg_renders += 1
     return out
 
 
@@ -240,12 +300,20 @@ def parse_file(path):
 
 
 def main():
+    if "--fix-cache" in sys.argv:
+        n = 0
+        for p in glob.glob(os.path.join(SVG_CACHE, "*.svg")):
+            fix_svg_size(p); fix_svg_labels(p); n += 1
+        print("fixed", n, "cached SVGs")
+        return
     mmdc = find_mmdc()
+    authored = json.load(open(AUTH, encoding="utf-8")) if os.path.isfile(AUTH) else {}
+    authored_j = json.load(open(AUTH_J, encoding="utf-8")) if os.path.isfile(AUTH_J) else {}
     files = sorted(f for f in glob.glob(os.path.join(BASE, "*.md"))
                    if re.match(r"^(0[1-9]|10|9[0-9])-", os.path.basename(f)))
     os.makedirs(os.path.join(OUT, "diagrams"), exist_ok=True)
     today = date.today().isoformat()
-    topics, missing, total, rendered = [], 0, 0, 0
+    topics, missing, total, rendered, pending = [], 0, 0, 0, 0
     for f in files:
         prefix = os.path.basename(f)[:2]
         title, questions = parse_file(f)
@@ -262,8 +330,14 @@ def main():
             citations = parse_anchors(body)
             qtype = infer_type(q["question"], citations)
             sents = sentences(explain)
-            tldr = sents[0] if sents else q["question"]
-            points = sents[:6] if len(sents) >= 2 else ([tldr] if tldr else [])
+            d_tldr = sents[0] if sents else q["question"]
+            d_points = sents[:6] if len(sents) >= 2 else ([d_tldr] if d_tldr else [])
+            key = f"{prefix}-{qi}"
+            ov = authored.get(key, {})
+            qt = ov.get("title", "")
+            tldr = ov.get("tldr") or d_tldr
+            points = ov.get("points") or d_points
+            jiuwen_plain = authored_j.get(key) or mechanism
             sources = []
             cm = CANON.search(body)
             if cm:
@@ -276,30 +350,34 @@ def main():
                 code = dia.group(1).replace("\r", "").strip()
                 try:
                     light = render_svg(code, "default", mmdc)
-                    png = render_png(code, mmdc)
-                    h = hashlib.sha1(code.encode("utf-8")).hexdigest()
-                    shutil.copyfile(light, os.path.join(OUT, "diagrams", h + ".svg"))
-                    shutil.copyfile(png, os.path.join(OUT, "diagrams", h + ".png"))
-                    w, ht, nodes = svg_geometry(light, node_labels(code))
-                    diagram = {
-                        "source": code,
-                        "svg": "diagrams/" + h + ".svg",
-                        "image": "diagrams/" + h + ".png",
-                        "svgDark": "",
-                        "width": w, "height": ht,
-                        "alt": f"Diagram for: {q['question']}",
-                        "steps": mermaid_steps(code),
-                        "nodes": nodes,
-                    }
-                    rendered += 1
+                    if light is None:
+                        pending += 1
+                    else:
+                        png = render_png(code, mmdc)
+                        h = hashlib.sha1(("svg2\x00" + code).encode("utf-8")).hexdigest()
+                        shutil.copyfile(light, os.path.join(OUT, "diagrams", h + ".svg"))
+                        shutil.copyfile(png, os.path.join(OUT, "diagrams", h + ".png"))
+                        w, ht, nodes = svg_geometry(light, node_labels(code))
+                        diagram = {
+                            "source": code,
+                            "svg": "diagrams/" + h + ".svg",
+                            "image": "diagrams/" + h + ".png",
+                            "svgDark": "",
+                            "width": w, "height": ht,
+                            "alt": f"Diagram for: {q['question']}",
+                            "steps": mermaid_steps(code),
+                            "nodes": nodes,
+                        }
+                        rendered += 1
                 except Exception as e:
                     missing += 1
                     print("diagram render failed:", str(e)[:120])
 
             t["questions"].append({
                 "id": f"{prefix}-{qi}", "topicId": prefix, "topicTitle": title, "number": qi,
-                "type": qtype, "question": q["question"], "tldr": tldr, "points": points,
-                "explain": explain, "mechanism": mechanism, "citations": citations,
+                "type": qtype, "question": q["question"], "title": qt, "tldr": tldr, "points": points,
+                "explain": explain, "mechanism": mechanism, "jiuwenPlain": jiuwen_plain,
+                "citations": citations,
                 "pitfalls": sentences(gap), "followups": [],
                 "diagram": diagram,
                 "meta": {"difficulty": "advanced" if qtype in ("design", "compare", "mechanism") else "core",
@@ -313,7 +391,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, "content.json"), "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=1)
-    print(f"topics={len(topics)} questions={total} diagrams={rendered} failed={missing}")
+    print(f"topics={len(topics)} questions={total} diagrams={rendered} failed={missing} pending={pending}")
 
 
 if __name__ == "__main__":

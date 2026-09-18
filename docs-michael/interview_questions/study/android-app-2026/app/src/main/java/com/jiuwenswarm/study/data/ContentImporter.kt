@@ -31,9 +31,9 @@ object ContentImporter {
                 questions.add(
                     QuestionEntity(
                         id = q.id, topicId = q.topicId, number = q.number, type = q.type,
-                        question = q.question, tldr = q.tldr,
+                        question = q.question, title = q.title, tldr = q.tldr,
                         pointsJson = json.encodeToString(q.points),
-                        explain = q.explain, mechanism = q.mechanism,
+                        explain = q.explain, mechanism = q.mechanism, jiuwenPlain = q.jiuwenPlain,
                         citationsJson = json.encodeToString(q.citations),
                         pitfallsJson = json.encodeToString(q.pitfalls),
                         followupsJson = json.encodeToString(q.followups),

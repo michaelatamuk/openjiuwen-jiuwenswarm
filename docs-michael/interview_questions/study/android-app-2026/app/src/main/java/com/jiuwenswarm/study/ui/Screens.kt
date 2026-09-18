@@ -175,9 +175,13 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
             Spacer(Modifier.height(12.dp))
 
             if (reveal >= 1) {
-                if (item.question.tldr.isNotBlank())
-                    Text(item.question.tldr, style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary)
+                if (item.question.title.isNotBlank())
+                    Text(item.question.title, style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                if (item.question.tldr.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(item.question.tldr, style = MaterialTheme.typography.bodyMedium)
+                }
                 Spacer(Modifier.height(8.dp))
                 PointsList(points)
             }
@@ -186,8 +190,8 @@ fun StudyScreen(repo: Repo, onOpen: (String) -> Unit) {
                 BulletList("Pitfalls", pitfalls)
             }
             if (reveal >= 3) {
-                Section("Evidence (Jiuwen)", item.question.mechanism)
-                CitationChips(citations)
+                Section("Jiuwen", item.question.jiuwenPlain)
+                TechnicalDetail(item.question.mechanism, citations)
             }
             if (reveal >= 4) {
                 if (diagram != null) {
@@ -283,16 +287,19 @@ fun QuestionScreen(repo: Repo, questionId: String) {
                 Icon(if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "Bookmark")
             }
         }
+        if (item.title.isNotBlank())
+            Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary)
         Text(item.question, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         if (item.tldr.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Text(item.tldr, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text(item.tldr, style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(12.dp))
         PointsList(points)
         Section("Explanation", item.explain)
-        Section("Evidence (Jiuwen)", item.mechanism)
-        CitationChips(citations)
+        Section("Jiuwen", item.jiuwenPlain)
+        TechnicalDetail(item.mechanism, citations)
         if (diagram != null) {
             Spacer(Modifier.height(8.dp))
             DiagramView(diagram, citations)

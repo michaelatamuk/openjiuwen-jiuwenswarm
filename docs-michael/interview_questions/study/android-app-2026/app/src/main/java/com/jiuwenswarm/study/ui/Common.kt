@@ -232,12 +232,14 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
     val haptic = LocalHapticFeedback.current
     val loader = remember(context) { svgLoader(context) }
     val dark = isSystemInDarkTheme()
+    val darkSurface = dark && data.svgDark.isNotBlank()
+    var useSvg by remember(data) { mutableStateOf(true) }
     val asset = when {
         dark && data.svgDark.isNotBlank() -> data.svgDark
+        useSvg && data.svg.isNotBlank() -> data.svg
         data.image.isNotBlank() -> data.image
         else -> data.svg
     }
-    val darkSurface = dark && data.svgDark.isNotBlank()
 
     var full by remember { mutableStateOf(false) }
     var step by remember { mutableIntStateOf(-1) }
@@ -283,6 +285,7 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
         ) {
             AsyncImage(model = "file:///android_asset/$asset", imageLoader = loader,
                 contentDescription = data.alt.ifBlank { "diagram" }, contentScale = ContentScale.Fit,
+                onError = { useSvg = false },
                 modifier = Modifier.fillMaxSize())
             Canvas(Modifier.fillMaxSize()) {
                 currentLabel?.let { lbl ->
@@ -338,6 +341,23 @@ fun DiagramView(data: DiagramData, citations: List<CitationDto>) {
                 }
                 Spacer(Modifier.height(8.dp))
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun TechnicalDetail(text: String, citations: List<CitationDto>) {
+    if (text.isBlank() && citations.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        TextButton(onClick = { open = !open }) {
+            Text(if (open) "Hide technical detail" else "Technical detail (classes & functions)")
+        }
+        if (open) {
+            if (text.isNotBlank()) MarkdownText(text)
+            Spacer(Modifier.height(6.dp))
+            CitationChips(citations)
         }
     }
 }
