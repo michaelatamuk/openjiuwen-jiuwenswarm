@@ -22,7 +22,13 @@
     "expandMore": "Show {{count}} more",
     "optional": "(optional)",
     "processing": "Processing…",
-    "retry": "Retry"
+    "retry": "Retry",
+    "editMenu": {
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All"
+    }
   },
   "a2ui": {
     "generating": "Generating A2UI interface...",
@@ -35,6 +41,7 @@
     "chat": "Chat",
     "work": "Tasks",
     "agent": "Experts",
+    "experiments": "Experiments",
     "sessions": "Sessions",
     "cron": "Scheduled Tasks",
     "skills": "Skills",
@@ -43,7 +50,7 @@
     "settings": "Settings",
     "logs": "Logs",
     "update": "Updates",
-    "personalContext": "Personal\nContext"
+    "personalContext": "Context"
   },
   "applicationPlugins": {
     "title": "Application plugins",
@@ -57,13 +64,23 @@
   },
   "settingsPanel": {
     "title": "Settings",
+    "freeModels": {
+      "title": "Limited-time free models",
+      "loginTitle": "Sign in with Huawei Cloud",
+      "loginDescription": "Sign in with your Huawei Cloud account to get JiuwenSwarm's limited-time free models",
+      "quotaTitle": "Free credits",
+      "quotaLoggedOut": "Sign in to view",
+      "signedIn": "Signed in",
+      "loggedInDescription": "Limited-time free models are now available in the chat model dropdown"
+    },
     "categories": {
       "general": "General",
       "models": "Models",
       "agent": "Agent",
       "browser": "Browser",
       "channels": "Channels",
-      "personalContext": "Personal Context",
+      "personalContext": "Context",
+      "archivedTasks": "Archived Tasks",
       "experimental": "Experimental"
     },
     "feedback": {
@@ -76,6 +93,39 @@
     },
     "access": {
       "readOnly": "This setting is currently read-only."
+    },
+    "archivedTasks": {
+      "description": "Manage archived conversations: restore them to the workspace or delete them permanently. Permanent deletion cannot be undone.",
+      "searchPlaceholder": "Search conversations",
+      "clearSearch": "Clear search",
+      "unassignedProject": "No project",
+      "restoreSession": "Restore conversation",
+      "deletePermanently": "Delete permanently",
+      "moreActions": "More actions",
+      "loadMore": "Load more",
+      "loadFailed": "Failed to load the archived list",
+      "emptyTitle": "Nothing archived",
+      "emptyDescription": "Archived conversations will appear here.",
+      "emptySearchTitle": "No archived conversations match your search",
+      "stopPending": "Task stop in progress",
+      "stopPendingTooltip": "This task is still being stopped. It can be restored once the stop completes.",
+      "sessionRestored": "Conversation restored",
+      "sessionDeleted": "Conversation deleted",
+      "deleteSessionTitle": "Delete conversation permanently",
+      "deleteSessionRecord": "Permanently delete the conversation \"{{sessionTitle}}\"?",
+      "deleteSessionIrreversible": "The conversation data will be permanently deleted and cannot be recovered.",
+      "deleteArchivedSessions": "Delete archived conversations",
+      "deleteArchivedSessionsTitle": "Delete archived conversations",
+      "deleteArchivedSessionsRecord": "Permanently delete all archived conversations in the project \"{{projectName}}\". This cannot be undone.",
+      "archivedSessionsDeleted": "Deleted {{count}} archived conversations",
+      "batchPartialFailure": "{{succeeded}} succeeded, {{failed}} failed.",
+      "errors": {
+        "forbidden": "This operation is not supported for this resource",
+        "notFound": "The resource no longer exists or has changed. Refresh and try again.",
+        "sessionGone": "This conversation no longer exists and cannot be restored.",
+        "requestFailed": "The operation failed. Please try again later.",
+        "sessionRestoreFailed": "Failed to restore the conversation. Refresh and try again."
+      }
     },
     "dialog": {
       "discardTitle": "Discard unsaved changes",
@@ -131,6 +181,10 @@
       "protocol": "Protocol",
       "vendor": "Model provider",
       "model": "Model",
+      "contextWindow": "Model context window",
+      "contextWindowPlaceholder": "For example, 256K, 1M, or 262144",
+      "contextWindowHint": "Enter a positive token count; plain numbers and K/M units are supported case-insensitively. You can also choose a common value next to the field.",
+      "contextWindowPresets": "Common context windows",
       "vendorPlaceholder": "Select",
       "selectVendor": "Select model provider",
       "searchVendor": "Search model providers",
@@ -143,9 +197,9 @@
       "modelIdHint": "For example: glm-4.7. Model IDs vary by provider; refer to its model list or official documentation.",
       "fetchLatestModels": "Fetch latest",
       "presetModels": "Showing provider presets. Open the list to fetch the latest models",
-      "noPresetModels": "No preset models. Open the list or refresh to fetch the latest models",
-      "noPresetModelsApiKeyRequired": "No preset models. Enter an API key before fetching the latest models",
-      "noPresetModelsNoEndpoint": "This provider has no preset models or model-list endpoint",
+      "noPresetModels": "Open the list or refresh to fetch the latest models",
+      "noPresetModelsApiKeyRequired": "Enter an API key before fetching the model list",
+      "noPresetModelsNoEndpoint": "This provider does not expose a model-list endpoint",
       "fetchModelsLoading": "Fetching...",
       "fetchModelsRemote": "Fetched {{count}} models from the provider",
       "fetchModelsFailed": "Failed to fetch the model list",
@@ -153,11 +207,11 @@
       "fetchModelsInvalidResponse": "The provider model-list response is invalid",
       "fetchModelsUnrecognizedResult": "The provider returned an unrecognized model-list source or reason",
       "fetchReasons": {
-        "noEndpoint": "Using the provider preset list: this provider does not expose a model-list endpoint",
-        "apiKeyRequired": "Using the provider preset list: enter an API key to fetch the latest models",
-        "remoteFailed": "Using the provider preset list: the remote request failed or returned no models",
-        "remoteAuthFailed": "Using the provider preset list: invalid API key or auth mismatch (HTTP 401/403)",
-        "remoteRateLimited": "Using the provider preset list: rate limited (HTTP 429), retry later"
+        "noEndpoint": "This provider does not expose a model-list endpoint",
+        "apiKeyRequired": "Enter an API key to fetch the latest models",
+        "remoteFailed": "The remote request failed or returned no models",
+        "remoteAuthFailed": "Invalid API key or auth mismatch (HTTP 401/403)",
+        "remoteRateLimited": "Rate limited (HTTP 429), retry later"
       },
       "vendorGroups": {
         "token_plan": "Token Plan",
@@ -228,6 +282,7 @@
         "anthropicUnavailable": "This provider plan does not support the Anthropic protocol. Use OpenAI or select another provider",
         "reasoningUnsupported": "The reasoning option “{{value}}” is unsupported. Select another option or use the default",
         "reasoningUnavailable": "Reasoning options have not loaded. Retry before saving",
+        "contextWindowInvalid": "Enter a valid positive context window, such as 256K, 1M, or 1310720",
         "aliasConflict": "Custom name must be globally unique and cannot match another model ID",
         "modelNameConflict": "Model ID cannot match another configuration's custom name"
       },
@@ -275,8 +330,10 @@
       "externalCliAgents": "Third-Party Agents",
       "externalCliAgentsDescription": "For Team mode only.",
       "a2ui": "A2UI generation",
+      "rsi": "RSI · Recursive self-improvement",
       "trajectoryUi": "Trajectory UI",
       "kvCacheAffinity": "Compute affinity",
+      "skillPack": "Skill Packs",
       "proactive": "Proactive recommendations",
       "proactiveLimits": "Recommendation limits",
       "proactiveLimitsDescription": "Up to {{daily}} per day and {{rounds}} conversation rounds per check.",
@@ -323,6 +380,10 @@
       "skill_evolution": {
         "title": "Automatic evolution and retention of local skills",
         "description": "Control automatic evolution and retention of local skills."
+      },
+      "symphony_evolution_enabled": {
+        "title": "Skill Pack Discovery",
+        "description": "Distill skill combinations from execution experience after tasks finish and discover skill packs automatically."
       },
       "skill_retrieval_enabled": {
         "title": "Automatic Skill Retrieval",
@@ -377,7 +438,14 @@
         "description": "Choose the shared guardrail mode for ordinary Agents and Teams."
       },
       "a2ui_enabled": { "title": "Enable A2UI", "description": "Render supported results as interactive interfaces." },
-      "trajectory_ui_enabled": { "title": "Enable trajectory UI", "description": "Show Chat and Trajectory switching in Agent and Team modes and enable the trajectory observability data path." },
+      "rsi_enabled": {
+        "title": "Enable RSI",
+        "description": "Show the Experiments entry in the sidebar for Harness optimization and artifact optimization (papers and programs). Turn it off to hide the entry."
+      },
+      "trajectory_ui_enabled": {
+        "title": "Enable trajectory UI",
+        "description": "Show Chat and Trajectory switching in Agent and Team modes and enable the trajectory observability data path."
+      },
       "task_full_duplex_enabled": {
         "title": "Enable Full-duplex in task chat",
         "description": "Show a Full-duplex action when the composer is empty; it shares the entire screen and continuously listens to the microphone."
@@ -426,7 +494,6 @@
     "validation": {
       "required": "This field is required",
       "integerRange": "Enter an integer from {{min}} to {{max}}"
-
     }
   },
   "trajectory": {
@@ -483,7 +550,6 @@
     "noGroupMessages": "No group messages",
     "memberTasksTitle": "Tasks executed by {{member}}",
     "memberTasks": "Their tasks",
-    "noMemberTasks": "No tasks assigned to this member",
     "noProcessData": "No execution process data for this member",
     "collapseView": "Collapse view",
     "expandView": "Expand view",
@@ -583,7 +649,11 @@
         "workflow": "Workflow view"
       },
       "metrics": {
-        "progress": "Progress"
+        "progress": "Progress",
+        "optimizationObject": "Optimization object",
+        "descInfo": "Description",
+        "viewDetail": "View details",
+        "artifactPreviewPlaceholder": "Artifact preview (placeholder until API ready)"
       },
       "columns": {
         "waiting": "Waiting",
@@ -656,6 +726,7 @@
   "chat": {
     "placeholder": "What can I do for you? Type \"/\" to quickly reference skills and commands",
     "placeholderCompacting": "Context compression in progress. Messages are temporarily disabled",
+    "modelNotConfigured": "No model is configured yet. Configure one in Settings → Models, or sign in to get the limited-time free models.",
     "placeholderAwaitingApproval": "Please respond to the pending confirmation above",
     "placeholderProcessing": "Processing, enter to interrupt...",
     "placeholderProcessingQueue": "Processing, new input will join the queue...",
@@ -665,6 +736,16 @@
     "welcomeLogoAlt": "WorkSwarm logo",
     "welcomeBubbleText": "Hi~ I'm your personal desktop smart buddy.",
     "welcomeHeading": "Hi, I'm WorkSwarm. Nice to meet you!",
+    "groupCreateWelcomeBrand": "JiuwenSwarm",
+    "groupCreateWelcomeSuffix": "makes every work problem easier!",
+    "groupCreateBannerAlt": "JiuwenSwarm Expert Team creation",
+    "groupCreateCapabilities": {
+      "web": "Web",
+      "document": "Documents",
+      "slides": "Slides",
+      "spreadsheet": "Spreadsheets",
+      "imageGeneration": "Image generation"
+    },
     "welcomeSuggestions": {
       "journey": "Let's begin a brand-new journey!",
       "skills": "Can you tell me what skills you have?"
@@ -689,6 +770,7 @@
     "addImageDisabled": "Cannot add images while processing or recording",
     "addFile": "Add file",
     "addFileDisabled": "Cannot add files while processing or recording",
+    "unsupportedImagePaste": "Unsupported file format. You can only paste PNG, JPG/JPEG, WebP, and GIF images.",
     "addFileTooltip": "Add files, experts, skills, connectors",
     "addAttachment": "Add attachment",
     "removeImage": "Remove image",
@@ -710,6 +792,8 @@
     "modelSelector": {
       "tooltip": "Switch the model used for chat",
       "configured": "Configured Models",
+      "free": "Limited-time Free Models",
+      "getFreeModels": "Get limited-time free models",
       "addModel": "Add Custom Model",
       "empty": "No models available. Add a model in Settings first.",
       "placeholder": "Select Model"
@@ -743,6 +827,7 @@
     "skillsAdd": "Add to composer",
     "skillsRemove": "Remove",
     "agent": "Experts",
+    "agentGroup": "Expert Teams",
     "agentToggle": "Choose an installed Expert",
     "agentSearchPlaceholder": "Enter keywords to search",
     "agentNoInstalled": "No installed Experts",
@@ -750,6 +835,15 @@
     "agentAdd": "Add to composer",
     "agentRemove": "Remove Expert",
     "agentMore": "More",
+    "agentGroupSearchPlaceholder": "Search by keyword",
+    "agentGroupNoInstalled": "No installed Expert Teams",
+    "agentGroupNoMatches": "No matching Expert Teams found",
+    "agentGroupRemove": "Remove Expert Team",
+    "agentGroupSkillsLocked": "An Expert Team is selected; additional Expert Team skills are unavailable",
+    "agentGroupBinding": "This conversation is bound to an Expert Team and cannot be changed",
+    "agentGroupFirstBuildOnly": "Expert Teams can only be selected when a Team is first created",
+    "agentOnlyInSingleAgentMode": "Experts can only be selected in single-Agent mode",
+    "agentGroupOnlyInTeamMode": "Expert Teams can only be selected in Team mode",
     "extension": "Extensions",
     "extensionSearchPlaceholder": "Search by keyword",
     "extensionEmpty": "No results",
@@ -795,6 +889,18 @@
     },
     "historyLoading": "Loading conversation history…",
     "historyLoadMore": "Load more history",
+    "continuedFromChat": "Continued from chat",
+    "openSourceChat": "Open source chat",
+    "sideConversation": {
+      "title": "Side chat",
+      "from": "From {{title}}",
+      "empty": "Ask a question without leaving the main chat",
+      "placeholder": "Message side chat",
+      "send": "Send message",
+      "working": "Working…",
+      "sendFailed": "Message could not be sent. Try again.",
+      "close": "Close side chat"
+    },
     "config": {
       "mode": {
         "cluster": "Cluster",
@@ -898,6 +1004,9 @@
   "persistSession": {
     "textRequired": "Enter a task after /persist"
   },
+  "crossSession": {
+    "messageBadge": "From session: {{title}}"
+  },
   "goal": {
     "formSubmit": "Confirm",
     "formCancel": "Cancel",
@@ -906,6 +1015,7 @@
     "toggleLabel": "Pursue Goal",
     "toolbarUnavailable": "A goal is already in progress. Finish or clear it first.",
     "toolbarUnavailablePlan": "Plan mode is in progress, so Goal isn't available",
+    "overwriteConfirm": "The current goal \"{{currentObjective}}\" is unfinished. Replace it with \"{{requestedObjective}}\"?",
     "closeTag": "Cancel goal",
     "badge": "Goal",
     "status": {
@@ -1302,7 +1412,7 @@
       "viaChatPrompt": "Let's set up a scheduled task together. First, explain how scheduled tasks work in WorkSwarm. Then ask me what I'd like to schedule and when it should run."
     },
     "stats": {
-      "total": "Total tasks ({{count}})"
+      "total": "Total tasks {{count}}"
     },
     "tabs": {
       "list": "Tasks",
@@ -1560,6 +1670,18 @@
   "browser": {
     "errors": {
       "loadPath": "Failed to load browser settings"
+    },
+    "pane": {
+      "panels": "Browser panels",
+      "mainPanel": "Main browser",
+      "tabLabel": "Browser",
+      "closeTab": "Close browser",
+      "back": "Back",
+      "forward": "Forward",
+      "reload": "Reload",
+      "stop": "Stop",
+      "addressPlaceholder": "Enter URL or search",
+      "unavailable": "Built-in browser unavailable"
     }
   },
   "logsPanel": {
@@ -1722,7 +1844,8 @@
       "statKnowledge": "Context Nodes",
       "statCollecting": "Collecting",
       "knowledgeSource": "Context Source",
-      "lastRun": "Last Run"
+      "lastRun": "Last Run",
+      "fetchTaskRunning": "A fetch task is currently running. Please wait for it to complete before changing settings."
     },
     "addContent": {
       "title": "Add content",
@@ -1735,15 +1858,15 @@
       "autoCollectLabel": "Auto fetch",
       "autoCollectHint": "Fetch automatically at the chosen frequency",
       "timeRangeLabel": "Time Range",
-    "timeRangeWeek": "Last Week",
-    "timeRangeMonth": "Last Month",
-    "timeRangeQuarter": "Last Quarter",
-    "timeRangeCustom": "Custom",
-    "dateRangeTitle": "Select Date Range",
-    "dateRangePlaceholder": "Select a date range",
-    "dateRangeRequired": "Select a custom date range",
-    "addUrl": "+ Add",
-    "frequencyLabel": "Auto fetch frequency",
+      "timeRangeWeek": "Last Week",
+      "timeRangeMonth": "Last Month",
+      "timeRangeQuarter": "Last Quarter",
+      "timeRangeCustom": "Custom",
+      "dateRangeTitle": "Select Date Range",
+      "dateRangePlaceholder": "Select a date range",
+      "dateRangeRequired": "Select a custom date range",
+      "addUrl": "+ Add",
+      "frequencyLabel": "Auto fetch frequency",
       "frequencyHour": "Every {{n}} hour(s)",
       "frequencyDay": "Every {{n}} day(s)",
       "frequencyEvery": "Every",
@@ -1754,7 +1877,7 @@
       "advancedConfig": "Advanced Settings",
       "maxItemsRangeError": "Max items must be 1-10000, or empty for default",
       "previousStep": "Previous",
-    "submit": "Add",
+      "submit": "Add",
       "save": "Save",
       "notConfigured": "Personal context is not configured. Enable it in Settings first.",
       "providerUnauthorized": "Not authorized. Authorize it in Settings first.",
@@ -1874,7 +1997,8 @@
     },
     "mySkillsGroups": {
       "added": "Added Skills",
-      "builtin": "Built-in Skills"
+      "builtin": "Built-in Skills",
+      "skillPack": "Skill Packs"
     },
     "publishFilter": {
       "all": "All",
@@ -1885,6 +2009,10 @@
       "skill": "Skill Pack",
       "team": "Team Skills",
       "multimodal": "Multimodal"
+    },
+    "proprietaryLabels": {
+      "thirdParty": "Third-party",
+      "thirdPartyHint": "Provided by a third party, not built in-house"
     },
     "marketplaceCategories": {
       "all": "All",
@@ -1903,6 +2031,7 @@
     "noEnabledSkills": "No enabled skills",
     "noBuiltinSkills": "No builtin skills",
     "setEnabledError": "Failed to set skill enabled status",
+    "packBlockedHint": "This skill pack contains uninstalled skills. Install them under \"Included Skills\" before enabling.",
     "setEnabledSuccess": "Skill {name} enabled",
     "setDisabledSuccess": "Skill {name} disabled",
     "marketplaceTabs": {
@@ -1937,6 +2066,7 @@
       "install": "Install",
       "installing": "Installing...",
       "uninstall": "Uninstall",
+      "uninstalling": "Uninstalling...",
       "importLocal": "Import Local Skill",
       "sourceManager": "Source Manager",
       "create": "Create",
@@ -2064,6 +2194,17 @@
     "featuredTeamSkills": "Featured Team Skills",
     "featuredSkills": "Featured Skills",
     "noMatches": "No matching skills",
+    "featuredSkillPacks": "Featured Skill Packs",
+    "allSkillPacks": "All Skill Packs",
+    "skillPackTag": "Skill Pack",
+    "memberCountSuffix": "{{count}} skills",
+    "includedSkills": "Included Skills",
+    "noPackMembers": "No included skills",
+    "memberUnavailable": "Unavailable",
+    "memberBlockedReasonDisabled": "Disabled",
+    "memberBlockedReasonMissing": "Missing",
+    "memberBlockedReasonInvalid": "Invalid",
+    "memberBlockedReasonUninstalled": "Uninstalled",
     "viewMode": {
       "list": "List view",
       "grid": "Grid view"
@@ -2508,7 +2649,7 @@
     "title": "Expert Management",
     "subtitle": "Create and manage reusable Expert assets",
     "tabsLabel": "Expert management categories",
-    "tabs": { "catalog": "Expert marketplace", "mine": "My Experts" },
+    "tabs": { "catalog": "Expert marketplace", "teams": "Expert Team marketplace", "mine": "My Experts", "mineAgent": "Experts", "mineGroup": "Expert Teams", "mineLabel": "My asset type" },
     "source": { "builtin": "Official", "local": "Mine", "hub": "Hub" },
     "categoryLabel": "Expert categories",
     "categoryAll": "All",
@@ -2518,7 +2659,9 @@
     "mineSubtitle": "Manage Experts you created or installed",
     "searchLabel": "Search Experts",
     "searchCatalog": "Search Experts",
+    "searchTeams": "Search Expert Teams",
     "searchMine": "Search my Experts",
+    "searchMineGroup": "Search my Expert Teams",
     "unknownDescription": "No capability description",
     "categories": {
       "IndustryConsultant": "Industry",
@@ -2552,13 +2695,23 @@
       "createByUpload": "Create from file",
       "uploading": "Uploading…",
       "createViaChatPrompt": "Help me create an xxx Expert who is good at xxx",
-      "back": "Back"
+      "back": "Back",
+      "edit": "Edit",
+      "updating": "Saving…"
     },
-    "card": { "open": "Open {{name}} details", "actions": "Actions for {{name}}", "moreTagsTooltip": "More tags: {{tags}}" },
+    "confirm": {
+      "deleteMessage": "Delete the Expert “{{name}}”? This cannot be undone."
+    },
+    "card": {
+      "open": "Open {{name}} details",
+      "actions": "Actions for {{name}}",
+      "moreTagsTooltip": "More tags: {{tags}}"
+    },
     "states": {
       "installed": "Installed",
       "loadError": "Unable to load the Expert list. Try again.",
       "detailError": "Unable to load Expert details. Try again.",
+      "hubAssetChanged": "This expert has changed or been removed on Hub. The catalog is refreshing; go back and select it again.",
       "actionError": "The action could not be completed. Try again in a moment.",
       "duplicateName": "An Expert with this name already exists. Choose a different name and try again.",
       "agentUnavailable": "This Expert is no longer available. Refresh the list and try again.",
@@ -2577,7 +2730,7 @@
       "uploadMissingReadme": "The Expert package is missing README.md.",
       "uploadMissingPersona": "The Expert package is missing the persona directory, or it contains no .md files.",
       "newVersion": "This Expert has a new version available",
-      "teamUnavailable": "Team Expert management is not available yet",
+      "teamUnavailable": "Expert Team management is not available yet",
       "featureUnavailable": "This feature is outside this milestone",
       "catalogEmpty": "No Experts to show",
       "mineEmpty": "You do not have any Experts yet",
@@ -2621,6 +2774,7 @@
     },
     "form": {
       "title": "Create manually",
+      "editTitle": "Edit Expert",
       "subtitle": "Create a reusable Expert definition",
       "createOnly": "Create only",
       "createTabsLabel": "Creation type",
@@ -2703,6 +2857,92 @@
         "descriptionRequired": "Enter a capability description",
         "personaRequired": "Enter a persona"
       }
+    },
+    "group": {
+      "actions": {
+        "createFirst": "Create manually",
+        "createByChat": "Create via chat",
+        "createByUpload": "Create from file",
+        "createViaChatPrompt": "Help me create an xxx Expert Team, skilled at xxx",
+        "install": "Install",
+        "installing": "Installing…",
+        "use": "Use",
+        "uninstall": "Uninstall",
+        "uninstalling": "Uninstalling…",
+        "delete": "Delete",
+        "saving": "Saving…"
+      },
+      "card": { "open": "Open {{name}} details", "actions": "Actions for {{name}}" },
+      "states": {
+        "loadError": "Unable to load the Expert Team list. Try again.",
+        "detailError": "Unable to load Expert Team details. Try again.",
+        "actionError": "The Expert Team action could not be completed. Try again.",
+        "duplicateName": "An Expert Team with this name already exists. Choose a different name and try again.",
+        "unavailable": "This Expert Team package is no longer available.",
+        "definitionUnavailable": "This Expert Team definition is incomplete and cannot be used.",
+        "membersInvalid": "The Expert Team members are invalid. Choose a leader and distinct members.",
+        "memberUnavailable": "A selected Expert is unavailable or not Team-compatible.",
+        "createSuccess": "Expert Team package {{id}} was created.",
+        "uploadSuccess": "Expert Team package {{id}} was imported. Review it in My Expert Teams.",
+        "uploadError": "Unable to import the Expert Team package. Check the file and try again.",
+        "catalogEmpty": "No Expert Teams to show",
+        "mineEmpty": "You do not have any Expert Teams yet",
+        "noMatch": "No matching Expert Teams found"
+      },
+      "detail": {
+        "membersTitle": "Expert Team members",
+        "leader": "Leader",
+        "tabsLabel": "Expert Team detail content",
+        "contentTab": "Details",
+        "filesTab": "File preview",
+        "noDetails": "No additional details",
+        "filesUnavailable": "Install the Expert Team to view its files."
+      },
+      "files": { "loadError": "Unable to load Expert Team files. Try again.", "readError": "Unable to read the Expert Team file. Try again." },
+      "form": {
+        "title": "Create manually",
+        "createAgentTab": "Create Expert",
+        "createGroupTab": "Create Expert Team",
+        "basic": "Basic information",
+        "nameLabel": "Expert Team name",
+        "namePlaceholder": "Enter a display name",
+        "descriptionLabel": "Capability description",
+        "descriptionPlaceholder": "Describe what this Expert Team can do",
+        "tagLabel": "Domain tags (optional)",
+        "tagPlaceholder": "Choose domain tags",
+        "teamIntro": "Expert Team introduction",
+        "teamConfig": "Expert Team configuration",
+        "personaLabel": "Expert Team introduction",
+        "personaPlaceholder": "Describe the Expert Team",
+        "leaderFieldLabel": "Leader",
+        "leaderLabel": "Choose leader",
+        "changeLeader": "Change leader",
+        "membersFieldLabel": "Members",
+        "addMember": "Add member",
+        "removeMember": "Remove member {{name}}",
+        "skillsLabel": "Expert Team skill configuration (optional)",
+        "chooseSkills": "Choose skills",
+        "removeSkill": "Remove skill {{name}}",
+        "skillsError": "Unable to load the skill list. Try again.",
+        "skillsEmpty": "No skills available",
+        "promptsLabel": "Try asking me (optional)",
+        "promptPlaceholder": "Enter a suggested question",
+        "removePrompt": "Remove suggested question",
+        "addPrompt": "Add question",
+        "saveError": "The Expert Team could not be created. Check the form and try again.",
+        "uploadKindLabel": "Category",
+        "uploadGroupTab": "Expert Team",
+        "uploadAgentTab": "Expert",
+        "uploadHint": "Supports uploading .zip and .tar Expert Team packages. The extracted package root must contain manifest.json, declare package_type: \"agent_group\", and configure the Expert Team name, Leader, and expert members. The package must include the member definitions, personas, and other files referenced by the configuration; README.md documentation is recommended.",
+        "uploadInvalidType": "Only .zip, .tar and .tar.gz Expert Team packages are supported",
+        "errors": {
+          "nameRequired": "Enter an Expert Team name",
+          "descriptionRequired": "Enter an Expert Team description",
+          "personaRequired": "Enter an Expert Team introduction",
+          "leaderRequired": "Choose a leader Expert"
+        }
+      },
+      "picker": { "leaderTitle": "Choose a leader", "memberTitle": "Choose members", "empty": "No matching Experts", "selectedCount": "{{count}} selected" }
     }
   },
   "fileViewer": {
@@ -2719,6 +2959,8 @@
     "copied": "Copied",
     "stopReading": "Stop reading",
     "readMessage": "Read message",
+    "forkFromMessage": "Create a conversation branch from this message",
+    "forkFromMessageFailed": "Failed to create a conversation branch. Try again.",
     "fileExpired": "Expired",
     "agentProcessing": "Agent Processing",
     "thinking": "Thinking...",
@@ -2825,6 +3067,47 @@
         "completed": "Discovery completed",
         "failed": "Discovery failed",
         "resultWords": "{{count}} words returned"
+      }
+    },
+    "autoReviewer": {
+      "title": "Permission review",
+      "status": {
+        "approved": "Automatically allowed",
+        "userApproved": "User allowed",
+        "userRejected": "User rejected",
+        "manual": "Manual review required",
+        "denied": "Denied",
+        "blocked": "Blocked",
+        "hostRevalidationFailed": "Host validation failed",
+        "inProgress": "Reviewing",
+        "timedOut": "Review timed out",
+        "fallback": "Manual fallback",
+        "aborted": "Review stopped"
+      },
+      "details": {
+        "source": "Decision source",
+        "sourceValues": {
+          "automatic": "Smart Approval",
+          "manual": "Manual approval",
+          "system": "System permission check"
+        },
+        "risk": "Risk",
+        "riskValues": {
+          "critical": "Critical",
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "unknown": "Unknown"
+        },
+        "reason": "Reason",
+        "reasonValues": {
+          "approved": "Permission review allowed this operation.",
+          "denied": "Permission review denied this operation.",
+          "manual": "Available information is insufficient for Smart Approval; manual judgment is required.",
+          "inProgress": "Permission review is in progress."
+        },
+        "hint": "Manual review guidance",
+        "manualGuidanceFallback": "Review the tool parameters, target, and risks before deciding."
       }
     },
     "teamActivity": {
@@ -3109,14 +3392,33 @@
       "pinFailed": "Pin action failed",
       "rename": "Rename",
       "renamePlaceholder": "Enter a new name",
+      "archiveConversation": "Archive",
+      "conversationArchived": "Task session archived",
+      "archiveView": "View",
+      "archiveUndo": "Undo",
       "deleteProject": "Delete project",
-      "deleteProjectDescription": "Remove “<name>{{projectName}}</name>”? Unpinned conversations in this project will temporarily move to the default project.",
+      "deleteProjectDescription": "Delete the cron jobs and idle conversations in “<name>{{projectName}}</name>”. Running ordinary conversations will be skipped and the project kept until you stop them and retry. The working directory stays. Deleted content cannot be recovered.",
+      "projectDeletedSummary": "Project deleted: {{sessions}} conversation(s), {{crons}} cron job(s)",
+      "deleteFailedSummary": "Project deletion incomplete: deleted {{sessions}} conversation(s) and {{crons}} cron job(s).",
+      "deleteSkippedRunning": "Deleted {{sessions}} conversation(s) and {{crons}} cron job(s). Skipped {{count}} running conversation(s) and kept the project. Stop them manually, then retry deletion.",
+      "archiveSessions": "Archive all conversations",
+      "archiveSessionsDescription": "Archive all ordinary conversations in “<name>{{projectName}}</name>”. Running conversations will remain active and be skipped. Cron jobs stay unchanged.",
+      "sessionsArchived": "Archived {{count}} conversations",
+      "archiveSkippedRunning": "{{count}} conversation(s) are running and were skipped",
+      "archiveSkippedRunningWithSuccess": "Archived {{succeeded}} conversation(s); {{count}} running conversation(s) were skipped",
+      "batchPartialFailure": "{{succeeded}} succeeded, {{failed}} failed. Failed items can be retried.",
       "defaultProjectName": "Default Project",
       "absolutePathError": "Enter an absolute path, for example /Users/name/work/project",
       "errors": {
         "pathExists": "This project path already exists. Choose another directory or start a new conversation from the existing project.",
         "nameExists": "This project name already exists. Please choose another name.",
-        "pathMissing": "Project directory does not exist. Choose an existing directory."
+        "pathMissing": "Project directory does not exist. Choose an existing directory.",
+        "projectUnavailable": "Project unavailable. Refresh and retry.",
+        "archiveSessionBusy": "This conversation is running and cannot be archived. Stop it manually, then try again.",
+        "deleteSessionBusy": "This conversation is running and cannot be deleted. Stop it manually, then try again.",
+        "archiveForbidden": "This task does not support archiving.",
+        "archiveNotFound": "The resource no longer exists or has changed. Refresh and try again.",
+        "archiveFailed": "The archive operation failed. Please try again later."
       },
       "cancel": "Cancel",
       "confirm": "Confirm"
@@ -3149,7 +3451,6 @@
     "closed": "Closed",
     "failed": "Error",
     "cancelled": "Cancelled",
-    "tasksEmpty": "No tasks",
     "activityTitle": "Activity",
     "activityEmpty": "No activity yet",
     "historyLoading": "Restoring history…",
@@ -3208,6 +3509,10 @@
     "allowOnce": "Allow once",
     "allowAlways": "Always allow",
     "skip": "Skip",
+    "toolPayload": {
+      "title": "Tool payload (redacted)",
+      "notice": "This display copy is redacted and may be truncated for safety or size limits."
+    },
     "tip": {
       "allowOnce": "Allow this action only this time",
       "allowAlways": "Remember this rule and auto-allow from now on",
@@ -3320,7 +3625,7 @@
       "breadcrumbPlugin": "Plugin details",
       "breadcrumbMcp": "Connector details",
       "mcpDisconnectedBanner": "This plugin's connector isn't connected, so it can't be used normally",
-      "mcpDisconnectedBannerSelf": "This connector isn't connected, so it can't be used normally",
+      "mcpDisconnectedBannerSelf": "Not connected yet. Connect to start using it",
       "connectMcp": "Connect",
       "sections": {
         "basicInfo": "Basic info",
@@ -3335,7 +3640,8 @@
         "cli": "CLI authorization",
         "stdioMcp": "Local Connector",
         "remoteMcp": "Remote Connector",
-        "skillOnly": "Skills only"
+        "skillOnly": "Skills only",
+        "hub": "OpenJiuwen Agentic Hub"
       },
       "cliSpecPresentHint": "Supports CLI-driven setup",
       "config": {
@@ -3459,7 +3765,56 @@
     "loginFailed": "Sign-in failed, please retry later",
     "authRequired": "Sign-in required to access",
     "secureHint": "You'll stay signed in after login",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "huawei": {
+      "title": "Sign in with HUAWEI ID",
+      "subtitle": "Sign in to use the models your account provides — no API key needed.",
+      "accountTitle": "HUAWEI ID",
+      "reasonModel": "This model requires signing in with a HUAWEI ID.",
+      "reasonExpired": "Your session has expired. Please sign in again.",
+      "login": "Sign in",
+      "loggingIn": "Signing in…",
+      "logout": "Sign out",
+      "cancel": "Cancel",
+      "close": "Close",
+      "done": "Done",
+      "modelsTitle": "Models from this account",
+      "modelsWhere": "Pick these from the model dropdown in chat",
+      "browserHint": "Opens the HUAWEI ID sign-in page in your browser — come back here when you're done",
+      "loginSuccessToast": "Signed in with HUAWEI ID",
+      "statusStarting": "Preparing sign-in…",
+      "statusWaiting": "Sign-in page opened in your browser — come back here when you're done…",
+      "checkLogin": "I've signed in",
+      "popupBlocked": "The browser blocked the new tab. Copy this URL and open it manually:",
+      "modelError": {
+        "loginRequired": "Your sign-in for the free models has expired. Sign in to your HUAWEI ID again and retry.",
+        "rateLimited": "Too many requests to the free models. Please try again shortly.",
+        "unavailable": "The free model service is temporarily unavailable. Retry later, or switch to a configured model."
+      },
+      "quota": {
+        "loading": "Checking…",
+        "unknown": "Usage unknown",
+        "exhausted": "Used up",
+        "remaining": "Left",
+        "unit": "credits",
+        "used": "Used",
+        "total": "Total",
+        "meteringHint": "Credits are deducted by actual model usage.",
+        "exhaustedHint": "Your free credits are used up. Switch to a configured model.",
+        "exhaustedUntil": "Your free credits are used up. They refresh {{date}}.",
+        "lowBalanceHint": "Running low",
+        "resetDaily": "Credits refresh daily at {{time}}.",
+        "resetWeekly": "Credits refresh every {{weekday}} at {{time}}.",
+        "resetMonthly": "Credits refresh monthly on day {{day}} at {{time}}.",
+        "resetEveryDays": "Credits refresh every {{count}} days. Next refresh: {{date}}.",
+        "resetEveryDaysPlain": "Credits refresh every {{count}} days.",
+        "resetEveryHours": "Credits refresh every {{count}} hours. Next refresh: {{date}}.",
+        "resetEveryHoursPlain": "Credits refresh every {{count}} hours.",
+        "resetEveryMonths": "Credits refresh every {{count}} months. Next refresh: {{date}}.",
+        "resetEveryMonthsPlain": "Credits refresh every {{count}} months.",
+        "resetNext": "Next credit refresh: {{date}}."
+      }
+    }
   },
   "heartbeat": {
     "status": {
@@ -3472,8 +3827,14 @@
     "schedule": {
       "tab": { "interval": "Interval", "cron": "Cron expression", "once": "Once" },
       "interval": { "label": "Every", "unit": "minutes, return to this session" },
-      "cron": { "hint": "Supports 5 fields (minute hour day month weekday) or the same 7-field format used by Cron tasks (second minute hour day month weekday year)." },
-      "once": { "hint": "Pick a date and time; the job fires once at that moment and is then marked completed", "dateLabel": "Date", "timeLabel": "Time" },
+      "cron": {
+        "hint": "Supports 5 fields (minute hour day month weekday) or the same 7-field format used by Cron tasks (second minute hour day month weekday year)."
+      },
+      "once": {
+        "hint": "Pick a date and time; the job fires once at that moment and is then marked completed",
+        "dateLabel": "Date",
+        "timeLabel": "Time"
+      },
       "summary": {
         "interval": "Return to this session every {{minutes}} min",
         "cron": "{{expr}} ({{timezone}}), return to this session",
@@ -3580,6 +3941,206 @@
       "cancelled": "Last run cancelled"
     }
   },
+  "rsi": {
+    "title": "Experiments",
+    "createExperiment": "Create Experiment",
+    "empty": {
+      "title": "No experiment tasks",
+      "hint": "We support creating Harness, paper, and program optimization experiments"
+    },
+    "intro": {
+      "title": "RSI · Recursive Self-Improvement",
+      "lead": "Make AI stronger with use—from simply working to working better",
+      "stepsTitle": "How it works",
+      "step1Title": "Step 1: Create an experiment",
+      "step1Body": "Choose Harness Optimization or Artifact Optimization (paper or program), fill in the required parameters, and click Create to start automatic optimization.",
+      "step2Title": "Step 2: Visualize the optimization",
+      "step2Body": "Track training progress and score curves in real time. Explore the RSI tree search and let the process iterate automatically without manual intervention.",
+      "step3Title": "Step 3: Get the best result",
+      "step3Body": "Review the best score, improvement, and evaluation pass count. Install the plugin or download the artifact for immediate use.",
+      "featuresTitle": "Capabilities",
+      "feature1Title": "Harness optimization—upgrade AI's working gear",
+      "feature1Body": "AI capability = model + harness. The model thinks; the harness executes. RSI rehearses real tasks repeatedly, identifies weaknesses, generates plans, validates and scores each one, and tunes tools, rails, and skills into better gear.",
+      "feature2Title": "Artifact optimization—polish the deliverable",
+      "feature2Body": "Give your paper or program to AI for repeated polishing. It generates optimization candidates, validates and scores every version, keeps the best one, and iterates until the highest-quality deliverable is ready."
+    },
+    "list": {
+      "loading": "Loading…",
+      "error": "Failed to load experiments"
+    },
+    "createDialog": {
+      "title": "Create Experiment",
+      "nameLabel": "Experiment name",
+      "namePlaceholder": "Enter experiment name",
+      "typeLabel": "Experiment type",
+      "typeHarness": "Harness Optimization",
+      "typeArtifact": "Artifact Optimization",
+      "artifactSubtypeLabel": "Artifact subtype",
+      "artifactTypeLabel": "Artifact type",
+      "subtypePaper": "Paper",
+      "subtypeProgram": "Program",
+      "optimizerModelLabel": "Optimizer model",
+      "evaluationMethodLabel": "Evaluation method",
+      "evaluationMethodAgent": "Agent evaluation",
+      "evaluationMethodScript": "Script evaluation",
+      "evaluationMethodComingSoon": "Coming soon",
+      "testerModelLabel": "Tester model",
+      "datasetLabel": "Evaluation dataset file",
+      "datasetPlaceholder": "Select a local evaluation dataset JSON file",
+      "datasetTip": "Select one evaluation JSON file; the top level is a cases array. Each case contains case_id and input, with optional assets and reference.",
+      "datasetFieldTipTitle": "Dataset field format",
+      "browse": "Browse",
+      "maxIterationsLabel": "Max iterations",
+      "searchWidthLabel": "Max search width",
+      "optimizationInstructionLabel": "Optimization instruction (optional; one of instruction/paper required)",
+      "optimizationInstructionPlaceholder": "Upload at least one of instruction or artifact",
+      "paperLabel": "Paper folder (optional; one of instruction/paper required)",
+      "paperPlaceholder": "Select a paper folder",
+      "paperPickerTitle": "Select paper folder",
+      "paperInfoBar": "Paper optimization produces a LaTeX folder and attempts to generate a PDF. Make sure MiKTeX or TeX Live is installed and latexmk or pdflatex is available; otherwise, PDF generation may fail.",
+      "webProxyLabel": "Literature proxy (optional)",
+      "webProxyPlaceholder": "For example: http://127.0.0.1:7890",
+      "webProxyTip": "An HTTP/HTTPS proxy is recommended to improve literature webpage and full-text download success.",
+      "webProxyConfigured": "Configured",
+      "webProxyNotConfigured": "Not configured (proxy recommended)",
+      "programLabel": "Program Path",
+      "programPlaceholder": "Select a program folder",
+      "validate": "Validate",
+      "validating": "Validating…",
+      "valid": "Validated, {{count}} samples",
+      "invalid": "Validation failed",
+      "sampleUnknown": "Validated",
+      "modelPlaceholder": "Select model",
+      "freeModels": "Free models",
+      "customModels": "Custom models",
+      "submit": "Create",
+      "cancel": "Cancel",
+      "infoBar": "Please pre-install and invoke the evolve-design skill, create artifact optimization dependencies, and fill in the program path.",
+      "validation": {
+        "nameRequired": "Please enter experiment name",
+        "datasetRequired": "Please select dataset file",
+        "optimizerRequired": "Please select optimizer model",
+        "testerRequired": "Please select tester model",
+        "paperOrInstruction": "Upload at least one of instruction or paper",
+        "programRequired": "Please select program file"
+      }
+    },
+    "configDialog": {
+      "title": "Configuration",
+      "readonly": "Read-only"
+    },
+    "artifact": {
+      "empty": "No artifact files",
+      "loadFailed": "Failed to load artifacts",
+      "selectFile": "Select a file",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "latexPreview": "Preview",
+      "latexSource": "Source"
+    },
+    "detail": {
+      "optimizationResult": "Optimization result",
+      "bestArtifact": "Current best artifact",
+      "viewPaper": "View paper",
+      "viewArtifact": "View artifact",
+      "baselineScore": "Baseline score",
+      "usage": "Usage (tokens)",
+      "iterations": "iterations",
+      "evalCount": "Eval count",
+      "pruned": "Pruned",
+      "harnessProcess": "Harness Optimization Process",
+      "paperProcess": "Paper Optimization Process",
+      "programProcess": "Program Optimization Process",
+      "runningStage": "Running",
+      "currentBest": "Current best version",
+      "nodeHint": "Nodes show each candidate, stage, and evaluation result; select one for details",
+      "harnessNodeHint": "Each node is a Harness combination; select one to inspect changes and evaluation",
+      "paperNodeHint": "Each node is a paper version; select one to inspect changes and rejection reasons",
+      "programNodeHint": "Each node is a program candidate; parallel candidates show their attempt number",
+      "estimatedCost": "Estimated cost: ¥ {{cost}}",
+      "selectedNode": "Selected",
+      "inherit": "inherits",
+      "othersInherit": "others inherited",
+      "legendBestPath": "Current best",
+      "legendEvaluated": "Not adopted",
+      "legendPending": "In progress",
+      "legendFailed": "Failed",
+      "legendPruned": "Pruned",
+      "statusCreated": "Created",
+      "statusQueued": "Queued",
+      "statusRunning": "Optimizing",
+      "statusCompleted": "Completed",
+      "statusFailed": "Task failed",
+      "statusPaused": "Paused",
+      "statusTerminated": "Terminated",
+      "statusInstalled": "Installed",
+      "actionConfig": "Configuration",
+      "actionDelete": "Delete",
+      "actionPause": "Pause",
+      "actionStop": "Stop task",
+      "pauseUnsupported": "The current Harness engine does not support pausing while running",
+      "actionUnknownError": "Unknown error",
+      "actionFailed": "Action failed: {{message}}",
+      "actionInstallSuccess": "{{taskName}} - {{snapshotName}} installed successfully!",
+      "actionClose": "Close",
+      "actionResume": "Resume task",
+      "actionStart": "Start training",
+      "actionInstall": "Install plugin",
+      "actionDownload": "Download",
+      "actionTerminate": "Terminate",
+      "actionCancel": "Cancel",
+      "actionConfirm": "Confirm",
+      "tagType": "Type",
+      "tagStatus": "Status",
+      "tagMaxIterations": "Max iterations",
+      "tagMaxSearchWidth": "Max search width",
+      "tagCreatedAt": "Created",
+      "expandView": "Expand",
+      "locate": "Locate",
+      "evaluating": "Evaluating",
+      "candidate": "Candidate ",
+      "progress": "Progress",
+      "bestArtifactPrefix": "Best artifact",
+      "changeSummary": "Changes in this version",
+      "evaluationResult": "Evaluation result",
+      "score": "Score",
+      "parentScore": "Parent",
+      "scoreDelta": "Delta",
+      "failureReason": "Failure reason",
+      "rejectionReason": "Why it was not adopted",
+      "inheritFrom": "Inherited from",
+      "baselineDescription": "This is the starting version for the experiment.",
+      "noChangeSummary": "Inherited from the parent; no structured change summary is available.",
+      "nodeArtifact": "Node artifact",
+      "processing": "Processing…",
+      "technicalInfo": "Technical details",
+      "nodeId": "Node ID",
+      "nodeType": "Lifecycle",
+      "close": "Close",
+      "deleteTitle": "Delete experiment",
+      "deleteBody": "Experiment data cannot be restored after deletion. Delete this experiment?",
+      "pauseTitle": "Pause experiment",
+      "pauseBody": "The current optimization will stop. Pause this experiment?",
+      "stopTitle": "Stop task",
+      "stopBody": "Stopping will terminate the current optimization task. Stop this experiment?",
+      "queuedTitle": "This experiment is queued",
+      "queuedHint": "1 more task is optimizing. Please wait."
+    },
+    "stage": {
+      "caseRunning": "Evaluating case {{index}}/{{total}}",
+      "casePassed": "Case {{index}}/{{total}} passed",
+      "caseFailed": "Case {{index}}/{{total}} failed",
+      "caseError": "Case {{index}}/{{total}} execution error",
+      "caseSkipped": "Case {{index}}/{{total}} skipped",
+      "analysisRunning": "Analyzing failed cases",
+      "analysisDone": "Failure analysis completed",
+      "analysisError": "Failure analysis failed",
+      "candidateRunning": "Generating candidate {{index}}/{{total}}",
+      "candidateDone": "Candidate {{index}}/{{total}} generated",
+      "candidateError": "Candidate {{index}}/{{total}} generation failed",
+      "scoreSuffix": " · {{score}}"
+    }
+    },
   "swarmflow": {
     "statusPlanned": "Planned",
     "statusPending": "Pending",
