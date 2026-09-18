@@ -16,7 +16,12 @@ flowchart TD
     EVAL["evaluator_pipeline / Trainer"] -.->|"offline CLI, no baseline threshold"| Q["quality regression gate ABSENT"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/pyproject.toml:230` — pytest config + `level0`/`level1` markers<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — gates are only `lint` and `type-check`<br>&bull; `agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:1098` — gate dispatch; `agent-core/openjiuwen/auto_harness/stages/verify.py:451` `ci_gate.run("all")`; `:509` revert on exhaustion<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217` — `improved = val_score > progress.best_score`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:664` — `_compute_evolution_metrics`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/pyproject.toml:230</code> — pytest config + <code>level0</code>/<code>level1</code> markers<br>&bull; <code>agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21</code> — gates are only <code>lint</code> and <code>type-check</code><br>&bull; <code>agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:1098</code> — gate dispatch; <code>agent-core/openjiuwen/auto_harness/stages/verify.py:451</code> <code>ci_gate.run("all")</code>; <code>:509</code> revert on exhaustion<br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217</code> — <code>improved = val_score &gt; progress.best_score</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:664</code> — <code>_compute_evolution_metrics</code></sub>
+
+</details>
 
 **Gap.** No model/agent-quality regression gate in CI, no golden/snapshot tests for prompts/retrieval/outputs, and credential-requiring system tests are skipped. A quality drop would not be caught before ship by the configured automation.
 
@@ -38,7 +43,12 @@ flowchart TD
     ATOMS -.->|"absent"| Y["no claim decomposition"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/templates.py:32` — template fields `[Question]`/`[Expected Answer]`/`[Model Response]`; no context<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47` — prompt formatted with three fields only<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:116` — same three fields<br>&bull; `agent-core/openjiuwen/symphony/evaluation/base.py:336` — redacted fingerprint+case (incidental context)<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:546` — payload filters trace</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/templates.py:32</code> — template fields <code>[Question]</code>/<code>[Expected Answer]</code>/<code>[Model Response]</code>; no context<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47</code> — prompt formatted with three fields only<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:116</code> — same three fields<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/base.py:336</code> — redacted fingerprint+case (incidental context)<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:546</code> — payload filters trace</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -57,7 +67,12 @@ flowchart TD
     CAP -.->|"absent"| X["no quality monitoring · drift detection · sampling for eval · alerts"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:59` — `CapturePipeline`; `:73` before; `:110` after; `:170` `submit_reward`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/gateway/trajectory/judge_dispatcher.py:30` — flush + judge on follow-up/session end<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:28` — live LLM judge score<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:304` — `TrajectoryStore`; `:307` 7-day retention (diagnostic)<br>&bull; `jiuwenswarm/jiuwenswarm/observability/sink.py:578` — `TrajectorySessionSinkRouter`; `jiuwenswarm/jiuwenswarm/observability/runtime.py:69` — runtime<br>&bull; `agent-core/openjiuwen/harness/observability/rail.py:355` — span emission</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:59</code> — <code>CapturePipeline</code>; <code>:73</code> before; <code>:110</code> after; <code>:170</code> <code>submit_reward</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/gateway/trajectory/judge_dispatcher.py:30</code> — flush + judge on follow-up/session end<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:28</code> — live LLM judge score<br>&bull; <code>jiuwenswarm/jiuwenswarm/observability/store.py:304</code> — <code>TrajectoryStore</code>; <code>:307</code> 7-day retention (diagnostic)<br>&bull; <code>jiuwenswarm/jiuwenswarm/observability/sink.py:578</code> — <code>TrajectorySessionSinkRouter</code>; <code>jiuwenswarm/jiuwenswarm/observability/runtime.py:69</code> — runtime<br>&bull; <code>agent-core/openjiuwen/harness/observability/rail.py:355</code> — span emission</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: ai-agent, rag-eval, rag-system._</sub>
 
@@ -77,7 +92,12 @@ flowchart TD
     CTX -.->|"not passed to judge"| X["no faithfulness/attribution metric implemented"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator` (correctness, no context input); `:560` `Completeness`; `:621` `CapabilitySelection`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — parses only `result: true/false`, no context/attribution input<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:68` — generic rubric contract (no built-in faithfulness dimension)<br>&bull; `agent-core/openjiuwen/harness/tools/web/free_search.py:299` — "simple relevance checks" (lexical, not RAG relevance)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:438</code> — <code>AccuracyEvaluator</code> (correctness, no context input); <code>:560</code> <code>Completeness</code>; <code>:621</code> <code>CapabilitySelection</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58</code> — parses only <code>result: true/false</code>, no context/attribution input<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:68</code> — generic rubric contract (no built-in faithfulness dimension)<br>&bull; <code>agent-core/openjiuwen/harness/tools/web/free_search.py:299</code> — "simple relevance checks" (lexical, not RAG relevance)</sub>
+
+</details>
 
 **Gap.** Fully absent. No metric receives retrieved passages alongside the answer; no RAG-quality citation extraction or attribution check (a web-search citation URL parser exists, but it does not link answer claims to retrieved passages).
 
@@ -97,7 +117,12 @@ flowchart TD
     FB["explicit like/dislike: proactive only; chat feedback inferred; runtime outcome (not quality)"] -.->|"absent general quality feedback"| X["cannot reconcile eval vs users in-product"]
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/recommendation/feedback_collector.py:47` — `record_feedback` (explicit, proactive only); `jiuwenswarm/jiuwenswarm/common/schema/message.py:141` — `PROACTIVE_FEEDBACK`<br>&bull; `agent-core/openjiuwen/agent_evolving/signal/from_conv.py:327` — `detect_user_intent` infers corrective feedback<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/evaluator.py:39` — judge takes `followup_user_feedback`; `agent-core/openjiuwen/agent_evolving/agent_rl/online/gateway/trajectory/judge_dispatcher.py:30`<br>&bull; `jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:544` — `_TurnOutcomeTracker` (runtime outcome)<br>&bull; `agent-core/openjiuwen/agent_evolving/signal/review_feedback.py:117` — `ReviewFeedbackAttributor`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/recommendation/feedback_collector.py:47</code> — <code>record_feedback</code> (explicit, proactive only); <code>jiuwenswarm/jiuwenswarm/common/schema/message.py:141</code> — <code>PROACTIVE_FEEDBACK</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/signal/from_conv.py:327</code> — <code>detect_user_intent</code> infers corrective feedback<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/evaluator.py:39</code> — judge takes <code>followup_user_feedback</code>; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/gateway/trajectory/judge_dispatcher.py:30</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:544</code> — <code>_TurnOutcomeTracker</code> (runtime outcome)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/signal/review_feedback.py:117</code> — <code>ReviewFeedbackAttributor</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -114,7 +139,12 @@ flowchart TD
     P --> OFF["offline rsi/evaluator + evaluator_pipeline (not online)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/observability/run_span.py:289` — error status recorded; `agent-core/openjiuwen/harness/observability/setup.py:54` — OTel lifecycle<br>&bull; `jiuwenswarm/jiuwenswarm/observability/store.py:102` — `has_error`; `:137` `trajectory_current_records`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:167` — offline `bench.evaluate`; `:668` `_compute_evolution_metrics`<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217` — validation-score gate (offline)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/observability/run_span.py:289</code> — error status recorded; <code>agent-core/openjiuwen/harness/observability/setup.py:54</code> — OTel lifecycle<br>&bull; <code>jiuwenswarm/jiuwenswarm/observability/store.py:102</code> — <code>has_error</code>; <code>:137</code> <code>trajectory_current_records</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:167</code> — offline <code>bench.evaluate</code>; <code>:668</code> <code>_compute_evolution_metrics</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:217</code> — validation-score gate (offline)</sub>
+
+</details>
 
 ---
 
@@ -144,7 +174,12 @@ flowchart TD
     M6 --> AGG
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:17-66` — `LLMAsJudgeMetric`; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:12-45` — `ExactMatchMetric`; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:7-11` registry<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:1-9` — `DefaultEvaluator` / `MetricEvaluator`<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:57-88` — rubric/required/forbidden contract; `:167-214` weighted scoring + evidence<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:28-104` — judge reward, `num_votes`<br>&bull; `agent-core/examples/PerStream/src/eval/score_passive_judge.py:28-124` GPT-3.5 judge; `:247-366` aggregate metrics<br>&bull; `agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119` — tests/lint/diff scoring<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:1-16` — static/trace evaluators incl. `LLMJudgeEvaluator`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:17-66</code> — <code>LLMAsJudgeMetric</code>; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:12-45</code> — <code>ExactMatchMetric</code>; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:7-11</code> registry<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:1-9</code> — <code>DefaultEvaluator</code> / <code>MetricEvaluator</code><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:57-88</code> — rubric/required/forbidden contract; <code>:167-214</code> weighted scoring + evidence<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:28-104</code> — judge reward, <code>num_votes</code><br>&bull; <code>agent-core/examples/PerStream/src/eval/score_passive_judge.py:28-124</code> GPT-3.5 judge; <code>:247-366</code> aggregate metrics<br>&bull; <code>agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119</code> — tests/lint/diff scoring<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:1-16</code> — static/trace evaluators incl. <code>LLMJudgeEvaluator</code></sub>
+
+</details>
 
 **Gap.** No unified/standard benchmark harness, no statistical-significance testing, and no inter-rater agreement validation for the LLM judge; eval is spread across several subsystems with different contracts (`agent_evolving`, `rsi`, `symphony`, `dev_tools/tune`, `dev_tools/skill_evaluator`).
 
@@ -166,7 +201,12 @@ flowchart TD
     S2 -.->|"PerStream example only"| Y["generate_dataset.sh"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134` — "never generates a dataset"<br>&bull; `agent-core/examples/PerStream/scripts/generate_dataset.sh:31` — LLM-driven QA/memory generation (example only)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47` — LLM judge usable on unlabeled answers but no context<br>&bull; `agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc` — `NotImplementedError` stubs (no `.py` source)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134</code> — "never generates a dataset"<br>&bull; <code>agent-core/examples/PerStream/scripts/generate_dataset.sh:31</code> — LLM-driven QA/memory generation (example only)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47</code> — LLM judge usable on unlabeled answers but no context<br>&bull; <code>agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc</code> — <code>NotImplementedError</code> stubs (no <code>.py</code> source)</sub>
+
+</details>
 
 ---
 
@@ -188,7 +228,12 @@ flowchart TD
     C -.->|"heuristic, not statistics"| X["no confidence interval / variance / significance"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/evaluation/suite.py:560` — `_confidence(sample_count)` heuristic; `:362` `sample_count` attached<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/metrics_collector.py:34` — `total_cases`/`passed_cases`/`average_score` (no variance/CI)<br>&bull; `agent-core/openjiuwen/symphony/orchestration/config.py:50` — `min_successes_verified` (threshold, not statistics)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/build/tree/schema.py:232` — `structure_sample_size` (sampling config)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/suite.py:560</code> — <code>_confidence(sample_count)</code> heuristic; <code>:362</code> <code>sample_count</code> attached<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/metrics_collector.py:34</code> — <code>total_cases</code>/<code>passed_cases</code>/<code>average_score</code> (no variance/CI)<br>&bull; <code>agent-core/openjiuwen/symphony/orchestration/config.py:50</code> — <code>min_successes_verified</code> (threshold, not statistics)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/build/tree/schema.py:232</code> — <code>structure_sample_size</code> (sampling config)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -208,7 +253,12 @@ flowchart TD
     SYN -.->|"rsi generator: stub/bytecode"| X["no runnable core generator (PerStream example only)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134` — "never generates a dataset"<br>&bull; `agent-core/examples/PerStream/scripts/generate_dataset.sh:31` — LLM-driven QA/memory generation (example)<br>&bull; `agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc` — `NotImplementedError` stubs (no source)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — metric interface lacks ranked-list eval</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/single_harness/iterative.py:134</code> — "never generates a dataset"<br>&bull; <code>agent-core/examples/PerStream/scripts/generate_dataset.sh:31</code> — LLM-driven QA/memory generation (example)<br>&bull; <code>agent-core/openjiuwen/rsi/dataset_generator/__pycache__/case_generator.cpython-311.pyc</code> — <code>NotImplementedError</code> stubs (no source)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42</code> — metric interface lacks ranked-list eval</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -231,7 +281,12 @@ flowchart TD
     ROUTE -.->|"absent"| X["no leaderboard / A-B model-accuracy harness"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:133-235` — `ModelRouterConfig`; `:314-392` — `IntelliRouterConfig` / deployments<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559` — allocator strategies + `build_model_allocator`<br>&bull; `agent-core/examples/intelli_router/intelliRouter_demo.py:142-160` — adaptive routing weights; `:249-264` route within a pinned model pool<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272` — per-candidate validation scoring, commits best<br>&bull; `agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119` — rank by tests/lint/diff<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38/58` — `num_votes` judge voting</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:133-235</code> — <code>ModelRouterConfig</code>; <code>:314-392</code> — <code>IntelliRouterConfig</code> / deployments<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559</code> — allocator strategies + <code>build_model_allocator</code><br>&bull; <code>agent-core/examples/intelli_router/intelliRouter_demo.py:142-160</code> — adaptive routing weights; <code>:249-264</code> route within a pinned model pool<br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272</code> — per-candidate validation scoring, commits best<br>&bull; <code>agent-core/openjiuwen/rsi/auto_harness/pipelines/best_of_n/attempt_scorer.py:17-119</code> — rank by tests/lint/diff<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38/58</code> — <code>num_votes</code> judge voting</sub>
+
+</details>
 
 **Gap.** No leaderboard, no A/B model-comparison harness, no per-task model-accuracy registry. Routing optimizes availability/cost/latency, not task quality.
 
@@ -254,7 +309,12 @@ flowchart TD
     J -.->|"absent"| SWAP["position swap · agreement metric · bias probe"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:53` — single invoke, exception → `0.0`; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:123` — same failure pattern<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/llm_as_judge.py:121` — two-attempt loop; `:152` untrusted prior-output guard<br>&bull; `agent-core/openjiuwen/symphony/evaluation/base.py:262` — single judge call + one repair retry; `:401` `temperature=0.0`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/evaluator.py:66` — `num_votes` averaged; `:92` raw votes retained<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38` — `num_votes`<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:127` — strict single-verdict parsing</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:53</code> — single invoke, exception → <code>0.0</code>; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator.py:123</code> — same failure pattern<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/llm_as_judge.py:121</code> — two-attempt loop; <code>:152</code> untrusted prior-output guard<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/base.py:262</code> — single judge call + one repair retry; <code>:401</code> <code>temperature=0.0</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/evaluator.py:66</code> — <code>num_votes</code> averaged; <code>:92</code> raw votes retained<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/judge/judge_scorer.py:38</code> — <code>num_votes</code><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:127</code> — strict single-verdict parsing</sub>
+
+</details>
 
 **Gap.** No position/order-bias control, no inter-rater agreement (Cohen/Krippendorff), no variance threshold, and no human calibration. Some paths convert judge/infra failure to `0.0` (the `LLMAsJudgeMetric` and the RL judge dispatcher), while others distinguish it: RSI raises `EvaluationInfrastructureError` and Symphony returns `status="error"` with `score=None`.
 
@@ -280,7 +340,12 @@ flowchart TD
     RSI["RSI judge: evidence-citation rubric (not claim-level)"] -.-> V
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/judge_prompt.md:61` — "Cite concrete evidence for every verdict… Do not invent observations"<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/judge_evidence.py:90` — `prepare_judge_workspace` (evidence snapshot, no claim checker)<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator`; `:447` factual-error rubric<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/templates.py:7` — judge compares response vs expected answer (no context)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/judge_prompt.md:61</code> — "Cite concrete evidence for every verdict… Do not invent observations"<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/judge_evidence.py:90</code> — <code>prepare_judge_workspace</code> (evidence snapshot, no claim checker)<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:438</code> — <code>AccuracyEvaluator</code>; <code>:447</code> factual-error rubric<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/templates.py:7</code> — judge compares response vs expected answer (no context)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -298,7 +363,12 @@ flowchart TD
     R -.->|"RRF uses 1/(k+rank) for fusion, not evaluation"| X["no MRR metric in codebase"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:15` — `rrf_fusion` (rank fusion, not MRR)<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:85` — `RRFRankConfig` (k=40 fusion config); `:61` `WeightedRankConfig`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/internal.py:165` — `bm25_rank_to_score` (rank→score)<br>&bull; `agent-core/openjiuwen/core/foundation/store/index/simple_memory_index.py:348` — sorts by score only</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/fusion.py:15</code> — <code>rrf_fusion</code> (rank fusion, not MRR)<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:85</code> — <code>RRFRankConfig</code> (k=40 fusion config); <code>:61</code> <code>WeightedRankConfig</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/internal.py:165</code> — <code>bm25_rank_to_score</code> (rank→score)<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/index/simple_memory_index.py:348</code> — sorts by score only</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-retrieval._</sub>
 
@@ -317,7 +387,12 @@ flowchart TD
     N -.->|"absent in codebase; no graded relevance"| X["no NDCG/DCG"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87` — cross-encoder re-rank produces scores, no DCG<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:85` — RRF/WeightedRank configs; no gain/discount<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:20` — RRF only<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11` — only three metrics exported</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87</code> — cross-encoder re-rank produces scores, no DCG<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/result_ranking.py:85</code> — RRF/WeightedRank configs; no gain/discount<br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/fusion.py:20</code> — RRF only<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11</code> — only three metrics exported</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -335,7 +410,12 @@ flowchart LR
     P -.->|"absent in codebase"| X["classification precision only (PerStream)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/examples/PerStream/src/eval/score_proactive_judge.py:362` — `get_tv_precision()` = `tp / total_pred_not_nil`<br>&bull; `agent-core/examples/PerStream/src/eval/eval_proactive_reduction.py:188` — `tv_precision`<br>&bull; `agent-core/examples/PerStream/src/eval/test_remember_gate.py:22` — sklearn `precision_score`<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87` — `rerank(...)` re-sorts, no precision measurement<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:60` — `compute_batch` zips predictions/labels, no relevance-per-rank</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/examples/PerStream/src/eval/score_proactive_judge.py:362</code> — <code>get_tv_precision()</code> = <code>tp / total_pred_not_nil</code><br>&bull; <code>agent-core/examples/PerStream/src/eval/eval_proactive_reduction.py:188</code> — <code>tv_precision</code><br>&bull; <code>agent-core/examples/PerStream/src/eval/test_remember_gate.py:22</code> — sklearn <code>precision_score</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87</code> — <code>rerank(...)</code> re-sorts, no precision measurement<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:60</code> — <code>compute_batch</code> zips predictions/labels, no relevance-per-rank</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval, rag-1, rag-retrieval._</sub>
 
@@ -355,7 +435,12 @@ flowchart TD
     M -.->|"absent in codebase"| X["no implementation"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/examples/PerStream/src/eval/score_proactive_judge.py:355` — `get_ta_recall` = TP/(TP+FN) (classification, not retrieval@k)<br>&bull; `agent-core/examples/PerStream/src/eval/test_remember_gate.py:180` — sklearn `recall_score` (gate classifier)<br>&bull; `agent-core/examples/PerStream/src/eval/eval_proactive_reduction.py:92` — LLM-judged memory metrics<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27` — `recall_compressed_context` (name only)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/examples/PerStream/src/eval/score_proactive_judge.py:355</code> — <code>get_ta_recall</code> = TP/(TP+FN) (classification, not retrieval@k)<br>&bull; <code>agent-core/examples/PerStream/src/eval/test_remember_gate.py:180</code> — sklearn <code>recall_score</code> (gate classifier)<br>&bull; <code>agent-core/examples/PerStream/src/eval/eval_proactive_reduction.py:92</code> — LLM-judged memory metrics<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27</code> — <code>recall_compressed_context</code> (name only)</sub>
+
+</details>
 
 **Gap.** Recall@k is absent. The closest thing is the PerStream proactive-memory classification recall, a different task.
 
@@ -374,7 +459,12 @@ flowchart TD
     EVAL["GoalEvaluator / SuccessDetector / pass_rate (engineering metrics)"] -.->|"no KPI mapping"| X["only cost tracked (usage_cost), never correlated with quality"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/goal/evaluation.py:74` — `GoalEvaluator` (goal completion)<br>&bull; `agent-core/openjiuwen/agent_evolving/ttse/success.py:267` — `SignalBasedSuccessDetector` (`success/partial/fail`); `:92` `classify_explicit_score`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/base.py:232` — `aggregate()`<br>&bull; `agent-core/openjiuwen/agent_teams/verification/memory.py:160` — aggregates `pass_rate`/`avg_score`<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:32` — cost settings; `:65` `CostLimitExceededError`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/goal/evaluation.py:74</code> — <code>GoalEvaluator</code> (goal completion)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/ttse/success.py:267</code> — <code>SignalBasedSuccessDetector</code> (<code>success/partial/fail</code>); <code>:92</code> <code>classify_explicit_score</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/base.py:232</code> — <code>aggregate()</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/memory.py:160</code> — aggregates <code>pass_rate</code>/<code>avg_score</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:32</code> — cost settings; <code>:65</code> <code>CostLimitExceededError</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -394,7 +484,12 @@ flowchart TD
     USE1 -.->|"no length-normalized averaging"| PPL
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/scoring.py:98-115` — softmax over candidate logits → probability (retrieval)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:847` — `cumulative_logprob` per completion (not perplexity)<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:94-107` — `exp(logprob)` yes/no<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:408-418` — stores token logprobs for RL<br>&bull; `agent-core/openjiuwen/harness/tools/web/paid_search.py:44` — "Perplexity" is the search vendor, not the metric</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/scoring.py:98-115</code> — softmax over candidate logits → probability (retrieval)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:847</code> — <code>cumulative_logprob</code> per completion (not perplexity)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:94-107</code> — <code>exp(logprob)</code> yes/no<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:408-418</code> — stores token logprobs for RL<br>&bull; <code>agent-core/openjiuwen/harness/tools/web/paid_search.py:44</code> — "Perplexity" is the search vendor, not the metric</sub>
+
+</details>
 
 **Gap.** No token-loss averaging, no length normalization, no corpus-level perplexity.
 
@@ -416,7 +511,12 @@ flowchart TD
     E2E --> AGG["evaluator_pipeline pass_rate / RSI weighted score (present)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — `Metric.compute(prediction, label)`, no ranked-list/k signature<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11` — exports only `Metric`, `ExactMatchMetric`, `LLMAsJudgeMetric`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47` — judge gets question/expected/answer, not retrieved context<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:311` — end-to-end `pass_rate`<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193` — end-to-end weighted score</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42</code> — <code>Metric.compute(prediction, label)</code>, no ranked-list/k signature<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11</code> — exports only <code>Metric</code>, <code>ExactMatchMetric</code>, <code>LLMAsJudgeMetric</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:47</code> — judge gets question/expected/answer, not retrieved context<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/evaluator_pipeline/pipeline.py:311</code> — end-to-end <code>pass_rate</code><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193</code> — end-to-end weighted score</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>
 
@@ -436,6 +536,11 @@ flowchart TD
     ANS -.->|"absent"| X["deterministic paraphrase-robust metric"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:36` — normalized equality; `:40` `_normalize` (lower/strip/collapse)<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/exact_match.py:50` — strict `== expected`; `:30` rejects rubric/files<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:4` — semantic consistency judge<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:520` — exact-match shortcut then LLM fallback<br>&bull; `agent-core/examples/PerStream/src/eval/score_passive_judge.py:57` — "Consider synonyms or paraphrases as valid matches"</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/exact_match.py:36</code> — normalized equality; <code>:40</code> <code>_normalize</code> (lower/strip/collapse)<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/exact_match.py:50</code> — strict <code>== expected</code>; <code>:30</code> rejects rubric/files<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:4</code> — semantic consistency judge<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:520</code> — exact-match shortcut then LLM fallback<br>&bull; <code>agent-core/examples/PerStream/src/eval/score_passive_judge.py:57</code> — "Consider synonyms or paraphrases as valid matches"</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-evaluation-interview-questions_for_engineers.md`; also covered in: rag-eval._</sub>

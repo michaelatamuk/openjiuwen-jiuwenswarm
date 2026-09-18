@@ -18,7 +18,12 @@ flowchart TD
     Q -.->|"absent"| SEM["semantic cache: embed query → similar prior answer"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/kv_cache/kv_cache_runtime.py:32` — `KVCacheRuntime`; `agent-core/openjiuwen/core/kv_cache/__init__.py:10` — `KVCacheAffinityConfig`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:31` — `EMBEDDING_CACHE_TABLE`; `:773` text-hash lookup before embedding<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:47` — exact per-turn tool result cache<br>&bull; `agent-core/openjiuwen/core/retrieval/lazy_load.py:25` — lazy import cache; `agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:221` — reusable encodings<br>&bull; `agent-core/openjiuwen/agent_evolving/ttse/stores.py:522` — embedding cache limit; `agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:176` — prefix cache</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/kv_cache/kv_cache_runtime.py:32</code> — <code>KVCacheRuntime</code>; <code>agent-core/openjiuwen/core/kv_cache/__init__.py:10</code> — <code>KVCacheAffinityConfig</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:31</code> — <code>EMBEDDING_CACHE_TABLE</code>; <code>:773</code> text-hash lookup before embedding<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:47</code> — exact per-turn tool result cache<br>&bull; <code>agent-core/openjiuwen/core/retrieval/lazy_load.py:25</code> — lazy import cache; <code>agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:221</code> — reusable encodings<br>&bull; <code>agent-core/openjiuwen/agent_evolving/ttse/stores.py:522</code> — embedding cache limit; <code>agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:176</code> — prefix cache</sub>
+
+</details>
 
 **Gap.** No semantic/response cache anywhere — nothing embeds a query and looks up a prior answer by similarity. Tool dedup is exact-arg; only the *result* cache is single-turn (the rail keeps a cross-turn execution counter). The product memory index keeps a SQLite `embedding_cache`; the agent_evolving TTSE cache is memory-only.
 
@@ -44,7 +49,12 @@ flowchart TD
     CACHE --> N["exact embedding/tool caches only (no semantic cache)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:559` — `build_model_allocator` (4 availability strategies); `:240` `ByModelNameAllocator`; `:520` `resolve_member_model` (no query awareness)<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:38` — `ModelPoolEntry`; `:278` `tpm`/`rpm` rate-aware only<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:46` — `top_k: int = 5` (only retrieval-size config)<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:773` — exact embedding cache (no semantic cache)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:559</code> — <code>build_model_allocator</code> (4 availability strategies); <code>:240</code> <code>ByModelNameAllocator</code>; <code>:520</code> <code>resolve_member_model</code> (no query awareness)<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:38</code> — <code>ModelPoolEntry</code>; <code>:278</code> <code>tpm</code>/<code>rpm</code> rate-aware only<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:46</code> — <code>top_k: int = 5</code> (only retrieval-size config)<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:773</code> — exact embedding cache (no semantic cache)</sub>
+
+</details>
 
 **Gap.** No query-classification-to-model routing, no cost-aware routing, and no adaptive top-k.
 
@@ -68,7 +78,12 @@ flowchart TD
     ITER["max_iterations 5 / 15"] -.-> M
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171` — `raise_if_session_cost_limit_exceeded`; `:196` `set_session_cost_limit` (requires provider cost)<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default 15<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27` — `BudgetLedger`<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90` — tool-loop threshold + bailout<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157` — cross-turn repeat counter; `agent-core/openjiuwen/harness/goal/evaluation.py:298` — `max_attempts`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171</code> — <code>raise_if_session_cost_limit_exceeded</code>; <code>:196</code> <code>set_session_cost_limit</code> (requires provider cost)<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code>; <code>agent-core/openjiuwen/harness/schema/config.py:252</code> — harness default 15<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27</code> — <code>BudgetLedger</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90</code> — tool-loop threshold + bailout<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157</code> — cross-turn repeat counter; <code>agent-core/openjiuwen/harness/goal/evaluation.py:298</code> — <code>max_attempts</code></sub>
+
+</details>
 
 **Gap.** Cost enforcement is inert unless the provider reports cost metadata, and totals/limits are per-process (not shared across replicas). No cost-aware model downgrade.
 
@@ -88,7 +103,12 @@ flowchart TD
     COST -.->|"absent"| X["rerank-to-K · semantic cache · cost-aware model routing"]
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171/196` — session cost cap<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27` — `BudgetLedger`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k compaction<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:559` — availability routing (not cost/quality)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171/196</code> — session cost cap<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code>; <code>agent-core/openjiuwen/harness/schema/config.py:252</code> — harness default<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27</code> — <code>BudgetLedger</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184</code> — 180k compaction<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:559</code> — availability routing (not cost/quality)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>
 
@@ -108,7 +128,12 @@ flowchart TD
     MP["multiprocessing"] -.->|"only tests / trace store / process isolation"| X["not an LLM throughput strategy"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/common/clients/llm_client.py:52` — `HttpXConnectorPool` (`AsyncConnectionPool`)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:383` — process-wide `_client_cache`; `:1118` `httpx.Limits(max_connections=100, max_keepalive_connections=20)`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:719` — same pooling for `AsyncAnthropic`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:55` — `asyncio.Semaphore(max_concurrent)`; `:120` `ThreadPoolExecutor` for sync path<br>&bull; `jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:5326` — `asyncio.to_thread(...)` offload; `jiuwenswarm/jiuwenswarm/server/runtime/agent_warm_pool.py:154` — semaphore-bounded warm pool</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/common/clients/llm_client.py:52</code> — <code>HttpXConnectorPool</code> (<code>AsyncConnectionPool</code>)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:383</code> — process-wide <code>_client_cache</code>; <code>:1118</code> <code>httpx.Limits(max_connections=100, max_keepalive_connections=20)</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:719</code> — same pooling for <code>AsyncAnthropic</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:55</code> — <code>asyncio.Semaphore(max_concurrent)</code>; <code>:120</code> <code>ThreadPoolExecutor</code> for sync path<br>&bull; <code>jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:5326</code> — <code>asyncio.to_thread(...)</code> offload; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_warm_pool.py:154</code> — semaphore-bounded warm pool</sub>
+
+</details>
 
 **Gap.** No process-level parallelism to escape the GIL for tokenization/parsing at scale; sync embedding still consumes a thread per concurrent request.
 
@@ -130,7 +155,12 @@ flowchart LR
     REQ -.->|"absent"| X["speculative decoding · latency-based routing · cross-request batching"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2938` — `stream` entry; `:1758` `ttft_ms`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model.py:197` — stream first-chunk/idle timeouts<br>&bull; `agent-core/openjiuwen/core/kv_cache/kv_cache_runtime.py:32` — session KV-cache runtime<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:176` — `prepare_prefix_cache`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/intelli_router_model_client.py:32` — `ReliableRouter`<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:6353` — model object cache by name</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2938</code> — <code>stream</code> entry; <code>:1758</code> <code>ttft_ms</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model.py:197</code> — stream first-chunk/idle timeouts<br>&bull; <code>agent-core/openjiuwen/core/kv_cache/kv_cache_runtime.py:32</code> — session KV-cache runtime<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:176</code> — <code>prepare_prefix_cache</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/intelli_router_model_client.py:32</code> — <code>ReliableRouter</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:6353</code> — model object cache by name</sub>
+
+</details>
 
 **Gap.** No speculative decoding, no latency/SLA-based routing, no cross-request batching; prefix caching exists only for local inference.
 
@@ -155,7 +185,12 @@ flowchart TD
     FIX -.->|"absent"| AUTO["no autoscaling / distributed limiter / bulkheads"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/common/clients/connector_pool.py:21` — `limit: 100`, `limit_per_host: 30`; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:1118` — pool limits<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:55` — concurrency semaphore<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:34` — max parallel sub-agents<br>&bull; `agent-core/openjiuwen/core/workflow/components/tool/http/http_request_component.py:110` — `HttpRateLimitConfig`<br>&bull; `agent-core/openjiuwen/core/runner/message_queue_inmemory.py:34` — bounded queue; `agent-core/openjiuwen/harness/subagent_runtime/activity_events.py:53` — bounded activity queue<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:35` — backoff schedule; `jiuwenswarm/jiuwenswarm/server/runtime/agent_warm_pool.py:154` — warm-pool semaphore split</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/common/clients/connector_pool.py:21</code> — <code>limit: 100</code>, <code>limit_per_host: 30</code>; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:1118</code> — pool limits<br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:55</code> — concurrency semaphore<br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:34</code> — max parallel sub-agents<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/tool/http/http_request_component.py:110</code> — <code>HttpRateLimitConfig</code><br>&bull; <code>agent-core/openjiuwen/core/runner/message_queue_inmemory.py:34</code> — bounded queue; <code>agent-core/openjiuwen/harness/subagent_runtime/activity_events.py:53</code> — bounded activity queue<br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:35</code> — backoff schedule; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_warm_pool.py:154</code> — warm-pool semaphore split</sub>
+
+</details>
 
 **Gap.** No HPA/autoscaling, no global/distributed rate limiter or admission control, no cross-tenant bulkheads. Connection caps and cost totals are per-process, so N replicas multiply the effective limit.
 
@@ -175,7 +210,12 @@ flowchart LR
     GEN --> E["auto-harness budget rail: hardcoded 3e-6 in / 15e-6 out per token"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45` — `max_batch_size: int = 8`, `max_concurrent: int = 50`; `:167` batch + gather<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21` — `compute_chunk_embeddings` at index/update time<br>&bull; `agent-core/openjiuwen/core/context_engine/usage/provider_usage.py:14` — normalizes input/cache tokens; `agent-core/openjiuwen/core/context_engine/usage/session_aggregator.py:45` — cache hit-rate aggregation<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:101` — `add_session_usage`; `jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:17212` — usage events<br>&bull; `agent-core/openjiuwen/auto_harness/rails/budget_rail.py:24` — input `3e-6` / output `15e-6` USD per token; `:85` cost computed</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45</code> — <code>max_batch_size: int = 8</code>, <code>max_concurrent: int = 50</code>; <code>:167</code> batch + gather<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21</code> — <code>compute_chunk_embeddings</code> at index/update time<br>&bull; <code>agent-core/openjiuwen/core/context_engine/usage/provider_usage.py:14</code> — normalizes input/cache tokens; <code>agent-core/openjiuwen/core/context_engine/usage/session_aggregator.py:45</code> — cache hit-rate aggregation<br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:101</code> — <code>add_session_usage</code>; <code>jiuwenswarm/jiuwenswarm/server/runtime/agent_adapter/interface_deep.py:17212</code> — usage events<br>&bull; <code>agent-core/openjiuwen/auto_harness/rails/budget_rail.py:24</code> — input <code>3e-6</code> / output <code>15e-6</code> USD per token; <code>:85</code> cost computed</sub>
+
+</details>
 
 **Gap.** Embedding cost is never tracked, core retrieval/indexing has no embedding result cache (the product memory index does keep a SQLite `embedding_cache`), and session totals are in-process (lost on restart).
 

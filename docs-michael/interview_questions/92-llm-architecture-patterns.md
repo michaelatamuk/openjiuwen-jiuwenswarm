@@ -20,7 +20,12 @@ flowchart LR
     VDB --> STUFF["stuff into prompt"] --> LLM["generate"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96/110/182` — ingest + retrieve<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — embed query → search<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109/243` — context assembly<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654` — prompt template</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96/110/182</code> — ingest + retrieve<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — embed query → search<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109/243</code> — context assembly<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654</code> — prompt template</sub>
+
+</details>
 
 ## 2. Modular RAG with reranking
 
@@ -36,7 +41,12 @@ flowchart LR
     RK -.->|"KB path: not wired"| X["graph store only; static top_k=5"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:37/41` — `Reranker` ABC<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`)<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458` — reranker applied only in graph store<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — KB path calls no reranker<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:46` — `top_k: int = 5`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_reranker.py:37/41</code> — <code>Reranker</code> ABC<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23</code> — <code>StandardReranker</code> (<code>/rerank</code>)<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458</code> — reranker applied only in graph store<br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182</code> — KB path calls no reranker<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:46</code> — <code>top_k: int = 5</code></sub>
+
+</details>
 
 ## 3. Agentic tool-calling pattern
 
@@ -59,7 +69,12 @@ sequenceDiagram
     Model-->>Host: answer (or another tool_call)
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740/2793/2813` — loop / answer / execute<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:984/1078` — tool list + dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — card → JSON Schema<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:82` — argument validation</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740/2793/2813</code> — loop / answer / execute<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:984/1078</code> — tool list + dispatch<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20</code> — card → JSON Schema<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:82</code> — argument validation</sub>
+
+</details>
 
 ## 4. Planner–executor pattern
 
@@ -79,7 +94,12 @@ flowchart TD
     C --> A["final answer"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — outer task loop<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108` — planning layer + todo tools<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:193` — `TodoCreateTool`<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194/657` — subagent delegation<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101/108` — supervisor (agents-as-tools); `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — plan subagent</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2694</code> — outer task loop<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108</code> — planning layer + todo tools<br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:193</code> — <code>TodoCreateTool</code><br>&bull; <code>agent-core/openjiuwen/harness/tools/subagent/task_tool.py:194/657</code> — subagent delegation<br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101/108</code> — supervisor (agents-as-tools); <code>agent-core/openjiuwen/harness/subagents/plan_agent.py:88</code> — plan subagent</sub>
+
+</details>
 
 ## 5. Critic or reflection loop
 
@@ -97,7 +117,12 @@ flowchart TD
     CR -.->|"not in-loop: separate review layer"| X["no generic reflection loop"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92` — `VerificationRail` allowlist; `agent-core/openjiuwen/harness/subagents/verification_agent.py:51` — PASS/FAIL/PARTIAL<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:26/43/279` — review dimensions + rework thresholds<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193` — weighted rubric judge</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92</code> — <code>VerificationRail</code> allowlist; <code>agent-core/openjiuwen/harness/subagents/verification_agent.py:51</code> — PASS/FAIL/PARTIAL<br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/reviewer.py:26/43/279</code> — review dimensions + rework thresholds<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluator/judger/scoring.py:193</code> — weighted rubric judge</sub>
+
+</details>
 
 ## 6. Memory-augmented agent
 
@@ -116,7 +141,12 @@ flowchart TD
     RT --> M
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805` — product hybrid index<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167` — `memory_search`; `agent-core/openjiuwen/harness/prompts/sections/memory.py:14` — when to call</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:44</code> — <code>SessionModelContext</code>; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11</code> — <code>ContextMessageBuffer</code><br>&bull; <code>agent-core/openjiuwen/core/memory/long_term_memory.py:69</code> — <code>LongTermMemory</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805</code> — product hybrid index<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167</code> — <code>memory_search</code>; <code>agent-core/openjiuwen/harness/prompts/sections/memory.py:14</code> — when to call</sub>
+
+</details>
 
 ## 7. Router pattern
 
@@ -134,7 +164,12 @@ flowchart TD
     Q --> EP["IntelliRouter: endpoint routing (health/rate/latency)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167` — tool the model chooses<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:559` — `build_model_allocator` (endpoint strategies)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/intelli_router_model_client.py:32` — `ReliableRouter`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:155` — mode from `index_type`, not the query</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167</code> — tool the model chooses<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:559</code> — <code>build_model_allocator</code> (endpoint strategies)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/intelli_router_model_client.py:32</code> — <code>ReliableRouter</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:155</code> — mode from <code>index_type</code>, not the query</sub>
+
+</details>
 
 ---
 

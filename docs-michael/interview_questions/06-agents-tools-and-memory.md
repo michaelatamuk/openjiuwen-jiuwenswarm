@@ -20,7 +20,12 @@ flowchart TD
     ITER["max_iterations 5 / 15"] -.-> M
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171` — `raise_if_session_cost_limit_exceeded`; `:196` `set_session_cost_limit` (requires provider cost)<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default 15<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27` — `BudgetLedger`<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90` — tool-loop threshold + bailout<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157` — cross-turn repeat counter; `agent-core/openjiuwen/harness/goal/evaluation.py:298` — `max_attempts`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/usage_cost.py:171</code> — <code>raise_if_session_cost_limit_exceeded</code>; <code>:196</code> <code>set_session_cost_limit</code> (requires provider cost)<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code>; <code>agent-core/openjiuwen/harness/schema/config.py:252</code> — harness default 15<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/budget.py:27</code> — <code>BudgetLedger</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90</code> — tool-loop threshold + bailout<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157</code> — cross-turn repeat counter; <code>agent-core/openjiuwen/harness/goal/evaluation.py:298</code> — <code>max_attempts</code></sub>
+
+</details>
 
 **Gap.** Cost enforcement is inert unless the provider reports cost metadata, and totals/limits are per-process (not shared across replicas). No cost-aware model downgrade or per-tool hard token budget in the core single-agent path.
 
@@ -44,7 +49,12 @@ flowchart TD
     READ["read-only repeated call"] --> DEDUP["ToolCallDeduplicationRail: exact (tool,args) cache → _skip_tool"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/tool/base.py:109` — `idempotent` default `False`<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:128` — non-idempotent guard; `:141` retryable-exception filter; `:145` per-invoke budget; `:196` `ctx.request_retry()`<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:612/1024` — `request_retry` + decorator retry loop<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:24/109` — read-only whitelist + exact cache interception<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1324` — `_skip_tool_calls` honored<br>&bull; `agent-core/openjiuwen/harness_providers/native/harness.py:226` — native harness rejects protocol checkpoints (no replay)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/base.py:109</code> — <code>idempotent</code> default <code>False</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:128</code> — non-idempotent guard; <code>:141</code> retryable-exception filter; <code>:145</code> per-invoke budget; <code>:196</code> <code>ctx.request_retry()</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:612/1024</code> — <code>request_retry</code> + decorator retry loop<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:24/109</code> — read-only whitelist + exact cache interception<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1324</code> — <code>_skip_tool_calls</code> honored<br>&bull; <code>agent-core/openjiuwen/harness_providers/native/harness.py:226</code> — native harness rejects protocol checkpoints (no replay)</sub>
+
+</details>
 
 **Gap.** No durable idempotency keys / exactly-once semantics — a crash after a side effect but before result persistence can re-execute on replay. Per-tool `max_attempts` overrides are documented as future work; the rail is all-or-nothing.
 
@@ -71,7 +81,12 @@ flowchart TD
     B --> BAR["parallel_safe=false acts as exclusive barrier"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1083` — `parallel_tool_calls` parameter; `:1148` parallel-vs-sequential branch; `:431` `_execute_parallel_tool_tasks` (batching + barrier); `:393` `_execute_resource_ordered_tool_tasks` (lanes); `:421` `asyncio.gather` across lanes<br>&bull; `agent-core/openjiuwen/core/foundation/tool/base.py:92` — `ToolCard.parallel_safe` (default True)<br>&bull; `agent-core/openjiuwen/core/graph/pregel/task.py:27` — `submit` creates a Task; `:47` `asyncio.wait(..., FIRST_EXCEPTION)` cancels siblings<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:45` — lazy semaphore for sub-agent fan-out</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1083</code> — <code>parallel_tool_calls</code> parameter; <code>:1148</code> parallel-vs-sequential branch; <code>:431</code> <code>_execute_parallel_tool_tasks</code> (batching + barrier); <code>:393</code> <code>_execute_resource_ordered_tool_tasks</code> (lanes); <code>:421</code> <code>asyncio.gather</code> across lanes<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/base.py:92</code> — <code>ToolCard.parallel_safe</code> (default True)<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/task.py:27</code> — <code>submit</code> creates a Task; <code>:47</code> <code>asyncio.wait(..., FIRST_EXCEPTION)</code> cancels siblings<br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:45</code> — lazy semaphore for sub-agent fan-out</sub>
+
+</details>
 
 **Gap.** Parallelism is per-turn only, with no token-budget-aware or priority scheduling; MCP calls share the pool with no per-server backpressure.
 
@@ -94,7 +109,12 @@ flowchart TB
     TRJ --> TH["TraceHound replay (per-agent records + usage)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/observability/rail.py:56` — `TeamObservabilityRail`; `:136` `_build_decoration()` sets agent_id/member_name/role/team/session<br>&bull; `agent-core/openjiuwen/harness/observability/rail.py:355` — `AgentObservabilityRail`; `:623` `before_invoke()`<br>&bull; `agent-core/openjiuwen/harness/observability/subagent.py:60` — `install_subagent_observability_hook()`<br>&bull; `agent-core/openjiuwen/agent_teams/observability/monitor_handler.py:370` — `_open_task_span()`<br>&bull; `agent-core/openjiuwen/agent_teams/agent/team_agent.py:734` — `observability_execution_subject()`<br>&bull; `agent-core/openjiuwen/agent_evolving/trajectory/store.py:23` — `TrajectoryStore` protocol; `:135` `FileTrajectoryStore`<br>&bull; `jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:12840` — `_replay_agent_of()`<br>&bull; `jiuwenswarm/jiuwenswarm/server/runtime/session/session_history.py:863` — `_is_member_relevant()`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/observability/rail.py:56</code> — <code>TeamObservabilityRail</code>; <code>:136</code> <code>_build_decoration()</code> sets agent_id/member_name/role/team/session<br>&bull; <code>agent-core/openjiuwen/harness/observability/rail.py:355</code> — <code>AgentObservabilityRail</code>; <code>:623</code> <code>before_invoke()</code><br>&bull; <code>agent-core/openjiuwen/harness/observability/subagent.py:60</code> — <code>install_subagent_observability_hook()</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/observability/monitor_handler.py:370</code> — <code>_open_task_span()</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/team_agent.py:734</code> — <code>observability_execution_subject()</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/trajectory/store.py:23</code> — <code>TrajectoryStore</code> protocol; <code>:135</code> <code>FileTrajectoryStore</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/agent_ws_server.py:12840</code> — <code>_replay_agent_of()</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/runtime/session/session_history.py:863</code> — <code>_is_member_relevant()</code></sub>
+
+</details>
 
 **Gap.** There is no automated causal/root-cause analysis — spans provide attribution, and TraceHound's `tracehound.analyze` is an LLM overlay, not deterministic blame. Leader events carry no `member_name`, so leader-vs-single-agent attribution relies on role heuristics. Subagents are excluded from team identity and inherit attribution only by span nesting. Trajectory capture is opt-in, and logs carry no trace/span id by default.
 
@@ -116,7 +136,12 @@ flowchart TD
     H --> MC
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:255` — graph driver<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92` — `TeamScheduler`; `agent-core/openjiuwen/agent_teams/runtime/manager.py:104` — pool/dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:13` — `ProviderType` enum<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/__init__.py:58` — provider→client dispatch + registry fallback<br>&bull; `agent-core/openjiuwen/harness_providers/factory.py:160` — `create_harness(manifest, provider=...)`<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:98` — graph and teams coexist in one SDK<br>&bull; `agent-core/openjiuwen/harness/manifest/catalog.py:67` — declarative element catalog</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:255</code> — graph driver<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92</code> — <code>TeamScheduler</code>; <code>agent-core/openjiuwen/agent_teams/runtime/manager.py:104</code> — pool/dispatch<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:13</code> — <code>ProviderType</code> enum<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/__init__.py:58</code> — provider→client dispatch + registry fallback<br>&bull; <code>agent-core/openjiuwen/harness_providers/factory.py:160</code> — <code>create_harness(manifest, provider=...)</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:98</code> — graph and teams coexist in one SDK<br>&bull; <code>agent-core/openjiuwen/harness/manifest/catalog.py:67</code> — declarative element catalog</sub>
+
+</details>
 
 **Gap.** There are no comparative benchmarks, migration guides, or explicit decision docs versus LangGraph/CrewAI — the mapping is by architectural reading only. Model-client parity across providers is deep for OpenAI/Anthropic, but non-OpenAI providers are largely endpoint/`extra_body` profiles rather than first-class native SDKs.
 
@@ -143,7 +168,12 @@ flowchart TD
     end
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:133` — `max_iter=2`; `:148` invalid-value fallback; `:241/287` turn-cap break; `:364` parses `sufficient`/`next_question`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:37` — `max_length < 1` raises; `:402` `graph_hops` default 2<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:418` — loop bailout `AbortError`; `:466` `_find_tool_loop_compact_range`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:128` — `_skip_tool` duplicate suppression<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — `for iteration in range(..., max_iterations)`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:133</code> — <code>max_iter=2</code>; <code>:148</code> invalid-value fallback; <code>:241/287</code> turn-cap break; <code>:364</code> parses <code>sufficient</code>/<code>next_question</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:37</code> — <code>max_length &lt; 1</code> raises; <code>:402</code> <code>graph_hops</code> default 2<br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:418</code> — loop bailout <code>AbortError</code>; <code>:466</code> <code>_find_tool_loop_compact_range</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:128</code> — <code>_skip_tool</code> duplicate suppression<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — <code>for iteration in range(..., max_iterations)</code></sub>
+
+</details>
 
 **Gap.** `max_iter`/`graph_hops` are static, not chosen by query difficulty; the harness loop guards are **not wired into `AgenticRetriever`**, which has no loop detector beyond the turn cap. If `_rewrite` JSON fails to parse it returns `None` — indistinguishable from "sufficient" (silent early stop).
 
@@ -171,7 +201,12 @@ flowchart TD
     CO -->|new| KEEP(["keep in memory"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/memory/process/extract/memory_analyzer.py:26` — key-information classifier<br>&bull; `agent-core/openjiuwen/core/memory/process/extract/generation.py:102` — extraction gated on the classifier<br>&bull; `agent-core/openjiuwen/core/memory/manage/index/fragment_memory_manager.py:125` — dedupe + conflict resolution<br>&bull; `agent-core/openjiuwen/core/memory/manage/update/mem_update_checker.py:22` — `CheckResult`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/dreaming/sweeper.py:617` — discard rules</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/memory/process/extract/memory_analyzer.py:26</code> — key-information classifier<br>&bull; <code>agent-core/openjiuwen/core/memory/process/extract/generation.py:102</code> — extraction gated on the classifier<br>&bull; <code>agent-core/openjiuwen/core/memory/manage/index/fragment_memory_manager.py:125</code> — dedupe + conflict resolution<br>&bull; <code>agent-core/openjiuwen/core/memory/manage/update/mem_update_checker.py:22</code> — <code>CheckResult</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/dreaming/sweeper.py:617</code> — discard rules</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -196,7 +231,12 @@ flowchart TD
     T ~~~ A
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:473` — `TodoModifyTool` operations<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:621` — single-in-progress invariant<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:320` — reconcile todos from plan<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2756` — drain steering before model call<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:687` — `ctx.push_steering`<br>&bull; `agent-core/openjiuwen/harness/rails/agent_mode_rail.py:460` — enter/exit plan gate<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/code/rails/code_plan_approval_rail.py:74` — product plan-approval rail</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:473</code> — <code>TodoModifyTool</code> operations<br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:621</code> — single-in-progress invariant<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:320</code> — reconcile todos from plan<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2756</code> — drain steering before model call<br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:687</code> — <code>ctx.push_steering</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/agent_mode_rail.py:460</code> — enter/exit plan gate<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/code/rails/code_plan_approval_rail.py:74</code> — product plan-approval rail</sub>
+
+</details>
 
 ---
 
@@ -227,7 +267,12 @@ flowchart TD
     ERR ~~~ A
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:294` — resilience rail enabled by default<br>&bull; `agent-core/openjiuwen/harness/factory.py:408` — auto-mount<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:198` — retryability classification<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:222` — never retry non-idempotent tools<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:169` — retry-summary on exhaustion<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:482` — JSON bracket-repair<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1424` — surface raw JSON to the model<br>&bull; `agent-core/openjiuwen/core/foundation/llm/output_parsers/json_output_parser.py:56` — no repair (returns `None`)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:294</code> — resilience rail enabled by default<br>&bull; <code>agent-core/openjiuwen/harness/factory.py:408</code> — auto-mount<br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:198</code> — retryability classification<br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:222</code> — never retry non-idempotent tools<br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:169</code> — retry-summary on exhaustion<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:482</code> — JSON bracket-repair<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1424</code> — surface raw JSON to the model<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/output_parsers/json_output_parser.py:56</code> — no repair (returns <code>None</code>)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent, engineering, llm-applied._</sub>
 
@@ -247,7 +292,12 @@ flowchart TD
     P3 --> REG
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/tool/tool.py:31` — `tool()` universal decorator; `:95/115` returns decorated `LocalFunction`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/tool.py:120` — `_handle_prebuilt_card()`; `:160` `_create_new_tool_card()`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:48` — `LocalFunction.__init__`; `:76` `invoke`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/__init__.py:19` — `tool`; `:29` `LocalFunction`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/mcp/base.py:137` — `McpServerConfig`; `:178` `MCPTool`; `:198` `invoke`<br>&bull; `agent-core/openjiuwen/core/runner/resources_manager/tool_manager.py:281` — discovered MCP cards materialized into `MCPTool`<br>&bull; `agent-core/openjiuwen/extensions/context_evolver/tool/wikipedia_tool.py:86` — minimal `ToolCard` + `LocalFunction` example<br>&bull; `agent-core/openjiuwen/harness/prompts/tools/__init__.py:250` — `build_tool_card()`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/tool.py:31</code> — <code>tool()</code> universal decorator; <code>:95/115</code> returns decorated <code>LocalFunction</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/tool.py:120</code> — <code>_handle_prebuilt_card()</code>; <code>:160</code> <code>_create_new_tool_card()</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:48</code> — <code>LocalFunction.__init__</code>; <code>:76</code> <code>invoke</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/__init__.py:19</code> — <code>tool</code>; <code>:29</code> <code>LocalFunction</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/mcp/base.py:137</code> — <code>McpServerConfig</code>; <code>:178</code> <code>MCPTool</code>; <code>:198</code> <code>invoke</code><br>&bull; <code>agent-core/openjiuwen/core/runner/resources_manager/tool_manager.py:281</code> — discovered MCP cards materialized into <code>MCPTool</code><br>&bull; <code>agent-core/openjiuwen/extensions/context_evolver/tool/wikipedia_tool.py:86</code> — minimal <code>ToolCard</code> + <code>LocalFunction</code> example<br>&bull; <code>agent-core/openjiuwen/harness/prompts/tools/__init__.py:250</code> — <code>build_tool_card()</code></sub>
+
+</details>
 
 **Gap.** `@tool` exposes no `idempotent`/`parallel_safe`/`properties` arguments, so a decorator-created tool cannot directly declare retry/timeout policy — pass a prebuilt `card=` or mutate `card` afterward. `LocalFunction` accepts only a `func` (and optional `render`); tools needing custom transport/auth must subclass `Tool` or use `RestfulApi`/`MCPTool`. `AbilityManager._execute_single_tool_call` treats a bare `McpServerConfig` name as unimplemented, so MCP must be registered/materialized before execution.
 
@@ -276,7 +326,12 @@ flowchart TD
     P4 -.-> CAP["cap long-term promotions"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71` — drop oldest beyond 2×<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:88` — head/tail truncation<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:71` — offload large messages<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:81` — tool-result budget<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/micro_compact_processor.py:47` — micro compaction<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:183` — full compaction<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:96` — round compaction<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/dreaming/sweeper.py:36` — per-session promotion caps</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71</code> — drop oldest beyond 2×<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:88</code> — head/tail truncation<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:71</code> — offload large messages<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:81</code> — tool-result budget<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/micro_compact_processor.py:47</code> — micro compaction<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:183</code> — full compaction<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:96</code> — round compaction<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/dreaming/sweeper.py:36</code> — per-session promotion caps</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -295,7 +350,12 @@ flowchart TD
     OWN --> WT["isolated worktree"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581` — one-active-task-per-member<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634` — atomic CAS claim<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1673` — reassign instead of release<br>&bull; `agent-core/openjiuwen/agent_teams/agent/spawn_manager.py:73` — teammate spawn idempotency<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/control.py:169` — reject live subagent re-spawn<br>&bull; `../../../agent-core/openjiuwen/agent_teams/worktree` — per-member worktree isolation<br>&bull; `agent-core/openjiuwen/agent_teams/reliability/` — conflict detectors</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581</code> — one-active-task-per-member<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634</code> — atomic CAS claim<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/task_manager.py:1673</code> — reassign instead of release<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/spawn_manager.py:73</code> — teammate spawn idempotency<br>&bull; <code>agent-core/openjiuwen/harness/subagent_runtime/control.py:169</code> — reject live subagent re-spawn<br>&bull; <code>../../../agent-core/openjiuwen/agent_teams/worktree</code> — per-member worktree isolation<br>&bull; <code>agent-core/openjiuwen/agent_teams/reliability/</code> — conflict detectors</sub>
+
+</details>
 
 ---
 
@@ -323,7 +383,12 @@ flowchart TD
     OUTER --> HARD["hard max_outer_rounds = 50 → stop_reason MaxOuterRounds"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations: int = Field(default=5)`; `:2740` the bounded loop; `:2852` exhaustion result<br>&bull; `agent-core/openjiuwen/harness/schema/stop_condition.py:134` — `MaxRoundsEvaluator.should_stop`; `:143` TokenBudget; `:162` Timeout<br>&bull; `agent-core/openjiuwen/harness/task_loop/loop_coordinator.py:139` — `should_continue()` OR-chain; `:110` `increment_iteration`; `:133` `request_abort`<br>&bull; `agent-core/openjiuwen/harness/rails/task_completion_rail.py:168` — `build_evaluators()`; `:178-185` build MaxRounds/Timeout/TokenBudget<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2723` — `max_outer_rounds = 50`; `:2725` `while coordinator.should_continue()`; `:2727-2739` force-stop; `:1116` inner cap swap; `:2338` `_build_task_loop_evaluators`; `:3380` `abort()`<br>&bull; `agent-core/openjiuwen/agent_teams/agent/agent_configurator.py:436` — member `TaskCompletionRail(max_rounds=agent_spec.max_iterations)`<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/backends/budget_rail.py:88` — token-ceiling `ctx.request_force_finish`; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:300` — review-round cap</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations: int = Field(default=5)</code>; <code>:2740</code> the bounded loop; <code>:2852</code> exhaustion result<br>&bull; <code>agent-core/openjiuwen/harness/schema/stop_condition.py:134</code> — <code>MaxRoundsEvaluator.should_stop</code>; <code>:143</code> TokenBudget; <code>:162</code> Timeout<br>&bull; <code>agent-core/openjiuwen/harness/task_loop/loop_coordinator.py:139</code> — <code>should_continue()</code> OR-chain; <code>:110</code> <code>increment_iteration</code>; <code>:133</code> <code>request_abort</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/task_completion_rail.py:168</code> — <code>build_evaluators()</code>; <code>:178-185</code> build MaxRounds/Timeout/TokenBudget<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2723</code> — <code>max_outer_rounds = 50</code>; <code>:2725</code> <code>while coordinator.should_continue()</code>; <code>:2727-2739</code> force-stop; <code>:1116</code> inner cap swap; <code>:2338</code> <code>_build_task_loop_evaluators</code>; <code>:3380</code> <code>abort()</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/agent_configurator.py:436</code> — member <code>TaskCompletionRail(max_rounds=agent_spec.max_iterations)</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/backends/budget_rail.py:88</code> — token-ceiling <code>ctx.request_force_finish</code>; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:300</code> — review-round cap</sub>
+
+</details>
 
 **Gap.** The 50-round ceiling is a literal local, not configurable. `TaskCompletionRail`'s `max_rounds`/`timeout_seconds`/`max_tokens` all default to `None`, so with the default auto-injected rail the LoopCoordinator chain is empty and only the 50-round literal and abort bound the outer loop. `NoProgressAnswerEvaluator` is gated by `TaskLoopNoProgressGuardConfig.enabled`, which defaults to `True`. Agent-teams review-round caps and swarmflow budget caps apply only in `scheduled` mode / when a budget is configured.
 
@@ -345,7 +410,12 @@ flowchart TD
     CORE["core WorkflowCard.version"] -.->|"inert metadata only"| X(["no registry / serializer / rollback"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/base.py:21` — `WorkflowCard.version: str = ''`; `:68` `generate_workflow_key(workflow_id, workflow_version)`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:296` — `RsiHarnessActivationStore`; `:350` `list_versions()`; `:386` `snapshot()`; `:391` `restore()`; `:416` `commit()` assigns `version_sequence`; `:466` atomic write<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback(installation_id)`; `:623` `_rollback_unlocked`; `:682` `_assert_rollback_allowed`; `:694` `_validate_rollback_target`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/materializer.py:222` — content-addressed `version_id = baseline-<sha16>`; `:231-246` writes `harness_refs.yaml`<br>&bull; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:224` — `_do_harness_rollback`; `:218` `_do_harness_versions_list`; `:209` install<br>&bull; `jiuwenswarm/jiuwenswarm/gateway/channel_manager/web/app_web_handlers.py:7634` — `rsi.harness.rollback` dispatch<br>&bull; `agent-core/openjiuwen/auto_harness/infra/runtime_manifest.py:121` — `schema_version`; `agent-core/openjiuwen/harness/schema/expert_harness_spec.py:122` — `schema_version`<br>&bull; `agent-core/openjiuwen/agent_evolving/checkpointing/manager.py:121` — restores operator state/best score (training only)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/base.py:21</code> — <code>WorkflowCard.version: str = ''</code>; <code>:68</code> <code>generate_workflow_key(workflow_id, workflow_version)</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:296</code> — <code>RsiHarnessActivationStore</code>; <code>:350</code> <code>list_versions()</code>; <code>:386</code> <code>snapshot()</code>; <code>:391</code> <code>restore()</code>; <code>:416</code> <code>commit()</code> assigns <code>version_sequence</code>; <code>:466</code> atomic write<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> — <code>rollback(installation_id)</code>; <code>:623</code> <code>_rollback_unlocked</code>; <code>:682</code> <code>_assert_rollback_allowed</code>; <code>:694</code> <code>_validate_rollback_target</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/materializer.py:222</code> — content-addressed <code>version_id = baseline-&lt;sha16&gt;</code>; <code>:231-246</code> writes <code>harness_refs.yaml</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:224</code> — <code>_do_harness_rollback</code>; <code>:218</code> <code>_do_harness_versions_list</code>; <code>:209</code> install<br>&bull; <code>jiuwenswarm/jiuwenswarm/gateway/channel_manager/web/app_web_handlers.py:7634</code> — <code>rsi.harness.rollback</code> dispatch<br>&bull; <code>agent-core/openjiuwen/auto_harness/infra/runtime_manifest.py:121</code> — <code>schema_version</code>; <code>agent-core/openjiuwen/harness/schema/expert_harness_spec.py:122</code> — <code>schema_version</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/checkpointing/manager.py:121</code> — restores operator state/best score (training only)</sub>
+
+</details>
 
 **Gap.** Core `openjiuwen` has no agent/workflow definition versioning or rollback; `WorkflowCard.version` is inert metadata. Versioning/rollback is real only in the product-layer RSI harness installer and only for engine-published harness packages. `agent_evolving` checkpointing rolls back training operator state, not a workflow definition. The config-migration path only migrates YAML keys forward and retains no old versions. Retained versions can be listed but there is no automatic pruning/retention policy.
 
@@ -376,7 +446,12 @@ sequenceDiagram
     H->>H: deliver_input(<team-inbound>…)
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/tools/message_manager.py:27` — `TeamMessageManager`; `:60` `send_message()` persist-then-publish<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/message_dao.py:153` — `MessageDao.create_message()`<br>&bull; `agent-core/openjiuwen/agent_teams/agent/coordination/handlers/message.py:181` — `_process_unread_messages()` → `deliver_input`<br>&bull; `agent-core/openjiuwen/agent_teams/interaction/router.py:273` — `resolve_targets()` `@member` routing<br>&bull; `agent-core/openjiuwen/agent_teams/runtime/manager.py:573` — `_dispatch_payload()`<br>&bull; `agent-core/openjiuwen/core/multi_agent/team_runtime/communicable_agent.py:105` — `send()` (P2P); `:131` `publish()`<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/handoff/handoff_tool.py:17` — `HandoffTool`<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:154` — `TaskTool` (synchronous child session, not a mailbox peer)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/message_manager.py:27</code> — <code>TeamMessageManager</code>; <code>:60</code> <code>send_message()</code> persist-then-publish<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/database/message_dao.py:153</code> — <code>MessageDao.create_message()</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/coordination/handlers/message.py:181</code> — <code>_process_unread_messages()</code> → <code>deliver_input</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/interaction/router.py:273</code> — <code>resolve_targets()</code> <code>@member</code> routing<br>&bull; <code>agent-core/openjiuwen/agent_teams/runtime/manager.py:573</code> — <code>_dispatch_payload()</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/team_runtime/communicable_agent.py:105</code> — <code>send()</code> (P2P); <code>:131</code> <code>publish()</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/handoff/handoff_tool.py:17</code> — <code>HandoffTool</code><br>&bull; <code>agent-core/openjiuwen/harness/tools/subagent/task_tool.py:154</code> — <code>TaskTool</code> (synchronous child session, not a mailbox peer)</sub>
+
+</details>
 
 **Gap.** Two disjoint communication stacks (`core/multi_agent` TeamRuntime/MessageBus and `agent_teams` DB mailbox/messager) share no bridge. Delivery is pull-based (poll/drain + event wakeup), so a busy member's messages are deferred or steered, never pushed mid-token. Broadcast read state is a per-member watermark with multiple special-case paths. Subagent `TaskTool` calls do not touch the mailbox and are invisible to other agents.
 
@@ -398,7 +473,12 @@ flowchart LR
     MCP["MCP server"] -->|"lazy get_mcp_tool_infos"| AM
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:616` — `add()` registers any ability card; ToolCard branch stores at `:669`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:772` — `add_ability()` card + concrete `Tool`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:984` — `list_tool_info()` cards → `ToolInfo`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1047` — MCP path (`get_mcp_tool_infos`, `mcp_model_tool_name`); `:1067` lazy `ToolCard`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/base.py:120` — `ToolCard.tool_info()`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — `generate_schema()` from a callable signature<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:483` — `_convert_tools_to_dict()`; attached at `:576`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:494` — `_convert_tool_schemas()` → `input_schema`<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2683` — per-invoke `list_tool_info()`; set at `:1538`<br>&bull; `agent-core/openjiuwen/harness/factory.py:443` — registers tool instances (`add_ability`); `:453` pure cards (`add`)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:616</code> — <code>add()</code> registers any ability card; ToolCard branch stores at <code>:669</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:772</code> — <code>add_ability()</code> card + concrete <code>Tool</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:984</code> — <code>list_tool_info()</code> cards → <code>ToolInfo</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1047</code> — MCP path (<code>get_mcp_tool_infos</code>, <code>mcp_model_tool_name</code>); <code>:1067</code> lazy <code>ToolCard</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/base.py:120</code> — <code>ToolCard.tool_info()</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20</code> — <code>generate_schema()</code> from a callable signature<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:483</code> — <code>_convert_tools_to_dict()</code>; attached at <code>:576</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:494</code> — <code>_convert_tool_schemas()</code> → <code>input_schema</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2683</code> — per-invoke <code>list_tool_info()</code>; set at <code>:1538</code><br>&bull; <code>agent-core/openjiuwen/harness/factory.py:443</code> — registers tool instances (<code>add_ability</code>); <code>:453</code> pure cards (<code>add</code>)</sub>
+
+</details>
 
 **Gap.** Exposure policy (`ToolExposure`) is registration-time only; `_apply_tool_exposure_policy` does not rewrite already-registered cards. `list_tool_info()` silently drops MCP `ToolInfo` when a server name collides. `ToolInfo.parameters` may be a `dict` or a `BaseModel`; only OpenAI's converter handles both.
 
@@ -420,7 +500,12 @@ flowchart TD
     CP -->|"PregelLoop.init"| GS
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/session/internal/agent.py:36` — `AgentSession.__init__` creates `StateCollection`; `:74` `create_workflow_session` passes global state into `InMemoryState`<br>&bull; `agent-core/openjiuwen/core/session/state/agent_state.py:9` — agent `StateCollection`; `:34` `get_state`<br>&bull; `agent-core/openjiuwen/core/session/state/workflow_state.py:12` — workflow `StateCollection` (io/global/comp/workflow); `:100` `get_workflow_state`; `:151` `get_state`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:64` — `SessionModelContext`; `:1519` `save_state()`; `:1526` `load_state`<br>&bull; `agent-core/openjiuwen/core/graph/store/base.py:31` — `GraphState` dataclass; `:41` `Store` ABC<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:39` — `PregelLoop.init` reads saved state; `:44` restore path<br>&bull; `agent-core/openjiuwen/core/session/checkpointer/persistence.py:299` — `_get_state_to_save`; `:352` `WorkflowStorage.save`<br>&bull; `agent-core/openjiuwen/core/context_engine/context_engine.py:589` — `save_contexts`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/session/internal/agent.py:36</code> — <code>AgentSession.__init__</code> creates <code>StateCollection</code>; <code>:74</code> <code>create_workflow_session</code> passes global state into <code>InMemoryState</code><br>&bull; <code>agent-core/openjiuwen/core/session/state/agent_state.py:9</code> — agent <code>StateCollection</code>; <code>:34</code> <code>get_state</code><br>&bull; <code>agent-core/openjiuwen/core/session/state/workflow_state.py:12</code> — workflow <code>StateCollection</code> (io/global/comp/workflow); <code>:100</code> <code>get_workflow_state</code>; <code>:151</code> <code>get_state</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:64</code> — <code>SessionModelContext</code>; <code>:1519</code> <code>save_state()</code>; <code>:1526</code> <code>load_state</code><br>&bull; <code>agent-core/openjiuwen/core/graph/store/base.py:31</code> — <code>GraphState</code> dataclass; <code>:41</code> <code>Store</code> ABC<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:39</code> — <code>PregelLoop.init</code> reads saved state; <code>:44</code> restore path<br>&bull; <code>agent-core/openjiuwen/core/session/checkpointer/persistence.py:299</code> — <code>_get_state_to_save</code>; <code>:352</code> <code>WorkflowStorage.save</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context_engine.py:589</code> — <code>save_contexts</code></sub>
+
+</details>
 
 **Gap.** Two different classes are both named `StateCollection` (agent vs workflow) with different shapes. Context messages are persisted only on explicit `save_contexts`/compression, not every step, so a crash between saves loses in-memory turns. `InMemoryState.set_state` silently ignores empty state, which can mask empty restores.
 
@@ -444,7 +529,12 @@ flowchart TD
     Q -->|yes| A(["answer"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:193` — `TodoCreateTool`<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:113` — per-session `todo.json`<br>&bull; `agent-core/openjiuwen/harness/schema/task.py:97` — `TaskPlan`<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108/152` — rail, tool registration, guidance<br>&bull; `agent-core/openjiuwen/harness/rails/agent_mode_rail.py:645` — plan-mode `task_tool`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:193</code> — <code>TodoCreateTool</code><br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:113</code> — per-session <code>todo.json</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/task.py:97</code> — <code>TaskPlan</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:31/108/152</code> — rail, tool registration, guidance<br>&bull; <code>agent-core/openjiuwen/harness/rails/agent_mode_rail.py:645</code> — plan-mode <code>task_tool</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -462,7 +552,12 @@ flowchart TD
     Q -.->|"judged on triples only, not passages"| X["no confidence/token-cost stopping rule"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:51` — `_REWRITE_PROMPT` JSON contract; `:326` `_rewrite`; `:341` history formatting; `:364` `sufficient`/`next_question`; `:244/290` append-and-continue<br>&bull; `agent-core/openjiuwen/core/retrieval/common/triple_memory.py:16` — `triples_str` fed to the prompt<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:67` — prompt to differentiate/simplify later questions</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:51</code> — <code>_REWRITE_PROMPT</code> JSON contract; <code>:326</code> <code>_rewrite</code>; <code>:341</code> history formatting; <code>:364</code> <code>sufficient</code>/<code>next_question</code>; <code>:244/290</code> append-and-continue<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/triple_memory.py:16</code> — <code>triples_str</code> fed to the prompt<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:67</code> — prompt to differentiate/simplify later questions</sub>
+
+</details>
 
 **Gap.** Sufficiency is judged on triples only, not the actual passages; no confidence score; a JSON parse failure returns `None` (silent early stop).
 
@@ -488,7 +583,12 @@ sequenceDiagram
     Model-->>Host: final answer
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — card → JSON Schema<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:984` — builds the model-facing tool list<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:483` — OpenAI tool format<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:494` — Anthropic tool format<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:2388` — parse non-streaming tool calls<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:2612` — parse streaming tool-call deltas<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:1229` — parse Anthropic `tool_use`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1078` — dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:82` — argument schema validation</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20</code> — card → JSON Schema<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:984</code> — builds the model-facing tool list<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:483</code> — OpenAI tool format<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:494</code> — Anthropic tool format<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:2388</code> — parse non-streaming tool calls<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:2612</code> — parse streaming tool-call deltas<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:1229</code> — parse Anthropic <code>tool_use</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1078</code> — dispatch<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:82</code> — argument schema validation</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent, genai, llm-applied, engineering._</sub>
 
@@ -515,7 +615,12 @@ flowchart TD
     TC -->|no| ANS(["final answer"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:122` — `ready_nodes = manager.get_ready_nodes()`; `:130` end condition; `:144-150` consume + `executor.submit`; `:255` `while await loop.run_step()`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/channels.py:39` — `flush()` marks updated nodes ready; `:60` `get_ready_nodes`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/task.py:27` — `submit` creates a `NodeTask`; `:47` `asyncio.wait(..., FIRST_EXCEPTION)`; `:158` node routers produce next targets<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — iteration loop; `:2793` no `tool_calls` → answer; `:2813` `_execute_tool_call`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1078` — `execute` (invoked from `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813`)<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:197` — `_scan`; `:208` `_reconcile_starts`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:122</code> — <code>ready_nodes = manager.get_ready_nodes()</code>; <code>:130</code> end condition; <code>:144-150</code> consume + <code>executor.submit</code>; <code>:255</code> <code>while await loop.run_step()</code><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/channels.py:39</code> — <code>flush()</code> marks updated nodes ready; <code>:60</code> <code>get_ready_nodes</code><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/task.py:27</code> — <code>submit</code> creates a <code>NodeTask</code>; <code>:47</code> <code>asyncio.wait(..., FIRST_EXCEPTION)</code>; <code>:158</code> node routers produce next targets<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — iteration loop; <code>:2793</code> no <code>tool_calls</code> → answer; <code>:2813</code> <code>_execute_tool_call</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1078</code> — <code>execute</code> (invoked from <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813</code>)<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:197</code> — <code>_scan</code>; <code>:208</code> <code>_reconcile_starts</code></sub>
+
+</details>
 
 **Gap.** The ready set is a Python `set`, so when several nodes are simultaneously ready their execution/iteration order is nondeterministic (only the *set* of concurrent nodes is deterministic). `asyncio.wait(FIRST_EXCEPTION)` cancels sibling nodes on first failure, so "next" is partly failure-driven. `AbilityManager` decides nothing itself — tool choice is entirely model output. `TeamScheduler` is constructed only when `dispatch_mode == "scheduled"`.
 
@@ -539,7 +644,12 @@ flowchart TD
     MC["model call error"] --> MA["ModelAnomalyDetectionRail.on_model_exception (backoff retry)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1455` — `with anyio.fail_after(call_timeout)`; `:1457-1463` `TimeoutError` → `_build_execution_error`; `:556` `_build_execution_error`; `:1186-1238` parallel-batch handling; `:1492` workflow error wrapping<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:106` — `on_tool_exception`; `:128-138` non-idempotent layer; `:145` budget; `:169-186` retry-summary; `:196` `request_retry`; `:198` `_is_retryable_exception`<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:1016` — `@rail` retry loop; `:1036` catch; `:1049` fire `on_exception`; `:1065` consume retry; `:633` `request_force_finish`<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:236` — `on_model_exception`; `:336` `ctx.request_retry(delay_seconds=...)`<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1016` — model exception + one recovery attempt; `:2857/2868` persist safe prefix then re-raise<br>&bull; `agent-core/openjiuwen/harness/schema/stop_condition.py:162` — `TimeoutEvaluator`; `agent-core/openjiuwen/harness/deep_agent.py:2712` — `completion_timeout` (600s)<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:671` — `WORKFLOW_EXECUTION_TIMEOUT`; `agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:243` — interrupt as `AbortError`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1455</code> — <code>with anyio.fail_after(call_timeout)</code>; <code>:1457-1463</code> <code>TimeoutError</code> → <code>_build_execution_error</code>; <code>:556</code> <code>_build_execution_error</code>; <code>:1186-1238</code> parallel-batch handling; <code>:1492</code> workflow error wrapping<br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:106</code> — <code>on_tool_exception</code>; <code>:128-138</code> non-idempotent layer; <code>:145</code> budget; <code>:169-186</code> retry-summary; <code>:196</code> <code>request_retry</code>; <code>:198</code> <code>_is_retryable_exception</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:1016</code> — <code>@rail</code> retry loop; <code>:1036</code> catch; <code>:1049</code> fire <code>on_exception</code>; <code>:1065</code> consume retry; <code>:633</code> <code>request_force_finish</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:236</code> — <code>on_model_exception</code>; <code>:336</code> <code>ctx.request_retry(delay_seconds=...)</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1016</code> — model exception + one recovery attempt; <code>:2857/2868</code> persist safe prefix then re-raise<br>&bull; <code>agent-core/openjiuwen/harness/schema/stop_condition.py:162</code> — <code>TimeoutEvaluator</code>; <code>agent-core/openjiuwen/harness/deep_agent.py:2712</code> — <code>completion_timeout</code> (600s)<br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:671</code> — <code>WORKFLOW_EXECUTION_TIMEOUT</code>; <code>agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:243</code> — interrupt as <code>AbortError</code></sub>
+
+</details>
 
 **Gap.** `_resolve_max_attempts` ignores per-tool overrides and always returns the rail default. `ToolCallResilienceRail` is not exported from `rails/__init__.py` and only acts if registered. `TimeoutEvaluator` exists only when a non-`None` `timeout_seconds` is passed. Workflow `ExceptionConfig` is threaded through constructors but has no in-tree consumer implementing component error recovery. `ModelAnomalyDetectionRail` covers repetition and stream-timeout only.
 
@@ -560,7 +670,12 @@ flowchart TD
     OUT --> P5["swarmflow: pipeline(prev = await stage(prev, item, i))"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:657` — `_build_subagent_inputs()`; `:726` `_build_task_output()`; `:1005` `render_for_llm()`<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/handoff/handoff_signal.py:47` — `extract_handoff_signal()`<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/handoff/container_agent.py:56` — `_build_agent_input()`; `:112` `_inject_context_history()`; `:249` `coordinator.complete(result)`<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:208` — scheduled handoff as a rendered leader message<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634` — peer task handoff via CAS claim<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/primitives.py:1495` — `pipeline()` passes `prev` between stages</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/tools/subagent/task_tool.py:657</code> — <code>_build_subagent_inputs()</code>; <code>:726</code> <code>_build_task_output()</code>; <code>:1005</code> <code>render_for_llm()</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/handoff/handoff_signal.py:47</code> — <code>extract_handoff_signal()</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/handoff/container_agent.py:56</code> — <code>_build_agent_input()</code>; <code>:112</code> <code>_inject_context_history()</code>; <code>:249</code> <code>coordinator.complete(result)</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:208</code> — scheduled handoff as a rendered leader message<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634</code> — peer task handoff via CAS claim<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/primitives.py:1495</code> — <code>pipeline()</code> passes <code>prev</code> between stages</sub>
+
+</details>
 
 **Gap.** Peer teammates do not automatically receive a producer's output — completion unblocks and wakes them, but the result text must be re-read from the task/message store. Subagent return values are collapsed to text plus a fixed envelope; structured outputs are not generically propagated between agents. Handoff context transfer relies on private session keys and a crude message-key dedupe. Swarmflow's dataflow is ordinary Python with no durable edge model and is invisible to the team mailbox/task board.
 
@@ -587,7 +702,12 @@ flowchart TD
     B -->|no| SUM["[Retry Summary] ToolMessage → model"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:24` — `ToolCallResilienceRail`; `:102` counter reset; `:106` `on_tool_exception`; `:145` budget check; `:196` retry request<br>&bull; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:223` — `_is_non_idempotent()`; `:244` `_resolve_max_attempts()`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/base.py:109` — `ToolCard.idempotent` (default `False`); `:90/92` `properties`/`parallel_safe`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:571` — `_resolve_call_timeout()` reads `properties["resilience"]["timeout_s"]`; `:137` hard limit<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:294` — `enable_tool_resilience_rail: bool = True`; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:453` mirror<br>&bull; `agent-core/openjiuwen/harness/factory.py:408` — auto-mount; `:411` `_already_provided` guard<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/subagent_tools.py:45` — `_attach_call_timeout()` sets `properties["resilience"]["timeout_s"]`<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:612` — `ctx.request_retry()`; `agent-core/openjiuwen/harness/prompts/tools/__init__.py:284` — `build_tool_card` honors `ToolCardBuildOptions(idempotent=…)`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:24</code> — <code>ToolCallResilienceRail</code>; <code>:102</code> counter reset; <code>:106</code> <code>on_tool_exception</code>; <code>:145</code> budget check; <code>:196</code> retry request<br>&bull; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:223</code> — <code>_is_non_idempotent()</code>; <code>:244</code> <code>_resolve_max_attempts()</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/base.py:109</code> — <code>ToolCard.idempotent</code> (default <code>False</code>); <code>:90/92</code> <code>properties</code>/<code>parallel_safe</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:571</code> — <code>_resolve_call_timeout()</code> reads <code>properties["resilience"]["timeout_s"]</code>; <code>:137</code> hard limit<br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:294</code> — <code>enable_tool_resilience_rail: bool = True</code>; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:453</code> mirror<br>&bull; <code>agent-core/openjiuwen/harness/factory.py:408</code> — auto-mount; <code>:411</code> <code>_already_provided</code> guard<br>&bull; <code>agent-core/openjiuwen/harness/tools/subagent/subagent_tools.py:45</code> — <code>_attach_call_timeout()</code> sets <code>properties["resilience"]["timeout_s"]</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:612</code> — <code>ctx.request_retry()</code>; <code>agent-core/openjiuwen/harness/prompts/tools/__init__.py:284</code> — <code>build_tool_card</code> honors <code>ToolCardBuildOptions(idempotent=…)</code></sub>
+
+</details>
 
 **Gap.** **Per-tool retry budget is not actually implemented**: `_resolve_max_attempts` ignores `properties["resilience"]["max_attempts"]`; only the rail-wide `max_attempts` (default 3) applies. There is no per-tool backoff (`request_retry()` supports `delay_seconds`, but the rail always passes 0). The rail is not exported from `rails/__init__.py`, and "opt out" is only the boolean `idempotent`, so you cannot express "retry twice for tool A, never for B" without replacing the rail globally.
 
@@ -617,7 +737,12 @@ flowchart TD
     RES --> RUN
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/security/tool_security_rail.py:57` — `PermissionInterruptRail`; `:186` `before_tool_call`; `:404` `resolve_interrupt`; `:486` ALLOW; `:494` DENY; `:510-563` hosted confirm + persist; `:594-598` ASK → interrupt; `:729` `_store_auto_confirm`<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/core.py:272` — `check_permission`; `:414` `build_permission_interrupt_rail`; `:426` `permissions.enabled` gate<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588` — `evaluate_tiered_policy`; `:502` ASK fallback; `:385` DENY precedence<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/models.py:19` — `PermissionLevel`; `:52` `PermissionConfirmResponse`<br>&bull; `agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:243` — `_raise_interrupt`; `:248` `_skip_tool`; `:269` `_get_user_input`<br>&bull; `agent-core/openjiuwen/harness/rails/interrupt/confirm_rail.py:16` — `ConfirmPayload`; `:57` `resolve_interrupt`<br>&bull; `agent-core/openjiuwen/core/single_agent/interrupt/handler.py:310` — `handle_resume`; `:358` re-commit; `:384` restore auto-confirm<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:767-782` — auto-mount when `permissions["enabled"]`; `jiuwenswarm/jiuwenswarm/agents/harness/code/rails/code_plan_approval_rail.py:74` — `PlanApprovalRail`; `agent-core/openjiuwen/harness/rails/interrupt/ask_user_rail.py:29` — `AskUserRail`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/tool_security_rail.py:57</code> — <code>PermissionInterruptRail</code>; <code>:186</code> <code>before_tool_call</code>; <code>:404</code> <code>resolve_interrupt</code>; <code>:486</code> ALLOW; <code>:494</code> DENY; <code>:510-563</code> hosted confirm + persist; <code>:594-598</code> ASK → interrupt; <code>:729</code> <code>_store_auto_confirm</code><br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/core.py:272</code> — <code>check_permission</code>; <code>:414</code> <code>build_permission_interrupt_rail</code>; <code>:426</code> <code>permissions.enabled</code> gate<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588</code> — <code>evaluate_tiered_policy</code>; <code>:502</code> ASK fallback; <code>:385</code> DENY precedence<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/models.py:19</code> — <code>PermissionLevel</code>; <code>:52</code> <code>PermissionConfirmResponse</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:243</code> — <code>_raise_interrupt</code>; <code>:248</code> <code>_skip_tool</code>; <code>:269</code> <code>_get_user_input</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/interrupt/confirm_rail.py:16</code> — <code>ConfirmPayload</code>; <code>:57</code> <code>resolve_interrupt</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/interrupt/handler.py:310</code> — <code>handle_resume</code>; <code>:358</code> re-commit; <code>:384</code> restore auto-confirm<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:767-782</code> — auto-mount when <code>permissions["enabled"]</code>; <code>jiuwenswarm/jiuwenswarm/agents/harness/code/rails/code_plan_approval_rail.py:74</code> — <code>PlanApprovalRail</code>; <code>agent-core/openjiuwen/harness/rails/interrupt/ask_user_rail.py:29</code> — <code>AskUserRail</code></sub>
+
+</details>
 
 **Gap.** The whole permission path is opt-in: `build_permission_interrupt_rail` returns `None` unless `permissions.enabled` is truthy, and `check_permission` short-circuits to ALLOW when the engine is disabled. There is no class literally named `ToolSecurityRail` — the file is `tool_security_rail.py` but the class is `PermissionInterruptRail`. Permanent persist falls back to writing YAML only when no host hook is supplied. `PlanApprovalRail` is not an interrupt — it stores pending state and appends a marker; enforcement lives in the product server layer.
 
@@ -644,7 +769,12 @@ sequenceDiagram
     RA->>RA: replay interrupted tool calls, continue
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:237` — `_raise_interrupt`; `:243` raises `AbortError(cause=ToolInterruptException)`; re-raised at `agent-core/openjiuwen/core/runner/callback/framework.py:1172`<br>&bull; `agent-core/openjiuwen/core/single_agent/interrupt/handler.py:279` — `commit_interrupt`; `:310` `handle_resume`; `:326` uses preserved `state.iteration`<br>&bull; `agent-core/openjiuwen/core/single_agent/interrupt/state.py:32` — `ToolInterruptionState`<br>&bull; `agent-core/openjiuwen/core/session/checkpointer/persistence.py:803` — `pre_workflow_execute`; `:824` recover on `InteractiveInput`; `:860` `post_workflow_execute`; `:876` save on `TASK_STATUS_INTERRUPT`<br>&bull; `agent-core/openjiuwen/core/graph/graph.py:315` — `CompiledGraph._invoke`; `:326` pre; `:334` `pregel.run`; `:346` post<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:45` — `_is_resume`; `:174` `_save_state_on_error`; `:39` restore in `init`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:1519/1526` — `save_state`/`load_state`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2491/2516` — `load_state`/`save_state`; `agent-core/openjiuwen/harness_providers/io_adapter.py:299/308` — `pause()`/`resume()`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/interrupt/interrupt_base.py:237</code> — <code>_raise_interrupt</code>; <code>:243</code> raises <code>AbortError(cause=ToolInterruptException)</code>; re-raised at <code>agent-core/openjiuwen/core/runner/callback/framework.py:1172</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/interrupt/handler.py:279</code> — <code>commit_interrupt</code>; <code>:310</code> <code>handle_resume</code>; <code>:326</code> uses preserved <code>state.iteration</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/interrupt/state.py:32</code> — <code>ToolInterruptionState</code><br>&bull; <code>agent-core/openjiuwen/core/session/checkpointer/persistence.py:803</code> — <code>pre_workflow_execute</code>; <code>:824</code> recover on <code>InteractiveInput</code>; <code>:860</code> <code>post_workflow_execute</code>; <code>:876</code> save on <code>TASK_STATUS_INTERRUPT</code><br>&bull; <code>agent-core/openjiuwen/core/graph/graph.py:315</code> — <code>CompiledGraph._invoke</code>; <code>:326</code> pre; <code>:334</code> <code>pregel.run</code>; <code>:346</code> post<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:45</code> — <code>_is_resume</code>; <code>:174</code> <code>_save_state_on_error</code>; <code>:39</code> restore in <code>init</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:1519/1526</code> — <code>save_state</code>/<code>load_state</code><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2491/2516</code> — <code>load_state</code>/<code>save_state</code>; <code>agent-core/openjiuwen/harness_providers/io_adapter.py:299/308</code> — <code>pause()</code>/<code>resume()</code></sub>
+
+</details>
 
 **Gap.** Graph state is checkpointed only on error/interrupt, not after every successful super-step, so a hard crash mid-step loses that step. `CompiledGraph.interrupt()` is a no-op stub. The DeepAgent outer task loop explicitly does not support pause (`can_pause` returns `False`); only "resume continuation" re-entry exists. No in-flight asyncio task/stack is serialized — resume replays from channel/message snapshots and re-executes nodes, so non-idempotent side effects must be tolerated.
 
@@ -670,7 +800,12 @@ flowchart TD
     TOOL --> D["ToolCallDeduplicationRail: _skip_tool"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:133/241/287` — `max_iter` and turn-cap breaks<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74` — `ToolLoopCompactConfig` (default off); `:386` compact-or-bailout<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:25/109/157` — cacheable whitelist + per-turn cache + repeat warning<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations=5`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/context_headroom_rail.py:97` — 60%/80% token-window directives</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:133/241/287</code> — <code>max_iter</code> and turn-cap breaks<br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74</code> — <code>ToolLoopCompactConfig</code> (default off); <code>:386</code> compact-or-bailout<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:25/109/157</code> — cacheable whitelist + per-turn cache + repeat warning<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations=5</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/context_headroom_rail.py:97</code> — 60%/80% token-window directives</sub>
+
+</details>
 
 **Gap.** No retrieval token/cost budget; `_link_triples`/`_link_passages` issue one request per triple (`asyncio.gather` with no concurrency limit), and the tool-loop guards do not cover these calls.
 
@@ -697,7 +832,12 @@ flowchart TD
     REINJ --> PROMPT(["prompt (summary + live turns + explicit state)"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:69` — `BASE_COMPACT_PROMPT`; `:167` boundary markers; `:342` `_build_replacement_messages()`; `:774` `build_reinjected_state_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/util.py:242` — `build_skill_reinjected_content()`; `:294` `build_task_status_reinjected_content()`; `:105` `build_team_policy_reinjected_messages()`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:37` — 15-section template; `:738` `should_update()`; `:824` `_update_background()`; `:529` `invalidate_session_memory_anchor()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/reinjection/builders.py:29` — forked reinjection builders</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:69</code> — <code>BASE_COMPACT_PROMPT</code>; <code>:167</code> boundary markers; <code>:342</code> <code>_build_replacement_messages()</code>; <code>:774</code> <code>build_reinjected_state_messages()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/util.py:242</code> — <code>build_skill_reinjected_content()</code>; <code>:294</code> <code>build_task_status_reinjected_content()</code>; <code>:105</code> <code>build_team_policy_reinjected_messages()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/session_memory_manager.py:37</code> — 15-section template; <code>:738</code> <code>should_update()</code>; <code>:824</code> <code>_update_background()</code>; <code>:529</code> <code>invalidate_session_memory_anchor()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/forked/compressor/reinjection/builders.py:29</code> — forked reinjection builders</sub>
+
+</details>
 
 **Gap.** The non-session-memory fallback re-injects only plan/skills/task status; `build_plan_reinjected_content` in the non-forked `util.py` is a stub returning `""`. No automatic verification that the summary retained all critical facts beyond the prompt's structured sections.
 
@@ -725,7 +865,12 @@ flowchart TD
     D -->|no| A(["final answer"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations` default 5; `agent-core/openjiuwen/harness/schema/config.py:252` — harness default 15<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90` — tool-loop threshold + bailout<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157` — cross-turn repeat counter<br>&bull; `agent-core/openjiuwen/harness/schema/stop_condition.py:181` — `NoProgressAnswerEvaluator`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2723` — hard 50-round ceiling<br>&bull; `agent-core/openjiuwen/agent_teams/reliability/detectors/repeat_tool.py:15` — repeat-tool; `agent-core/openjiuwen/agent_teams/reliability/detectors/pingpong.py:12` — ping-pong</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code> default 5; <code>agent-core/openjiuwen/harness/schema/config.py:252</code> — harness default 15<br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:74/90</code> — tool-loop threshold + bailout<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/tool_dedup_rail.py:157</code> — cross-turn repeat counter<br>&bull; <code>agent-core/openjiuwen/harness/schema/stop_condition.py:181</code> — <code>NoProgressAnswerEvaluator</code><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2723</code> — hard 50-round ceiling<br>&bull; <code>agent-core/openjiuwen/agent_teams/reliability/detectors/repeat_tool.py:15</code> — repeat-tool; <code>agent-core/openjiuwen/agent_teams/reliability/detectors/pingpong.py:12</code> — ping-pong</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-engineer-technical-questions_for_engineers.md`; also covered in: ai-agent, engineering, genai, llm-applied._</sub>
 
@@ -748,7 +893,12 @@ flowchart TD
     R ~~~ F
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793` — no tool calls → final answer<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations` default 5<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — inner loop<br>&bull; `agent-core/openjiuwen/harness/task_loop/loop_coordinator.py:139` — outer `should_continue`<br>&bull; `agent-core/openjiuwen/harness/schema/stop_condition.py:124-331` — evaluator chain<br>&bull; `agent-core/openjiuwen/harness/rails/task_completion_rail.py:403` — completion-promise extraction<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2723` — hard 50-round ceiling</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793</code> — no tool calls → final answer<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code> default 5<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — inner loop<br>&bull; <code>agent-core/openjiuwen/harness/task_loop/loop_coordinator.py:139</code> — outer <code>should_continue</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/stop_condition.py:124-331</code> — evaluator chain<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_completion_rail.py:403</code> — completion-promise extraction<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2723</code> — hard 50-round ceiling</sub>
+
+</details>
 
 ---
 
@@ -774,7 +924,12 @@ flowchart TD
     S --> TR["Tracer + observability"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/session/agent.py:33` — `Session` (state, stream, tracer, interaction)<br>&bull; `agent-core/openjiuwen/core/runner/runner.py:696` — `Runner` facade class; `:408` `run_agent` binds session + lifecycle<br>&bull; `agent-core/openjiuwen/core/context_engine/context_engine.py:28` — `ContextEngine` (processors, token limits, compression)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model.py:27` — `Model`, unified LLM entry; `:94` `invoke`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/__init__.py:58` — `create_model_client` provider dispatch<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:142` — `AbilityManager` (tool registry + execution)<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:824` — `AgentRail` base (lifecycle hooks)<br>&bull; `agent-core/openjiuwen/core/session/tracer/tracer.py:98` — `Tracer`; `agent-core/openjiuwen/extensions/observability/runtime.py:103` — `ObservabilityRuntime`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/session/agent.py:33</code> — <code>Session</code> (state, stream, tracer, interaction)<br>&bull; <code>agent-core/openjiuwen/core/runner/runner.py:696</code> — <code>Runner</code> facade class; <code>:408</code> <code>run_agent</code> binds session + lifecycle<br>&bull; <code>agent-core/openjiuwen/core/context_engine/context_engine.py:28</code> — <code>ContextEngine</code> (processors, token limits, compression)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model.py:27</code> — <code>Model</code>, unified LLM entry; <code>:94</code> <code>invoke</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/__init__.py:58</code> — <code>create_model_client</code> provider dispatch<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:142</code> — <code>AbilityManager</code> (tool registry + execution)<br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:824</code> — <code>AgentRail</code> base (lifecycle hooks)<br>&bull; <code>agent-core/openjiuwen/core/session/tracer/tracer.py:98</code> — <code>Tracer</code>; <code>agent-core/openjiuwen/extensions/observability/runtime.py:103</code> — <code>ObservabilityRuntime</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
@@ -794,7 +949,12 @@ flowchart TD
     MIS --> C["custom model client → ClientRegistry"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/graph/executable.py:14` — `on_invoke` override<br>&bull; `agent-core/openjiuwen/core/workflow/components/component.py:124/148` — `invoke`/`stream` overrides with raw `Session`+`ModelContext`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model.py:94` — direct `Model.invoke`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:48` — `LocalFunction`; `agent-core/openjiuwen/core/foundation/tool/tool.py:14` — `@tool`<br>&bull; `agent-core/openjiuwen/core/single_agent/rail/base.py:824` — `AgentRail`; `agent-core/openjiuwen/harness/deep_agent.py:1936` — `strip_rails_by_type`<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent_evolve.py:16` — subclassing `ReActAgent`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53` + `agent-core/openjiuwen/core/common/clients/client_registry.py:50` — custom model backend<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2015` — `_apply_extension_parts` hot-swap</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/graph/executable.py:14</code> — <code>on_invoke</code> override<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/component.py:124/148</code> — <code>invoke</code>/<code>stream</code> overrides with raw <code>Session</code>+<code>ModelContext</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model.py:94</code> — direct <code>Model.invoke</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:48</code> — <code>LocalFunction</code>; <code>agent-core/openjiuwen/core/foundation/tool/tool.py:14</code> — <code>@tool</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/rail/base.py:824</code> — <code>AgentRail</code>; <code>agent-core/openjiuwen/harness/deep_agent.py:1936</code> — <code>strip_rails_by_type</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent_evolve.py:16</code> — subclassing <code>ReActAgent</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53</code> + <code>agent-core/openjiuwen/core/common/clients/client_registry.py:50</code> — custom model backend<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2015</code> — <code>_apply_extension_parts</code> hot-swap</sub>
+
+</details>
 
 **Gap.** Escape hatches are unevenly documented and some are "advanced / for tests". Rail routing requires the event to be in the correct allow-set or the callback silently does not run. There is no formal "override this method" contract for the ReAct loop beyond subclassing a large class, and no public config-level override hook for the `agent_teams` prompt/dispatch policy beyond editing specs and YAML.
 
@@ -815,7 +975,12 @@ flowchart TD
     P["product: memory_search tool the model may call"] --> CHOICE["model chooses whether to retrieve"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:51` — `agentic: bool = False`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:172/182` — agentic wrap vs direct base retriever<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:218` — agentic wrap of `GraphRetriever`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:113` — `AgenticRetriever` construction; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:38` — fixed single-pass (contrast)<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:156` — LLM only when agentic<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167` — `memory_search` tool<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:225` — `memory_search` in builtin tools</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:51</code> — <code>agentic: bool = False</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:172/182</code> — agentic wrap vs direct base retriever<br>&bull; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:218</code> — agentic wrap of <code>GraphRetriever</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:113</code> — <code>AgenticRetriever</code> construction; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:38</code> — fixed single-pass (contrast)<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:156</code> — LLM only when agentic<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/tools/memory_tools.py:167</code> — <code>memory_search</code> tool<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:225</code> — <code>memory_search</code> in builtin tools</sub>
+
+</details>
 
 **Gap.** The agentic flag is per-KB and static (cannot promote mid-run), and there is no planner choosing retriever/mode per query.
 
@@ -842,7 +1007,12 @@ flowchart LR
     end
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/base.py:85` — `BaseAgent`; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2492` — `invoke` (light path)<br>&bull; `agent-core/openjiuwen/core/application/llm_agent/llm_agent.py:96`; `agent-core/openjiuwen/core/application/workflow_agent/workflow_agent.py:11` — thin application agents<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:298` — `DeepAgent`; `agent-core/openjiuwen/harness/factory.py:460` `create_deep_agent`; `:394-409` default rail set<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:248-260` — `enable_task_loop`/`enable_subagent_runtime`/`enable_skill_discovery` defaults `False`<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448/452` — spec defaults `enable_task_loop=True`, `enable_security_rail=True`<br>&bull; `agent-core/openjiuwen/agent_teams/agent/team_agent.py:76` — team heaviness; `agent-core/openjiuwen/extensions/context_evolver/` + `agent-core/openjiuwen/rsi/` + `agent-core/openjiuwen/auto_harness/` — optional layers</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/base.py:85</code> — <code>BaseAgent</code>; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2492</code> — <code>invoke</code> (light path)<br>&bull; <code>agent-core/openjiuwen/core/application/llm_agent/llm_agent.py:96</code>; <code>agent-core/openjiuwen/core/application/workflow_agent/workflow_agent.py:11</code> — thin application agents<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:298</code> — <code>DeepAgent</code>; <code>agent-core/openjiuwen/harness/factory.py:460</code> <code>create_deep_agent</code>; <code>:394-409</code> default rail set<br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:248-260</code> — <code>enable_task_loop</code>/<code>enable_subagent_runtime</code>/<code>enable_skill_discovery</code> defaults <code>False</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448/452</code> — spec defaults <code>enable_task_loop=True</code>, <code>enable_security_rail=True</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/team_agent.py:76</code> — team heaviness; <code>agent-core/openjiuwen/extensions/context_evolver/</code> + <code>agent-core/openjiuwen/rsi/</code> + <code>agent-core/openjiuwen/auto_harness/</code> — optional layers</sub>
+
+</details>
 
 **Gap.** The two paths are not cleanly layered: `Workflow` lives in `core` but is fully integrated with runner callbacks/tracing, and `harness` imports many core internals. There is no single "minimal install" flag; optional layers (`agent_evolving`, `symphony`, `dev_tools`) ship in the same distribution.
 
@@ -875,7 +1045,12 @@ flowchart TD
     T ~~~ A
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:524` — single model call, no tool branch<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — the ReAct loop<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793` — no tool calls → final answer<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813` — execute tools and iterate<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — outer task loop</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:524</code> — single model call, no tool branch<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — the ReAct loop<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793</code> — no tool calls → final answer<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813</code> — execute tools and iterate<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2694</code> — outer task loop</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent, genai._</sub>
 
@@ -904,7 +1079,12 @@ flowchart TD
     end
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:98` — `Workflow` graph facade<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:209` — `Pregel`; `:231` `run`; `:255` `while await loop.run_step()` driver<br>&bull; `agent-core/openjiuwen/core/graph/pregel/builder.py:13` — `PregelBuilder` (`add_node`/`add_edge`/`add_branch`)<br>&bull; `agent-core/openjiuwen/core/graph/pregel/router.py:11/26` — `StaticRouter` / `ConditionalRouter`<br>&bull; `agent-core/openjiuwen/core/workflow/_workflow.py:221` — `add_connection` (src/target edges)<br>&bull; `agent-core/openjiuwen/agent_teams/agent/team_agent.py:76` — `TeamAgent` one impl for leader/teammate<br>&bull; `agent-core/openjiuwen/agent_teams/schema/team.py:81` — `TeamRole`; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92` — `TeamScheduler`; `agent-core/openjiuwen/agent_teams/agent/coordination/kernel.py:33` — `CoordinationKernel`<br>&bull; `agent-core/openjiuwen/agent_teams/runtime/manager.py:104` — `TeamRuntimeManager` pool/dispatch; `agent-core/openjiuwen/agent_teams/tools/tool_factory.py:97` — `create_team_tools`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:98</code> — <code>Workflow</code> graph facade<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:209</code> — <code>Pregel</code>; <code>:231</code> <code>run</code>; <code>:255</code> <code>while await loop.run_step()</code> driver<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/builder.py:13</code> — <code>PregelBuilder</code> (<code>add_node</code>/<code>add_edge</code>/<code>add_branch</code>)<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/router.py:11/26</code> — <code>StaticRouter</code> / <code>ConditionalRouter</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/_workflow.py:221</code> — <code>add_connection</code> (src/target edges)<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/team_agent.py:76</code> — <code>TeamAgent</code> one impl for leader/teammate<br>&bull; <code>agent-core/openjiuwen/agent_teams/schema/team.py:81</code> — <code>TeamRole</code>; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92</code> — <code>TeamScheduler</code>; <code>agent-core/openjiuwen/agent_teams/agent/coordination/kernel.py:33</code> — <code>CoordinationKernel</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/runtime/manager.py:104</code> — <code>TeamRuntimeManager</code> pool/dispatch; <code>agent-core/openjiuwen/agent_teams/tools/tool_factory.py:97</code> — <code>create_team_tools</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-framework-interview-questions_for_engineers.md`; also covered in: framework._</sub>
 
@@ -929,7 +1109,12 @@ flowchart TD
     end
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:279` — `add_connection` (static); `:311` — `add_conditional_connection`<br>&bull; `agent-core/openjiuwen/core/workflow/_workflow.py:221` — `BaseWorkflow.add_connection` → `self._graph.add_edge`; `:255` — `add_conditional_connection` wraps `BranchRouter` + `register_branch_targets`<br>&bull; `agent-core/openjiuwen/core/graph/graph.py:103` — `add_edge`; `:122` — `add_conditional_edges`; `:267` `_compile`; `:300` adds branches to the Pregel builder<br>&bull; `agent-core/openjiuwen/core/graph/pregel/builder.py:28` — `add_edge` (N→1 `BarrierChannel`, 1→N `StaticRouter`); `:67` `add_branch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/router.py:11` — `StaticRouter.dispatch`; `:26` `ConditionalRouter.dispatch`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/channels.py:104` — `TriggerChannel`; `:129` `BarrierChannel`; `:166` `is_ready` (CNF OR-groups)<br>&bull; `agent-core/openjiuwen/core/workflow/components/flow/branch_router.py:92` — `BranchRouter.__call__`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:279</code> — <code>add_connection</code> (static); <code>:311</code> — <code>add_conditional_connection</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/_workflow.py:221</code> — <code>BaseWorkflow.add_connection</code> → <code>self._graph.add_edge</code>; <code>:255</code> — <code>add_conditional_connection</code> wraps <code>BranchRouter</code> + <code>register_branch_targets</code><br>&bull; <code>agent-core/openjiuwen/core/graph/graph.py:103</code> — <code>add_edge</code>; <code>:122</code> — <code>add_conditional_edges</code>; <code>:267</code> <code>_compile</code>; <code>:300</code> adds branches to the Pregel builder<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/builder.py:28</code> — <code>add_edge</code> (N→1 <code>BarrierChannel</code>, 1→N <code>StaticRouter</code>); <code>:67</code> <code>add_branch</code><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/router.py:11</code> — <code>StaticRouter.dispatch</code>; <code>:26</code> <code>ConditionalRouter.dispatch</code><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/channels.py:104</code> — <code>TriggerChannel</code>; <code>:129</code> <code>BarrierChannel</code>; <code>:166</code> <code>is_ready</code> (CNF OR-groups)<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/flow/branch_router.py:92</code> — <code>BranchRouter.__call__</code></sub>
+
+</details>
 
 **Gap.** `branch_targets` (used for CNF OR-group resolution) is only populated for `BranchRouter`; arbitrary callable routers go through a `new_router` wrapper and never register target sets, so exclusive-branch merging degrades to plain AND barriers. There is no static validation that a conditional router's targets are declared nodes, and `ConditionalRouter.dispatch` passes `state=None` to selectors, so selectors cannot read graph state directly.
 
@@ -992,7 +1177,12 @@ flowchart TD
     Q -->|yes| A(["answer"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — multi-step reactive loop<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — iteration bound<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:31` — planning layer (additive)<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:108/152` — registers todo tools, injects planning prompt<br>&bull; `agent-core/openjiuwen/harness/tools/todo.py:193` — `TodoCreateTool` writes `todo.json`<br>&bull; `agent-core/openjiuwen/harness/schema/task.py:97` — `TaskPlan`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — multi-step + planning (outer loop)<br>&bull; `agent-core/openjiuwen/harness/task_loop/task_loop_event_executor.py:222` — one outer round = one inner invoke<br>&bull; `agent-core/openjiuwen/harness/rails/task_completion_rail.py:74` — completion rail bounds the loop</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — multi-step reactive loop<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — iteration bound<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:31</code> — planning layer (additive)<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:108/152</code> — registers todo tools, injects planning prompt<br>&bull; <code>agent-core/openjiuwen/harness/tools/todo.py:193</code> — <code>TodoCreateTool</code> writes <code>todo.json</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/task.py:97</code> — <code>TaskPlan</code><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2694</code> — multi-step + planning (outer loop)<br>&bull; <code>agent-core/openjiuwen/harness/task_loop/task_loop_event_executor.py:222</code> — one outer round = one inner invoke<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_completion_rail.py:74</code> — completion rail bounds the loop</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -1020,7 +1210,12 @@ flowchart TD
     end
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101` — `_setup_hierarchy()`; `:108` `parent_agent.ability_manager.add(child_card)`<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/supervisor_agent.py:20` — `SupervisorAgent`<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:52` — `execute()` partitions AgentCard calls; `:199` parallel P2P dispatch<br>&bull; `agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/hierarchical_team.py:87` — team `invoke()` → supervisor<br>&bull; `agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634` — `claim_task()` single-CAS self-claim<br>&bull; `agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581` — one-active-task invariant<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:208` — `_reconcile_starts()` leader mailbox dispatch</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_tools/hierarchical_team.py:101</code> — <code>_setup_hierarchy()</code>; <code>:108</code> <code>parent_agent.ability_manager.add(child_card)</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/supervisor_agent.py:20</code> — <code>SupervisorAgent</code><br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/p2p_ability_manager.py:52</code> — <code>execute()</code> partitions AgentCard calls; <code>:199</code> parallel P2P dispatch<br>&bull; <code>agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus/hierarchical_team.py:87</code> — team <code>invoke()</code> → supervisor<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/database/task_dao.py:634</code> — <code>claim_task()</code> single-CAS self-claim<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/task_manager.py:1581</code> — one-active-task invariant<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:208</code> — <code>_reconcile_starts()</code> leader mailbox dispatch</sub>
+
+</details>
 
 **Gap.** There is no single API that switches between the two families. Both `hierarchical_*` teams are supervisor-shaped; the only sequential-ish `core/multi_agent` team is `HandoffTeam`, still orchestrator-controlled. `HierarchicalTeam` supervisors have no task board or autonomous claim and do not persist intermediate work; the peer model has no hierarchical parent-child tool relationship. `P2PAbilityManager` only supports `parallel_tool_calls=True` and raises otherwise.
 
@@ -1055,7 +1250,12 @@ flowchart TD
     X ~~~ Z
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:98` — `Workflow` class<br>&bull; `agent-core/openjiuwen/core/graph/pregel/engine.py:255` — graph execution driver<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:136/279/311` — `set_start_comp` / `add_connection` / `add_conditional_connection`<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:551` — terminates when the end component produces output<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/react/react_executable.py:41` — workflow node embedding an agent</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:98</code> — <code>Workflow</code> class<br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/engine.py:255</code> — graph execution driver<br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:136/279/311</code> — <code>set_start_comp</code> / <code>add_connection</code> / <code>add_conditional_connection</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:551</code> — terminates when the end component produces output<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/react/react_executable.py:41</code> — workflow node embedding an agent</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -1082,7 +1282,12 @@ flowchart TD
     M -.->|"append turn"| ST
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `../../../agent-core/openjiuwen/core/memory/manage/mem_model/memory_unit.py` — memory type taxonomy<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:56` — product hybrid memory index</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:44</code> — <code>SessionModelContext</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11</code> — <code>ContextMessageBuffer</code><br>&bull; <code>agent-core/openjiuwen/core/memory/long_term_memory.py:69</code> — <code>LongTermMemory</code><br>&bull; <code>../../../agent-core/openjiuwen/core/memory/manage/mem_model/memory_unit.py</code> — memory type taxonomy<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:56</code> — product hybrid memory index</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -1104,7 +1309,12 @@ flowchart TB
     R --> L
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92/208/239` — `TeamScheduler` scan/dispatch/review<br>&bull; `../../../agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus` — supervisor routing<br>&bull; `agent-core/openjiuwen/harness/subagents/plan_agent.py:88` — dedicated plan subagent</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/scheduling/scheduler.py:92/208/239</code> — <code>TeamScheduler</code> scan/dispatch/review<br>&bull; <code>../../../agent-core/openjiuwen/core/multi_agent/teams/hierarchical_msgbus</code> — supervisor routing<br>&bull; <code>agent-core/openjiuwen/harness/subagents/plan_agent.py:88</code> — dedicated plan subagent</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -1131,7 +1341,12 @@ flowchart TD
     OB ~~~ O2
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2766` — model call (reason)<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793` — branch on tool calls<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813` — execute (act)<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2787` — retain `reasoning_content`<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2742` — iteration exposed to rails<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:568` — `ReActAgent` documents the pattern</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2766</code> — model call (reason)<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2793</code> — branch on tool calls<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2813</code> — execute (act)<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2787</code> — retain <code>reasoning_content</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2742</code> — iteration exposed to rails<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:568</code> — <code>ReActAgent</code> documents the pattern</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/ai-agent-interview-questions_for_engineers.md`; also covered in: ai-agent._</sub>
 
@@ -1150,7 +1365,12 @@ flowchart TD
     Q -->|"multi-process team"| AT["agent_teams: TeamAgent + board + mailbox"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2492` — `invoke` auto-creates session when `session is None` (`:2523`)<br>&bull; `agent-core/openjiuwen/core/application/llm_agent/llm_agent.py:96` — `LLMAgent` thin controller-based agent; `agent-core/openjiuwen/core/application/workflow_agent/workflow_agent.py:11` — `WorkflowAgent`<br>&bull; `agent-core/openjiuwen/core/single_agent/legacy/agent.py:116` — legacy `BaseAgent`; `:222` `add_tools`<br>&bull; `agent-core/openjiuwen/harness/factory.py:394` — `default_rails`, each guarded by `should_add`<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448/452/469` — `enable_task_loop`/`enable_security_rail`/`enable_skill_discovery` defaults<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:1873` — `add_rail` optional, queue-based<br>&bull; `agent-core/openjiuwen/core/workflow/workflow.py:328` — `Workflow.invoke` requires an explicit session</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2492</code> — <code>invoke</code> auto-creates session when <code>session is None</code> (<code>:2523</code>)<br>&bull; <code>agent-core/openjiuwen/core/application/llm_agent/llm_agent.py:96</code> — <code>LLMAgent</code> thin controller-based agent; <code>agent-core/openjiuwen/core/application/workflow_agent/workflow_agent.py:11</code> — <code>WorkflowAgent</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/legacy/agent.py:116</code> — legacy <code>BaseAgent</code>; <code>:222</code> <code>add_tools</code><br>&bull; <code>agent-core/openjiuwen/harness/factory.py:394</code> — <code>default_rails</code>, each guarded by <code>should_add</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448/452/469</code> — <code>enable_task_loop</code>/<code>enable_security_rail</code>/<code>enable_skill_discovery</code> defaults<br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:1873</code> — <code>add_rail</code> optional, queue-based<br>&bull; <code>agent-core/openjiuwen/core/workflow/workflow.py:328</code> — <code>Workflow.invoke</code> requires an explicit session</sub>
+
+</details>
 
 **Gap.** Config gating is inconsistent: `DeepAgentConfig` (`agent-core/openjiuwen/harness/schema/config.py:248`, `enable_task_loop=False`) and `DeepAgentSpec` (`agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448`, `enable_task_loop=True`) disagree, so "default heaviness" depends on which constructor you use. `Workflow.invoke` is not self-sufficient — it requires a session, which is friction next to `ReActAgent.invoke`.
 
@@ -1170,7 +1390,12 @@ flowchart TD
     Q -->|yes| M(["multi-agent justified"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/subagent_runtime/control.py:169` — reject live subagent re-spawn<br>&bull; `agent-core/openjiuwen/harness/tools/subagent/task_tool.py:154-158` — `TaskTool` isolated subagent session<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/assembly.py:260` — product swarm assembly<br>&bull; `agent-core/openjiuwen/agent_teams/agent/team_agent.py:76` — one `TeamAgent` for leader/teammate</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/subagent_runtime/control.py:169</code> — reject live subagent re-spawn<br>&bull; <code>agent-core/openjiuwen/harness/tools/subagent/task_tool.py:154-158</code> — <code>TaskTool</code> isolated subagent session<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/swarm/assembly.py:260</code> — product swarm assembly<br>&bull; <code>agent-core/openjiuwen/agent_teams/agent/team_agent.py:76</code> — one <code>TeamAgent</code> for leader/teammate</sub>
+
+</details>
 
 ---
 

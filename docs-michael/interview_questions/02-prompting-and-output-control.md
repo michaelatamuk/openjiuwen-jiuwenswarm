@@ -21,7 +21,12 @@ flowchart TD
     TXT["text-based JSON"] --> JP["JsonOutputParser: strip fences → json.loads (None on failure)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/tools/structured_output_tool.py:46` — `StructuredOutputTool`; `:82` `input_params = schema_json`; `:117` `StructuredOutputFinishRail.after_tool_call`<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/backends/team_worker_backend.py:230` — attaches one `StructuredOutputTool` per schema; `:484` finish rail; `:498` reminder<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/schema.py:55` — `resolve_schema()`; `:74` `coerce()` (pydantic/jsonschema)<br>&bull; `agent-core/openjiuwen/agent_teams/workflow/engine/primitives.py:693` — retries; `:763` `coerce(res.structured, ...)`; `agent-core/openjiuwen/agent_teams/workflow/engine/runtime.py:62` `retries: int = 2`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/output_parsers/json_output_parser.py:15` — fence/bare extraction + `json.loads`; `:92` `stream_parse()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:713` — `JsonOutputParser()`; `:1266` validates `{"blocks":[...]}`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/structured_output_tool.py:46</code> — <code>StructuredOutputTool</code>; <code>:82</code> <code>input_params = schema_json</code>; <code>:117</code> <code>StructuredOutputFinishRail.after_tool_call</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/backends/team_worker_backend.py:230</code> — attaches one <code>StructuredOutputTool</code> per schema; <code>:484</code> finish rail; <code>:498</code> reminder<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/schema.py:55</code> — <code>resolve_schema()</code>; <code>:74</code> <code>coerce()</code> (pydantic/jsonschema)<br>&bull; <code>agent-core/openjiuwen/agent_teams/workflow/engine/primitives.py:693</code> — retries; <code>:763</code> <code>coerce(res.structured, ...)</code>; <code>agent-core/openjiuwen/agent_teams/workflow/engine/runtime.py:62</code> <code>retries: int = 2</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/output_parsers/json_output_parser.py:15</code> — fence/bare extraction + <code>json.loads</code>; <code>:92</code> <code>stream_parse()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:713</code> — <code>JsonOutputParser()</code>; <code>:1266</code> validates <code>{"blocks":[...]}</code></sub>
+
+</details>
 
 **Gap.** No `response_format`/`json_schema`/grammar-constrained decoding in `core/foundation/llm`. No automatic JSON repair — invalid output is dropped/retried, not fixed. `StructuredOutputTool` lives in `agent_teams`, not a general core primitive.
 
@@ -45,7 +50,12 @@ flowchart TD
     RSI["RSI harness package: installation_id=sha, list_versions, rollback"] -.->|"package-level only"| X["no prompt registry/diff/rollback"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:24` — `PromptSection` (no version); `:97` `add_section`; `:219` `build`<br>&bull; `agent-core/openjiuwen/harness/prompts/builder.py:21` — `PromptMode` filtering; `agent-core/openjiuwen/harness/prompts/sections/__init__.py:6` — `SectionName` constants<br>&bull; `agent-core/openjiuwen/harness/prompts/report.py:58` — `PromptReport` diagnostics (no hash/version)<br>&bull; `agent-core/openjiuwen/harness/manifest/models.py:43` — `HarnessElementDescriptor` (no version field)<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/prompt/priority_registry.py:19` — static priority registry<br>&bull; `agent-core/openjiuwen/core/operator/llm_call/base.py:107` — `get_state`/`load_state` snapshot prompt content<br>&bull; `agent-core/openjiuwen/agent_evolving/checkpointing/state.py:15` — `EvolveCheckpoint.version` for resume<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback`; `:587` `list_versions`; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218` — RPC list/rollback<br>&bull; `jiuwenswarm/jiuwenswarm/common/utils.py:882` — `config_version` migration</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/prompts/builder.py:24</code> — <code>PromptSection</code> (no version); <code>:97</code> <code>add_section</code>; <code>:219</code> <code>build</code><br>&bull; <code>agent-core/openjiuwen/harness/prompts/builder.py:21</code> — <code>PromptMode</code> filtering; <code>agent-core/openjiuwen/harness/prompts/sections/__init__.py:6</code> — <code>SectionName</code> constants<br>&bull; <code>agent-core/openjiuwen/harness/prompts/report.py:58</code> — <code>PromptReport</code> diagnostics (no hash/version)<br>&bull; <code>agent-core/openjiuwen/harness/manifest/models.py:43</code> — <code>HarnessElementDescriptor</code> (no version field)<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/prompt/priority_registry.py:19</code> — static priority registry<br>&bull; <code>agent-core/openjiuwen/core/operator/llm_call/base.py:107</code> — <code>get_state</code>/<code>load_state</code> snapshot prompt content<br>&bull; <code>agent-core/openjiuwen/agent_evolving/checkpointing/state.py:15</code> — <code>EvolveCheckpoint.version</code> for resume<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> — <code>rollback</code>; <code>:587</code> <code>list_versions</code>; <code>jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218</code> — RPC list/rollback<br>&bull; <code>jiuwenswarm/jiuwenswarm/common/utils.py:882</code> — <code>config_version</code> migration</sub>
+
+</details>
 
 **Gap.** No prompt-as-code versioning: no prompt registry, per-section version/hash, diff, or activate/rollback for prompts. Optimization mutates in place; RSI versioning applies only to whole harness packages.
 
@@ -73,7 +83,12 @@ flowchart TD
     V -->|invalid| ERR
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:482` — `_repair_tool_arguments_json()`; `:537` `_parse_tool_arguments_with_repair()`; `:1419` execution path rewrites `tool_call.arguments`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:76` — `LocalFunction.invoke`; `:82` validation via `SchemaUtils.format_with_schema`<br>&bull; `agent-core/openjiuwen/core/common/utils/schema_utils.py:115` — `validate_with_schema()` (jsonschema → Pydantic fallback); `:23` `format_with_schema()`; `:49` calls validate then fills defaults<br>&bull; `agent-core/openjiuwen/core/foundation/tool/mcp/base.py:208` — `MCPTool.invoke` validates MCP args via the same path<br>&bull; `agent-core/openjiuwen/agent_teams/tools/structured_output_tool.py:82` — `input_params = schema_json`; `:86` `invoke`<br>&bull; `agent-core/openjiuwen/core/foundation/tool/base.py:90` — `ToolCard.input_params` is the schema source</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:482</code> — <code>_repair_tool_arguments_json()</code>; <code>:537</code> <code>_parse_tool_arguments_with_repair()</code>; <code>:1419</code> execution path rewrites <code>tool_call.arguments</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:76</code> — <code>LocalFunction.invoke</code>; <code>:82</code> validation via <code>SchemaUtils.format_with_schema</code><br>&bull; <code>agent-core/openjiuwen/core/common/utils/schema_utils.py:115</code> — <code>validate_with_schema()</code> (jsonschema → Pydantic fallback); <code>:23</code> <code>format_with_schema()</code>; <code>:49</code> calls validate then fills defaults<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/mcp/base.py:208</code> — <code>MCPTool.invoke</code> validates MCP args via the same path<br>&bull; <code>agent-core/openjiuwen/agent_teams/tools/structured_output_tool.py:82</code> — <code>input_params = schema_json</code>; <code>:86</code> <code>invoke</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/base.py:90</code> — <code>ToolCard.input_params</code> is the schema source</sub>
+
+</details>
 
 **Gap.** Validation is skipped only when `input_params` is `None` (the default `{}` still enters validation). The JSON repair only balances brackets/quotes — it does not fix unquoted barewords or trailing commas, which raise and round-trip an error to the model. Schema validation lives inside the tool (`LocalFunction`/`MCPTool`), so a raw `Tool` subclass that does not call `SchemaUtils` gets no automatic argument validation.
 
@@ -98,7 +113,12 @@ flowchart TD
     MAP --> RESP["Responses API: → instructions"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1504` — builds one `SystemMessage`; `:883` `_admit_user_message()` writes a `UserMessage`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:574` — `get_context_window(system_messages, ...)`; `:718` `_get_window_messages()` windows independently<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:154` — rail adds/removes a system-prompt section<br>&bull; `agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:17` — security section injection<br>&bull; `agent-core/openjiuwen/harness/prompts/prompt_attachment_manager.py:591` — user→system re-role per provider<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:379` — lifts system into top-level blocks; `:858` `params["system"]`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/utils/responses_utils.py:142` — system/developer → `instructions`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1504</code> — builds one <code>SystemMessage</code>; <code>:883</code> <code>_admit_user_message()</code> writes a <code>UserMessage</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:574</code> — <code>get_context_window(system_messages, ...)</code>; <code>:718</code> <code>_get_window_messages()</code> windows independently<br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:154</code> — rail adds/removes a system-prompt section<br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:17</code> — security section injection<br>&bull; <code>agent-core/openjiuwen/harness/prompts/prompt_attachment_manager.py:591</code> — user→system re-role per provider<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:379</code> — lifts system into top-level blocks; <code>:858</code> <code>params["system"]</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/utils/responses_utils.py:142</code> — system/developer → <code>instructions</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: genai, llm-fund._</sub>
 
@@ -126,7 +146,12 @@ flowchart TD
     REASON["reasoning_content parsed & preserved"] -.-> RT
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:842` — renders `role=="system"` template messages; `:1504` `SystemMessage(content=prompt_builder.build())`<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:219` — `build()` joins priority-ordered sections<br>&bull; `agent-core/openjiuwen/harness/prompts/sections/identity.py:11` — default identity prompt (zero-shot)<br>&bull; `agent-core/openjiuwen/agent_evolving/utils.py:238` — `convert_cases_to_examples()`<br>&bull; `agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109` — `init_examples()` few-shot injection<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:347` — parses `reasoning_content`; `agent-core/openjiuwen/core/foundation/llm/utils/endpoint_profiles.py:33` — DeepSeek empty `reasoning_content`<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/questioner_comp.py:68` — explicit CoT instruction</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:842</code> — renders <code>role=="system"</code> template messages; <code>:1504</code> <code>SystemMessage(content=prompt_builder.build())</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/prompts/builder.py:219</code> — <code>build()</code> joins priority-ordered sections<br>&bull; <code>agent-core/openjiuwen/harness/prompts/sections/identity.py:11</code> — default identity prompt (zero-shot)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/utils.py:238</code> — <code>convert_cases_to_examples()</code><br>&bull; <code>agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109</code> — <code>init_examples()</code> few-shot injection<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:347</code> — parses <code>reasoning_content</code>; <code>agent-core/openjiuwen/core/foundation/llm/utils/endpoint_profiles.py:33</code> — DeepSeek empty <code>reasoning_content</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/questioner_comp.py:68</code> — explicit CoT instruction</sub>
+
+</details>
 
 **Gap.** No task-level few-shot examples are injected by `harness/` or `core/single_agent`; tool descriptions have occasional usage lines but no worked input/output demos. No global CoT instruction in the DeepAgent system prompt — reasoning is delegated to the model's native channel.
 

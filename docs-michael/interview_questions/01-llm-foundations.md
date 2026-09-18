@@ -18,7 +18,12 @@ flowchart LR
     TOK -.->|"in Jiuwen: delegated"| API["provider API or HF AutoModelForCausalLM"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:13` — `ProviderType` enum: the model-client provider boundary, no architecture logic<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:865` — builds hosted request params, delegates computation<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_logit_selection/client.py:227` — `torch.no_grad()` forward; logit extraction only, no attention code<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:175` — `AutoModelForCausalLM.from_pretrained(...)`; attention delegated<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:527` — `torch.softmax(...)` is sampling, not attention</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:13</code> — <code>ProviderType</code> enum: the model-client provider boundary, no architecture logic<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:865</code> — builds hosted request params, delegates computation<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_logit_selection/client.py:227</code> — <code>torch.no_grad()</code> forward; logit extraction only, no attention code<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:175</code> — <code>AutoModelForCausalLM.from_pretrained(...)</code>; attention delegated<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:527</code> — <code>torch.softmax(...)</code> is sampling, not attention</sub>
+
+</details>
 
 **Gap.** Absent. The closest abstractions are `ModelClientConfig`/`ModelRequestConfig` (provider boundary) and the HF `AutoModelForCausalLM` load.
 
@@ -41,7 +46,12 @@ flowchart TD
     LOGITS -.->|"hosted path"| API["temperature passed to provider, math server-side"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:210` — `temperature: Optional[float] = None`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:556` — `final_temperature = ...`; added only when not `None`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:944` — drops `top_p` when temperature present (openai.com)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:929` — temperature via `extra_body`; drops `top_p` if both set<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:516` — `scores = next_token_logits / max(1e-6, temperature)`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:60` — `GenerationConfig.temperature: float = 0.0`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:210</code> — <code>temperature: Optional[float] = None</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:556</code> — <code>final_temperature = ...</code>; added only when not <code>None</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:944</code> — drops <code>top_p</code> when temperature present (openai.com)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:929</code> — temperature via <code>extra_body</code>; drops <code>top_p</code> if both set<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:516</code> — <code>scores = next_token_logits / max(1e-6, temperature)</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:60</code> — <code>GenerationConfig.temperature: float = 0.0</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: engineering, genai, llm-applied, llm-fund._</sub>
 
@@ -62,7 +72,12 @@ flowchart TD
     SEND -->|"provider overflow error"| REC["recover_from_model_exception: force compact + retry if changed"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:20` — `DEFAULT_CONTEXT_MAX_TOKENS = 200000`; `:404` `resolve_context_max()`; `:29` per-model window table<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37` — `effective_context_budget()` = min of budgets<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71` — `_if_need_resize()` drops oldest beyond 2×<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:104` — `trigger_context_ratio=0.9`; `:1159` `_trigger_token_threshold()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — `trigger_total_tokens=180000`; `:194` `messages_to_keep=10`<br>&bull; `agent-core/openjiuwen/core/context_engine/context_engine.py:372` — `recover_from_model_exception()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34` — per-round `tokens_threshold=50000`; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:45` `tokens_threshold=20000`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context_utils.py:20</code> — <code>DEFAULT_CONTEXT_MAX_TOKENS = 200000</code>; <code>:404</code> <code>resolve_context_max()</code>; <code>:29</code> per-model window table<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37</code> — <code>effective_context_budget()</code> = min of budgets<br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71</code> — <code>_if_need_resize()</code> drops oldest beyond 2×<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:104</code> — <code>trigger_context_ratio=0.9</code>; <code>:1159</code> <code>_trigger_token_threshold()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184</code> — <code>trigger_total_tokens=180000</code>; <code>:194</code> <code>messages_to_keep=10</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context_engine.py:372</code> — <code>recover_from_model_exception()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34</code> — per-round <code>tokens_threshold=50000</code>; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:45</code> <code>tokens_threshold=20000</code></sub>
+
+</details>
 
 **Gap.** No pre-call hard rejection/backpressure before the provider call — overflow is discovered by proactive thresholds or the provider error path. Windowing (`default_window_message_num`/`round_num`) is opt-in and separate from compaction.
 
@@ -84,7 +99,12 @@ flowchart TD
     G2 -.->|"absent"| X["claim-to-source attribution / faithfulness metric"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:110-117` — repeated stream output / timeouts / tool-call loops (degeneracy, not factual errors)<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92-108` — `VerificationRail` tool allowlist; `:165-196` blocks disallowed tools, requires evidence<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:26-58` — LLM reviewer dimension "CORRECTNESS"<br>&bull; `agent-core/openjiuwen/core/security/guardrail/backends.py:39-80` — guardrail detection backends; `agent-core/openjiuwen/core/security/guardrail/context.py:115-202` confidence thresholds → risk levels<br>&bull; `agent-core/openjiuwen/harness/tools/web/paid_search.py:221-222` — extracts citation URLs (no claim linkage)<br>&bull; `agent-core/openjiuwen/agent_evolving/tools/skill.py:284` — "then cite only the refs you actually read"</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:110-117</code> — repeated stream output / timeouts / tool-call loops (degeneracy, not factual errors)<br>&bull; <code>agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92-108</code> — <code>VerificationRail</code> tool allowlist; <code>:165-196</code> blocks disallowed tools, requires evidence<br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/reviewer.py:26-58</code> — LLM reviewer dimension "CORRECTNESS"<br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:39-80</code> — guardrail detection backends; <code>agent-core/openjiuwen/core/security/guardrail/context.py:115-202</code> confidence thresholds → risk levels<br>&bull; <code>agent-core/openjiuwen/harness/tools/web/paid_search.py:221-222</code> — extracts citation URLs (no claim linkage)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/tools/skill.py:284</code> — "then cite only the refs you actually read"</sub>
+
+</details>
 
 **Gap.** No hallucination detector and no claim-to-source attribution or faithfulness metric — the verification agent checks command output, not whether a claim is supported by retrieved sources. Retrieval is optional plumbing.
 
@@ -104,7 +124,12 @@ flowchart LR
     ATT -.->|"Jiuwen: delegated"| CFG["attn_implementation (HF) · rope_scaling_type/factor (vLLM)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/config.py:88` — `attn_implementation: str = ""` (HF passthrough)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:171` — `model_kwargs["attn_implementation"]`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/service/serving.py:42` — `rope_scaling_type` / `rope_scaling_factor` vLLM defaults<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:584` — rope scaling passed through<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/offline/coordinator/batch_builder.py:175` — `position_ids` from `cumsum(attention_mask)` (padding metadata)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/config.py:88</code> — <code>attn_implementation: str = ""</code> (HF passthrough)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:171</code> — <code>model_kwargs["attn_implementation"]</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/search/service/serving.py:42</code> — <code>rope_scaling_type</code> / <code>rope_scaling_factor</code> vLLM defaults<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:584</code> — rope scaling passed through<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/offline/coordinator/batch_builder.py:175</code> — <code>position_ids</code> from <code>cumsum(attention_mask)</code> (padding metadata)</sub>
+
+</details>
 
 **Gap.** Absent. Closest = passthrough config (`attn_implementation`, `rope_scaling_*`).
 
@@ -122,7 +147,12 @@ flowchart LR
     T --> EMB["Embedding model → vector (similarity search)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212` — `TiktokenCounter`; `:287` fallback<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_embedding.py:24` — `Embedding` ABC; `:29` `embed_query`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46` — `embed_documents`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212</code> — <code>TiktokenCounter</code>; <code>:287</code> fallback<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_embedding.py:24</code> — <code>Embedding</code> ABC; <code>:29</code> <code>embed_query</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46</code> — <code>embed_documents</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-applied-interview-questions_for_engineers.md`; also covered in: llm-applied._</sub>
 
@@ -139,7 +169,12 @@ flowchart LR
     META --> ENG["context engine budgets/compaction"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:29` — builtin window table; `:275` `fetch_openrouter_model_context_window_tokens()` (window only)<br>&bull; `agent-core/openjiuwen/core/context_engine/schema/config.py:137` — `model_name`; `:139` `model_context_window_tokens`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:209` — `model_name`; `:214` `max_tokens` (output cap)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/generation_response.py:20` — `created` timestamp (response, not cutoff)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context_utils.py:29</code> — builtin window table; <code>:275</code> <code>fetch_openrouter_model_context_window_tokens()</code> (window only)<br>&bull; <code>agent-core/openjiuwen/core/context_engine/schema/config.py:137</code> — <code>model_name</code>; <code>:139</code> <code>model_context_window_tokens</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:209</code> — <code>model_name</code>; <code>:214</code> <code>max_tokens</code> (output cap)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/generation_response.py:20</code> — <code>created</code> timestamp (response, not cutoff)</sub>
+
+</details>
 
 **Gap.** Absent. No knowledge/training cutoff, knowledge date, or model-card release metadata anywhere; the closest is the model→window table and `ModelClientConfig`/`ModelRequestConfig`.
 
@@ -162,7 +197,12 @@ flowchart LR
     TK --> CHUNK["token-based retrieval chunking"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212` — `TiktokenCounter`; `:225` model→encoding map; `:287` `count()` with `len(text)//3` fallback<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tiktoken_model_counter.py:86` — model-native tiktoken BPE<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tokenizer_spec.py:34` — `TokenizerSpec`; `:50` fallback policy chain<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tokenizer_manager.py:60` — resolves/downloads tokenizer artifacts; `:124`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:20` — `DEFAULT_CONTEXT_MAX_TOKENS = 200000`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34` — per-round token budget<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/message.py:28` — `total_tokens` usage metadata</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212</code> — <code>TiktokenCounter</code>; <code>:225</code> model→encoding map; <code>:287</code> <code>count()</code> with <code>len(text)//3</code> fallback<br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tiktoken_model_counter.py:86</code> — model-native tiktoken BPE<br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tokenizer_spec.py:34</code> — <code>TokenizerSpec</code>; <code>:50</code> fallback policy chain<br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tokenizer_manager.py:60</code> — resolves/downloads tokenizer artifacts; <code>:124</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context_utils.py:20</code> — <code>DEFAULT_CONTEXT_MAX_TOKENS = 200000</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34</code> — per-round token budget<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/message.py:28</code> — <code>total_tokens</code> usage metadata</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: engineering, genai, llm-fund._</sub>
 
@@ -180,7 +220,12 @@ flowchart TD
     API -.->|"no encoder/decoder taxonomy"| X["architecture not a config dimension"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:13` — `ProviderType`; architecture is not a config dimension<br>&bull; `agent-core/openjiuwen/core/foundation/llm/reasoning_profiles.py:100` — model-family patterns used for reasoning-protocol selection (not architecture)<br>&bull; `agent-core/openjiuwen/core/security/guardrail/backends.py:445` — `AutoModelForSequenceClassification`<br>&bull; `agent-core/openjiuwen/core/security/guardrail/builtin.py:174` — `model_type` limited to `None | "bert" | "qwen"`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:175` — `AutoModelForCausalLM` (decoder-only)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/service/serving.py:35` — vLLM `architectures` string</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:13</code> — <code>ProviderType</code>; architecture is not a config dimension<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/reasoning_profiles.py:100</code> — model-family patterns used for reasoning-protocol selection (not architecture)<br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/backends.py:445</code> — <code>AutoModelForSequenceClassification</code><br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:174</code> — <code>model_type</code> limited to <code>None | "bert" | "qwen"</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/client.py:175</code> — <code>AutoModelForCausalLM</code> (decoder-only)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/search/service/serving.py:35</code> — vLLM <code>architectures</code> string</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: engineering, genai, llm-fund._</sub>
 
@@ -202,7 +247,12 @@ flowchart TD
     LP -.->|"absent"| CONF["no answer-level confidence / abstention / calibration"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:83-107` — `exp(logprob)` yes/no → normalized confidence; `:134-141` `logprobs=True`, `top_logprobs=5`, yes/no logit bias<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:294-303` — `llm_logprobs`/`llm_top_logprobs`; `:1622-1624` passes to model call<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:404-427` — parses per-token logprobs, rejects `> 0`<br>&bull; `agent-core/openjiuwen/agent_evolving/trajectory/schema.py:36-47` — `RL_LOGPROBS`; `agent-core/openjiuwen/agent_evolving/trajectory/spans.py:849-873` — `read_rl_fields`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305-315` — `is_abstain` from output token "0" (retrieval only)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:83-107</code> — <code>exp(logprob)</code> yes/no → normalized confidence; <code>:134-141</code> <code>logprobs=True</code>, <code>top_logprobs=5</code>, yes/no logit bias<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:294-303</code> — <code>llm_logprobs</code>/<code>llm_top_logprobs</code>; <code>:1622-1624</code> passes to model call<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/capture_pipeline.py:404-427</code> — parses per-token logprobs, rejects <code>&gt; 0</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/trajectory/schema.py:36-47</code> — <code>RL_LOGPROBS</code>; <code>agent-core/openjiuwen/agent_evolving/trajectory/spans.py:849-873</code> — <code>read_rl_fields</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305-315</code> — <code>is_abstain</code> from output token "0" (retrieval only)</sub>
+
+</details>
 
 **Gap.** No answer-level confidence scoring, no uncertainty-based abstention, no calibration. Logprobs exist only as RL reward/trajectory data and for the reranker's binary judgment, so you cannot tell wrong from uncertain from the output alone here.
 
@@ -228,7 +278,12 @@ flowchart TD
     TP --> SAMPLE
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:61` — `GenerationConfig.top_p: float = 1.0`; no top_k sampling field<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:517` — nucleus `top_p` truncation; `:534` full-distribution softmax when `top_p` ∉ (0,1)<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:561` — `top_p` resolved/passed<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:936` — `top_p` via `extra_body`; `:940` `top_k` forwarded if present<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:213` — `top_p: Optional[float] = None` (no `top_k`)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:40` — `TrieConstraint.top_k` (allowed outputs, not sampling)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:61</code> — <code>GenerationConfig.top_p: float = 1.0</code>; no top_k sampling field<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:517</code> — nucleus <code>top_p</code> truncation; <code>:534</code> full-distribution softmax when <code>top_p</code> ∉ (0,1)<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:561</code> — <code>top_p</code> resolved/passed<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:936</code> — <code>top_p</code> via <code>extra_body</code>; <code>:940</code> <code>top_k</code> forwarded if present<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:213</code> — <code>top_p: Optional[float] = None</code> (no <code>top_k</code>)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:40</code> — <code>TrieConstraint.top_k</code> (allowed outputs, not sampling)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-fund._</sub>
 
@@ -249,7 +304,12 @@ flowchart TD
     CODE --> VER["RSI: 'textual arithmetic is never accepted as execution'"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/examples/rl_calculator/tools.py:11-14` — `@tool(name="calculator")`; `:15-85` `simple_eval` + `sympy`<br>&bull; `agent-core/examples/rl_calculator/prompts.py:7-16` — "Use the calculator tool … step by step"<br>&bull; `agent-core/openjiuwen/core/sys_operation/code.py:16-49` — `execute_code` sys-operation<br>&bull; `agent-core/openjiuwen/extensions/sys_operation/sandbox/providers/jiuwenbox.py:2927` — sandbox `execute_code`<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/evaluation_result_analyzer/evidence_investigation.py:200` — "textual arithmetic is never accepted as execution"</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/examples/rl_calculator/tools.py:11-14</code> — <code>@tool(name="calculator")</code>; <code>:15-85</code> <code>simple_eval</code> + <code>sympy</code><br>&bull; <code>agent-core/examples/rl_calculator/prompts.py:7-16</code> — "Use the calculator tool … step by step"<br>&bull; <code>agent-core/openjiuwen/core/sys_operation/code.py:16-49</code> — <code>execute_code</code> sys-operation<br>&bull; <code>agent-core/openjiuwen/extensions/sys_operation/sandbox/providers/jiuwenbox.py:2927</code> — sandbox <code>execute_code</code><br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/evaluation_result_analyzer/evidence_investigation.py:200</code> — "textual arithmetic is never accepted as execution"</sub>
+
+</details>
 
 **Gap.** No first-class arithmetic/counting tool in the core registry; math capability is delegated to user tools or the sandbox. No discussion of tokenization/subitizing causes — purely engineering mitigation.
 
@@ -271,7 +331,12 @@ flowchart TD
     G -.->|"no rationale in code"| X["why-greedy-is-worse argument ABSENT"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:514` — `if temperature <= 0.0: return int(torch.argmax(...))`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:335` — `do_sample=True` when `temperature > 0`; `:344` `do_sample=False`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:60` — default `temperature = 0.0` ⇒ local default greedy<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/verl_executor.py:185` — `remax_input.meta_info["do_sample"] = False` (REMAX baseline, not an exploit path)<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/extractor/triple_extractor.py:31` — constructor default `temperature=0.0`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:514</code> — <code>if temperature &lt;= 0.0: return int(torch.argmax(...))</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:335</code> — <code>do_sample=True</code> when <code>temperature &gt; 0</code>; <code>:344</code> <code>do_sample=False</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:60</code> — default <code>temperature = 0.0</code> ⇒ local default greedy<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/verl_executor.py:185</code> — <code>remax_input.meta_info["do_sample"] = False</code> (REMAX baseline, not an exploit path)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/extractor/triple_extractor.py:31</code> — constructor default <code>temperature=0.0</code></sub>
+
+</details>
 
 ---
 
@@ -295,6 +360,11 @@ flowchart TD
     BIG -.->|"absent"| X["no lost-in-the-middle awareness / no importance reordering"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:119` — `keep_recent_messages`; `:1088` `_build_head_tail_truncated_text()`; `:112` `target_total_tokens=160000`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:194` — `messages_to_keep=10`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:63` — `keep_last_round=True`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/message_summary_offloader.py:697` — `_smart_truncate_content()` head/middle/tail<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:114` — `_build_head_tail()`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/archive.py:48` — archive in 3000-token chunks / 300 overlap; `agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27` BM25 `recall_compressed_context()`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:119</code> — <code>keep_recent_messages</code>; <code>:1088</code> <code>_build_head_tail_truncated_text()</code>; <code>:112</code> <code>target_total_tokens=160000</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:194</code> — <code>messages_to_keep=10</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/message_offloader.py:63</code> — <code>keep_last_round=True</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/message_summary_offloader.py:697</code> — <code>_smart_truncate_content()</code> head/middle/tail<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:114</code> — <code>_build_head_tail()</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/archive.py:48</code> — archive in 3000-token chunks / 300 overlap; <code>agent-core/openjiuwen/core/context_engine/processor/forked/compressor/recall/retriever.py:27</code> BM25 <code>recall_compressed_context()</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/llm-fundamentals-interview-questions_for_engineers.md`; also covered in: llm-applied, llm-fund._</sub>

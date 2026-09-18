@@ -3,6 +3,7 @@ docs/
 site/
 dist/
 .mmd-cache/
+.mmd-png/
 
 # Bundled runtime assets (downloaded; not needed after build-time SVG rendering)
 assets/mermaid.min.js

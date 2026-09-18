@@ -25,6 +25,27 @@ read **offline / on a plane** on both Windows and Android.
   cloud drive, or `adb push`), sign in to AnkiWeb to sync with desktop.
 - Alternative readers: **Obsidian** (open the parent folder as a vault) or **Markor**.
 
+## Read the wiki on Android (offline)
+
+The wiki is `site/` — one page per topic. Pick one of these:
+
+1. **Local HTTP server (full search).** Build once, then:
+   - Desktop: `python serve.py` and open `http://localhost:8000/`.
+   - Phone on the same Wi-Fi: open the LAN URL `serve.py` prints.
+   - Fully offline on the phone: install **Termux**, copy `dist/jiuwenswarm-site.zip`
+     (or the `site/` folder) over, then `pkg install python` and
+     `python -m http.server 8000`; open `http://localhost:8000/`.
+   - *Why a server:* Android opens local HTML through `content://` URIs, which
+     breaks the relative links between topic pages. A localhost server fixes
+     navigation **and** makes search work.
+2. **PWA (nicest phone feel).** Host `site/` once on any static host (GitHub
+   Pages, Cloudflare Pages, Netlify), open it in Chrome, then
+   *Add to Home screen* — it becomes an offline, app-like wiki with one page per
+   topic.
+3. **Obsidian (no build).** Copy the whole `interview_questions` folder to the
+   phone and open it as a **vault**: separate notes per topic, links, search,
+   fully offline, native Mermaid.
+
 ## Rebuild
 
 ```bash

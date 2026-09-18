@@ -16,7 +16,12 @@ The definitions get you through a flashcard; knowing which term applies to a fai
 
 **Jiuwen:** Counts tokens, never words, via a `TokenCounter`. `TiktokenCounter` maps model names to encodings with `cl100k_base` and `len(text)//3` fallbacks; `TokenizerManager` downloads the model's own artifacts. Counts drive context limits and cost.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212` — `TiktokenCounter`; `:299` `len//3` fallback<br>&bull; `agent-core/openjiuwen/core/context_engine/token/tokenizer_manager.py:60` — resolves/downloads tokenizer artifacts<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:20` — `DEFAULT_CONTEXT_MAX_TOKENS = 200000`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tiktoken_counter.py:212</code> — <code>TiktokenCounter</code>; <code>:299</code> <code>len//3</code> fallback<br>&bull; <code>agent-core/openjiuwen/core/context_engine/token/tokenizer_manager.py:60</code> — resolves/downloads tokenizer artifacts<br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context_utils.py:20</code> — <code>DEFAULT_CONTEXT_MAX_TOKENS = 200000</code></sub>
+
+</details>
 
 ## Embedding
 
@@ -26,7 +31,12 @@ The definitions get you through a flashcard; knowing which term applies to a fai
 
 **Jiuwen:** An `Embedding` ABC defines `embed_query`/`embed_documents`/`dimension`; providers include OpenAI/DashScope/vLLM. Indexers compute embeddings via `compute_chunk_embeddings`, and the model identity is **not** stored with the index.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_embedding.py:24` — `Embedding` ABC; `:29` `embed_query`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46` — `embed_documents` sets vectors<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/utils.py:15` — base64 decode only (no normalization/instruction)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_embedding.py:24</code> — <code>Embedding</code> ABC; <code>:29</code> <code>embed_query</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46</code> — <code>embed_documents</code> sets vectors<br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/utils.py:15</code> — base64 decode only (no normalization/instruction)</sub>
+
+</details>
 
 ## Context window
 
@@ -36,7 +46,12 @@ The definitions get you through a flashcard; knowing which term applies to a fai
 
 **Jiuwen:** The context engine budgets the window (`effective_context_budget` = strictest of window/call/model), offloads large tool results, compacts at thresholds, and falls back to a FIFO drop beyond `max_context_message_num`.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context_utils.py:20/404` — window resolution<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37` — `effective_context_budget`<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71` — FIFO drop beyond 2×</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context_utils.py:20/404</code> — window resolution<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37</code> — <code>effective_context_budget</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:71</code> — FIFO drop beyond 2×</sub>
+
+</details>
 
 ## Temperature
 
@@ -46,7 +61,12 @@ The definitions get you through a flashcard; knowing which term applies to a fai
 
 **Jiuwen:** A passthrough request param; the local HF/vLLM path implements `softmax(logits/T)` with `T<=0` → argmax. Some calls default to `None` (provider default), while the local `GenerationConfig` default is `0.0`.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:210` — `temperature: Optional[float] = None`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:556` — resolved/passed<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:516` — `logits / max(1e-6, temperature)`; `:514` argmax</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:210</code> — <code>temperature: Optional[float] = None</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:556</code> — resolved/passed<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:516</code> — <code>logits / max(1e-6, temperature)</code>; <code>:514</code> argmax</sub>
+
+</details>
 
 ## Top-p (nucleus sampling)
 
@@ -56,7 +76,12 @@ The definitions get you through a flashcard; knowing which term applies to a fai
 
 **Jiuwen:** Top-p is implemented locally (`top_p` default `1.0`); **top-k sampling is absent** from the local sampler (Anthropic `top_k` is only a passthrough). Beware: `top_k` elsewhere in the codebase means retrieval result count, not sampling.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:61` — `GenerationConfig.top_p = 1.0` (no top-k field)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:517` — nucleus truncation; `:534` full-distribution softmax when `top_p ∉ (0,1)`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:940` — `top_k` passthrough</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:61</code> — <code>GenerationConfig.top_p = 1.0</code> (no top-k field)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/transformers_prefix_cached_generation/generation.py:517</code> — nucleus truncation; <code>:534</code> full-distribution softmax when <code>top_p ∉ (0,1)</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/anthropic_model_client.py:940</code> — <code>top_k</code> passthrough</sub>
+
+</details>
 
 ---
 
@@ -77,7 +102,12 @@ flowchart LR
     E -.-> RET
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96/110/182` — ingest + retrieve<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109` — `retrieve_multi_kb_with_source`<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654` — context/query template</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96/110/182</code> — ingest + retrieve<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109</code> — <code>retrieve_multi_kb_with_source</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654</code> — context/query template</sub>
+
+</details>
 
 ## Chunking
 
@@ -87,7 +117,12 @@ flowchart LR
 
 **Jiuwen:** Char/token/hybrid chunkers with validation (`chunk_size>0`, `overlap<size`), tokenizer-length clamping, and sentence-boundary packing on the token path; table rows/columns kept whole by `HybridChunker`. No header/code-aware chunker.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:36/59` — defaults + validation<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82` — tokenizer-limit auto-adjust<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — keep row/column units whole</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:36/59</code> — defaults + validation<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82</code> — tokenizer-limit auto-adjust<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19</code> — keep row/column units whole</sub>
+
+</details>
 
 ## Vector database
 
@@ -97,7 +132,12 @@ flowchart LR
 
 **Jiuwen:** Chroma (local, vector-only), Milvus (server, BM25 + hybrid + quantized indexes), PGVector (relational) behind one factory; metadata filters supported at store level but dropped at the retriever.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — `create_vector_store`; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108`; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120`; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88` — `filters=None` (dropped)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/store.py:16</code> — <code>create_vector_store</code>; <code>agent-core/openjiuwen/core/retrieval/common/config.py:67</code> — <code>StoreType</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:108</code>; <code>agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:120</code>; <code>agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:108</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88</code> — <code>filters=None</code> (dropped)</sub>
+
+</details>
 
 ## Reranking
 
@@ -107,7 +147,12 @@ flowchart LR
 
 **Jiuwen:** A `Reranker` ABC with cross-encoder/LLM variants exists, but it is wired only into the graph store — the default KB path never reranks, so "retrieve 20, rerank to 5" is not available out of the box.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:37/41` — `Reranker` ABC<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`)<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458` — applied only in graph store<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — KB path calls no reranker</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_reranker.py:37/41</code> — <code>Reranker</code> ABC<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23</code> — <code>StandardReranker</code> (<code>/rerank</code>)<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458</code> — applied only in graph store<br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182</code> — KB path calls no reranker</sub>
+
+</details>
 
 ## Hallucination
 
@@ -117,7 +162,12 @@ flowchart LR
 
 **Jiuwen:** No hallucination/attribution detector. Mitigations exist separately: a verification agent (read-only evidence, PASS/FAIL/PARTIAL), a reviewer `Correctness` dimension, and the RSI evidence-citation rubric — none receives the retrieved context as a faithfulness check.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92` — `VerificationRail` tool allowlist<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator`<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:40` — no context input</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/subagent/verification_rail.py:92</code> — <code>VerificationRail</code> tool allowlist<br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/reviewer.py:43</code> — <code>Correctness</code> dimension<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:438</code> — <code>AccuracyEvaluator</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:40</code> — no context input</sub>
+
+</details>
 
 ---
 
@@ -131,7 +181,12 @@ flowchart LR
 
 **Jiuwen:** Real SFT + PPO via veRL, exporting versioned **LoRA/PEFT** adapters (no full fine-tuning, no pretraining). Prompt optimization is the default alternative.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44` — `SFTTrainingExecutor`; `:455` `_export_sft_lora_adapter`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438` — `export_lora`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:56` — versioned adapter store</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44</code> — <code>SFTTrainingExecutor</code>; <code>:455</code> <code>_export_sft_lora_adapter</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438</code> — <code>export_lora</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:56</code> — versioned adapter store</sub>
+
+</details>
 
 ## Prompt engineering
 
@@ -141,7 +196,12 @@ flowchart LR
 
 **Jiuwen:** System prompts are assembled from priority-ordered `PromptSection`s that rails can add/remove per call; no native JSON mode (structured output is schema-as-tool).
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/prompts/builder.py:24/97/219` — `PromptSection` + `build()`<br>&bull; `agent-core/openjiuwen/harness/rails/task_planning_rail.py:154` — rail mutates system prompt<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1504` — rendered `SystemMessage`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/prompts/builder.py:24/97/219</code> — <code>PromptSection</code> + <code>build()</code><br>&bull; <code>agent-core/openjiuwen/harness/rails/task_planning_rail.py:154</code> — rail mutates system prompt<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:1504</code> — rendered <code>SystemMessage</code></sub>
+
+</details>
 
 ## Few-shot prompting
 
@@ -151,7 +211,12 @@ flowchart LR
 
 **Jiuwen:** The runtime agent is zero-shot; few-shot example injection exists only in the tuning tooling (`convert_cases_to_examples`, `init_examples`), not in `harness`/`core/single_agent`.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/utils.py:238` — `convert_cases_to_examples()`<br>&bull; `agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109` — `init_examples()`<br>&bull; `agent-core/openjiuwen/harness/prompts/sections/identity.py:11` — default zero-shot identity prompt</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/utils.py:238</code> — <code>convert_cases_to_examples()</code><br>&bull; <code>agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109</code> — <code>init_examples()</code><br>&bull; <code>agent-core/openjiuwen/harness/prompts/sections/identity.py:11</code> — default zero-shot identity prompt</sub>
+
+</details>
 
 ## Chain-of-thought prompting
 
@@ -161,7 +226,12 @@ flowchart LR
 
 **Jiuwen:** No global CoT instruction in the DeepAgent prompt; explicit CoT appears in auxiliary prompts (workflow `questioner_comp`) and implicitly in compaction. Reasoning-model output (`reasoning_content`) is parsed and preserved.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/questioner_comp.py:68` — "Let's think step by step"<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:347` — parses `reasoning_content`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/utils/endpoint_profiles.py:33` — DeepSeek empty `reasoning_content`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/questioner_comp.py:68</code> — "Let's think step by step"<br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/openai_model_client.py:347</code> — parses <code>reasoning_content</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/utils/endpoint_profiles.py:33</code> — DeepSeek empty <code>reasoning_content</code></sub>
+
+</details>
 
 ---
 
@@ -187,7 +257,12 @@ sequenceDiagram
     Host->>Model: tool message
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20` — card → JSON Schema<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:984/1078` — tool list + dispatch<br>&bull; `agent-core/openjiuwen/core/foundation/tool/function/function.py:82` — argument schema validation</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/utils/callable_schema_extractor.py:20</code> — card → JSON Schema<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:984/1078</code> — tool list + dispatch<br>&bull; <code>agent-core/openjiuwen/core/foundation/tool/function/function.py:82</code> — argument schema validation</sub>
+
+</details>
 
 ## Agent
 
@@ -204,7 +279,12 @@ flowchart TD
     D -->|"no tool calls"| A(["final answer"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740` — loop; `:2793` no tool calls → answer; `:2813` execute tools<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288` — `max_iterations`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2694` — outer task loop</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2740</code> — loop; <code>:2793</code> no tool calls → answer; <code>:2813</code> execute tools<br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:288</code> — <code>max_iterations</code><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2694</code> — outer task loop</sub>
+
+</details>
 
 ## Memory
 
@@ -214,7 +294,12 @@ flowchart TD
 
 **Jiuwen:** Short-term is `SessionModelContext` with a bounded `ContextMessageBuffer`; long-term is `LongTermMemory` with a typed taxonomy. The product adds a SQLite/FTS5 hybrid index over markdown memory files.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/context_engine/context/context.py:44` — `SessionModelContext`; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11` — `ContextMessageBuffer`<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:69` — `LongTermMemory`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805` — product hybrid memory index</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/context.py:44</code> — <code>SessionModelContext</code>; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:11</code> — <code>ContextMessageBuffer</code><br>&bull; <code>agent-core/openjiuwen/core/memory/long_term_memory.py:69</code> — <code>LongTermMemory</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:183/805</code> — product hybrid memory index</sub>
+
+</details>
 
 ---
 
@@ -228,7 +313,12 @@ flowchart TD
 
 **Jiuwen:** Streaming with per-call `ttft_ms`, parallel tool execution, KV/prefix cache affinity, and model failover; no latency-based routing or result cache.
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2938` — `stream`; `:1758` `ttft_ms`<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:431` — parallel tool execution<br>&bull; `agent-core/openjiuwen/core/common/clients/connector_pool.py:21` — bounded connection pool</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/single_agent/agents/react_agent.py:2938</code> — <code>stream</code>; <code>:1758</code> <code>ttft_ms</code><br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:431</code> — parallel tool execution<br>&bull; <code>agent-core/openjiuwen/core/common/clients/connector_pool.py:21</code> — bounded connection pool</sub>
+
+</details>
 
 ## Quantization
 
@@ -238,7 +328,12 @@ flowchart TD
 
 **Jiuwen:** Model-weight quantization is **not implemented** here — it is a passthrough engine param for local vLLM. Vector-index quantization is first-class for Milvus: SQ8 (~75% memory cut), PQ, PRQ, RABITQ, and SCANN (IVF + product quantization).
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:209` — quantization variants; `:211` SQ8; `:212` PQ; `:213` RABITQ<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:167` — SCANN (IVF + product quantization)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:613` — `"quantization": None` (engine passthrough)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:209</code> — quantization variants; <code>:211</code> SQ8; <code>:212</code> PQ; <code>:213</code> RABITQ<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/vector_fields/milvus_fields.py:167</code> — SCANN (IVF + product quantization)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/vllm/client.py:613</code> — <code>"quantization": None</code> (engine passthrough)</sub>
+
+</details>
 
 ## Prompt injection
 
@@ -256,7 +351,12 @@ flowchart TD
     INJ -.->|"absent prod"| D["injection detector guardrail"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16` — `SafetyPromptRail`; `:38` injects safety section<br>&bull; `agent-core/openjiuwen/harness/tools/shell/bash/_security.py:40` — `check_injection` blocks<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:409` — shell AST ASK floor; `agent-core/openjiuwen/harness/security/permission_engine/core.py:272` — strictest merge<br>&bull; `agent-core/openjiuwen/core/security/guardrail/builtin.py:60` — `PromptInjectionGuardrail` (unregistered in production)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/rails/security/prompt_security_rail.py:16</code> — <code>SafetyPromptRail</code>; <code>:38</code> injects safety section<br>&bull; <code>agent-core/openjiuwen/harness/tools/shell/bash/_security.py:40</code> — <code>check_injection</code> blocks<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:409</code> — shell AST ASK floor; <code>agent-core/openjiuwen/harness/security/permission_engine/core.py:272</code> — strictest merge<br>&bull; <code>agent-core/openjiuwen/core/security/guardrail/builtin.py:60</code> — <code>PromptInjectionGuardrail</code> (unregistered in production)</sub>
+
+</details>
 
 ---
 

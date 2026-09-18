@@ -17,7 +17,12 @@ flowchart TD
     SHIP -.->|"absent"| CANARY["canary / staged rollout / eval-threshold gate"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:168` load gates; `:1153` run + aggregate `passed`<br>&bull; `agent-core/openjiuwen/auto_harness/stages/activate.py:118` — explicit `accept`/`reject` interaction before hot-load<br>&bull; `agent-core/openjiuwen/auto_harness/stages/merge.py:95` — static-check retry (max 3) then fail-fast<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` `rollback`; `:682` `_assert_rollback_allowed`; `:694` validate target hash<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448` — `enable_*` config flags</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/auto_harness/infra/ci_gate_runner.py:168</code> load gates; <code>:1153</code> run + aggregate <code>passed</code><br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/activate.py:118</code> — explicit <code>accept</code>/<code>reject</code> interaction before hot-load<br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/merge.py:95</code> — static-check retry (max 3) then fail-fast<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> <code>rollback</code>; <code>:682</code> <code>_assert_rollback_allowed</code>; <code>:694</code> validate target hash<br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448</code> — <code>enable_*</code> config flags</sub>
+
+</details>
 
 **Gap.** No eval-threshold release gate and no canary/percentage rollout; the decision is human process, supported only by feature flags, explicit activation, CI checks, and manual rollback.
 
@@ -37,7 +42,12 @@ flowchart TD
     L --> EX2["key-information classifier · quality reviewer"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/core.py:192` — docstring: LLM not used on the permission path<br>&bull; `agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588` — rule-based tiered policy; `agent-core/openjiuwen/harness/security/permission_engine/toolguard/shell_ast.py:82` — deterministic parse<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rails/permissions/auto_decision.py:73` `deterministic_guard_route`; `:116` `deterministic_domain_route`<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/internal.py:165` `bm25_rank_to_score`; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:1044` FTS BM25<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:15` `rrf_fusion`; `agent-core/openjiuwen/core/foundation/store/index/simple_memory_index.py:348` sort by score<br>&bull; `agent-core/openjiuwen/core/context_engine/context/message_buffer.py:74` — deterministic drop beyond 2×<br>&bull; `agent-core/openjiuwen/rsi/harness_rsi/auto_harness/infra/parsers.py:147` — deterministic JSON extraction<br>&bull; `agent-core/openjiuwen/core/memory/process/extract/memory_analyzer.py:26` — LLM classifier (semantic)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/core.py:192</code> — docstring: LLM not used on the permission path<br>&bull; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/tool_policy.py:588</code> — rule-based tiered policy; <code>agent-core/openjiuwen/harness/security/permission_engine/toolguard/shell_ast.py:82</code> — deterministic parse<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rails/permissions/auto_decision.py:73</code> <code>deterministic_guard_route</code>; <code>:116</code> <code>deterministic_domain_route</code><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/internal.py:165</code> <code>bm25_rank_to_score</code>; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/manager.py:1044</code> FTS BM25<br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/fusion.py:15</code> <code>rrf_fusion</code>; <code>agent-core/openjiuwen/core/foundation/store/index/simple_memory_index.py:348</code> sort by score<br>&bull; <code>agent-core/openjiuwen/core/context_engine/context/message_buffer.py:74</code> — deterministic drop beyond 2×<br>&bull; <code>agent-core/openjiuwen/rsi/harness_rsi/auto_harness/infra/parsers.py:147</code> — deterministic JSON extraction<br>&bull; <code>agent-core/openjiuwen/core/memory/process/extract/memory_analyzer.py:26</code> — LLM classifier (semantic)</sub>
+
+</details>
 
 **Gap.** The boundary is principled but implicit — no single "classifier vs LLM" decision function or policy table exists; each subsystem chooses independently.
 
@@ -62,7 +72,12 @@ flowchart TD
     RR --> RM
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/harness/manifest/catalog.py:67` — `@harness_element`; `:55` `list_elements()`; `agent-core/openjiuwen/harness/manifest/registration.py:31` — `register_from_catalog`<br>&bull; `agent-core/openjiuwen/harness/deep_agent.py:2027` — `load_plugin`; `:2076` `load_agent_template`; `:2190` `load_harness_config`<br>&bull; `agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53` — `__init_subclass__` auto-registration; `agent-core/openjiuwen/core/common/clients/client_registry.py:19/50/94`<br>&bull; `agent-core/openjiuwen/core/runner/resources_manager/resource_registry.py:13` — `ResourceRegistry`<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:248`; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:354` — config schema (Pydantic)<br>&bull; `agent-core/openjiuwen/agent_teams/schema/blueprint.py:99` — `TransportSpec`/`StorageSpec` registry pattern<br>&bull; `jiuwenswarm/jiuwenswarm/agents/swarm/registry.py:8-12` — product-side provider registration via the catalog</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/harness/manifest/catalog.py:67</code> — <code>@harness_element</code>; <code>:55</code> <code>list_elements()</code>; <code>agent-core/openjiuwen/harness/manifest/registration.py:31</code> — <code>register_from_catalog</code><br>&bull; <code>agent-core/openjiuwen/harness/deep_agent.py:2027</code> — <code>load_plugin</code>; <code>:2076</code> <code>load_agent_template</code>; <code>:2190</code> <code>load_harness_config</code><br>&bull; <code>agent-core/openjiuwen/core/foundation/llm/model_clients/base_model_client.py:53</code> — <code>__init_subclass__</code> auto-registration; <code>agent-core/openjiuwen/core/common/clients/client_registry.py:19/50/94</code><br>&bull; <code>agent-core/openjiuwen/core/runner/resources_manager/resource_registry.py:13</code> — <code>ResourceRegistry</code><br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:248</code>; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:354</code> — config schema (Pydantic)<br>&bull; <code>agent-core/openjiuwen/agent_teams/schema/blueprint.py:99</code> — <code>TransportSpec</code>/<code>StorageSpec</code> registry pattern<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/swarm/registry.py:8-12</code> — product-side provider registration via the catalog</sub>
+
+</details>
 
 **Gap.** There is no visible semantic-versioning or deprecation policy for `@harness_element` names or config fields — the descriptor stores a factory ref and an input JSON schema but no version. Adding a new tool/rail also requires touching prompt/description contracts (a documentation discipline, not enforced by types). The legacy `single_agent/legacy/` surface shows the cost of past API drift.
 
@@ -85,7 +100,12 @@ flowchart TD
     IR -.->|"not accuracy-based"| X["no cost/latency/quality-based model selection"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:38` — `ModelPoolEntry`; `:133` `ModelRouterConfig`; `:241` `IntelliRouterDeployment`; `:314` `IntelliRouterConfig`; `:278` tpm/rpm rate-aware; `:95` "weights/affinity hints" (documented, not implemented)<br>&bull; `agent-core/openjiuwen/agent_teams/models/allocator.py:176` round-robin; `:240` by-model-name; `:452` IntelliRouter; `:559` `build_model_allocator`; `:28` allocation-vs-reliability docstring<br>&bull; `agent-core/openjiuwen/harness/schema/config.py:242` / `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:441` — per-agent/task model config</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:38</code> — <code>ModelPoolEntry</code>; <code>:133</code> <code>ModelRouterConfig</code>; <code>:241</code> <code>IntelliRouterDeployment</code>; <code>:314</code> <code>IntelliRouterConfig</code>; <code>:278</code> tpm/rpm rate-aware; <code>:95</code> "weights/affinity hints" (documented, not implemented)<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:176</code> round-robin; <code>:240</code> by-model-name; <code>:452</code> IntelliRouter; <code>:559</code> <code>build_model_allocator</code>; <code>:28</code> allocation-vs-reliability docstring<br>&bull; <code>agent-core/openjiuwen/harness/schema/config.py:242</code> / <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:441</code> — per-agent/task model config</sub>
+
+</details>
 
 **Gap.** Routing is not accuracy-based and has no cost/latency/quality-based selection. Choosing a smaller cheap model is a caller/human decision expressed as a `model_name` hint.
 
@@ -104,7 +124,12 @@ flowchart TD
     BAD -.->|"absent"| P["prompt-level rollback · eval-threshold gate · canary"]
 ```
 
-<sub>**Anchors:**<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617` — `rollback`; `:682` `_assert_rollback_allowed`; `:694` validate target hash<br>&bull; `jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218/224` — versions list + rollback RPC<br>&bull; `agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448` — `enable_*` flags<br>&bull; `agent-core/openjiuwen/auto_harness/stages/activate.py:118` — explicit `accept`/`reject`<br>&bull; `agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21` — no eval gate</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/rsi/harness_activation.py:617</code> — <code>rollback</code>; <code>:682</code> <code>_assert_rollback_allowed</code>; <code>:694</code> validate target hash<br>&bull; <code>jiuwenswarm/jiuwenswarm/server/rsi/rsi_handlers.py:218/224</code> — versions list + rollback RPC<br>&bull; <code>agent-core/openjiuwen/harness/schema/deep_agent_spec.py:448</code> — <code>enable_*</code> flags<br>&bull; <code>agent-core/openjiuwen/auto_harness/stages/activate.py:118</code> — explicit <code>accept</code>/<code>reject</code><br>&bull; <code>agent-core/openjiuwen/auto_harness/resources/ci_gate.yaml:21</code> — no eval gate</sub>
+
+</details>
 
 ---
 

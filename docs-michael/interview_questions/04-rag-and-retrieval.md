@@ -23,7 +23,12 @@ flowchart TD
     DIST --> CAND
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — independent query bi-encoder<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:28` — `/rerank` endpoint; `:29` instruct+query template; `:81` parses `relevance_score`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:83` — logprob yes/no scoring; `:125` chat prompt assembly<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/dashscope_reranker.py:16` — DashScope reranker</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — independent query bi-encoder<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:28</code> — <code>/rerank</code> endpoint; <code>:29</code> instruct+query template; <code>:81</code> parses <code>relevance_score</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:83</code> — logprob yes/no scoring; <code>:125</code> chat prompt assembly<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/dashscope_reranker.py:16</code> — DashScope reranker</sub>
+
+</details>
 
 **Gap.** `ChatReranker` is one document per request. The `language` kwarg from the graph store is silently dropped by `StandardReranker._assemble_params`.
 
@@ -48,7 +53,12 @@ flowchart TD
     MET -.->|"absent in codebase; closest = PerStream memory LLM judge"| X["no retrieval eval path"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/examples/PerStream/src/eval/score_proactive_judge.py:35` — `annotate(...)` LLM judge (memory, not retrieval)<br>&bull; `agent-core/examples/PerStream/src/eval/eval_proactive_dataset.py:121` — `run_inference`, dataset build for memory task<br>&bull; `agent-core/tests/unit_tests/core/retrieval/query_rewriter/test_query_rewriter.py` — mock-based unit fixtures<br>&bull; `agent-core/tests/unit_tests/core/retrieval/retriever/test_agentic_retriever.py` — mock-based agentic test<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412` — `rewrite` (query generation from user input, not eval-set synthesis)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/examples/PerStream/src/eval/score_proactive_judge.py:35</code> — <code>annotate(...)</code> LLM judge (memory, not retrieval)<br>&bull; <code>agent-core/examples/PerStream/src/eval/eval_proactive_dataset.py:121</code> — <code>run_inference</code>, dataset build for memory task<br>&bull; <code>agent-core/tests/unit_tests/core/retrieval/query_rewriter/test_query_rewriter.py</code> — mock-based unit fixtures<br>&bull; <code>agent-core/tests/unit_tests/core/retrieval/retriever/test_agentic_retriever.py</code> — mock-based agentic test<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412</code> — <code>rewrite</code> (query generation from user input, not eval-set synthesis)</sub>
+
+</details>
 
 ---
 
@@ -74,7 +84,12 @@ flowchart LR
     META -.->|"absent"| HDR["header-aware chunks · code-fence protection"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:32` — `_rows_to_documents`; `:69` `source_type: "row"`; `:96` `source_type: "column"`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/word_parser.py:23` — `_table_to_markdown`; `:37` `_paragraph_to_markdown` (Heading N → N+1 hashes)<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — keeps `row`/`column` units as one chunk<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/html_file_parser.py:78` — `_get_text_from_soup` flattens<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/txt_md_parser.py:40` — Markdown read verbatim<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:106` — metadata copied onto every `TextChunk`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:32</code> — <code>_rows_to_documents</code>; <code>:69</code> <code>source_type: "row"</code>; <code>:96</code> <code>source_type: "column"</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/word_parser.py:23</code> — <code>_table_to_markdown</code>; <code>:37</code> <code>_paragraph_to_markdown</code> (Heading N → N+1 hashes)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19</code> — keeps <code>row</code>/<code>column</code> units as one chunk<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/html_file_parser.py:78</code> — <code>_get_text_from_soup</code> flattens<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/txt_md_parser.py:40</code> — Markdown read verbatim<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:106</code> — metadata copied onto every <code>TextChunk</code></sub>
+
+</details>
 
 ---
 
@@ -98,7 +113,12 @@ flowchart TD
     C --> POST
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:119` — long-sentence sub-split; `:142` `_sentences_with_spans`; `:210` `_flush` overlap<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — keep row/column units whole<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:56` — `CharSplitter` fixed offsets<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_preprocessor.py:53` — `WhitespaceNormalizer`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:118` — head/tail truncation; `agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:1088` — `_build_head_tail_truncated_text`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:119</code> — long-sentence sub-split; <code>:142</code> <code>_sentences_with_spans</code>; <code>:210</code> <code>_flush</code> overlap<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19</code> — keep row/column units whole<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:56</code> — <code>CharSplitter</code> fixed offsets<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_preprocessor.py:53</code> — <code>WhitespaceNormalizer</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:118</code> — head/tail truncation; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/round_level_compressor.py:1088</code> — <code>_build_head_tail_truncated_text</code></sub>
+
+</details>
 
 ---
 
@@ -124,7 +144,12 @@ flowchart TD
     CE --> O3["micro/full compact (180k) — extra LLM call"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:46` — `top_k: int = 5`; `:47` `score_threshold`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:64` — threshold rejected unless `mode="vector"`; `:41` retrieve path has no reranker<br>&bull; `agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:645` — reranker only in graph-memory search<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34` — `tokens_threshold=50000`; `agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_window_processor.py:44` — `keep_last_k=3`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/micro_compact_processor.py:24` — threshold 5; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:227/349` — `compress_range=20` + history compression</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:46</code> — <code>top_k: int = 5</code>; <code>:47</code> <code>score_threshold</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:64</code> — threshold rejected unless <code>mode="vector"</code>; <code>:41</code> retrieve path has no reranker<br>&bull; <code>agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:645</code> — reranker only in graph-memory search<br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_budget_processor.py:34</code> — <code>tokens_threshold=50000</code>; <code>agent-core/openjiuwen/core/context_engine/processor/offloader/tool_result_window_processor.py:44</code> — <code>keep_last_k=3</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/micro_compact_processor.py:24</code> — threshold 5; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184</code> — 180k<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:227/349</code> — <code>compress_range=20</code> + history compression</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
@@ -147,7 +172,12 @@ flowchart TD
     WRITE -->|"text > 65535 chars"| MF["Milvus write failure"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:36` — defaults `chunk_size=512`, `chunk_overlap=50`; `:59/64/69` validation raises<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:34` — `KnowledgeBaseConfig.chunk_size/chunk_overlap`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:15` — `DEFAULT_CHUNK_SIZE=200`; `:198` `_resolve_chunk_size` clamps to `tokenizer.model_max_length`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82` — `get_chunker` auto-lowers size to tokenizer max<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:375` — text field `max_length=65535`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:176` — pgvector rejects dim > 2000</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:36</code> — defaults <code>chunk_size=512</code>, <code>chunk_overlap=50</code>; <code>:59/64/69</code> validation raises<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:34</code> — <code>KnowledgeBaseConfig.chunk_size/chunk_overlap</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:15</code> — <code>DEFAULT_CHUNK_SIZE=200</code>; <code>:198</code> <code>_resolve_chunk_size</code> clamps to <code>tokenizer.model_max_length</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82</code> — <code>get_chunker</code> auto-lowers size to tokenizer max<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:375</code> — text field <code>max_length=65535</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:176</code> — pgvector rejects dim &gt; 2000</sub>
+
+</details>
 
 **Gap.** `KnowledgeBaseConfig.chunk_size/chunk_overlap` are never read by `SimpleKnowledgeBase.add_documents` (it uses the injected chunker), so those config fields are advisory. No document/file-length limit exists.
 
@@ -172,7 +202,12 @@ flowchart LR
     C --> R
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/sparse_retriever.py:19` — `SparseRetriever` (BM25); `:62` delegates to `sparse_search`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:277` — `metric_type: "BM25"`; `:348` native `RRFRanker(k=60)`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:390` — Milvus `Function(BM25)`; `:399` `SPARSE_INVERTED_INDEX`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:26` — `alpha` (ignored by stores)<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:15/39` — `rrf_fusion` + `1/(k+rank)`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:300` — no BM25 (TF-IDF); `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:375` — FTS</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/sparse_retriever.py:19</code> — <code>SparseRetriever</code> (BM25); <code>:62</code> delegates to <code>sparse_search</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:277</code> — <code>metric_type: "BM25"</code>; <code>:348</code> native <code>RRFRanker(k=60)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:390</code> — Milvus <code>Function(BM25)</code>; <code>:399</code> <code>SPARSE_INVERTED_INDEX</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:26</code> — <code>alpha</code> (ignored by stores)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/fusion.py:15/39</code> — <code>rrf_fusion</code> + <code>1/(k+rank)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:300</code> — no BM25 (TF-IDF); <code>agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:375</code> — FTS</sub>
+
+</details>
 
 ---
 
@@ -196,7 +231,12 @@ flowchart TD
     K -.->|"absent"| SEM["embedding-similarity breakpoints · recursive delimiter hierarchy"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/char_chunker.py:12` — `CharChunker` "fixed size based on character length"; `:47` builds `CharSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:47` — `CharSplitter.split` slices `text[start:end]`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:17` — `TokenizerChunker` builds `IndexSentenceSplitter`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:92` — `SentenceSplitter.__call__` (pysbd); `:142` `_sentences_with_spans`; `:173` long-sentence sub-split<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19` — `HybridChunker` no-split predicate; `:66` delegation<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117` — only `"char"`/`"hybrid"` registered<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:98` — `splitter_config` normalized but not forwarded</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/char_chunker.py:12</code> — <code>CharChunker</code> "fixed size based on character length"; <code>:47</code> builds <code>CharSplitter</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:47</code> — <code>CharSplitter.split</code> slices <code>text[start:end]</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:17</code> — <code>TokenizerChunker</code> builds <code>IndexSentenceSplitter</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:92</code> — <code>SentenceSplitter.__call__</code> (pysbd); <code>:142</code> <code>_sentences_with_spans</code>; <code>:173</code> long-sentence sub-split<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/hybrid_chunker.py:19</code> — <code>HybridChunker</code> no-split predicate; <code>:66</code> delegation<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117</code> — only <code>"char"</code>/<code>"hybrid"</code> registered<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:98</code> — <code>splitter_config</code> normalized but not forwarded</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
@@ -217,7 +257,12 @@ flowchart TD
     MK --> R(["merged candidate set (provenance preserved)"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:250` — `rrf_fusion(ret + history_results)[:top_k]` (graph mode); `:295` `rrf_fusion(history_results)[:top_k]` (generic)<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:520` — `rrf_fusion([new_chunks, chunks], k=60)`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:285` — `retrieve_multi_kb` dedupe-by-text + max-score merge; `:318` `retrieve_multi_kb_with_source`<br>&bull; `agent-core/openjiuwen/core/memory/manage/search/search_manager.py:86` — aggregate + sort + truncate<br>&bull; `agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:422` — concurrent entity/relation/episode search<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:353` — `retrieve_multi_graph_kb`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:250</code> — <code>rrf_fusion(ret + history_results)[:top_k]</code> (graph mode); <code>:295</code> <code>rrf_fusion(history_results)[:top_k]</code> (generic)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:520</code> — <code>rrf_fusion([new_chunks, chunks], k=60)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:285</code> — <code>retrieve_multi_kb</code> dedupe-by-text + max-score merge; <code>:318</code> <code>retrieve_multi_kb_with_source</code><br>&bull; <code>agent-core/openjiuwen/core/memory/manage/search/search_manager.py:86</code> — aggregate + sort + truncate<br>&bull; <code>agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:422</code> — concurrent entity/relation/episode search<br>&bull; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:353</code> — <code>retrieve_multi_graph_kb</code></sub>
+
+</details>
 
 **Gap.** No explicit cross-document synthesis or evidence-linking step; merging is score/rank fusion, not reasoning over combined docs.
 
@@ -238,7 +283,12 @@ flowchart LR
     CH --> IDX["uniform indexing"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_parser.py:23` — `AutoParser` URL vs file routing; `:48` `parse`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:24` — `@register_parser(file_extensions)` registry; `:98` extension dispatch; `:121` enriches `doc_id`/`title`/`file_path`/`file_ext`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/txt_md_parser.py:14` — `.txt/.md/.markdown`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/pdf_parser.py:16` `.pdf`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/word_parser.py:63` `.docx`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:131` `.xlsx/.csv/.tsv`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/html_file_parser.py:89` `.htm/.html`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/json_parser.py:15` `.json`; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/image_parser.py:15` images<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:29` — uniform `Document{id_, text, metadata}`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:91` — `chunk_documents` uniform conversion</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_parser.py:23</code> — <code>AutoParser</code> URL vs file routing; <code>:48</code> <code>parse</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:24</code> — <code>@register_parser(file_extensions)</code> registry; <code>:98</code> extension dispatch; <code>:121</code> enriches <code>doc_id</code>/<code>title</code>/<code>file_path</code>/<code>file_ext</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/txt_md_parser.py:14</code> — <code>.txt/.md/.markdown</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/pdf_parser.py:16</code> <code>.pdf</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/word_parser.py:63</code> <code>.docx</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:131</code> <code>.xlsx/.csv/.tsv</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/html_file_parser.py:89</code> <code>.htm/.html</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/json_parser.py:15</code> <code>.json</code>; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/image_parser.py:15</code> images<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_reranker.py:29</code> — uniform <code>Document{id_, text, metadata}</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:91</code> — <code>chunk_documents</code> uniform conversion</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval, rag-system._</sub>
 
@@ -256,7 +306,12 @@ flowchart TD
     R -.->|"KB path: rerank-to-K absent"| X["static top_k=5 · score_threshold=None · no token budget"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:46` — `top_k: int = 5`; `:47` `score_threshold` default `None`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:64` — threshold honored only in `mode="vector"`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — KB path calls no reranker<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241` — context concatenated unbounded</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:46</code> — <code>top_k: int = 5</code>; <code>:47</code> <code>score_threshold</code> default <code>None</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:64</code> — threshold honored only in <code>mode="vector"</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182</code> — KB path calls no reranker<br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241</code> — context concatenated unbounded</sub>
+
+</details>
 
 ---
 
@@ -281,7 +336,12 @@ flowchart TD
     G -.->|"absent"| X["answerable-from-context gate · 'I don't know' user path"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:94` / `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:117` — applied only when supplied<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326` — `_rewrite` sufficiency check (rewrite, not abstain)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94` — `is_abstain` → empty candidates; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305` — `is_abstain`<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension; `:279` threshold re-normalization<br>&bull; `agent-core/openjiuwen/harness/subagents/verification_agent.py:51` — PASS/FAIL/PARTIAL verdict</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:47</code> — <code>score_threshold</code> defaults <code>None</code>; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:94</code> / <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:117</code> — applied only when supplied<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326</code> — <code>_rewrite</code> sufficiency check (rewrite, not abstain)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94</code> — <code>is_abstain</code> → empty candidates; <code>agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305</code> — <code>is_abstain</code><br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/reviewer.py:43</code> — <code>Correctness</code> dimension; <code>:279</code> threshold re-normalization<br>&bull; <code>agent-core/openjiuwen/harness/subagents/verification_agent.py:51</code> — PASS/FAIL/PARTIAL verdict</sub>
+
+</details>
 
 **Gap.** No RAG-side answerable-from-context gate and no "I don't know" path; `score_threshold` has no default and verification is a separate, non-blocking review layer.
 
@@ -307,7 +367,12 @@ flowchart TD
     RET -.->|"absent"| X["no recency boost · no outdated filter · no source authority"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/retrieval_result.py:23` — `RetrievalResult` (no timestamp/recency)<br>&bull; `agent-core/openjiuwen/core/retrieval/common/document.py:30` — `TextChunk` (text/doc_id/metadata only)<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/fusion.py:39` — RRF by text/rank; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:313` — max-score merge, no recency tiebreak<br>&bull; `agent-core/openjiuwen/core/memory/manage/update/mem_update_checker.py:22` — `CheckResult`; `:252` conflicting → add new/delete old; `agent-core/openjiuwen/core/memory/manage/index/fragment_memory_manager.py:163`<br>&bull; `agent-core/openjiuwen/agent_evolving/experience/scorer.py:219` — `calc_freshness` (experiences only)<br>&bull; `agent-core/openjiuwen/core/memory/long_term_memory.py:1004` — search sorts by score, ignores timestamp</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/retrieval_result.py:23</code> — <code>RetrievalResult</code> (no timestamp/recency)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/document.py:30</code> — <code>TextChunk</code> (text/doc_id/metadata only)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/fusion.py:39</code> — RRF by text/rank; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:313</code> — max-score merge, no recency tiebreak<br>&bull; <code>agent-core/openjiuwen/core/memory/manage/update/mem_update_checker.py:22</code> — <code>CheckResult</code>; <code>:252</code> conflicting → add new/delete old; <code>agent-core/openjiuwen/core/memory/manage/index/fragment_memory_manager.py:163</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/experience/scorer.py:219</code> — <code>calc_freshness</code> (experiences only)<br>&bull; <code>agent-core/openjiuwen/core/memory/long_term_memory.py:1004</code> — search sorts by score, ignores timestamp</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical._</sub>
 
@@ -326,7 +391,12 @@ flowchart TD
     CMP --> R(["eyeball delta — no labels, no NDCG/MRR"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/examples/store/showcase_milvus_graph_store.py:51` — `_log_score_comparison`; `:217` reranker on; `:240` reranker off<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:58` — `rerank()` returns `relevance_score` per doc<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87` — `_combined_rerank`/`rerank` sorts in place<br>&bull; `agent-core/examples/retrieval/showcase_reranker.py:23` — standalone reranker demo (no baseline)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/examples/store/showcase_milvus_graph_store.py:51</code> — <code>_log_score_comparison</code>; <code>:217</code> reranker on; <code>:240</code> reranker off<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:58</code> — <code>rerank()</code> returns <code>relevance_score</code> per doc<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87</code> — <code>_combined_rerank</code>/<code>rerank</code> sorts in place<br>&bull; <code>agent-core/examples/retrieval/showcase_reranker.py:23</code> — standalone reranker demo (no baseline)</sub>
+
+</details>
 
 ---
 
@@ -347,7 +417,12 @@ flowchart TD
     M -.->|"absent in codebase"| X["classification metrics only (PerStream); demo rerank delta"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42` — `compute(prediction, label)`, no ranked list<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11` — only three metrics exported<br>&bull; `agent-core/examples/PerStream/src/eval/score_proactive_judge.py:355/362` — classification recall/precision<br>&bull; `agent-core/examples/store/showcase_milvus_graph_store.py:51` — reranker score-delta (no labels)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/base.py:42</code> — <code>compute(prediction, label)</code>, no ranked list<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/__init__.py:11</code> — only three metrics exported<br>&bull; <code>agent-core/examples/PerStream/src/eval/score_proactive_judge.py:355/362</code> — classification recall/precision<br>&bull; <code>agent-core/examples/store/showcase_milvus_graph_store.py:51</code> — reranker score-delta (no labels)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
@@ -367,7 +442,12 @@ flowchart TD
     PER --> EXP["experimental, slow"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:22` — `timeout` default 10 s<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:120` — `top_n=len(documents)` single request; `:35` `max_retries=3`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:113` — list-size-1 constraint (per-doc LLM call)<br>&bull; `agent-core/openjiuwen/core/retrieval/utils/api_requests.py:55` — retry/backoff loop<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:160` — `reranker=None` optional<br>&bull; `jiuwenswarm/jiuwenswarm/agents/harness/common/memory/external_memory_builder.py:340` — product pins `rerank_enabled: False`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_reranker.py:22</code> — <code>timeout</code> default 10 s<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:120</code> — <code>top_n=len(documents)</code> single request; <code>:35</code> <code>max_retries=3</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:113</code> — list-size-1 constraint (per-doc LLM call)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/utils/api_requests.py:55</code> — retry/backoff loop<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:160</code> — <code>reranker=None</code> optional<br>&bull; <code>jiuwenswarm/jiuwenswarm/agents/harness/common/memory/external_memory_builder.py:340</code> — product pins <code>rerank_enabled: False</code></sub>
+
+</details>
 
 ---
 
@@ -389,7 +469,12 @@ flowchart TD
     CQ -.->|"absent"| X["parallel sub-query planner · sub-question DAG · per-sub synthesis"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:70` — "Break it down into smaller questions if needed."; `:326` `_rewrite` one next question; `:213/272` loops; `:290` append; `:295` `rrf_fusion(history_results)`; `:133` `max_iter=2`; `:530` `batch_retrieve`<br>&bull; `agent-core/openjiuwen/core/controller/legacy/reasoner/planner.py:12` — general task Planner (not retrieval)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:70</code> — "Break it down into smaller questions if needed."; <code>:326</code> <code>_rewrite</code> one next question; <code>:213/272</code> loops; <code>:290</code> append; <code>:295</code> <code>rrf_fusion(history_results)</code>; <code>:133</code> <code>max_iter=2</code>; <code>:530</code> <code>batch_retrieve</code><br>&bull; <code>agent-core/openjiuwen/core/controller/legacy/reasoner/planner.py:12</code> — general task Planner (not retrieval)</sub>
+
+</details>
 
 ---
 
@@ -412,7 +497,12 @@ flowchart TD
     XLS["spreadsheets"] --> FLAT["flattened to text row/column docs (not queried relationally)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/sys_operation/sys_operation.py:204` — `SysOperation` exposes only `fs`/`code`/`shell`; `:139` card proxies limited to fs/shell/code<br>&bull; `agent-core/openjiuwen/harness/tools/__init__.py:42` — only Bash/PowerShell shell escape hatch; no DB tool<br>&bull; `agent-core/openjiuwen/harness/tools/code.py:43` — `CodeTool.invoke` (generic code, not SQL-aware)<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:131` — spreadsheets flattened to text documents<br>&bull; `agent-core/openjiuwen/core/sys_operation/local/_rw_lock_manager.py:23` — SQLite used only as a lock DB</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/sys_operation/sys_operation.py:204</code> — <code>SysOperation</code> exposes only <code>fs</code>/<code>code</code>/<code>shell</code>; <code>:139</code> card proxies limited to fs/shell/code<br>&bull; <code>agent-core/openjiuwen/harness/tools/__init__.py:42</code> — only Bash/PowerShell shell escape hatch; no DB tool<br>&bull; <code>agent-core/openjiuwen/harness/tools/code.py:43</code> — <code>CodeTool.invoke</code> (generic code, not SQL-aware)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/excel_parser.py:131</code> — spreadsheets flattened to text documents<br>&bull; <code>agent-core/openjiuwen/core/sys_operation/local/_rw_lock_manager.py:23</code> — SQLite used only as a lock DB</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
@@ -429,7 +519,12 @@ flowchart TD
     Q -.->|"absent"| X["automatic ambiguity gate: if ambiguous → ask before retrieving"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412` — `rewrite()`; `:277` output schema (`intention`/`references`/`missing`/`typo`)<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:41` — missing-info completion (marks gaps, does not ask)<br>&bull; `agent-core/openjiuwen/harness/tools/ask_user.py:11` — `AskUserTool`; `agent-core/openjiuwen/harness/rails/interrupt/ask_user_rail.py:63` — `resolve_interrupt`<br>&bull; `agent-core/openjiuwen/core/controller/schema/intent.py:59` — `UNKNOWN_TASK` clarification prompt; `agent-core/openjiuwen/core/controller/modules/intent_recognizer.py:436`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412</code> — <code>rewrite()</code>; <code>:277</code> output schema (<code>intention</code>/<code>references</code>/<code>missing</code>/<code>typo</code>)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:41</code> — missing-info completion (marks gaps, does not ask)<br>&bull; <code>agent-core/openjiuwen/harness/tools/ask_user.py:11</code> — <code>AskUserTool</code>; <code>agent-core/openjiuwen/harness/rails/interrupt/ask_user_rail.py:63</code> — <code>resolve_interrupt</code><br>&bull; <code>agent-core/openjiuwen/core/controller/schema/intent.py:59</code> — <code>UNKNOWN_TASK</code> clarification prompt; <code>agent-core/openjiuwen/core/controller/modules/intent_recognizer.py:436</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
@@ -449,7 +544,12 @@ flowchart TD
     DOC -.->|"absent"| X["no translation · no language metadata · no language routing"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:17` — `lan: str = "auto"`; `:46` `_detect_chinese(threshold=0.1)`; `:105` builds `Segmenter(language=...)`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:81` — `IndexSentenceSplitter(language="auto")`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:25` — `language="auto"`<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:228` — `prompt_lang: str = "zh"`; `:309` template selection<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/openai_embedding.py:140` — no language field; `agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:37` — multimodal, not multilingual</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:17</code> — <code>lan: str = "auto"</code>; <code>:46</code> <code>_detect_chinese(threshold=0.1)</code>; <code>:105</code> builds <code>Segmenter(language=...)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:81</code> — <code>IndexSentenceSplitter(language="auto")</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/tokenizer_chunker.py:25</code> — <code>language="auto"</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:228</code> — <code>prompt_lang: str = "zh"</code>; <code>:309</code> template selection<br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/openai_embedding.py:140</code> — no language field; <code>agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:37</code> — multimodal, not multilingual</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
@@ -468,7 +568,12 @@ flowchart TD
     R -.->|"absent"| X["confidence-gated 'not enough information' / 'I don't know'"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:94` — applied only when supplied<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326` — `_rewrite` sufficiency (rewrite, not abstain)<br>&bull; `agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94` — `is_abstain` → empty candidates; `agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305` — `is_abstain`<br>&bull; `agent-core/openjiuwen/harness/subagents/verification_agent.py:51` — PASS/FAIL/PARTIAL verdict</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:47</code> — <code>score_threshold</code> defaults <code>None</code>; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:94</code> — applied only when supplied<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326</code> — <code>_rewrite</code> sufficiency (rewrite, not abstain)<br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/search/runtime/engine.py:94</code> — <code>is_abstain</code> → empty candidates; <code>agent-core/openjiuwen/symphony/retrieval/search/runtime/selector.py:305</code> — <code>is_abstain</code><br>&bull; <code>agent-core/openjiuwen/harness/subagents/verification_agent.py:51</code> — PASS/FAIL/PARTIAL verdict</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical._</sub>
 
@@ -488,7 +593,12 @@ flowchart LR
     OUT --> META["metadata: chunk_index, total_chunks, chunk_id (no is_overlap flag)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:39` — `chunk_overlap: int = 50`; `:69` `overlap >= chunk_size` raises; `:106` overlap not carried into metadata<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:41` — overlap clamped to `[0, size-1]`; `:54` `step = chunk_size - chunk_overlap`; `:56` slicing loop; `:110` token path default `chunk_size // 5`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:215` — `_flush` re-injects trailing sentences ≤ overlap; `:186` long-segment window step</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:39</code> — <code>chunk_overlap: int = 50</code>; <code>:69</code> <code>overlap &gt;= chunk_size</code> raises; <code>:106</code> overlap not carried into metadata<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:41</code> — overlap clamped to <code>[0, size-1]</code>; <code>:54</code> <code>step = chunk_size - chunk_overlap</code>; <code>:56</code> slicing loop; <code>:110</code> token path default <code>chunk_size // 5</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/splitter/splitter.py:215</code> — <code>_flush</code> re-injects trailing sentences ≤ overlap; <code>:186</code> long-segment window step</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-1, rag-retrieval._</sub>
 
@@ -512,7 +622,12 @@ flowchart LR
     B --> DIM["dimension: lazy from response or explicit (Matryoshka)"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_embedding.py:16` — `EmbeddingConfig`; `:24` `Embedding` ABC; `:29` `embed_query`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/openai_embedding.py:67` — Matryoshka `dimension`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:105` — Dashscope `dimension`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45` — `max_batch_size=8`; `:46` `max_concurrent=50`; `:175` batch splitting/concurrency<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/vllm_embedding.py:17` — `VLLMEmbedding`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_embedding.py:16</code> — <code>EmbeddingConfig</code>; <code>:24</code> <code>Embedding</code> ABC; <code>:29</code> <code>embed_query</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/openai_embedding.py:67</code> — Matryoshka <code>dimension</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:105</code> — Dashscope <code>dimension</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/api_embedding.py:45</code> — <code>max_batch_size=8</code>; <code>:46</code> <code>max_concurrent=50</code>; <code>:175</code> batch splitting/concurrency<br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/vllm_embedding.py:17</code> — <code>VLLMEmbedding</code></sub>
+
+</details>
 
 **Gap.** No `create_embedding` factory or model-selection helper in `core/retrieval` (only `create_vector_store` exists there; embedding factories live elsewhere, e.g. `create_embedding_provider` in the memory subsystem), and no evaluation/benchmark to justify model size.
 
@@ -533,7 +648,12 @@ flowchart TD
     RB -.->|"absent"| X["no token check / truncation before insertion; no decision guidance"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241` — `_format_output` joins `r.text` with `"\n\n"`, unbounded; `:109` bounded only by `top_k`<br>&bull; `agent-core/openjiuwen/core/context_engine/schema/config.py:136` — `context_window_tokens`; `:131` `max_context_message_num`; `:139` `model_context_window_tokens`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37` — `effective_context_budget` (strictest positive)<br>&bull; `agent-core/openjiuwen/core/context_engine/usage/models.py:45` — `ContextWindowUsage.limit_tokens` / `occupancy_rate`<br>&bull; `agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184` — 180k compaction threshold</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:241</code> — <code>_format_output</code> joins <code>r.text</code> with <code>"\n\n"</code>, unbounded; <code>:109</code> bounded only by <code>top_k</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/schema/config.py:136</code> — <code>context_window_tokens</code>; <code>:131</code> <code>max_context_message_num</code>; <code>:139</code> <code>model_context_window_tokens</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/budget_guard.py:37</code> — <code>effective_context_budget</code> (strictest positive)<br>&bull; <code>agent-core/openjiuwen/core/context_engine/usage/models.py:45</code> — <code>ContextWindowUsage.limit_tokens</code> / <code>occupancy_rate</code><br>&bull; <code>agent-core/openjiuwen/core/context_engine/processor/compressor/full_compact_processor.py:184</code> — 180k compaction threshold</sub>
+
+</details>
 
 **Gap.** No token budgeting on retrieved context; the only safety net is post-hoc conversation compaction (itself an extra LLM call).
 
@@ -554,7 +674,12 @@ flowchart TD
     G --> Y["pairwise judge sees answer only (LLMAsJudgeMetric); trace-level evaluators do see tool results"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:47` — `score_threshold` defaults `None`<br>&bull; `agent-core/openjiuwen/harness/tools/web/free_search.py:299` — lexical relevance only<br>&bull; `agent-core/openjiuwen/symphony/evaluation/evaluators.py:438` — `AccuracyEvaluator` (no context input)<br>&bull; `agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58` — parses `result: true/false`, no context/attribution<br>&bull; `agent-core/openjiuwen/agent_teams/verification/reviewer.py:43` — `Correctness` dimension on the output</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:47</code> — <code>score_threshold</code> defaults <code>None</code><br>&bull; <code>agent-core/openjiuwen/harness/tools/web/free_search.py:299</code> — lexical relevance only<br>&bull; <code>agent-core/openjiuwen/symphony/evaluation/evaluators.py:438</code> — <code>AccuracyEvaluator</code> (no context input)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/evaluator/metrics/llm_as_judge.py:58</code> — parses <code>result: true/false</code>, no context/attribution<br>&bull; <code>agent-core/openjiuwen/agent_teams/verification/reviewer.py:43</code> — <code>Correctness</code> dimension on the output</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-1, rag-practical._</sub>
 
@@ -573,7 +698,12 @@ flowchart TD
     E -.->|"absent in core"| X["no seed / no model fingerprint at retrieval level"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:137` — hard-codes `"temperature": 0`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:101` — rerank params (no temperature/seed)<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:311` — rewrite LLM `temperature=0.0`<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:265` — temperature from config; `agent-core/openjiuwen/core/foundation/llm/schema/config.py:210` — default `None`<br>&bull; `agent-core/openjiuwen/core/memory/lite/embeddings.py:78` — `config_fingerprint`; `agent-core/openjiuwen/core/memory/lite/manager.py:873` — `_should_full_reindex`<br>&bull; `agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:58` — `seed=1223` (skill-retrieval subsystem only)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:137</code> — hard-codes <code>"temperature": 0</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:101</code> — rerank params (no temperature/seed)<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:311</code> — rewrite LLM <code>temperature=0.0</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:265</code> — temperature from config; <code>agent-core/openjiuwen/core/foundation/llm/schema/config.py:210</code> — default <code>None</code><br>&bull; <code>agent-core/openjiuwen/core/memory/lite/embeddings.py:78</code> — <code>config_fingerprint</code>; <code>agent-core/openjiuwen/core/memory/lite/manager.py:873</code> — <code>_should_full_reindex</code><br>&bull; <code>agent-core/openjiuwen/symphony/retrieval/llm/base/types.py:58</code> — <code>seed=1223</code> (skill-retrieval subsystem only)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-practical-interview-questions_for_engineers.md`; also covered in: rag-practical._</sub>
 
@@ -593,7 +723,12 @@ flowchart LR
     SAME -.->|"no runtime check; only dimension is constrained"| GAP["role prefixes (query:/passage:) not plumbed except vLLM multimodal"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — query `embed_query`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46` — docs `embed_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:110` — index build uses `self.embed_model`; `:144` `VectorRetriever(embed_model=...)`; `:157` `HybridRetriever(embed_model=...)`<br>&bull; `agent-core/openjiuwen/core/retrieval/knowledge_base.py:34` — single `embed_model` field<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:124` — `embed_query` delegates to `embed_documents`<br>&bull; `agent-core/openjiuwen/core/retrieval/embedding/vllm_embedding.py:25` — instruction only for multimodal</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — query <code>embed_query</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46</code> — docs <code>embed_documents</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:110</code> — index build uses <code>self.embed_model</code>; <code>:144</code> <code>VectorRetriever(embed_model=...)</code>; <code>:157</code> <code>HybridRetriever(embed_model=...)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/knowledge_base.py:34</code> — single <code>embed_model</code> field<br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/dashscope_embedding.py:124</code> — <code>embed_query</code> delegates to <code>embed_documents</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/embedding/vllm_embedding.py:25</code> — instruction only for multimodal</sub>
+
+</details>
 
 ---
 
@@ -617,7 +752,12 @@ flowchart TD
     HTTP["workflow HTTP"] --> HR["HttpRetryConfig (429/5xx) + rate limit"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → BM25 fallback; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97/194` — fallback branches; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:462` — fallback to sparse<br>&bull; `agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:236` — `on_model_exception` retry classification; `agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:106` — tool exception retry decision<br>&bull; `agent-core/openjiuwen/core/single_agent/ability_manager.py:1186` — exception rendered into a `ToolMessage`<br>&bull; `agent-core/openjiuwen/core/workflow/components/tool/http/http_request_component.py:102` — `HttpRetryConfig`; `:110` `HttpRateLimitConfig`<br>&bull; `agent-core/openjiuwen/core/graph/pregel/task.py:47` — FIRST_EXCEPTION cancels siblings</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83</code> — dense-empty → BM25 fallback; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97/194</code> — fallback branches; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:462</code> — fallback to sparse<br>&bull; <code>agent-core/openjiuwen/harness/rails/model_anomaly_detection_rail.py:236</code> — <code>on_model_exception</code> retry classification; <code>agent-core/openjiuwen/harness/rails/tool_call_resilience_rail.py:106</code> — tool exception retry decision<br>&bull; <code>agent-core/openjiuwen/core/single_agent/ability_manager.py:1186</code> — exception rendered into a <code>ToolMessage</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/tool/http/http_request_component.py:102</code> — <code>HttpRetryConfig</code>; <code>:110</code> <code>HttpRateLimitConfig</code><br>&bull; <code>agent-core/openjiuwen/core/graph/pregel/task.py:47</code> — FIRST_EXCEPTION cancels siblings</sub>
+
+</details>
 
 **Gap.** No retrieval-stage circuit breaker or pipeline-level compensation (a generic runner `CircuitBreakerFilter` exists but is not wired into the retrieval stages). Reranker failure aborts retrieval rather than degrading to the pre-rerank order, and a failed `embed_query` has no sparse fallback. Failures are swallowed into model-visible text, so downstream cannot distinguish "empty" from "broken".
 
@@ -643,7 +783,12 @@ flowchart LR
     E -.-> RET
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96` — `chunk_documents`; `:110` `build_index(...)`; `:182` delegate to retriever<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46/73` — `embed_documents` / `embed_multimodal`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — `embed_query` → `vector_store.search`<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109` — `retrieve_multi_kb_with_source(...)`; `:243` joins texts into `context`<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654` — template format feeding `{{context}}`/`{{query}}`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96</code> — <code>chunk_documents</code>; <code>:110</code> <code>build_index(...)</code>; <code>:182</code> delegate to retriever<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46/73</code> — <code>embed_documents</code> / <code>embed_multimodal</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — <code>embed_query</code> → <code>vector_store.search</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109</code> — <code>retrieve_multi_kb_with_source(...)</code>; <code>:243</code> joins texts into <code>context</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654</code> — template format feeding <code>{{context}}</code>/<code>{{query}}</code></sub>
+
+</details>
 
 **Gap.** No packaged end-to-end RAG agent or retrieval tool in `harness`/`agent_teams`.
 
@@ -665,7 +810,12 @@ flowchart TD
     SP --> R
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412` — `rewrite(query)` → `standalone_query`; `:277` output schema<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:32` — coreference resolution; `:41` missing-information completion; `:47` typo correction<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:349` — vector retriever (dense semantic match)<br>&bull; `agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:735` — `_fetch_relevant_entities` semantic entity match</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412</code> — <code>rewrite(query)</code> → <code>standalone_query</code>; <code>:277</code> output schema<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:32</code> — coreference resolution; <code>:41</code> missing-information completion; <code>:47</code> typo correction<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:349</code> — vector retriever (dense semantic match)<br>&bull; <code>agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:735</code> — <code>_fetch_relevant_entities</code> semantic entity match</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
@@ -689,7 +839,12 @@ flowchart LR
     E -.-> RET
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96` — `chunk_documents`; `:110` `build_index(chunks=..., embed_model=...)`; `:182` delegate to retriever<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46/73` — `embed_documents` / `embed_multimodal` set `chunk.embedding`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — `embed_query` → `vector_store.search`<br>&bull; `agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109` — `retrieve_multi_kb_with_source(...)`; `:243` joins texts into `context`<br>&bull; `agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654` — template format feeding `{{context}}`/`{{query}}`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:96</code> — <code>chunk_documents</code>; <code>:110</code> <code>build_index(chunks=..., embed_model=...)</code>; <code>:182</code> delegate to retriever<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:46/73</code> — <code>embed_documents</code> / <code>embed_multimodal</code> set <code>chunk.embedding</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — <code>embed_query</code> → <code>vector_store.search</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/resource/knowledge_retrieval_comp.py:109</code> — <code>retrieve_multi_kb_with_source(...)</code>; <code>:243</code> joins texts into <code>context</code><br>&bull; <code>agent-core/openjiuwen/core/workflow/components/llm/llm_comp.py:654</code> — template format feeding <code>{{context}}</code>/<code>{{query}}</code></sub>
+
+</details>
 
 **Gap.** No packaged end-to-end RAG agent or retrieval tool in `harness`/`agent_teams`; `KnowledgeRetrievalComponent` only emits a string. Retrieved context is concatenated with no token-budget trimming and no citation synthesis.
 
@@ -709,7 +864,12 @@ flowchart TD
     LARGE --> MF["Milvus write failure > 65535 chars"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:59/64/69` — validation raises<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:198` — `_resolve_chunk_size` clamps to `model_max_length`<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82` — tokenizer-limit auto-adjust<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:378` — text `max_length=65535`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/base.py:59/64/69</code> — validation raises<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/text_splitter.py:198</code> — <code>_resolve_chunk_size</code> clamps to <code>model_max_length</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/chunking.py:82</code> — tokenizer-limit auto-adjust<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:378</code> — text <code>max_length=65535</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
@@ -730,7 +890,12 @@ flowchart TD
     CFG -.->|"absent"| X["per-query router/scheduler assembling a module graph"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:21` — parser registry by extension<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117` — chunker registry<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:141` — retriever selection by `index_type`; `:172` agentic wrap toggle<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/store.py:16` — vector store factory; `agent-core/openjiuwen/core/retrieval/common/config.py:67` — `StoreType`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — swappable reranker<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412` — query rewriter module<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:51` — `agentic` toggle</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/parser/auto_file_parser.py:21</code> — parser registry by extension<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/processor/chunker/__init__.py:117</code> — chunker registry<br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:141</code> — retriever selection by <code>index_type</code>; <code>:172</code> agentic wrap toggle<br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/store.py:16</code> — vector store factory; <code>agent-core/openjiuwen/core/retrieval/common/config.py:67</code> — <code>StoreType</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23</code> — swappable reranker<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412</code> — query rewriter module<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:51</code> — <code>agentic</code> toggle</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part1-interview-questions_for_engineers.md`; also covered in: rag-1._</sub>
 
@@ -754,7 +919,12 @@ flowchart TD
     R0 --- GRAPH
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:213` — `for turn in range(1, max_iter+1)`; `:237` `_read` triples + `batch_extend_memory`; `:244` `_rewrite` → append<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:100` — beam expansion `range(max_length-1)`; `:190` endpoint entities `{triple[0], triple[-1]}`; `:402` `graph_hops = kwargs.get("graph_hops", 2)`<br>&bull; `agent-core/openjiuwen/core/retrieval/common/triple_beam.py:12` — `TripleBeam`; `agent-core/openjiuwen/core/retrieval/common/triple_memory.py:31` — `extend_memory` dedup<br>&bull; `agent-core/openjiuwen/core/memory/config/graph.py:86` — `bfs_k`/`bfs_depth`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:38` — fixed single-pass retrieve</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:213</code> — <code>for turn in range(1, max_iter+1)</code>; <code>:237</code> <code>_read</code> triples + <code>batch_extend_memory</code>; <code>:244</code> <code>_rewrite</code> → append<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:100</code> — beam expansion <code>range(max_length-1)</code>; <code>:190</code> endpoint entities <code>{triple[0], triple[-1]}</code>; <code>:402</code> <code>graph_hops = kwargs.get("graph_hops", 2)</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/triple_beam.py:12</code> — <code>TripleBeam</code>; <code>agent-core/openjiuwen/core/retrieval/common/triple_memory.py:31</code> — <code>extend_memory</code> dedup<br>&bull; <code>agent-core/openjiuwen/core/memory/config/graph.py:86</code> — <code>bfs_k</code>/<code>bfs_depth</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:38</code> — fixed single-pass retrieve</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2, rag-retrieval._</sub>
 
@@ -774,7 +944,12 @@ flowchart TD
     RW -.->|"absent"| X["synonym expansion · HyDE / hypothetical document"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412` — `rewrite()`; `:349` `compress()`; `:449` history ≥ `compress_range`; `:227` `compress_range` default 20<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:32` — coreference resolution; `:47` typo correction<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326` — follow-up question generation</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:412</code> — <code>rewrite()</code>; <code>:349</code> <code>compress()</code>; <code>:449</code> history ≥ <code>compress_range</code>; <code>:227</code> <code>compress_range</code> default 20<br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/prompts/intention_completion_en.md:32</code> — coreference resolution; <code>:47</code> typo correction<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:326</code> — follow-up question generation</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-part2-interview-questions_for_engineers.md`; also covered in: rag-2._</sub>
 
@@ -793,7 +968,12 @@ flowchart LR
     CFG -->|"KB path"| NONE["no rerank — order preserved"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/foundation/store/base_reranker.py:16` — `RerankerConfig`; `:37/41` `Reranker` + abstract `rerank`<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`); `agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:22` — `ChatReranker` (experimental)<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458` — reranker applied only when truthy; `:87` `async def rerank`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:125` — no reranker in `retrieve`; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:251` — passes `**kwargs` only<br>&bull; `agent-core/openjiuwen/core/retrieval/common/result_ranking.py:11` — fusion rankers, distinct from cross-encoder</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/foundation/store/base_reranker.py:16</code> — <code>RerankerConfig</code>; <code>:37/41</code> <code>Reranker</code> + abstract <code>rerank</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23</code> — <code>StandardReranker</code> (<code>/rerank</code>); <code>agent-core/openjiuwen/core/retrieval/reranker/chat_reranker.py:22</code> — <code>ChatReranker</code> (experimental)<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:458</code> — reranker applied only when truthy; <code>:87</code> <code>async def rerank</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:125</code> — no reranker in <code>retrieve</code>; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:251</code> — passes <code>**kwargs</code> only<br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/result_ranking.py:11</code> — fusion rankers, distinct from cross-encoder</sub>
+
+</details>
 
 **Gap.** Reranking is effectively dead for RAG: no KB/component/retriever instantiates a reranker, and `KnowledgeRetrievalCompConfig` has no reranker field.
 
@@ -822,7 +1002,12 @@ flowchart TD
     Q -.->|"intention produced but unused"| X["no intent→mode classifier"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:141` — retriever selection by `index_type`; `:166` mode selection<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83` — dense-empty → BM25 fallback<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97` — same fallback<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:155` — `default_mode` from `index_type`<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:262` — `_allowed_modes`<br>&bull; `agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:277` — rewrite schema includes `intention`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:141</code> — retriever selection by <code>index_type</code>; <code>:166</code> mode selection<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:83</code> — dense-empty → BM25 fallback<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:97</code> — same fallback<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:155</code> — <code>default_mode</code> from <code>index_type</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/graph_retriever.py:262</code> — <code>_allowed_modes</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/query_rewriter/query_rewriter.py:277</code> — rewrite schema includes <code>intention</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-2, rag-practical, rag-retrieval._</sub>
 
@@ -843,7 +1028,12 @@ flowchart TD
     Q --> T["model tool choice: memory_search / skill retrieval optional"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:173` — `retrieve` always performs one round; `:326` `_rewrite` returns `None` when sufficient; `:241` loop breaks after `max_iter`<br>&bull; `agent-core/openjiuwen/core/retrieval/common/config.py:51` — `RetrievalConfig.agentic: bool = False` (opt-in, not a router)<br>&bull; `agent-core/openjiuwen/harness/tools/memory.py:25` — `memory_search` tool (model decides whether to call)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/agentic_retriever.py:173</code> — <code>retrieve</code> always performs one round; <code>:326</code> <code>_rewrite</code> returns <code>None</code> when sufficient; <code>:241</code> loop breaks after <code>max_iter</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/common/config.py:51</code> — <code>RetrievalConfig.agentic: bool = False</code> (opt-in, not a router)<br>&bull; <code>agent-core/openjiuwen/harness/tools/memory.py:25</code> — <code>memory_search</code> tool (model decides whether to call)</sub>
+
+</details>
 
 **Gap.** No retrieval-necessity classifier or confidence threshold; every skip decision is implicit in the model's tool call.
 
@@ -869,7 +1059,12 @@ flowchart TD
     F -.->|"dropped: retrievers hardcode filters=None"| X["unreachable exact-match path"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88` — hardcoded `filters=None`; `:84` sparse fallback only when dense empty<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:81` — hardcoded `filters=None`<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:186` — KB passes `filters`, retriever swallows it<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:215` — `key == value` filter expr; `:219` `QueryExpr.sanitize_str`<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:474` — `build_filters` JSONB containment<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:265` — `where` dict filter<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:346` — `INVERTED` scalar index on doc id</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:88</code> — hardcoded <code>filters=None</code>; <code>:84</code> sparse fallback only when dense empty<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/hybrid_retriever.py:81</code> — hardcoded <code>filters=None</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:186</code> — KB passes <code>filters</code>, retriever swallows it<br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/milvus_store.py:215</code> — <code>key == value</code> filter expr; <code>:219</code> <code>QueryExpr.sanitize_str</code><br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:474</code> — <code>build_filters</code> JSONB containment<br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/chroma_store.py:265</code> — <code>where</code> dict filter<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:346</code> — <code>INVERTED</code> scalar index on doc id</sub>
+
+</details>
 
 ---
 
@@ -893,7 +1088,12 @@ flowchart TD
     IDX --> RE(["must delete + re-embed + rebuild; no model fingerprint stored"])
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21` — `compute_chunk_embeddings`; `:46` `embed_documents` sets vectors<br>&bull; `agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:156` — embedding only for vector/hybrid; `:409` `dimension = embed_model.dimension`; `:427` schema stores `dim` but no model name; `:209` `update_index` = delete + rebuild<br>&bull; `agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:294` — `update_documents` delete + re-add<br>&bull; `agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:129` — fixed pgvector table definition<br>&bull; `agent-core/openjiuwen/core/foundation/store/vector/utils.py:264` — `UpdateEmbeddingDimensionOperation`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/embed_chunks.py:21</code> — <code>compute_chunk_embeddings</code>; <code>:46</code> <code>embed_documents</code> sets vectors<br>&bull; <code>agent-core/openjiuwen/core/retrieval/indexing/indexer/milvus_indexer.py:156</code> — embedding only for vector/hybrid; <code>:409</code> <code>dimension = embed_model.dimension</code>; <code>:427</code> schema stores <code>dim</code> but no model name; <code>:209</code> <code>update_index</code> = delete + rebuild<br>&bull; <code>agent-core/openjiuwen/core/retrieval/graph_knowledge_base.py:294</code> — <code>update_documents</code> delete + re-add<br>&bull; <code>agent-core/openjiuwen/core/retrieval/vector_store/pg_store.py:129</code> — fixed pgvector table definition<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/vector/utils.py:264</code> — <code>UpdateEmbeddingDimensionOperation</code></sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-retrieval-interview-questions_for_engineers.md`; also covered in: rag-practical, rag-retrieval._</sub>
 
@@ -911,6 +1111,11 @@ flowchart TD
     D -.->|"absent"| X["per-query rerank policy · NDCG-driven decision"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182` — KB retrieve has no reranker<br>&bull; `agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87` — `rerank` in graph store<br>&bull; `agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:645` — `config_e.rerank` gate<br>&bull; `agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23` — `StandardReranker` (`/rerank`)<br>&bull; `agent-core/examples/store/showcase_milvus_graph_store.py:51` — before/after rerank demo (no labels)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/core/retrieval/simple_knowledge_base.py:182</code> — KB retrieve has no reranker<br>&bull; <code>agent-core/openjiuwen/core/foundation/store/graph/milvus/milvus_support.py:87</code> — <code>rerank</code> in graph store<br>&bull; <code>agent-core/openjiuwen/core/memory/graph/graph_memory/base.py:645</code> — <code>config_e.rerank</code> gate<br>&bull; <code>agent-core/openjiuwen/core/retrieval/reranker/standard_reranker.py:23</code> — <code>StandardReranker</code> (<code>/rerank</code>)<br>&bull; <code>agent-core/examples/store/showcase_milvus_graph_store.py:51</code> — before/after rerank demo (no labels)</sub>
+
+</details>
 
 <sub>_Canonical source: `orig/rag-system-design-interview-questions_for_engineers.md`; also covered in: rag-system._</sub>

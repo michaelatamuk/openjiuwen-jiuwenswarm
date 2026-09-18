@@ -21,7 +21,12 @@ flowchart TD
     PRE["raw-corpus next-token pretraining"] -.->|"absent"| X["no pretraining objective or corpus loader"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/sft_data_formatter.py:201-249` — `build_sft_tokenized_sample`, loss mask on assistant only; `:270-345` `write_sft_parquet`; `:101-133` `convert_message_openai`; `:50-60` Qwen `<tool_call>` XML; `:77-84` `<think>` → `reasoning_content`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:136-176` — `train_batch`; `:395-398` `QwenMultiTurnSFTDataset`; `:270-276` parquet write</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/sft_data_formatter.py:201-249</code> — <code>build_sft_tokenized_sample</code>, loss mask on assistant only; <code>:270-345</code> <code>write_sft_parquet</code>; <code>:101-133</code> <code>convert_message_openai</code>; <code>:50-60</code> Qwen <code>&lt;tool_call&gt;</code> XML; <code>:77-84</code> <code>&lt;think&gt;</code> → <code>reasoning_content</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:136-176</code> — <code>train_batch</code>; <code>:395-398</code> <code>QwenMultiTurnSFTDataset</code>; <code>:270-276</code> parquet write</sub>
+
+</details>
 
 **Gap.** Pretraining is absent — no next-token objective, no raw-corpus dataloader; `from_pretrained` hits only load existing base/tokenizer weights.
 
@@ -46,7 +51,12 @@ flowchart TD
     FULL["full-parameter fine-tuning"] -.->|"absent"| X["no full_finetune flag; export hard-requires adapters"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44` — `SFTTrainingExecutor` (owns SFT + LoRA publish); `:328-345` lora_rank/alpha/target_modules; `:455-482` `_export_sft_lora_adapter`; `:577-586` `_is_publishable_lora_dir`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438-470` — `export_lora`; `:543-579` PEFT `adapter_config.json`; `:550-552` warn+fallback if no LoRA params<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:56-131` — versioned publish + atomic `latest`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/config/online_config.py:42-45` — PPO overlay `lora_rank: 16`, `lora_alpha: 32`, `target_modules: all-linear`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/ppo_step.py:146` — `update_actor` (PPO)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44</code> — <code>SFTTrainingExecutor</code> (owns SFT + LoRA publish); <code>:328-345</code> lora_rank/alpha/target_modules; <code>:455-482</code> <code>_export_sft_lora_adapter</code>; <code>:577-586</code> <code>_is_publishable_lora_dir</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438-470</code> — <code>export_lora</code>; <code>:543-579</code> PEFT <code>adapter_config.json</code>; <code>:550-552</code> warn+fallback if no LoRA params<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:56-131</code> — versioned publish + atomic <code>latest</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/config/online_config.py:42-45</code> — PPO overlay <code>lora_rank: 16</code>, <code>lora_alpha: 32</code>, <code>target_modules: all-linear</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/ppo_step.py:146</code> — <code>update_actor</code> (PPO)</sub>
+
+</details>
 
 **Gap.** No full-parameter fine-tuning support and no direct `peft` import (the PEFT artifact format is hand-written). The primary self-evolution loop is textual prompt optimization, not weight training.
 
@@ -73,7 +83,12 @@ flowchart TD
     BASE["pretraining"] -.->|"absent"| X["no next-token pretraining objective / raw-corpus loader"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:145` — `train()` loop; `:356` `op.set_parameter(target, value)`<br>&bull; `agent-core/openjiuwen/agent_evolving/optimizer/llm_call/instruction_optimizer.py:30` — prompt rewrite via textual gradients<br>&bull; `agent-core/openjiuwen/rsi/__init__.py:2` — recursive self-improvement over harness/prompt/code<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/ppo_step.py:146` — `update_actor` / `:145` `update_critic` (real PPO)<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:211` — async SFT producing a LoRA<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438` — `export_lora(...)`; `:489` `_convert_fsdp_to_peft(...)`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:51` — versioned adapter store</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:145</code> — <code>train()</code> loop; <code>:356</code> <code>op.set_parameter(target, value)</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/optimizer/llm_call/instruction_optimizer.py:30</code> — prompt rewrite via textual gradients<br>&bull; <code>agent-core/openjiuwen/rsi/__init__.py:2</code> — recursive self-improvement over harness/prompt/code<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/rl_trainer/ppo_step.py:146</code> — <code>update_actor</code> / <code>:145</code> <code>update_critic</code> (real PPO)<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:211</code> — async SFT producing a LoRA<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/optimizer/task_runner.py:438</code> — <code>export_lora(...)</code>; <code>:489</code> <code>_convert_fsdp_to_peft(...)</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/storage/lora_repo.py:51</code> — versioned adapter store</sub>
+
+</details>
 
 **Gap.** Pretraining and full fine-tuning are absent. Weight training is confined to the optional RL subsystem (`agent_rl`, requires veRL/Ray/GPU, lazily imported).
 
@@ -99,7 +114,12 @@ flowchart TD
     Q -.->|"no explicit RAG-vs-tune decision doc"| X["selection criteria not encoded"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/dev_tools/tune/optimizer/instruction_optimizer.py:173` — prompt rewrite via textual gradients<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241` — candidate prompt updates, keep best<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44` — alternate weight-training (SFT/LoRA) path<br>&bull; `agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78` — retrieval path (knowledge at query time)<br>&bull; `agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109` — few-shot/example optimization</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/dev_tools/tune/optimizer/instruction_optimizer.py:173</code> — prompt rewrite via textual gradients<br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241</code> — candidate prompt updates, keep best<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44</code> — alternate weight-training (SFT/LoRA) path<br>&bull; <code>agent-core/openjiuwen/core/retrieval/retriever/vector_retriever.py:78</code> — retrieval path (knowledge at query time)<br>&bull; <code>agent-core/openjiuwen/dev_tools/tune/optimizer/example_optimizer.py:109</code> — few-shot/example optimization</sub>
+
+</details>
 
 **Gap.** No document or comment compares RAG vs. fine-tuning or gives selection criteria; the only stated contrast is fine-tuning vs. *prompt* tuning (one paragraph).
 
@@ -120,7 +140,12 @@ flowchart TD
     SFT -.->|"absent"| X["no validation/regularization design for small data"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/config/offline_config.py:32` — `train_data_path`/`val_data_path`; `:53/69` `test_freq=20`, `val_before_train=True`<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/offline/main_trainer.py:160` — `validate()` full pass + metric persistence; `:232` validate before train<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/offline/coordinator/processors.py:55` — rollout validate gating<br>&bull; `agent-core/openjiuwen/dev_tools/tune/trainer/trainer.py:38` — `early_stop_score`; `:99` val gate<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:377` — `val_files: None`; `:420` `test_freq: -1`; `:359` `weight_decay`/`clip_grad` knobs<br>&bull; `agent-core/examples/agent_evolving/react_agent_evolving.py:156` — `split(ratio=0.6)` train/val; `:202` `early_stop_score=0.95`</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/config/offline_config.py:32</code> — <code>train_data_path</code>/<code>val_data_path</code>; <code>:53/69</code> <code>test_freq=20</code>, <code>val_before_train=True</code><br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/offline/main_trainer.py:160</code> — <code>validate()</code> full pass + metric persistence; <code>:232</code> validate before train<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/offline/coordinator/processors.py:55</code> — rollout validate gating<br>&bull; <code>agent-core/openjiuwen/dev_tools/tune/trainer/trainer.py:38</code> — <code>early_stop_score</code>; <code>:99</code> val gate<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:377</code> — <code>val_files: None</code>; <code>:420</code> <code>test_freq: -1</code>; <code>:359</code> <code>weight_decay</code>/<code>clip_grad</code> knobs<br>&bull; <code>agent-core/examples/agent_evolving/react_agent_evolving.py:156</code> — <code>split(ratio=0.6)</code> train/val; <code>:202</code> <code>early_stop_score=0.95</code></sub>
+
+</details>
 
 **Gap.** No overfitting/validation/regularization guidance for small data; the SFT path lacks held-out validation and early stopping and runs 1 epoch by default.
 
@@ -147,7 +172,12 @@ flowchart TD
     Q -.->|"no decision function in code"| X["tune-vs-prompt criteria not encoded"]
 ```
 
-<sub>**Anchors:**<br>&bull; `agent-core/openjiuwen/agent_evolving/optimizer/llm_call/instruction_optimizer.py:30-38` — prompt rewriting via textual gradients<br>&bull; `agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272` — evaluates candidate prompt-config updates, keeps best<br>&bull; `agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44-45` — alternate weight-training (SFT/LoRA) path<br>&bull; `agent-core/openjiuwen/agent_teams/models/pool.py:133-235` — `ModelRouterConfig`; `agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559` — allocator strategies / `build_model_allocator`<br>&bull; `agent-core/examples/intelli_router/intelliRouter_demo.py:142-160` — adaptive routing weights (`w_health`, `w_token`, `w_rpm`, `w_latency`)</sub>
+<details>
+<summary>Anchors</summary>
+
+<sub><strong>Anchors:</strong><br>&bull; <code>agent-core/openjiuwen/agent_evolving/optimizer/llm_call/instruction_optimizer.py:30-38</code> — prompt rewriting via textual gradients<br>&bull; <code>agent-core/openjiuwen/agent_evolving/trainer/trainer.py:241-272</code> — evaluates candidate prompt-config updates, keeps best<br>&bull; <code>agent-core/openjiuwen/agent_evolving/agent_rl/online/backends/sft/trainer.py:44-45</code> — alternate weight-training (SFT/LoRA) path<br>&bull; <code>agent-core/openjiuwen/agent_teams/models/pool.py:133-235</code> — <code>ModelRouterConfig</code>; <code>agent-core/openjiuwen/agent_teams/models/allocator.py:176/240/357/452/559</code> — allocator strategies / <code>build_model_allocator</code><br>&bull; <code>agent-core/examples/intelli_router/intelliRouter_demo.py:142-160</code> — adaptive routing weights (<code>w_health</code>, <code>w_token</code>, <code>w_rpm</code>, <code>w_latency</code>)</sub>
+
+</details>
 
 **Gap.** No explicit "fine-tune vs longer prompt" decision guidance beyond one conceptual paragraph; no cost/benefit calculator or context-length-vs-tuning trigger.
 
