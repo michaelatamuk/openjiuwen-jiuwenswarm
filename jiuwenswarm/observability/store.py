@@ -1912,6 +1912,77 @@ class AsyncTrajectoryReader:
             line_count += 1
         yield {"type": "end", "records": record_count, "lines": line_count}
 
+    async def get_session_archive_records(
+        self,
+        session_id: str,
+        *,
+        rehydrate: bool = True,
+    ) -> tuple[list[dict[str, Any]], str, int, dict[str, Any]]:
+        """Read every current record for one session from one SQLite snapshot.
+
+        Compatibility view over :meth:`iter_session_archive_lines` for
+        in-process consumers (e.g. trajectory AI analysis) that want the
+        records as a list rather than a line stream. When *rehydrate* is true
+        the content a record kept as a reference is put back, so each record's
+        OTLP payload is self-contained.
+
+        Returns:
+            The records, the store epoch, the session revision, and the
+            resolution dictionaries -- empty when *rehydrate* is true.
+        """
+        store_epoch = _ABSENT_STORE_EPOCH
+        revision = 0
+        blobs: dict[str, str] = {}
+        sequence_nodes: dict[str, tuple[str | None, str]] = {}
+        records: list[dict[str, Any]] = []
+        async for line in self.iter_session_archive_lines(session_id):
+            line_type = line.get("type")
+            if line_type == "header":
+                store_epoch = str(line.get("store_epoch") or _ABSENT_STORE_EPOCH)
+                try:
+                    revision = int(line.get("revision") or 0)
+                except (TypeError, ValueError):
+                    revision = 0
+            elif line_type == "blob":
+                blobs[str(line.get("hash"))] = str(line.get("text") or "")
+            elif line_type == "sequence":
+                sequence_nodes[str(line.get("hash"))] = (
+                    line.get("prev"),
+                    str(line.get("blob")),
+                )
+            elif line_type == "record":
+                records.append(line)
+
+        chains: dict[str, list[str]] = {}
+        empty: dict[str, Any] = {"sequences": {}, "blobs": {}}
+        for record in records:
+            for reference in (record.get("sequences") or {}).values():
+                head = str(reference.get("hash") or "")
+                if head and head not in chains:
+                    chains[head] = _chain_elements_from_nodes(head, sequence_nodes)
+            if not rehydrate:
+                continue
+            raw = _record_raw_bytes(record)
+            if raw is None:
+                continue
+            restored = _rehydrate_payload(raw, chains, blobs)
+            try:
+                record["otlp"] = strict_otlp_payload(restored)
+                record["raw_valid"] = True
+            except (RecursionError, TypeError, ValueError, OverflowError):
+                record["otlp"] = None
+                record["raw_valid"] = False
+            if restored is not raw:
+                try:
+                    record["raw_json"] = restored.decode("utf-8")
+                except UnicodeDecodeError:
+                    record.pop("raw_json", None)
+                    record["raw_json_base64"] = base64.b64encode(restored).decode("ascii")
+            record.pop("sequences", None)
+        if not rehydrate:
+            return records, store_epoch, revision, {"sequences": chains, "blobs": blobs}
+        return records, store_epoch, revision, empty
+
     async def list_subjects(
         self,
         session_id: str,
@@ -3243,6 +3314,98 @@ def _archive_record_line(
     if references:
         line["sequences"] = references
     return line
+
+
+def _chain_elements_from_nodes(
+    head: str,
+    nodes: Mapping[str, tuple[str | None, str]],
+) -> list[str]:
+    """Return the element hashes of one chain, root first, from stream nodes."""
+    elements: list[str] = []
+    cursor: str | None = head
+    while cursor is not None and cursor in nodes:
+        previous, blob_hash = nodes[cursor]
+        elements.append(blob_hash)
+        cursor = previous
+    elements.reverse()
+    return elements
+
+
+def _rebuilt_sequence_value(elements: list[str], blobs: dict[str, str]) -> str | None:
+    """Return the attribute value a chain states, or None if an element is gone."""
+    parts: list[str] = []
+    for element in elements:
+        content = blobs.get(element)
+        if content is None:
+            return None
+        parts.append(content)
+    if not parts:
+        return None
+    return rebuild_value(parts)
+
+
+def _record_raw_bytes(record: Mapping[str, Any]) -> bytes | None:
+    """Return the stored payload bytes of one archive record line."""
+    encoded = record.get("raw_json_base64")
+    if isinstance(encoded, str) and encoded:
+        try:
+            return base64.b64decode(encoded)
+        except (ValueError, TypeError):
+            return None
+    raw = record.get("raw_json")
+    if isinstance(raw, bytes):
+        return raw
+    if isinstance(raw, str):
+        return raw.encode("utf-8")
+    return None
+
+
+def _rehydrate_payload(
+    raw_json: bytes,
+    chains: dict[str, list[str]],
+    blobs: dict[str, str],
+) -> bytes:
+    """Put the content back where a stored record kept only a reference.
+
+    A reference whose content is gone is left as it is rather than dropping
+    the span that carries it.
+    """
+    try:
+        payload = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return raw_json
+    if not isinstance(payload, dict):
+        return raw_json
+    changed = False
+    for resource_span in payload.get("resourceSpans") or ():
+        if not isinstance(resource_span, dict):
+            continue
+        for scope_span in resource_span.get("scopeSpans") or ():
+            if not isinstance(scope_span, dict):
+                continue
+            for span in scope_span.get("spans") or ():
+                if not isinstance(span, dict):
+                    continue
+                for attribute in span.get("attributes") or ():
+                    if not isinstance(attribute, dict):
+                        continue
+                    value = attribute.get("value")
+                    if not isinstance(value, dict):
+                        continue
+                    parsed = parse_sequence_reference(value.get("stringValue"))
+                    if parsed is None:
+                        continue
+                    elements = chains.get(parsed[0])
+                    if elements is None:
+                        continue
+                    rebuilt = _rebuilt_sequence_value(elements, blobs)
+                    if rebuilt is None:
+                        continue
+                    value["stringValue"] = rebuilt
+                    changed = True
+    if not changed:
+        return raw_json
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
 __all__ = [
