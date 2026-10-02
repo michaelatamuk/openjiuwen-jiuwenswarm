@@ -2066,10 +2066,6 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
         await config_set_handlers.config_get_handler(
             channel, ws, req_id, params, session_id
         )
-        _trace_cfg = raw.get("tracehound") or {}
-        payload["tracehound_live_updates_enabled"] = (
-            "true" if _trace_cfg.get("live_updates_enabled", False) else "false"
-        )
 
 
     async def _external_cli_detect(ws, req_id, params, session_id):

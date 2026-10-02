@@ -3703,17 +3703,15 @@ function AppContent({
                 )}
                 {/* Chat Panel - 在展开时可拖拽调整宽度 */}
                 <div
-                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${effectiveTeamAreaExpanded ? '' : 'min-w-0'} min-h-0 ${effectiveTeamAreaExpanded ? '' : 'flex-1'}`}
+                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${hasRightPanel ? '' : 'min-w-0'} min-h-0 ${hasRightPanel ? '' : 'flex-1'}`}
                   style={{
-                    ...(effectiveTeamAreaExpanded ? { width: `${chatPanelWidthPct}%` } : {}),
+                    ...(hasRightPanel ? { width: `${chatPanelWidthPct}%` } : {}),
                     '--trajectory-composer-clearance': `${trajectoryComposerClearance(
                       composerDocked,
                       composerCollapsed,
                       trajectoryComposerHeight,
                     )}px`,
                   } as CSSProperties}
-                  className={`${showConversationNotFound || shouldFullscreen ? 'hidden' : 'flex'} chat-layout__surface  pt-0 flex-col ${hasRightPanel ? '' : 'min-w-0'} min-h-0 ${hasRightPanel ? '' : 'flex-1'}`}
-                  style={hasRightPanel ? { width: `${chatPanelWidthPct}%` } : undefined}
                   data-testid="app-chat-surface"
                 >
 <SingleAgentSurface
@@ -3755,7 +3753,6 @@ function AppContent({
                               : 'default'
                         }
                         onOpenTrace={handleOpenTrace}
-                        permissionsEnabled={serverConfig?.permissions_enabled !== 'false'}
                         heartbeatPanelOpen={heartbeatPanelOpen}
                         onToggleHeartbeatPanel={handleToggleHeartbeatPanel}
                         onSavePermission={savePermissionSilent}

@@ -160,7 +160,6 @@ interface ChatPanelProps {
   onOpenCodeReview?: (target: CodeReviewTarget) => void;
   /** 在右侧面板打开当前会话的 TraceHound Trajectory */
   onOpenTrace?: () => void;
-  permissionsEnabled: boolean;
   /** 心跳面板展开状态：由 App.tsx 统一管理，跟团队/代码审核面板一样占用右侧工作区一栏 */
   heartbeatPanelOpen?: boolean;
   /** 切换心跳面板展开状态 */
@@ -1068,7 +1067,6 @@ export const ChatPanel = React.memo(function ChatPanel({
   onToggleHeartbeatPanel,
   permissionProfile,
   onOpenTrace,
-  permissionsEnabled,
   onSavePermission,
   onSetGoal,
   onPauseGoal,

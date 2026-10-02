@@ -1498,6 +1498,10 @@ async def config_get_handler(
             proactive_cfg.get("max_rounds_per_tick", 20))
         models_cfg = resolved.get("models") or {}
         payload["enable_free_models"] = "true" if models_cfg.get("enable_free_models", False) else "false"
+        _trace_cfg = raw.get("tracehound") or {}
+        payload["tracehound_live_updates_enabled"] = (
+            "true" if _trace_cfg.get("live_updates_enabled", False) else "false"
+        )
     except Exception:  # noqa: BLE001
         payload.setdefault("context_engine_enabled", "false")
         payload.setdefault("kv_cache_affinity_enabled", "false")
@@ -1530,6 +1534,7 @@ async def config_get_handler(
         payload.setdefault("proactive_recommendation_max_recommend_per_day", "10")
         payload.setdefault("proactive_recommendation_max_rounds_per_tick", "20")
         payload.setdefault("enable_free_models", "false")
+        payload.setdefault("tracehound_live_updates_enabled", "false")
     await channel.send_response(ws, req_id, ok=True, payload=payload)
 
 

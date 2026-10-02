@@ -1943,7 +1943,6 @@ def get_all_sessions_metadata(
             continue
         _apply_batch_projection(metadata, session_id, state, project_states,
                                 (dir_to_projects, id_to_work_mode))
-        sessions.append(metadata)
         # 如果 metadata 中的 round_id / total_tokens 为 0，尝试从 history 文件轻量扫描补充
         if metadata.get("round_id", 0) == 0 or metadata.get("total_tokens", 0) == 0:
             try:
