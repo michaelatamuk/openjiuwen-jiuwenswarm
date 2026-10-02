@@ -24,6 +24,7 @@ from openjiuwen.core.common.logging import server_logger
 from openjiuwen.harness import DeepAgent
 from openjiuwen.agent_teams.verification.rail import TeamVerificationRail
 from openjiuwen.harness_protocol.state import HarnessState
+from openjiuwen.agent_teams.verification.rail import TeamVerificationRail
 from openjiuwen.harness.rails import (
     EvolutionInterruptRail,
     SkillEvolutionRail,
