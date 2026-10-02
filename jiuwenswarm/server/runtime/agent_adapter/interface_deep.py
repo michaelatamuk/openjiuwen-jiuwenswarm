@@ -10323,6 +10323,19 @@ class JiuWenSwarmDeepAdapter:
                 )
             )
 
+        # Context headroom guard: warn as context usage approaches the limit.
+        # Disabled by default — only inserted when enabled so the registry's
+        # "build returned None" warning is not spammed on every normal build.
+        _ch_cfg = config_base.get("context_headroom") or {}
+        if bool(_ch_cfg.get("enabled", False)):
+            rail_infos.append(
+                _RailBuildInfo(
+                    "_context_headroom_rail",
+                    self._build_context_headroom_rail,
+                    {"config_base": config_base},
+                )
+            )
+
         # SkillEvolutionRail / TTSERail 不在冷启动时挂载，由 _update_rails_for_mode 按 mode 按需注册/注销
         # 智能模式下关闭自演进，plan 模式下按配置启用
 
