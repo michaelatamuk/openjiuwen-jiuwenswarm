@@ -518,6 +518,7 @@
         "title": "启用任务对话全双工入口",
         "description": "输入框为空时显示全双工按钮；点击后共享整个屏幕并持续使用麦克风。"
       },
+      "trajectory_analysis_enabled": { "title": "启用轨迹 AI 分析", "description": "在“轨迹”页展示“分析”入口，对会话执行 LLM 诊断并给出技能演进建议。需先启用轨迹界面。" },
       "kv_cache_affinity_enabled": {
         "title": "启用算力亲和",
         "description": "仅支持使用 Ascend vLLM 推理服务部署的模型，不支持通过第三方 API Key 接入的模型。"
@@ -568,7 +569,8 @@
     "loading": "正在加载轨迹界面…",
     "tabs": {
       "aria": "Agent 与团队内容视图",
-      "trajectory": "轨迹"
+      "trajectory": "轨迹",
+      "analysis": "分析"
     },
     "team": {
       "memberLanes": "成员轨迹泳道",

@@ -64,6 +64,7 @@ from jiuwenswarm.common.config import (
     update_symphony_in_config,
     update_task_full_duplex_in_config,
     update_task_asr_in_config,
+    update_trajectory_analysis_enabled_in_config,
     update_trajectory_ui_in_config,
     update_default_models_in_config,
     update_login_model_settings_in_config,
@@ -203,6 +204,8 @@ class ConfigChangeSet:
                 scopes.update({"agent_runtime", "web_ui"})
             elif key_text == "task_full_duplex_enabled":
                 scopes.add("web_ui")
+            elif key_text == "trajectory_analysis_enabled":
+                scopes.update({"agent_runtime", "web_ui"})
             elif key_text.startswith("a2ui_") or key_text == "setup_guide_enabled":
                 scopes.add("web_ui")
             else:
@@ -347,6 +350,7 @@ CONFIG_YAML_KEYS = frozenset({
     "rsi_enabled",
     "trajectory_ui_enabled",
     "task_full_duplex_enabled",
+    "trajectory_analysis_enabled",
     "task_asr_enabled",
     "proactive_recommendation_enabled",
     "proactive_recommendation_max_recommend_per_day",
@@ -1276,6 +1280,8 @@ def apply_config_payload(
                 update_trajectory_ui_in_config(parsed)
             elif param_key == "task_full_duplex_enabled":
                 update_task_full_duplex_in_config(parsed)
+            elif param_key == "trajectory_analysis_enabled":
+                update_trajectory_analysis_enabled_in_config(parsed)
             elif param_key == "task_asr_enabled":
                 update_task_asr_in_config(parsed)
             elif param_key == "proactive_recommendation_enabled":
@@ -1480,6 +1486,15 @@ async def config_get_handler(
         payload["task_asr_enabled"] = (
             "true" if experimental_cfg.get("task_asr_enabled", False) else "false"
         )
+        trajectory_analysis_cfg = (trajectory_cfg.get("analysis") or {}) if isinstance(
+            trajectory_cfg.get("analysis"), dict
+        ) else {}
+        payload["trajectory_analysis_enabled"] = (
+            "true"
+            if trajectory_cfg.get("enabled", False)
+            and trajectory_analysis_cfg.get("enabled", False)
+            else "false"
+        )
         payload.update(flatten_swarmflow_for_config_panel(raw))
         payload.update(flatten_external_cli_agents_for_config_panel(raw))
         payload.update(flatten_symphony_for_config_panel(raw))
@@ -1518,6 +1533,7 @@ async def config_get_handler(
             payload.setdefault(key, value)
         payload.setdefault("trajectory_ui_enabled", "false")
         payload.setdefault("task_full_duplex_enabled", "false")
+        payload.setdefault("trajectory_analysis_enabled", "false")
         payload.setdefault("task_asr_enabled", "false")
         for key, (_, value_type, default) in {
             **SYMPHONY_CONFIG_SPECS,

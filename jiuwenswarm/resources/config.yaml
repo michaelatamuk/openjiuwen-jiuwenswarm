@@ -592,6 +592,20 @@ trajectory_ui:
   # 置 true 时随终态记录一并删除这些帧（实测可省约 20% 轨迹库体积）；
   # 若将来要做"逐帧回放已完成回答"，改为 false 可让帧保留至所属 turn 页被淘汰。
   discard_final_span_frames: true
+  # 轨迹 AI 分析（Trajectory tab 上的 Analyze）。master = enabled。
+  # LLM 分析在 Gateway 进程内运行，输入为脱敏并限长的会话摘要。
+  analysis:
+    enabled: false                    # 是否允许在 Trajectory UI 中发起分析
+    model: ""                         # 可选覆盖；留空则使用产品默认模型
+    max_input_chars: 8000             # 送入 LLM 的摘要字符上限
+    max_report_turns: 60              # 纳入分析的轮次数上限
+    job_timeout_s: 600                # 单次分析任务超时
+    job_ttl_s: 3600                   # 已完成任务保留时长
+    max_concurrent_jobs: 4            # Gateway 进程内并发分析上限
+    allow_apply_skill: false          # 是否允许“审阅后写入 SKILL.md”
+    allow_code_patch: true            # 是否允许生成 tool/rail/prompt 补丁方案（只读，需走 PR）
+    apply_in_place: false             # 是否允许审阅后直接写入 config/源码文件（仓库/开发环境）
+    language: en                      # 诊断 prompt 语言: en | zh
 
 experimental:
   task_full_duplex_enabled: false    # 在任务对话空输入框中显示全双工入口

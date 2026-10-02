@@ -1,10 +1,10 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
-/** Stable host boundary for the Agent and Team chat and trajectory surfaces. */
+/** Stable host boundary for the Agent and Team chat / trajectory / analysis surfaces. */
 
 import type { ReactNode } from 'react';
 
-export type ChatSurfaceView = 'chat' | 'trajectory';
+export type ChatSurfaceView = 'chat' | 'trajectory' | 'analysis';
 
 export interface SingleAgentSurfaceProps {
   activeView: ChatSurfaceView;
@@ -18,12 +18,17 @@ export interface SingleAgentSurfaceProps {
   trajectoryLabel: string;
   trajectoryRequested: boolean;
   showNavigation?: boolean;
+  /** Optional third surface: session analysis (kept mounted after first request). */
+  analysis?: ReactNode;
+  analysisEnabled?: boolean;
+  analysisLabel?: string;
+  analysisRequested?: boolean;
 }
 
 /**
- * Keep the chat subtree mounted while gating the trajectory subtree until its
- * first explicit request. Agent and Team modes share this lifecycle boundary;
- * other modes never expose or mount trajectory UI.
+ * Keep the chat subtree mounted while gating the trajectory/analysis subtrees
+ * until their first explicit request. Agent and Team modes share this lifecycle
+ * boundary; other modes never expose or mount these surfaces.
  */
 export function SingleAgentSurface({
   activeView,
@@ -37,10 +42,22 @@ export function SingleAgentSurface({
   trajectoryLabel,
   trajectoryRequested,
   showNavigation = true,
+  analysis,
+  analysisEnabled = false,
+  analysisLabel = 'Analysis',
+  analysisRequested = false,
 }: SingleAgentSurfaceProps) {
-  const trajectoryMode = trajectoryEnabled && (mode === 'agent' || mode === 'team');
-  const navigationVisible = trajectoryMode && showNavigation;
-  const resolvedView: ChatSurfaceView = navigationVisible ? activeView : 'chat';
+  const agentOrTeam = mode === 'agent' || mode === 'team';
+  const trajectoryOn = trajectoryEnabled && agentOrTeam;
+  const analysisOn = analysisEnabled && agentOrTeam;
+  const navigationVisible = (trajectoryOn || analysisOn) && showNavigation;
+
+  const resolvedView: ChatSurfaceView = (() => {
+    if (!navigationVisible) return 'chat';
+    if (activeView === 'trajectory' && trajectoryOn) return 'trajectory';
+    if (activeView === 'analysis' && analysisOn) return 'analysis';
+    return 'chat';
+  })();
 
   return (
     <div
@@ -65,16 +82,30 @@ export function SingleAgentSurface({
             >
               {chatLabel}
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={resolvedView === 'trajectory'}
-              className={`chat-surface-tabs__tab ${resolvedView === 'trajectory' ? 'is-active' : ''}`}
-              onClick={() => onViewChange('trajectory')}
-              data-testid="single-agent-trajectory-tab"
-            >
-              {trajectoryLabel}
-            </button>
+            {trajectoryOn ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={resolvedView === 'trajectory'}
+                className={`chat-surface-tabs__tab ${resolvedView === 'trajectory' ? 'is-active' : ''}`}
+                onClick={() => onViewChange('trajectory')}
+                data-testid="single-agent-trajectory-tab"
+              >
+                {trajectoryLabel}
+              </button>
+            ) : null}
+            {analysisOn ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={resolvedView === 'analysis'}
+                className={`chat-surface-tabs__tab ${resolvedView === 'analysis' ? 'is-active' : ''}`}
+                onClick={() => onViewChange('analysis')}
+                data-testid="single-agent-analysis-tab"
+              >
+                {analysisLabel}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -85,13 +116,22 @@ export function SingleAgentSurface({
       >
         {chat}
       </div>
-      {navigationVisible && trajectoryRequested ? (
+      {navigationVisible && trajectoryOn && trajectoryRequested ? (
         <div
           className={`chat-surface-view flex-1 min-h-0 ${resolvedView === 'trajectory' ? '' : 'chat-surface-view--hidden'}`}
           aria-hidden={resolvedView !== 'trajectory'}
           data-testid="single-agent-trajectory-view"
         >
           {trajectory}
+        </div>
+      ) : null}
+      {navigationVisible && analysisOn && analysisRequested ? (
+        <div
+          className={`chat-surface-view flex-1 min-h-0 ${resolvedView === 'analysis' ? '' : 'chat-surface-view--hidden'}`}
+          aria-hidden={resolvedView !== 'analysis'}
+          data-testid="single-agent-analysis-view"
+        >
+          {analysis}
         </div>
       ) : null}
     </div>

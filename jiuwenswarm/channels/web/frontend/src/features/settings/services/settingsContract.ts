@@ -136,6 +136,7 @@ export const SETTINGS_CONFIG_FIELDS: readonly ConfigFieldContract[] = [
   envField('asr_api_base', 'experimental', 'text', 'ASR_API_BASE'),
   envField('asr_api_key', 'experimental', 'text', 'ASR_API_KEY'),
   envField('asr_model', 'experimental', 'text', 'ASR_MODEL_NAME'),
+  yamlField('trajectory_analysis_enabled', 'experimental', 'boolean', 'trajectory_ui.analysis.enabled'),
   yamlField(
     'kv_cache_affinity_enabled',
     'experimental',

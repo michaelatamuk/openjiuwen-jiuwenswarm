@@ -527,6 +527,7 @@
         "title": "Enable Full-duplex in task chat",
         "description": "Show a Full-duplex action when the composer is empty; it shares the entire screen and continuously listens to the microphone."
       },
+      "trajectory_analysis_enabled": { "title": "Enable trajectory AI analysis", "description": "Show an Analyze action in the Trajectory tab that runs LLM diagnosis over the session and suggests skill evolution. Requires Trajectory UI." },
       "kv_cache_affinity_enabled": {
         "title": "Enable compute affinity",
         "description": "Supported only for models deployed with Ascend vLLM inference services, not models accessed through third-party API keys."
@@ -577,7 +578,8 @@
     "loading": "Loading trajectory UI…",
     "tabs": {
       "aria": "Agent and Team content view",
-      "trajectory": "Trajectory"
+      "trajectory": "Trajectory",
+      "analysis": "Analysis"
     },
     "team": {
       "memberLanes": "Member trajectory lanes",

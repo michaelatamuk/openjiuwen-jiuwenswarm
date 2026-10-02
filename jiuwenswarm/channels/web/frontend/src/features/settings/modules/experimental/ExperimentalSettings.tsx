@@ -6,7 +6,7 @@ import { settingsActionIcons } from '../../../../assets/settings';
 import { Button, Switch } from '../../../../components/ui';
 import { Form, FormDialog, useForm } from '../../../../components/form';
 import { setA2UIFeatureEnabled } from '../../../../features/a2ui/featureConfig';
-import { setTrajectoryUiEnabled } from '../../../../features/trajectory/featureConfig';
+import { setTrajectoryAnalysisEnabled, setTrajectoryUiEnabled } from '../../../../features/trajectory/featureConfig';
 import { setTaskFullDuplexEnabled } from '../../../../features/taskFullDuplex/featureFlag';
 import { setTaskAsrEnabled } from '../../../../features/taskAsr/featureFlag';
 import { VideoDuplexModelSettings } from './VideoDuplexModelSettings';
@@ -788,6 +788,34 @@ export function TaskAsrSetting({ disabled }: SettingsCustomItemProps) {
         }}
       />
     </>
+  );
+}
+
+export function TrajectoryAnalysisSetting({ disabled }: SettingsCustomItemProps) {
+  const { t } = useTranslation();
+  const { isConnected } = useSettingsServices();
+  const source = useSettingsSource();
+  const trajectoryUiEnabled = parseConfigBoolean(source.values.trajectory_ui_enabled);
+  const enabled = parseConfigBoolean(source.values.trajectory_analysis_enabled);
+
+  async function updateTrajectoryAnalysis(next: boolean): Promise<void> {
+    await source.save({ trajectory_analysis_enabled: next }, 'trajectory-analysis-enabled');
+    setTrajectoryAnalysisEnabled(next);
+  }
+
+  return (
+    <SettingRow
+      title={t('settingsPanel.fields.trajectory_analysis_enabled.title')}
+      description={t('settingsPanel.fields.trajectory_analysis_enabled.description')}
+    >
+      <Switch
+        aria-label={t('settingsPanel.fields.trajectory_analysis_enabled.title')}
+        checked={enabled}
+        disabled={disabled || !isConnected || !trajectoryUiEnabled
+          || source.savingKeys.has('trajectory_analysis_enabled')}
+        onChange={(next) => void updateTrajectoryAnalysis(next).catch(() => undefined)}
+      />
+    </SettingRow>
   );
 }
 

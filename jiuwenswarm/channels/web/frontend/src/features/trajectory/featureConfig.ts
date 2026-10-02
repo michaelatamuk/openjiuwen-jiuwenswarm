@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 let trajectoryUiEnabled = false;
+let trajectoryAnalysisEnabled = false;
 const listeners = new Set<() => void>();
 
 /** Normalize the trajectory switch from the config RPC boundary. */
@@ -25,6 +26,18 @@ export function isTrajectoryUiEnabled(): boolean {
   return trajectoryUiEnabled;
 }
 
+/** Publish the latest trajectory analysis setting to the current window. */
+export function setTrajectoryAnalysisEnabled(enabled: boolean): void {
+  if (trajectoryAnalysisEnabled === enabled) return;
+  trajectoryAnalysisEnabled = enabled;
+  listeners.forEach(listener => listener());
+}
+
+/** Return whether trajectory AI analysis is currently enabled. */
+export function isTrajectoryAnalysisEnabled(): boolean {
+  return trajectoryAnalysisEnabled;
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -33,4 +46,9 @@ function subscribe(listener: () => void): () => void {
 /** Subscribe App surfaces to trajectory setting changes without reloading. */
 export function useTrajectoryUiEnabled(): boolean {
   return useSyncExternalStore(subscribe, isTrajectoryUiEnabled, isTrajectoryUiEnabled);
+}
+
+/** Subscribe surfaces to the trajectory analysis flag without reloading. */
+export function useTrajectoryAnalysisEnabled(): boolean {
+  return useSyncExternalStore(subscribe, isTrajectoryAnalysisEnabled, isTrajectoryAnalysisEnabled);
 }
