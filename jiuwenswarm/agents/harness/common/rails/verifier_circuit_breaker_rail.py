@@ -107,8 +107,12 @@ def _is_verifier_output(text: str) -> bool:
 
 def _is_verifier_success(text: str) -> bool:
     """Return True when the verifier reports all tests passing."""
-    # pytest: "N passed" with no "failed" anywhere
-    if re.search(r"\d+ passed", text) and "failed" not in text.lower():
+    # pytest: "N passed" with no non-zero failure/error count. Match the count,
+    # not the bare word, so "0 failed" and unrelated phrases such as
+    # "connection failed" do not read as a failed run.
+    if re.search(r"\d+ passed", text) and not re.search(
+        r"\b[1-9]\d*\s+(?:failed|errors?)\b", text, re.IGNORECASE
+    ):
         return True
     # reward file embedded in output — only exact 1 (or 1.0/1.00) counts,
     # not 10 / 100 / 1.5

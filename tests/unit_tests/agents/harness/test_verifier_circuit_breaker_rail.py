@@ -75,6 +75,16 @@ def test_reward_matching_is_precise() -> None:
     assert not _is_verifier_success('"reward": 10')
 
 
+def test_success_ignores_zero_and_non_test_failures() -> None:
+    """Only a non-zero failure/error count marks the run as failed."""
+    assert _is_verifier_success("5 passed, 0 failed in 0.12s")
+    assert _is_verifier_success("WARNING: connection failed\n5 passed in 0.12s")
+    assert _is_verifier_success("5 passed, 0 errors")
+    assert not _is_verifier_success("5 passed, 1 failed")
+    assert not _is_verifier_success("4 passed, 10 failed")
+    assert not _is_verifier_success("5 passed, 1 error")
+
+
 def test_injects_section_with_dict_content() -> None:
     """The circuit-breaker PromptSection carries a language-keyed mapping."""
     builder = SystemPromptBuilder(language="en")
