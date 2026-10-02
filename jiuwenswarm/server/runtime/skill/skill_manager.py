@@ -4567,7 +4567,7 @@ class SkillManager:
         backup_dest = backup_root / member_dir.name
         try:
             if backup_dest.exists():
-                _safe_rmtree(backup_dest)
+                _safe_rmtree_sync(backup_dest)
             backup_root.mkdir(parents=True, exist_ok=True)
             shutil.copytree(member_dir, backup_dest)
         except OSError:
@@ -4621,7 +4621,7 @@ class SkillManager:
         dest = pack_dir / member_name if is_skillpack(pack_dir) else container_members_root(pack_dir) / member_name
         try:
             if dest.exists():
-                _safe_rmtree(dest)
+                await _safe_rmtree(dest)
             shutil.copytree(backup_src, dest)
         except OSError as exc:
             logger.warning(
