@@ -6409,7 +6409,7 @@ class SkillManager:
         return skill_name
 
     def _resolve_local_skill_dir(self, skill_name: str) -> Path | None:
-        """根据 skill name 定位本地技能目录（仅 agent/skills 下）.
+        """根据 skill name 定位本地技能目录（agent/skills 下或外部技能目录中）.
 
         优先精确匹配目录名；仅当不存在同名目录时，才回退到 SKILL.md
         frontmatter name（或容器包成员名），避免多个包共用 frontmatter name
@@ -6983,6 +6983,63 @@ class SkillManager:
                 meta["has_evolutions"] = False
                 self._apply_enabled_config(meta, meta.get("name", ""))
                 self.apply_archive_version_and_type(meta, plugin_dir)
+                meta.pop("body", None)
+                results.append(meta)
+
+        return results
+
+    def _scan_external_skills(self) -> list[dict]:
+        """扫描 config.yaml skills.external_dirs 配置的外部技能目录.
+
+        外部技能与本地安装技能完全等价：可列出、查看详情、执行。
+        已在本地 skills 目录中存在同名技能时跳过（本地优先）。
+        """
+        results: list[dict] = []
+        if not self._external_skill_dirs:
+            return results
+
+        # 收集本地已有的技能名，避免重复
+        local_names: set[str] = set()
+        if self._skills_dir.exists():
+            for child in self._skills_dir.iterdir():
+                if child.is_dir() and not child.name.startswith("_"):
+                    local_names.add(child.name)
+
+        seen_names: set[str] = set(local_names)
+
+        for ext_dir in self._external_skill_dirs:
+            if not ext_dir.exists() or not ext_dir.is_dir():
+                continue
+            for child in ext_dir.iterdir():
+                if not child.is_dir() or child.name.startswith("_"):
+                    continue
+                md = self._try_find_skill_file(child)
+                if md is None:
+                    continue
+                meta = self._parse_skill_md(md)
+                if meta is None:
+                    continue
+
+                # 无 frontmatter 时 name 退化为文件名(SKILL)，用目录名修正
+                if meta.get("name") == md.stem:
+                    meta["name"] = child.name
+
+                skill_name = meta.get("name", child.name)
+                if skill_name in seen_names:
+                    logger.warning(
+                        "[SkillManager] 外部技能目录 '%s' 中的 '%s' 已被跳过（本地或之前的外部目录中已有同名技能）",
+                        ext_dir, skill_name,
+                    )
+                    continue
+                seen_names.add(skill_name)
+
+                meta["source"] = "external"
+                meta["installed"] = True
+                meta["enabled"] = self.get_skill_enabled(skill_name)
+                meta["is_builtin"] = False
+                meta["is_builtin_source"] = False
+                meta["has_evolutions"] = (child / _EVOLUTION_FILENAME).is_file()
+                meta["external_dir"] = str(ext_dir)
                 meta.pop("body", None)
                 results.append(meta)
 
