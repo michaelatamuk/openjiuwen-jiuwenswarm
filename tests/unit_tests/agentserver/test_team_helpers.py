@@ -428,6 +428,11 @@ class _InactiveTeamRuntimeManagerMixin:
     ) -> None:
         pass
 
+    @staticmethod
+    def get_team_verification_rail(session_id: str):
+        _ = session_id
+        return None
+
     def begin_round(
         self,
         session_id: str,
