@@ -6014,11 +6014,21 @@ class JiuWenSwarmDeepAdapter:
         """
         roots = self._skill_scan_dirs()
         get_external = getattr(self._skill_manager, "get_external_skill_dirs", None)
+        external_dirs: list[str] = []
         if callable(get_external):
-            for p in get_external():
-                d = str(p)
-                if d and d not in roots:
-                    roots.append(d)
+            external_dirs = [str(p) for p in get_external()]
+
+        # Mirror _build_skill_rail / _member_skill_scan_dirs: with
+        # skills.external_only and a non-empty external list, only the external
+        # dirs are scanned so unrelated installed skills stay invisible.
+        _root_cfg = self._config_base_cache or {}
+        _skills_cfg = _root_cfg.get("skills") or {}
+        if bool(_skills_cfg.get("external_only", False)) and external_dirs:
+            return external_dirs
+
+        for d in external_dirs:
+            if d and d not in roots:
+                roots.append(d)
         return roots
 
     def _get_or_create_skill_retrieval_toolkit(self) -> SkillRetrievalToolkit:

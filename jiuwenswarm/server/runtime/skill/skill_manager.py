@@ -933,6 +933,10 @@ class SkillManager:
                     meta["is_builtin_source"] = False
                     meta["has_evolutions"] = (child / _EVOLUTION_FILENAME).is_file()
                     meta["external_dir"] = str(ext_dir)
+                    # External skills are read in place; they have no version
+                    # archive, but consumers still expect both keys to exist.
+                    meta["version"] = None
+                    meta["skill_type"] = detect_skill_type(child)
                     self._apply_enabled_config(meta, name)
                     return meta
             raise SkillRpcError(ERROR_SKILL_NOT_FOUND, f"未找到 skill: {name}")
@@ -7034,6 +7038,8 @@ class SkillManager:
                 seen_names.add(skill_name)
 
                 meta["source"] = "external"
+                if not str(meta.get("display_name") or "").strip():
+                    meta["display_name"] = skill_name
                 meta["installed"] = True
                 meta["enabled"] = self.get_skill_enabled(skill_name)
                 meta["is_builtin"] = False
