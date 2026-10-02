@@ -90,3 +90,24 @@ def test_without_external_only_keeps_personal_and_external(tmp_path: Path) -> No
     rail = _build_rail(adapter, config_base={"skills": {"external_only": False}})
 
     assert rail.skills_dir == [personal, *external]
+
+
+def test_scan_dirs_with_external_honors_external_only(tmp_path: Path) -> None:
+    """The live SkillRetrievalToolkit scan roots mirror the rail: external_only
+    drops the personal dir; otherwise external dirs are appended."""
+    personal = str(tmp_path / "skills")
+    external = [str(tmp_path / "external-a"), str(tmp_path / "external-b")]
+
+    only = _make_adapter(
+        config_base={"skills": {"external_only": True}},
+        external_dirs=external,
+        personal_dir=personal,
+    )
+    assert only._skill_scan_dirs_with_external() == external
+
+    default = _make_adapter(
+        config_base={"skills": {"external_only": False}},
+        external_dirs=external,
+        personal_dir=personal,
+    )
+    assert default._skill_scan_dirs_with_external() == [personal, *external]
