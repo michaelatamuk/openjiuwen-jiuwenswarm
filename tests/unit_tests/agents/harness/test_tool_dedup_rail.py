@@ -80,6 +80,58 @@ def test_duplicate_within_turn_is_suppressed() -> None:
     assert second.inputs.tool_result == "file content"
 
 
+def test_side_effecting_tool_invalidates_turn_cache() -> None:
+    """A write between two identical reads must drop the cached read result.
+
+    read("a.txt") caches "file not found"; write("a.txt") changes the file;
+    the second read must run for real instead of being served the stale cache.
+    """
+    rail = ToolCallDeduplicationRail()
+
+    first_read = _tool_ctx()
+    first_read.inputs.tool_result = "file not found"
+    _run(rail.after_tool_call(first_read))
+
+    write = _tool_ctx()
+    write.inputs.tool_name = "write_file"
+    write.inputs.tool_args = {"path": "a.txt", "content": "content"}
+    write.inputs.tool_result = "ok"
+    _run(rail.before_tool_call(write))
+    _run(rail.after_tool_call(write))
+
+    second_read = _tool_ctx()
+    _run(rail.before_tool_call(second_read))
+
+    assert second_read.extra.get("_skip_tool") is None
+    assert second_read.extra.get("_dedup_hit") is None
+
+
+def test_side_effecting_before_call_invalidates_without_after() -> None:
+    """The before-hook alone must invalidate, in case after_tool_call is skipped."""
+    rail = ToolCallDeduplicationRail()
+
+    first_read = _tool_ctx()
+    first_read.inputs.tool_result = "file not found"
+    _run(rail.after_tool_call(first_read))
+
+    write = _tool_ctx()
+    write.inputs.tool_name = "write_file"
+    write.inputs.tool_args = {"path": "a.txt", "content": "content"}
+    _run(rail.before_tool_call(write))  # deliberately no after_tool_call
+
+    second_read = _tool_ctx()
+    _run(rail.before_tool_call(second_read))
+
+    assert second_read.extra.get("_skip_tool") is None
+
+
+def test_warn_after_is_floored_to_one() -> None:
+    """A zero/negative threshold must not warn on the very first execution."""
+    assert ToolCallDeduplicationRail(0)._warn_after == 1
+    assert ToolCallDeduplicationRail(-5)._warn_after == 1
+    assert ToolCallDeduplicationRail(None)._warn_after == 3
+
+
 def _make_adapter(config_base: dict) -> JiuWenSwarmDeepAdapter:
     adapter = object.__new__(JiuWenSwarmDeepAdapter)
     adapter._config_base_cache = config_base

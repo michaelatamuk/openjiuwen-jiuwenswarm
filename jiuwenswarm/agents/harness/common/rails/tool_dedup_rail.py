@@ -73,7 +73,12 @@ class ToolCallDeduplicationRail(DeepAgentRail):
 
     def __init__(self, warn_after: int = 3) -> None:
         super().__init__()
-        self._warn_after = warn_after
+        try:
+            resolved_warn_after = int(warn_after)
+        except (TypeError, ValueError):
+            resolved_warn_after = 3
+        # Floor at 1: a lower threshold would warn on the first execution.
+        self._warn_after = max(1, resolved_warn_after)
         self.system_prompt_builder = None
         # Per-turn cache: key → result string
         self._turn_cache: dict[str, str] = {}
@@ -110,6 +115,10 @@ class ToolCallDeduplicationRail(DeepAgentRail):
         """Check per-turn cache; skip real call if result is already known."""
         tool_name: str = ctx.inputs.tool_name or ""
         if tool_name not in _CACHEABLE_TOOLS:
+            # A side-effecting tool is about to run; drop the per-turn cache so
+            # any read that follows it in this turn recomputes from live state,
+            # even if after_tool_call never fires for this call.
+            self._turn_cache.clear()
             return
 
         tool_args: dict = ctx.inputs.tool_args or {}
@@ -144,6 +153,10 @@ class ToolCallDeduplicationRail(DeepAgentRail):
 
         tool_name: str = ctx.inputs.tool_name or ""
         if tool_name not in _CACHEABLE_TOOLS:
+            # A side-effecting tool (write_file, run_shell, ...) may change the
+            # filesystem or runtime state. Drop the per-turn cache so a later
+            # read of the same path/args is not served a stale result.
+            self._turn_cache.clear()
             return
 
         tool_args: dict = ctx.inputs.tool_args or {}
