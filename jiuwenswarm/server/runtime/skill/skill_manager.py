@@ -5362,7 +5362,7 @@ class SkillManager:
             },
         }
 
-    def install_symphony_skill_artifact(
+    async def install_symphony_skill_artifact(
         self,
         artifact_dir: str | Path,
         *,
@@ -5405,7 +5405,7 @@ class SkillManager:
                 ERROR_SKILL_INVALID_PACKAGE,
                 f"Symphony SkillPack 成员不可安装: {hard_blockers}",
             )
-        return self._install_imported_skill_dir(
+        return await self._install_imported_skill_dir(
             source,
             force=False,
             origin=f"symphony:{package_id}",
