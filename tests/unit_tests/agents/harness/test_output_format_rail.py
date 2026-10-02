@@ -97,6 +97,7 @@ def _make_adapter(config_base: dict) -> JiuWenSwarmDeepAdapter:
         "_permission_rail",
         "_heartbeat_rail",
         "_output_format_rail",
+        "_ttse_rail",
     ):
         setattr(adapter, attr, None)
     adapter._build_skill_rail = MagicMock(return_value=None)
