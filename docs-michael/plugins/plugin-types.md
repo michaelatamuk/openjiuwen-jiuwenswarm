@@ -4,6 +4,40 @@ Each type is a plug-point (a contract). The **plugin** is the **provider** that 
 
 The test for the whole table: a capability is a plugin type only if it has (or will have) a **protocol/contract that several providers implement**. "Not part" = no protocol, one concrete implementation.
 
+## Visual overview
+
+Each box is a plug-point (a contract); the provider behind it is what you swap.
+
+```mermaid
+block-beta
+  columns 4
+  H1["Part of the system — only in agent-core"]:4
+  a1["team runtime"] a2["harness providers"] a3["external-agent hooks"] a4["permission engine"]
+  a5["retrieval"] a6["tracer/exporter"] a7["MCP client"] a8["session checkpointer"]
+  a9["fs"] a10["workspace"] a11["shell"] a12["sandbox"]
+  a13["sys_operation"] a14["storage"] a15["kv_cache"] a16["workflow"]
+  a17["goal"] a18["LSP"] a19["personal-context"] space
+  H2["Part of the system — only in jiuwenswarm"]:4
+  b1["compaction"] b2["proactive recommendation"] b3["marketplace"] b4["channels"]
+  H3["Part of the system — in both"]:4
+  c1["tools"] c2["rails"] c3["subagents"] c4["models"]
+  c5["memory"] c6["skill"] c7["trajectory store"] space
+  H4["Maybe"]:4
+  d1["adapter"] d2["gateway"] d3["team orchestration"] space
+  H5["Fixed — not plugins"]:4
+  e1["kernel"] e2["loader"] e3["skill manager (CRUD)"] e4["session management"]
+  e5["security invariants"] e6["protocol constants"] space space
+  style H1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+  style H2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+  style H3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+  style H4 fill:#fff2cc,stroke:#bf9000,color:#000
+  style H5 fill:#f8d7da,stroke:#b02a37,color:#000
+```
+
+Green = plug-point exists (yes). Yellow = maybe. Red = fixed, never a plugin.
+
+---
+
 ## Part of the system — Yes
 
 ### Only in agent-core

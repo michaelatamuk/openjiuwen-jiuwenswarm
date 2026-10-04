@@ -22,6 +22,47 @@ The goal: behavior comes from configuration, not from code. Adding a capability 
 
 ---
 
+## The whole system at a glance
+
+One picture of the end state: the three layers with their one-way dependency, the parts each owns, how they are assembled at startup, and the fixed safety floor.
+
+```mermaid
+flowchart TB
+  subgraph PROD["PRODUCT — jiuwenswarm (config + policy)"]
+    COMP["Composition<br/>capability = plugin + settings"]
+    FIRST["First-party plugins"]
+  end
+
+  subgraph LIB["SHARED LIBRARY — agent-tools (optional capabilities)"]
+    OPT["Optional &amp; third-party plugins"]
+  end
+
+  subgraph FW["FRAMEWORK — agent-core (owns the rules)"]
+    CON["Contracts"]
+    BUILTIN["Built-in plugins"]
+    LOADER["Loader / kernel"]
+  end
+
+  AGENT["Assembled agent — running"]
+  SF["FIXED SAFETY FLOOR (always on):<br/>security enforcement · sandbox boundaries · stop condition"]
+
+  PROD -->|depends on| LIB
+  PROD -->|depends on| FW
+  LIB -->|depends on| FW
+
+  COMP --> LOADER
+  CON --> LOADER
+  BUILTIN --> LOADER
+  OPT --> LOADER
+  FIRST --> LOADER
+  LOADER --> AGENT
+  FW --- SF
+```
+
+Reading it: the **product** decides behavior with a **composition** plus **first-party plugins**; the **library** contributes optional/third-party plugins; the **framework** supplies the **contracts**, the **loader**, and a **built-in** working set. Everything feeds the **loader**, which assembles a running **agent**. The **safety floor** is fixed — a plugin can add policy but cannot switch it off.
+
+---
+
 ## The three layers
 
 The system is split across three projects, each with one clear job and a one-way dependency direction.
