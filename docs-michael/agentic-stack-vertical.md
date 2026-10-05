@@ -1,193 +1,187 @@
-# Above the agentic platform — a working map
+# What we build on top of Jiuwen
 
-The agentic platform (agents, tools, memory, multi-agent) is a black box. Everything built on top of it sits in one of **five planes**: four describe what you **operate**, and one — **Extend** — is what you **build**. This is a map for gathering information, not a decision.
+Jiuwen is the **brain**. On top, we build **three parts**. Simple rule:
 
-## Map of this document
+> **No body → software. Has a body → hardware.** And **we make the engines, not the cars.**
 
-- [The five planes at a glance](#the-five-planes-at-a-glance)
-- [Where the value is](#where-the-value-is)
-- [Business lens](#business-lens)
-- [Plane 1 · Control](#plane-1--control)
-- [Plane 2 · Trust](#plane-2--trust)
-- [Plane 3 · Data](#plane-3--data)
-- [Plane 4 · Product](#plane-4--product)
-- [Plane 5 · Extend](#plane-5--extend)
+| Part | Software or hardware? | Who builds it |
+|---|---|---|
+| **1 · Products** | **software** — a brain in software | product teams, on Jiuwen's surfaces |
+| **2 · Bodies** | **hardware** — a brain in a body | hardware / product teams |
+| **3 · Enabling stack** | **neither** — it enables both | **us (R&D)** |
 
-## The five planes at a glance
+## 1 · Software products — a brain in software
 
-| Plane | What it is | Who plays / buys | Defensibility |
-|---|---|---|---|
-| **1 · Control** | runs agents reliably, cheaply, and at scale | platform / IT teams | Low — commoditizes fast |
-| **2 · Trust** | makes agents observable, safe, auditable, compliant | enterprises, risk & compliance, regulators | High — hard to fake |
-| **3 · Data** | makes agents know your business | the business itself | Sticky — compounds with use |
-| **4 · Product** | turns agents into products, services, and revenue | end customers and businesses | Where the money is |
-| **5 · Extend** | builds the parts that plug into the platform | developers and research teams | Your own work — what we build |
+**By job:**
 
-## Where the value is
+```mermaid
+block-beta
+  columns 4
+  j1["support"] j2["sales"] j3["HR"] j4["finance ops"]
+  j5["security ops"] j6["IT / helpdesk"] j7["coding"] j8["research"]
+  style j1 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j2 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j3 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j4 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j5 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j6 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j7 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+  style j8 fill:#e3f2fd,stroke:#0d47a1,color:#000000
+```
+
+**By industry:**
+
+```mermaid
+block-beta
+  columns 5
+  i1["health"] i2["legal"] i3["finance"] i4["insurance"] i5["retail"]
+  i6["manufacturing"] i7["telecom"] i8["public sector"] i9["education"] i10["logistics"]
+  style i1 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i2 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i3 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i4 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i5 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i6 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i7 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i8 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i9 fill:#ede7f6,stroke:#4a148c,color:#000000
+  style i10 fill:#ede7f6,stroke:#4a148c,color:#000000
+```
+
+| Example product | Job / industry | Runs on (Jiuwen gives) |
+|---|---|---|
+| support triage agent | job · support | web / chat |
+| helpdesk agent | job · IT | IDE / chat |
+| claims processing agent | industry · insurance | software |
+| contract review agent | industry · legal | software |
+| month-end close agent | job · finance ops | software |
+
+## 2 · Hardware bodies — a brain in a body
+
+```mermaid
+block-beta
+  columns 3
+  b1["robots"] b2["vehicles"] b3["smart home"]
+  b4["devices & IoT"] b5["wearables"] b6["machines & equipment"]
+  style b1 fill:#eeeeee,stroke:#424242,color:#000000
+  style b2 fill:#eeeeee,stroke:#424242,color:#000000
+  style b3 fill:#eeeeee,stroke:#424242,color:#000000
+  style b4 fill:#eeeeee,stroke:#424242,color:#000000
+  style b5 fill:#eeeeee,stroke:#424242,color:#000000
+  style b6 fill:#eeeeee,stroke:#424242,color:#000000
+```
+
+Jiuwen = the brain; the body team builds the senses, the acting, and the real-time loop.
+
+## 3 · The enabling stack — ours (R&D)
+
+We build **frameworks and infrastructure** here — **not products, not content**.
+
+```mermaid
+block-beta
+  columns 1
+  G8["Rehearse"]:1
+  L8["8 · Simulation — rehearse in a fake world before the real one"]:1
+  G7["Trust"]:1
+  L7["7 · Proves and controls — measure it, bound it, record it"]:1
+  G6["Know & do"]:1
+  L6["6 · Runs on its own — plan, recover, escalate"]:1
+  L5["5 · Knows the business — bring in and keep the domain's knowledge"]:1
+  G5["Reach"]:1
+  L4["4 · Connect — reach the customer's systems"]:1
+  L3["3 · Sees and acts — senses and actions for hardware"]:1
+  L2["2 · Runs on the device — real time, always-on"]:1
+  G4["Who it is"]:1
+  L1["1 · Identity & access — the agent acts as itself, with the right permissions"]:1
+  style G4 fill:#37474f,color:#ffffff,stroke:#263238
+  style G5 fill:#37474f,color:#ffffff,stroke:#263238
+  style G6 fill:#37474f,color:#ffffff,stroke:#263238
+  style G7 fill:#37474f,color:#ffffff,stroke:#263238
+  style G8 fill:#37474f,color:#ffffff,stroke:#263238
+  style L1 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style L2 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style L3 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style L4 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style L5 fill:#d1c4e9,stroke:#4a148c,color:#000000
+  style L6 fill:#d1c4e9,stroke:#4a148c,color:#000000
+  style L7 fill:#ffcdd2,stroke:#b71c1c,color:#000000
+  style L8 fill:#ffe0b2,stroke:#e65100,color:#000000
+```
+
+| Layer | How it connects to Jiuwen | Jiuwen gives | Ours (R&D) | Example |
+|---|---|---|---|---|
+| **1 · Identity & access** | we **manage** the agent's identity | user auth, "on whose behalf" audit | cross-system agent-identity framework | the agent signs in as "robot-7" with only the permissions it needs |
+| **2 · Runs on the device** | we **host** the agent on the device | — | real-time / on-device runtime | voice companion in <300 ms, offline |
+| **3 · Sees and acts** | the agent **calls our** device tools | multimodal + browser/GUI | device-I/O framework | robot reads a camera, moves its arm |
+| **4 · Connect** | the agent **calls our** connectors | MCP / tools | connector framework | the agent updates the case in the CRM |
+| **5 · Knows the business** | the agent **calls our** knowledge | memory, retrieval | retrieval / connector engine | claims agent looks up the policy |
+| **6 · Runs on its own** | **we control** the agent | planning, retry, approvals | autonomy & reliability framework | claims ≤ $500 auto; above → a human |
+| **7 · Proves and controls** | **we watch** the agent | guardrails, observability | evaluation & assurance toolkit | refunds logged; monthly audit |
+| **8 · Simulation** | we **run the agent in a fake world** | — | simulator / test-environment toolkit | rehearse a warehouse robot on a fake floor |
+
+Read the connection column: **host** = we run Jiuwen; **calls our …** = Jiuwen uses our service; **we control / watch** = we use Jiuwen; **fake world** = we run Jiuwen in a simulator; **manage** = we give the agent its identity and access.
+
+**Which parts need which layer:**
+
+| Layer | Jobs & industries (software) | Bodies (hardware) |
+|---|---|---|
+| **1 · Identity & access** | **yes** | **yes** |
+| **2 · Runs on the device** | voice only | **yes** |
+| **3 · Sees and acts** | no | **yes** |
+| **4 · Connect** | **yes** | **yes** |
+| **5 · Knows the business** | **yes** | **yes** |
+| **6 · Runs on its own** | **yes** | **yes** |
+| **7 · Proves and controls** | **yes** | **yes** |
+| **8 · Simulation** | **yes** | **yes** |
+
+Test for ours: **reusable across every domain → ours; one domain only → the domain team's.** The commercial layer (accounts, billing, payments, sales) also exists, but it is a business function, not R&D.
+
+## What NOT to build — Jiuwen already gives it
+
+| Capability | Given by Jiuwen | Examples |
+|---|---|---|
+| Brain | model + agent loop | single agent · deep agent |
+| Teams | multi-agent | leader · members · human |
+| Tools | built-in + MCP | filesystem · shell · web · browser · code |
+| Memory & retrieval | store + search | long-term · graph · vector · rerank |
+| Guardrails & observability | safety + tracing | security rails · tracer |
+| Channels | user surfaces | web · desktop · mobile · IDE · chat/IM |
+| Workflows | orchestration | graph/Pregel · task loop |
+
+## Where to start
 
 ```mermaid
 quadrantChart
-  title The five planes — where the value is
-  x-axis "Commodity — anyone can" --> "Defensible — hard to copy"
-  y-axis "Enabler — indirect value" --> "Business outcome — direct value"
-  quadrant-1 "Defensible + outcome = the moat"
-  quadrant-2 "Useful, but easy to copy"
-  quadrant-3 "Commodity floor — buy, don't build"
-  quadrant-4 "Differentiated enabler"
-  "1 Control": [0.30, 0.40]
-  "5 Extend": [0.55, 0.38]
-  "3 Data": [0.58, 0.55]
-  "2 Trust": [0.62, 0.72]
-  "4 Product": [0.82, 0.88]
+  title What to work on first
+  x-axis "Competitors can close the gap" --> "Competitors cannot close the gap"
+  y-axis "Less wise to build" --> "Wise to build"
+  quadrant-1 "Wise + hard to close — do it"
+  quadrant-2 "Wise, but catchable — move fast"
+  quadrant-3 "Low value, easy to copy — buy or skip"
+  quadrant-4 "Hard to close, lower value — keep as a moat"
+  "Knows the business": [0.32, 0.72]
+  "Runs on its own": [0.78, 0.85]
+  "Proves and controls": [0.80, 0.70]
+  "Identity & access": [0.80, 0.38]
+  "Runs on the device": [0.62, 0.42]
+  "Sees and acts": [0.58, 0.45]
+  "Connect": [0.35, 0.42]
+  "Simulation": [0.50, 0.32]
 ```
 
-Control is the floor. Data compounds. Trust is what enterprises demand. Product is where revenue lives. Extend is where the building happens.
+| Zone | Layers | Move |
+|---|---|---|
+| Top-right — earns money + hard to copy | Runs on its own · Proves and controls | **do it now** |
+| Top-left — earns money, but rivals can catch up | Knows the business | **build, but expect rivals** |
+| Bottom-right — hard to copy, but earns indirectly | Identity & access · Runs on the device · Sees and acts | **keep it — that's our edge** |
+| Bottom-left — earns indirectly, easy to copy | Connect | **buy, don't build** |
+| Center | Simulation | **build a little** |
 
 ## Business lens
 
-The planes describe what exists and what we'd build. These four questions apply to every plane.
-
-- **Who** — who builds it, who runs it, who must adopt it (people, roles, org, change).
-- **Who else** — who is already here: incumbents, startups, open source; where the whitespace is.
-- **How much** — unit economics, cost to enter, ROI and payback.
-- **How fast** — time-to-value, and dependency / lock-in risk.
-
-## Plane 1 · Control
-
-- **What it is:** runs agents reliably, cheaply, and at scale.
-- **Who plays / buys:** platform and IT teams.
-- **Why it matters:** table stakes — nothing runs without it, but it commoditizes fast.
-
-```mermaid
-block-beta
-  columns 3
-  C1["deployment & rollout"]:3
-  c1["release & roll back"] c2["versioning"] c3["canary / gradual"]
-  C2["orchestration"]:3
-  c4["multi-agent coordination"] c5["long-running work"] c6["scheduling"]
-  C3["integration"]:3
-  c7["email / CRM / ERP"] c8["internal tools"] c9["data sources"]
-  C4["cost & capacity"]:3
-  c10["spend control"] c11["speed & latency"] c12["scaling"]
-  style C1 fill:#e3f2fd,stroke:#0d47a1,color:#000000
-  style C2 fill:#e3f2fd,stroke:#0d47a1,color:#000000
-  style C3 fill:#e3f2fd,stroke:#0d47a1,color:#000000
-  style C4 fill:#e3f2fd,stroke:#0d47a1,color:#000000
-```
-
-**Open questions**
-- Which parts can we buy, and which must we build?
-- What are the real cost and latency drivers at scale?
-- Who owns this today, inside and outside the org?
-
-## Plane 2 · Trust
-
-- **What it is:** makes agents observable, safe, auditable, compliant.
-- **Who plays / buys:** enterprises, risk & compliance, regulators.
-- **Why it matters:** the defensible layer; required to sell into enterprises.
-
-```mermaid
-block-beta
-  columns 3
-  C1["monitoring & evaluation"]:3
-  c1["what agents do"] c2["whether it works"] c3["quality checks"]
-  C2["policy & safety"]:3
-  c4["rules & guardrails"] c5["approvals"] c6["limits"]
-  C3["audit & provenance"]:3
-  c7["who / what / when"] c8["data lineage"] c9["on whose behalf"]
-  C4["compliance & regulation"]:3
-  c10["legal requirements"] c11["industry rules"] c12["reporting"]
-  style C1 fill:#ffebee,stroke:#b71c1c,color:#000000
-  style C2 fill:#ffebee,stroke:#b71c1c,color:#000000
-  style C3 fill:#ffebee,stroke:#b71c1c,color:#000000
-  style C4 fill:#ffebee,stroke:#b71c1c,color:#000000
-```
-
-**Open questions**
-- Which compliance regimes actually apply to us?
-- What can we prove today, and what can't we yet?
-- Who holds the budget here — risk, compliance, or security?
-
-## Plane 3 · Data
-
-- **What it is:** makes agents know your business.
-- **Who plays / buys:** the business itself; data and product owners.
-- **Why it matters:** sticky — it compounds with use and is costly to switch away from.
-
-```mermaid
-block-beta
-  columns 3
-  C1["memory"]:3
-  c1["short-term"] c2["long-term"] c3["preferences"]
-  C2["business knowledge"]:3
-  c4["documents"] c5["facts"] c6["domain know-how"]
-  C3["context & personalization"]:3
-  c7["user / account"] c8["situation"] c9["history"]
-  style C1 fill:#ede7f6,stroke:#4a148c,color:#000000
-  style C2 fill:#ede7f6,stroke:#4a148c,color:#000000
-  style C3 fill:#ede7f6,stroke:#4a148c,color:#000000
-```
-
-**Open questions**
-- Who owns the data, and under what privacy and permission constraints?
-- What knowledge is hardest for competitors to replicate?
-- What switching cost could we create?
-
-## Plane 4 · Product
-
-- **What it is:** turns agents into products, services, and revenue.
-- **Who plays / buys:** end customers and businesses.
-- **Why it matters:** where the money is — and where competition is fiercest.
-
-```mermaid
-block-beta
-  columns 5
-  C1["human interfaces"]:5
-  c1["chat"] c2["voice"] c3["desktop"] c4["mobile"] c5["physical / robotic"]
-  C2["vertical products"]:5
-  c6["industry apps"] c7["job-to-be-done"] c8["agent teams"] space space
-  C3["agent-to-agent workflows"]:5
-  c9["build agents"] c10["run agents"] c11["improve agents"] space space
-  C4["marketplace & monetization"]:5
-  c12["distribution"] c13["pricing"] c14["revenue"] c15["reputation"] space
-  style C1 fill:#fff3e0,stroke:#e65100,color:#000000
-  style C2 fill:#fff3e0,stroke:#e65100,color:#000000
-  style C3 fill:#fff3e0,stroke:#e65100,color:#000000
-  style C4 fill:#fff3e0,stroke:#e65100,color:#000000
-```
-
-**Open questions**
-- Which vertical has the clearest, funded buyer?
-- What interface do those users actually need?
-- Where does defensibility come from — data, distribution, or workflow?
-
-## Plane 5 · Extend
-
-- **What it is:** the parts you build and plug into the black box.
-- **Who plays / buys:** developers and research teams — this is our own work.
-- **Why it matters:** the platform is a black box, so everything you add to it lives here.
-
-```mermaid
-block-beta
-  columns 5
-  C1["tools"]:5
-  c1["MCP servers"] c2["hosted tools"] c3["browser / computer-use"] space space
-  C2["skills"]:5
-  c4["authorship"] c5["packaging"] c6["testing"] space space
-  C3["providers"]:5
-  c7["memory"] c8["models"] c9["retrieval"] c10["sandbox"] c11["channels"]
-  C4["agents"]:5
-  c12["profiles & personas"] c13["templates"] c14["sub-agents"] c15["workflows"] space
-  C5["environments"]:5
-  c16["simulators"] c17["task suites"] c18["synthetic data"] space space
-  style C1 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style C2 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style C3 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style C4 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style C5 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-```
-
-**Open questions**
-- Which providers and tools do we build first?
-- Which environments and benchmarks do we need to evaluate them?
-- What can we build that stays valuable if the platform is swapped?
+| Question | Meaning |
+|---|---|
+| **Who** | who builds, runs, and adopts it |
+| **Who else** | who is already here; where the whitespace is |
+| **How much** | unit economics, cost to enter, ROI |
+| **How fast** | time-to-value, lock-in risk |
