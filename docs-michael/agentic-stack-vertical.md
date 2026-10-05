@@ -80,9 +80,10 @@ These are the layers that turn Jiuwen into a real, deployable agent. Each is som
 ```mermaid
 block-beta
   columns 1
-  L12["12 · Simulation — rehearse in a fake world before the real one"]:1
-  L11["11 · Sees and acts — senses, actions, and computer use"]:1
-  L10["10 · Runs on the device — real time, always-on"]:1
+  L13["13 · Simulation — rehearse in a fake world before the real one"]:1
+  L12["12 · Sees and acts — senses, actions, and computer use"]:1
+  L11["11 · Runs on the device — real time, always-on"]:1
+  L10["10 · Right-size the brain — pick the models, thinking, and cache to fit the cost"]:1
   L9["9 · Runs on a budget — cap what the agent spends, and see where it goes"]:1
   L8["8 · Proves, controls & complies — measure it, bound it, audit it"]:1
   L7["7 · Make the agent — from blocks, or from a goal"]:1
@@ -101,9 +102,10 @@ block-beta
   style L7 fill:#bbdefb,stroke:#0d47a1,color:#000000
   style L8 fill:#bbdefb,stroke:#0d47a1,color:#000000
   style L9 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L10 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style L10 fill:#bbdefb,stroke:#0d47a1,color:#000000
   style L11 fill:#ffe0b2,stroke:#e65100,color:#000000
   style L12 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style L13 fill:#ffe0b2,stroke:#e65100,color:#000000
 ```
 
 The twelve layers are independent. **Green** = part of Jiuwen (inside the run). **Blue** = on top, for every agent. **Orange** = on top, for bodies only.
@@ -132,14 +134,15 @@ None of these belong inside the framework — they sit on top. But agents can't 
 | **7 · Make the agent** | the runtime and tools | a no-code builder — drag blocks, or state a goal and get a draft agent | the tools, facts, and limits | a claims expert types "handle claims under $500, ask me above that" — the builder drafts the agent, and they approve it |
 | **8 · Proves, controls & complies** | guardrails that block bad actions, and tracing that records them | tests, records, and audit reports built on top — not more guardrails | what "good" means and who reviews | every refund is logged; the agent passes an EU audit |
 | **9 · Runs on a budget** | — | spending limits per agent and per task | the budget | one runaway agent can't use up everyone else's budget |
+| **10 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
 
 **For bodies only — on top of the above:**
 
 | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|
-| **10 · Runs on the device** | — | running the agent on the device, fast and offline | — | a voice helper answers in under 300 ms, even offline |
-| **11 · Sees and acts** | vision and browser control | sensors and actions for hardware, plus computer use | the device drivers | a robot reads a camera and moves its arm; a software agent fills a web form |
-| **12 · Simulation** | — | a fake world to test the agent first | the test scenarios | rehearse a warehouse robot on a fake floor |
+| **11 · Runs on the device** | — | running the agent on the device, fast and offline | — | a voice helper answers in under 300 ms, even offline |
+| **12 · Sees and acts** | vision and browser control | sensors and actions for hardware, plus computer use | the device drivers | a robot reads a camera and moves its arm; a software agent fills a web form |
+| **13 · Simulation** | — | a fake world to test the agent first | the test scenarios | rehearse a warehouse robot on a fake floor |
 
 **Which parts need which layer:**
 
@@ -154,9 +157,10 @@ None of these belong inside the framework — they sit on top. But agents can't 
 | **7 · Make the agent** | **yes** | **yes** |
 | **8 · Proves, controls & complies** | **yes** | **yes** |
 | **9 · Runs on a budget** | **yes** | **yes** |
-| **10 · Runs on the device** | voice only | **yes** |
-| **11 · Sees and acts** | browser use only | **yes** |
-| **12 · Simulation** | **yes** | **yes** |
+| **10 · Right-size the brain** | **yes** | **yes** |
+| **11 · Runs on the device** | voice only | **yes** |
+| **12 · Sees and acts** | browser use only | **yes** |
+| **13 · Simulation** | **yes** | **yes** |
 
 Ours if it is reused across every domain; the domain team's if it serves one domain only. Billing, pricing and sales are business, not R&D — only the plumbing that lets agents pay is ours (layer 4).
 
@@ -172,6 +176,12 @@ Ours if it is reused across every domain; the domain team's if it serves one dom
 | Sandbox (base) | execution isolation | container / microVM |
 | Channels | user surfaces | web · desktop · mobile · IDE · chat/IM |
 | Workflows | orchestration | graph/Pregel · task loop |
+| Human in the loop | approvals & handoff | permission · plan · evolution approval · human role |
+| Voice | talk & listen | full-duplex · ASR/TTS |
+| Privacy & PII | redact & proxy | inference privacy proxy · redaction · PII filters |
+| Moderation | content safety | guardrails · jailbreak · publish review |
+| Self-improvement | learn & evolve | agent_evolving · RSI · skill & experience evolution |
+| Discovery & marketplace | find agents & assets | Agent Cards · A2A discovery · skill / MCP marketplace |
 | Protocols | adopt, don't invent | MCP · A2A · AP2 · AG-UI |
 | Models & inference | commodity | foundation models · inference hosts |
 
@@ -192,18 +202,19 @@ We compared our layers against the published agent stacks and enterprise platfor
 | Memory & vector DBs | **6 · Knows the business** | medium |
 | Protocols — MCP · A2A · AG-UI | **5 · Connect & interoperate** | standard — adopt, don't invent |
 | Tool integrations | **5 · Connect & interoperate** | **high moat** |
-| Browser / computer use | **11 · Sees and acts** | medium |
+| Browser / computer use | **12 · Sees and acts** | medium |
 | Observability & eval | **8 · Proves, controls & complies** | **high moat** |
 | Agent security / sandboxing | **3 · Contain & isolate** | **high — unsolved** |
 | Guardrails & safety | **8 · Proves, controls & complies** | high |
 | Governance & compliance (EU AI Act) | **8 · Proves, controls & complies** | **mandatory** |
 | AI FinOps / cost control | **9 · Runs on a budget** | **high — 73% blow budget** |
+| Model routing · cost-aware serving | **10 · Right-size the brain** | **emerging — ours** |
 | Agentic commerce / payments | **4 · Payments & limits** | **emerging — whitespace** |
 | No-code / low-code builders | **7 · Make the agent** | medium |
 | Enterprise platforms / agent control plane | (product teams) | — |
 | AI clouds · inference hosting | (providers) | **commodity** |
 | Agent identity & access | **1 · Identity & access** | **underserved — whitespace** |
-| Simulation · world models · sim2real | **12 · Simulation** | niche — ours |
+| Simulation · world models · sim2real | **13 · Simulation** | niche — ours |
 
 *Sources (Oct 2026): O'Reilly "The AI Agents Stack (2026 Edition)"; Stack Archive "Agentic AI Stack 2026"; AWS / Microsoft / Google enterprise agent architectures (The New Stack, 2026); Agentic Commerce Atlas; OWASP MCP Top 10 and 2026 prompt-injection research; FinOps Foundation State of FinOps 2026; EU AI Act high-risk obligations.*
 
@@ -221,6 +232,7 @@ quadrantChart
   "Proves, controls & complies": [0.82, 0.74]
   "Connect & interoperate": [0.68, 0.66]
   "Payments & limits": [0.74, 0.58]
+  "Right-size the brain": [0.62, 0.60]
   "Runs on its own": [0.55, 0.80]
   "Knows the business": [0.33, 0.70]
   "Contain & isolate": [0.74, 0.50]
