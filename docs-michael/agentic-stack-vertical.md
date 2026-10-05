@@ -73,148 +73,175 @@ block-beta
 
 Jiuwen = the brain; the body team builds the senses, the acting, and the real-time loop.
 
-## 3 · The enabling stack — ours (R&D)
+## 3 · What we build — the enabling frameworks
 
-These are the **industry enabling layers** that turn Jiuwen into a real, deployable agent. They come in three sets: those **Jiuwen will probably add itself**, those **every agent** needs, and those only **hardware bodies** need. Each is something we build: a service, a runtime, or code around the agent.
+Jiuwen already provides most of an agent's stack — the agent loop, memory and retrieval, connectors and their management, guardrails and tracing, evaluation, sandboxing, model routing and cost metering, permissions, channels, voice, privacy, and self-improvement. What is genuinely missing, and therefore ours, is a short list.
+
+**How we decide what to build.** A framework is ours only if it passes three tests, not one:
+
+| Test | Meaning |
+|---|---|
+| **Not in Jiuwen** | else it's already given |
+| **Useful** | the industry actually wants it |
+| **Ours to own** | we have the skills, and it isn't a specialist field, a standard, or a marketplace |
+
+Agent payments passed the first two and failed the third — commerce is a specialist field.
+
+**Why now — the industry's own framing.** Two 2026 readings shaped this list.
+
+*First, the model is only half.* The field's shorthand is **Agent = Model + Harness**. The harness is **context + constraints + checks + governance**. Our frameworks are that harness:
+
+| Harness part (industry) | Our frameworks |
+|---|---|
+| **Context** — what the agent sees | 3 · Right context |
+| **Constraints** — what it may do and spend | 1 · Right-size the brain · 12 · Payments & limits |
+| **Checks** — that verify its output | 7 · Simulation · 8 · Red-teaming · 9 · Chaos testing |
+| **Governance** — how much autonomy it earns | 10 · Agent identity · 11 · Agent management |
+
+*Second, the unsolved gap is distributed agent infrastructure.* The pieces that let agents run at the edge — local-first context, peer coordination, graceful degradation — are the ones nobody has built. The industry's own numbers: half of deployed agents are siloed, 96% hit data barriers, and only 11% reach production. This is where our hardware bet lives.
+
+| Industry finding | Our answer |
+|---|---|
+| 50% of agents work in isolation | 6 · Edge coordination — peer-to-peer, offline |
+| 96% hit data barriers | 3 · Right context — local-first context |
+| 11% of agents reach production | 7–9 · prove it before it ships |
+
+That harness covers nine of the twelve. The rest are about building and running the agent: 2 · Simple builder, 4 · On-device runtime, 5 · Device I/O, and 6 · Edge coordination.
 
 ```mermaid
 block-beta
   columns 3
-  H3["Industry enabling layers — hardware bodies"]:3
-  B10["10 · Runs on the device"]:1
-  B11["11 · Sees and acts"]:1
-  B12["12 · Simulation"]:1
-  H2["Industry enabling layers — every agent"]:3
-  A4["4 · Connect & interoperate"]:1
-  A5["5 · Knows the business"]:1
-  A6["6 · Payments & limits"]:1
-  A7["7 · Simple builder"]:1
-  A8["8 · Proves, controls & complies"]:1
-  A9["9 · Right-size the brain"]:1
-  H1["Industry enabling layers — Jiuwen will probably add"]:3
-  J1["1 · Identity & access"]:1
-  J2["2 · Runs on its own"]:1
-  J3["3 · Contain & isolate"]:1
-  HF["Jiuwen framework"]:3
-  style HF fill:#9e9e9e,color:#ffffff,stroke:#616161
+  H1["Frameworks we build"]:3
+  G1["Build it"]:3
+  F1["1 · Right-size the brain"]:1
+  F2["2 · Simple builder"]:1
+  F3["3 · Right context"]:1
+  G2["Run it"]:3
+  F4["4 · On-device runtime"]:1
+  F5["5 · Device I/O"]:1
+  F6["6 · Edge coordination"]:1
+  G3["Prove it"]:3
+  F7["7 · Simulation"]:1
+  F8["8 · Red-teaming"]:1
+  F9["9 · Chaos testing"]:1
+  G4["Govern it"]:3
+  F10["10 · Agent identity"]:1
+  F11["11 · Agent management"]:1
+  F12["12 · Payments & limits"]:1
   style H1 fill:#37474f,color:#ffffff,stroke:#263238
-  style H2 fill:#37474f,color:#ffffff,stroke:#263238
-  style H3 fill:#37474f,color:#ffffff,stroke:#263238
-  style J1 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style J2 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style J3 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style A4 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style A5 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style A6 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style A7 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style A8 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style A9 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B10 fill:#ffe0b2,stroke:#e65100,color:#000000
-  style B11 fill:#ffe0b2,stroke:#e65100,color:#000000
-  style B12 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style G1 fill:#e3f2fd,color:#0d47a1,stroke:#90caf9
+  style G2 fill:#fff3e0,color:#e65100,stroke:#ffcc80
+  style G3 fill:#e8f5e9,color:#2e7d32,stroke:#a5d6a7
+  style G4 fill:#f3e5f5,color:#6a1b9a,stroke:#ce93d8
+  style F1 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style F2 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style F3 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style F4 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style F5 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style F6 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style F7 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style F8 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style F9 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style F10 fill:#e1bee7,stroke:#6a1b9a,color:#000000
+  style F11 fill:#e1bee7,stroke:#6a1b9a,color:#000000
+  style F12 fill:#e1bee7,stroke:#6a1b9a,color:#000000
 ```
 
-### 1 · Industry enabling layers — Jiuwen will probably add
+### Frameworks we build
 
-| Layer | Jiuwen already does | We build | The domain team adds | Example |
+Jiuwen has **no counterpart** for these.
+
+| # | Framework | Jiuwen has | We add | Example |
 |---|---|---|---|---|
-| **1 · Identity & access** | knows the user, acts "on their behalf", and swaps stored tool keys in per request | a separate identity for each agent and task, with keys that expire when the task ends | which systems and actions that agent may use | the agent uses a one-task CRM identity; the CRM log shows "claims-bot-3", and its key is dead minutes later |
-| **2 · Runs on its own** | planning and retries | extra reliability: recover on its own, then ask for help | where to stop and hand over | a step fails, the agent recovers; if it still can't, it asks a person |
-| **3 · Contain & isolate** | a basic sandbox | a hard sandbox: secrets hidden, network off by default | the allowed tools and data | a tricked agent still can't reach secrets or the network |
+| 1 | **Right-size the brain** | a model router, a reasoning dial, a cost meter | a designer that fits the whole agent to its task, budget, data rules, risk, and deployment | a support team runs one agent that stays affordable |
+| 2 | **Simple builder** | the full runtime | a compact SDK — an agent running in a few lines | a small team shipping an agent in a day |
+| 3 | **Right context** | memory and retrieval | a layer that decides what the agent sees each step — assemble, compress, route | a long chat that stays sharp instead of drowning in its own history |
+| 4 | **On-device runtime** | a server-side runtime | running the agent on the hardware, fast and offline | a voice helper answering in under 300 ms, offline |
+| 5 | **Device I/O** | vision and browser control | sensors and motion for hardware | a robot that reads a camera and moves its arm |
+| 6 | **Edge coordination** | a server-side runtime | many agents across many sites or devices — peer-to-peer, offline, data stays local | 500 store agents that keep working when the cloud drops |
+| 7 | **Simulation** | multi-rollout evaluation | a fake world — and **simulated users** — to test the agent before the real one | a support agent rehearsed against a thousand fake customers |
+| 8 | **Red-teaming** | guardrails that defend at run time | a framework that attacks the agent — injection, jailbreak, tool misuse — and reports the holes | an agent is stress-tested before it touches real data |
+| 9 | **Chaos testing** | tracing and evaluation | breaks the agent on purpose — API failures, corruption, timeouts — and checks recovery | an agent loses a tool mid-task and still finishes |
+| 10 | **Agent identity** | user auth and credential injection | a distinct identity per agent and job, with keys that expire when the job ends | a claims bot signs into the CRM as itself, for one job |
+| 11 | **Agent management** | pools and a manager | run many agents — ownership, access, cost, failure, and a kill switch | an org runs 200 agents and knows what each does and costs |
+| 12 | **Payments & limits** | — | a governed way for agents to spend — signed approvals, spend ceilings | a procurement agent that buys up to $200 and escalates anything higher |
 
-### 2 · Industry enabling layers — for every agent
+**Which parts need which:**
 
-The table reads in three bands: **reach** (4-6) → **build** (7) → **run** (8-9).
-
-| Band | Layer | Jiuwen already does | We build | The domain team adds | Example |
-|---|---|---|---|---|---|
-| **Reach** | **4 · Connect & interoperate** | MCP (tool calling) | connectors to other systems, and agent-to-agent links | the links to their own systems | the agent updates the CRM and hands work to a partner's agent |
-|  | **5 · Knows the business** | memory and search | tools to load and clean knowledge | the knowledge itself | the claims agent looks up the policy |
-|  | **6 · Payments & limits** | — | safe agent payments (signed approvals) | spend limits | the agent pays up to $200 with a signed approval; more goes to a person |
-| **Build** | **7 · Simple builder** | an SDK — you build an agent by **writing code** | a simple surface over that SDK — build the same agent by **clicking, not coding** | the tools, facts, and limits | a claims expert who can't code builds the agent by clicking; Jiuwen's SDK runs underneath |
-| **Run** | **8 · Proves, controls & complies** | guardrails that block bad actions, and tracing that records them | tests, records, and audit reports built on top — not more guardrails | what "good" means and who reviews | every refund is logged; the agent passes an EU audit |
-|  | **9 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache — and the spend cap — to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
-
-### 3 · Industry enabling layers — for hardware bodies
-
-| Layer | Jiuwen already does | We build | The domain team adds | Example |
-|---|---|---|---|---|
-| **10 · Runs on the device** | — | running the agent on the device, fast and offline | — | a voice helper answers in under 300 ms, even offline |
-| **11 · Sees and acts** | vision and browser control | sensors and actions for hardware, plus computer use | the device drivers | a robot reads a camera and moves its arm; a software agent fills a web form |
-| **12 · Simulation** | — | a fake world to test the agent first | the test scenarios | rehearse a warehouse robot on a fake floor |
-
-**Which parts need which layer:**
-
-| Layer | Jobs & industries (software) | Bodies (hardware) |
+| Framework | Jobs & industries (software) | Bodies (hardware) |
 |---|---|---|
-| **1 · Identity & access** | **yes** | **yes** |
-| **2 · Runs on its own** | **yes** | **yes** |
-| **3 · Contain & isolate** | **yes** | **yes** |
-| **4 · Connect & interoperate** | **yes** | **yes** |
-| **5 · Knows the business** | **yes** | **yes** |
-| **6 · Payments & limits** | if it buys | if it buys |
-| **7 · Simple builder** | **yes** | **yes** |
-| **8 · Proves, controls & complies** | **yes** | **yes** |
-| **9 · Right-size the brain** | **yes** | **yes** |
-| **10 · Runs on the device** | voice only | **yes** |
-| **11 · Sees and acts** | browser use only | **yes** |
-| **12 · Simulation** | **yes** | **yes** |
-
-Ours if it is reused across every domain; the domain team's if it serves one domain only. Billing, pricing and sales are business, not R&D — only the plumbing that lets agents pay is ours (layer 6).
+| **1 · Right-size the brain** | **yes** | **yes** |
+| **2 · Simple builder** | **yes** | **yes** |
+| **3 · Right context** | **yes** | **yes** |
+| **4 · On-device runtime** | voice only | **yes** |
+| **5 · Device I/O** | no | **yes** |
+| **6 · Edge coordination** | multi-site | **yes** |
+| **7 · Simulation** | **yes** | **yes** |
+| **8 · Red-teaming** | **yes** | **yes** |
+| **9 · Chaos testing** | **yes** | **yes** |
+| **10 · Agent identity** | **yes** | **yes** |
+| **11 · Agent management** | **yes** | **yes** |
+| **12 · Payments & limits** | if it buys | if it buys |
 
 ## What NOT to build — Jiuwen already gives it
 
 | Capability | Given by Jiuwen | Examples |
 |---|---|---|
-| Brain | model + agent loop | single agent · deep agent |
+| Brain | agent loop | single agent · deep agent |
+| Gateway & serving | runtime + gateway | agent gateway · policies · egress · MCP gateway |
 | Teams | multi-agent | leader · members · human |
-| Tools | built-in + MCP | filesystem · shell · web · browser · code |
-| Memory & retrieval | store + search | long-term · graph · vector · rerank |
-| Guardrails & observability | safety + tracing | security rails · tracer |
-| Sandbox (base) | execution isolation | container / microVM |
+| Connectors & interoperability | MCP + management | tool calls · A2A · registry · credentials · marketplace |
+| Knowledge & retrieval | full pipeline | KB · graph · indexing · embedding · rerank · vector store |
+| Guardrails, tracing & eval | safety + observability | security rails · tracer · evaluator · compliance evidence |
+| Sandbox | isolation is the default | network-deny · egress allowlists · filesystem (Landlock) |
+| Model routing & cost | router + dial + meter | model groups · reasoning effort · usage |
+| Planning & reliability | planning + rails | retries · recovery |
 | Channels | user surfaces | web · desktop · mobile · IDE · chat/IM |
 | Workflows | orchestration | graph/Pregel · task loop |
-| Human in the loop | approvals & handoff | permission · plan · evolution approval · human role |
+| Human in the loop | approvals & handoff | permission · plan · evolution approval |
 | Voice | talk & listen | full-duplex · ASR/TTS |
-| Privacy & PII | redact & proxy | inference privacy proxy · redaction · PII filters |
-| Moderation | content safety | guardrails · jailbreak · publish review |
-| Self-improvement | learn & evolve | agent_evolving · RSI · skill & experience evolution |
-| Discovery & marketplace | find agents & assets | Agent Cards · A2A discovery · skill / MCP marketplace |
+| Privacy & PII | redact & proxy | inference privacy proxy · redaction |
+| Moderation | content safety | guardrails · publish review |
+| Self-improvement | learn & evolve | agent_evolving · RSI · skills |
+| Discovery & marketplace | find agents & assets | Agent Cards · A2A discovery · skill / MCP hub |
 | Protocols | adopt, don't invent | MCP · A2A · AP2 · AG-UI |
 | Models & inference | commodity | foundation models · inference hosts |
 
 ## The 2026 market check — what the industry built
 
-We compared our layers against the published agent stacks and enterprise platforms of late 2026 — O'Reilly's six-layer agent stack, the eleven-layer landscape maps, the AWS / Microsoft / Google agent reference architectures, the agentic-commerce protocol stack, and the 2026 security, FinOps and EU AI Act guidance. Five things stood out:
+We compared our list against the published agent stacks and enterprise platforms of late 2026 — O'Reilly's six-layer agent stack, the eleven-layer landscape maps, the AWS / Microsoft / Google reference architectures, and the 2026 security, FinOps, and EU AI Act guidance. Three things stood out:
 
-- **Models are commodity; the moat moved up.** Foundation models and inference are low-defensibility. The durable value sits in **integrations**, **observability & eval**, and **memory/context** — our layers 4, 8, and 5.
-- **Agentic payments became a real layer** (AP2 · ACP · UCP · x402 · MPP) — our layer 6.
-- **A builder surface is now table stakes** (no-code / low-code assembly) — our layer 7.
-- **Security became its own discipline.** Prompt injection is *unsolved*; the industry answers with **containment** — sandboxes, per-task secrets, egress-deny, authorization outside the model. That is our layer 3.
-- **Cost and compliance turned mandatory.** 98% now track agent spend and 73% blow budget (our layer 9); EU AI Act high-risk rules bite from **2 Aug 2026** (our layer 8).
+- **The industry's "moats" are already Jiuwen's.** Integrations, observability & eval, and memory/context are where the market sees durable value — and Jiuwen ships all three. So they are not our build.
+- **What is genuinely ours is sharp, not broad:** designing the agent to its constraints (1), a compact SDK (2), shaping its context (3), running it on hardware (4, 5), coordinating it at the edge (6), rehearsing it (7), attacking it (8), breaking it on purpose (9), per-agent identity (10), and governing a fleet (11).
+- **Payments are not ours** — commerce is a specialist field.
 
-| 2026 industry layer | Ours | Commodity or moat? |
+| 2026 industry layer | Ours | Note |
 |---|---|---|
-| Foundation models · inference | (providers) | **commodity** |
+| Foundation models · inference | (providers) | commodity |
 | Agent frameworks | (Jiuwen) | medium |
-| Memory & vector DBs | **5 · Knows the business** | medium |
-| Protocols — MCP · A2A · AG-UI | **4 · Connect & interoperate** | standard — adopt, don't invent |
-| Tool integrations | **4 · Connect & interoperate** | **high moat** |
-| Browser / computer use | **11 · Sees and acts** | medium |
-| Observability & eval | **8 · Proves, controls & complies** | **high moat** |
-| Agent security / sandboxing | **3 · Contain & isolate** | **high — unsolved** |
-| Guardrails & safety | **8 · Proves, controls & complies** | high |
-| Governance & compliance (EU AI Act) | **8 · Proves, controls & complies** | **mandatory** |
-| AI FinOps / cost control | **9 · Right-size the brain** | **high — 73% blow budget** |
-| Model routing · cost-aware serving | **9 · Right-size the brain** | **emerging — ours** |
-| Agentic commerce / payments | **6 · Payments & limits** | **emerging — whitespace** |
-| No-code / low-code builders | **7 · Simple builder** | medium |
-| Enterprise platforms / agent control plane | (product teams) | — |
-| AI clouds · inference hosting | (providers) | **commodity** |
-| Agent identity & access | **1 · Identity & access** | **underserved — whitespace** |
-| Simulation · world models · sim2real | **12 · Simulation** | niche — ours |
+| Protocols — MCP · A2A · AG-UI | (Jiuwen) | standard |
+| Agent gateway · runtime serving | (Jiuwen) | Jiuwen's |
+| Tool integrations | (Jiuwen) | high moat — but Jiuwen's |
+| Memory & vector DBs | (Jiuwen) | Jiuwen's |
+| Observability & eval | (Jiuwen) | high moat — but Jiuwen's |
+| Guardrails & safety | (Jiuwen) | Jiuwen's |
+| Agent security / sandboxing | (Jiuwen) | Jiuwen's |
+| Governance & compliance | (Jiuwen) | Jiuwen's |
+| Red-teaming / adversarial testing | **8 · Red-teaming** | ours |
+| Chaos engineering / fault injection | **9 · Chaos testing** | ours |
+| Context engineering / context layer | **3 · Right context** | ours |
+| Agent management / control plane | **11 · Agent management** | ours |
+| Agent identity & access | **10 · Agent identity** | ours |
+| Model routing · AI FinOps | **1 · Right-size the brain** | ours |
+| No-code / low-code builders | **2 · Simple builder** | ours |
+| On-device / edge | **4 · On-device runtime** | ours |
+| Device I/O / robotics | **5 · Device I/O** | ours |
+| Edge / distributed agents | **6 · Edge coordination** | ours |
+| Simulation · sim2real · agent testing | **7 · Simulation** | ours |
+| Browser / computer use | (Jiuwen) | Jiuwen's |
+| Agentic commerce / payments | **12 · Payments & limits** | ours |
 
-*Sources (Oct 2026): O'Reilly "The AI Agents Stack (2026 Edition)"; Stack Archive "Agentic AI Stack 2026"; AWS / Microsoft / Google enterprise agent architectures (The New Stack, 2026); Agentic Commerce Atlas; OWASP MCP Top 10 and 2026 prompt-injection research; FinOps Foundation State of FinOps 2026; EU AI Act high-risk obligations.*
+*Sources (Oct 2026): O'Reilly "The AI Agents Stack (2026 Edition)"; Stack Archive "Agentic AI Stack 2026"; AWS / Microsoft / Google enterprise agent architectures (The New Stack, 2026); Itexus "The AI Agent Infrastructure Stack in 2026"; Distributed Thoughts "The Agentic AI Infrastructure Gap"; Agentic Commerce Atlas; OWASP MCP Top 10 and 2026 prompt-injection research; FinOps Foundation State of FinOps 2026; EU AI Act high-risk obligations.*
 
 ## Where to start
 
@@ -227,27 +254,26 @@ quadrantChart
   quadrant-2 "Wise, but catchable — move fast"
   quadrant-3 "Low value, easy to copy — buy or skip"
   quadrant-4 "Hard to close, lower value — keep as a moat"
-  "Proves, controls & complies": [0.82, 0.74]
-  "Connect & interoperate": [0.68, 0.66]
-  "Payments & limits": [0.74, 0.58]
-  "Right-size the brain": [0.62, 0.60]
-  "Runs on its own": [0.55, 0.80]
-  "Knows the business": [0.33, 0.70]
-  "Contain & isolate": [0.74, 0.50]
-  "Identity & access": [0.84, 0.42]
-  "Sees and acts": [0.60, 0.46]
-  "Runs on the device": [0.52, 0.38]
-  "Simple builder": [0.30, 0.44]
-  "Simulation": [0.42, 0.30]
+  "Right-size the brain": [0.62, 0.68]
+  "Payments & limits": [0.74, 0.60]
+  "On-device runtime": [0.55, 0.48]
+  "Device I/O": [0.58, 0.46]
+  "Simple builder": [0.32, 0.44]
+  "Simulation": [0.45, 0.34]
+  "Red-teaming": [0.66, 0.72]
+  "Agent management": [0.78, 0.66]
+  "Agent identity": [0.70, 0.58]
+  "Right context": [0.58, 0.62]
+  "Edge coordination": [0.69, 0.44]
+  "Chaos testing": [0.40, 0.50]
 ```
 
-| Zone | Layers | Move |
+| Zone | Frameworks | Move |
 |---|---|---|
-| Top-right — earns money + hard to copy | Proves, controls & complies · Connect & interoperate · Payments & limits | **do it now** |
-| Top-left — earns money, but rivals can catch up | Runs on its own · Knows the business | **build, but expect rivals** |
-| Bottom-right — hard to copy, but earns indirectly | Identity & access · Contain & isolate · Sees and acts · Runs on the device | **keep it — that's our edge** |
-| Bottom-left — earns indirectly, easy to copy | Simple builder | **buy, don't build** |
-| Center | Simulation | **build a little** |
+| Top-right — valuable + hard to copy | Right-size the brain · Payments & limits · Red-teaming · Agent management · Agent identity · Right context | **do it now** |
+| Bottom-right — hard to copy, indirect value | On-device runtime · Device I/O · Edge coordination | **keep as our edge** |
+| Bottom-left — easy to copy, indirect value | Simple builder | **buy or borrow** |
+| Center | Simulation · Chaos testing | **build a little** |
 
 ## Business lens
 
@@ -257,3 +283,65 @@ quadrantChart
 | **Who else** | who is already here; where the whitespace is |
 | **How much** | unit economics, cost to enter, ROI |
 | **How fast** | time-to-value, lock-in risk |
+
+## What each framework enables
+
+**1 · Right-size the brain**
+- **Jiuwen today:** routes each request across models, exposes a reasoning-effort setting, and meters cost.
+- **New here:** a designer that fits the whole agent to its operating conditions — the kind of work, the budget, the data and provider rules, the acceptable error, the load, the deployment target, and the governing rules. It sets the models, how much the agent thinks, what it remembers, and what it may spend.
+- **Unlocks:** a support team runs one agent that stays affordable — light on simple questions, deeper on hard ones.
+
+**2 · Simple builder**
+- **Jiuwen today:** the full runtime.
+- **New here:** a compact SDK — an agent running in a few lines, in Python, TypeScript, or HTTP.
+- **Unlocks:** a small team ships a working agent in days instead of months.
+
+**3 · Right context**
+- **Jiuwen today:** memory and retrieval.
+- **New here:** a layer that decides what the agent sees each step — assembling, compressing, and routing context and memory.
+- **Unlocks:** a long chat that stays sharp instead of drowning in its own history.
+
+**4 · On-device runtime**
+- **Jiuwen today:** a server-side runtime.
+- **New here:** a runtime that runs the agent on the device itself — fast, and offline.
+- **Unlocks:** a voice assistant answers in under 300 ms with no network.
+
+**5 · Device I/O**
+- **Jiuwen today:** vision and browser control.
+- **New here:** sensors and motion for hardware.
+- **Unlocks:** a robot reads a camera and moves its arm.
+
+**6 · Edge coordination**
+- **Jiuwen today:** a server-side runtime.
+- **New here:** many agents across many sites or devices — coordinating peer-to-peer, working offline, keeping data local.
+- **Unlocks:** 500 store agents that keep working when the cloud drops.
+
+**7 · Simulation**
+- **Jiuwen today:** multi-rollout evaluation.
+- **New here:** a fake world — and simulated users — to test the agent before the real one.
+- **Unlocks:** a robot is proven on a simulated floor, and a support agent against a thousand fake customers, before either ships.
+
+**8 · Red-teaming**
+- **Jiuwen today:** guardrails that defend at run time.
+- **New here:** a framework that attacks the agent — prompt injection, jailbreak, tool misuse — and reports the holes.
+- **Unlocks:** an agent is stress-tested, and its weak spots fixed, before it touches real data.
+
+**9 · Chaos testing**
+- **Jiuwen today:** tracing and evaluation.
+- **New here:** breaking the agent on purpose — API failures, corrupted responses, timeouts — and checking it recovers.
+- **Unlocks:** an agent loses a tool mid-task and still finishes the job.
+
+**10 · Agent identity**
+- **Jiuwen today:** user authentication and credential injection.
+- **New here:** a distinct identity per agent and per job, with keys that expire when the job ends.
+- **Unlocks:** a claims bot signs into the CRM as itself — never as a human, and only for the one job.
+
+**11 · Agent management**
+- **Jiuwen today:** pools of agents and a manager.
+- **New here:** run many agents — know who owns each, what it can reach, what it costs, what happens when it fails, and a kill switch.
+- **Unlocks:** an org runs 200 agents and can still answer, for each one, what it does and what it spends.
+
+**12 · Payments & limits**
+- **Jiuwen today:** nothing.
+- **New here:** a governed way for an agent to spend — signed approvals and spend ceilings.
+- **Unlocks:** an agent buys, books, and pays without open-ended financial risk.
