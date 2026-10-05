@@ -75,9 +75,46 @@ Jiuwen = the brain; the body team builds the senses, the acting, and the real-ti
 
 ## 3 · The enabling stack — ours (R&D)
 
-These are the layers that turn Jiuwen into a real, deployable agent. They come in **three groups**: what Jiuwen will probably do itself, what sits on top for **every agent**, and what only **bodies** need. Each is something we build: a service, a runtime, or code around the agent.
+These are the **industry enabling layers** that turn Jiuwen into a real, deployable agent. They come in three sets: those **Jiuwen will probably add itself**, those **every agent** needs, and those only **hardware bodies** need. Each is something we build: a service, a runtime, or code around the agent.
 
-### 1 · What Jiuwen will probably do itself
+```mermaid
+block-beta
+  columns 3
+  H3["Industry enabling layers — hardware bodies"]:3
+  B10["10 · Runs on the device"]:1
+  B11["11 · Sees and acts"]:1
+  B12["12 · Simulation"]:1
+  H2["Industry enabling layers — every agent"]:3
+  A4["4 · Connect & interoperate"]:1
+  A5["5 · Knows the business"]:1
+  A6["6 · Payments & limits"]:1
+  A7["7 · Simple builder"]:1
+  A8["8 · Proves, controls & complies"]:1
+  A9["9 · Right-size the brain"]:1
+  H1["Industry enabling layers — Jiuwen will probably add"]:3
+  J1["1 · Identity & access"]:1
+  J2["2 · Runs on its own"]:1
+  J3["3 · Contain & isolate"]:1
+  HF["Jiuwen framework"]:3
+  style HF fill:#9e9e9e,color:#ffffff,stroke:#616161
+  style H1 fill:#37474f,color:#ffffff,stroke:#263238
+  style H2 fill:#37474f,color:#ffffff,stroke:#263238
+  style H3 fill:#37474f,color:#ffffff,stroke:#263238
+  style J1 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style J2 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style J3 fill:#c8e6c9,stroke:#2e7d32,color:#000000
+  style A4 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style A5 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style A6 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style A7 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style A8 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style A9 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B10 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style B11 fill:#ffe0b2,stroke:#e65100,color:#000000
+  style B12 fill:#ffe0b2,stroke:#e65100,color:#000000
+```
+
+### 1 · Industry enabling layers — Jiuwen will probably add
 
 | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|
@@ -85,28 +122,9 @@ These are the layers that turn Jiuwen into a real, deployable agent. They come i
 | **2 · Runs on its own** | planning and retries | extra reliability: recover on its own, then ask for help | where to stop and hand over | a step fails, the agent recovers; if it still can't, it asks a person |
 | **3 · Contain & isolate** | a basic sandbox | a hard sandbox: secrets hidden, network off by default | the allowed tools and data | a tricked agent still can't reach secrets or the network |
 
-### 2 · On top — for every agent
+### 2 · Industry enabling layers — for every agent
 
-```mermaid
-block-beta
-  columns 1
-  B4["4 · Connect & interoperate"]:1
-  B5["5 · Knows the business"]:1
-  B6["6 · Payments & limits"]:1
-  B7["7 · Simple builder"]:1
-  B8["8 · Proves, controls & complies"]:1
-  B9["9 · Runs on a budget"]:1
-  B10["10 · Right-size the brain"]:1
-  style B4 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B5 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B6 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B7 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B8 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B9 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style B10 fill:#bbdefb,stroke:#0d47a1,color:#000000
-```
-
-Read top-down: **reach** (4-6) → **build** (7) → **run** (8-10). No arrows — that order is just how you'd take them on.
+The table reads in three bands: **reach** (4-6) → **build** (7) → **run** (8-9).
 
 | Band | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|---|
@@ -115,16 +133,15 @@ Read top-down: **reach** (4-6) → **build** (7) → **run** (8-10). No arrows �
 |  | **6 · Payments & limits** | — | safe agent payments (signed approvals) | spend limits | the agent pays up to $200 with a signed approval; more goes to a person |
 | **Build** | **7 · Simple builder** | an SDK — you build an agent by **writing code** | a simple surface over that SDK — build the same agent by **clicking, not coding** | the tools, facts, and limits | a claims expert who can't code builds the agent by clicking; Jiuwen's SDK runs underneath |
 | **Run** | **8 · Proves, controls & complies** | guardrails that block bad actions, and tracing that records them | tests, records, and audit reports built on top — not more guardrails | what "good" means and who reviews | every refund is logged; the agent passes an EU audit |
-|  | **9 · Runs on a budget** | per-session cost tracking and caps | governance across many agents (who may spend what) | the budget | one runaway agent can't use up everyone else's budget |
-|  | **10 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
+|  | **9 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache — and the spend cap — to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
 
-### 3 · On top — for bodies
+### 3 · Industry enabling layers — for hardware bodies
 
 | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|
-| **11 · Runs on the device** | — | running the agent on the device, fast and offline | — | a voice helper answers in under 300 ms, even offline |
-| **12 · Sees and acts** | vision and browser control | sensors and actions for hardware, plus computer use | the device drivers | a robot reads a camera and moves its arm; a software agent fills a web form |
-| **13 · Simulation** | — | a fake world to test the agent first | the test scenarios | rehearse a warehouse robot on a fake floor |
+| **10 · Runs on the device** | — | running the agent on the device, fast and offline | — | a voice helper answers in under 300 ms, even offline |
+| **11 · Sees and acts** | vision and browser control | sensors and actions for hardware, plus computer use | the device drivers | a robot reads a camera and moves its arm; a software agent fills a web form |
+| **12 · Simulation** | — | a fake world to test the agent first | the test scenarios | rehearse a warehouse robot on a fake floor |
 
 **Which parts need which layer:**
 
@@ -138,11 +155,10 @@ Read top-down: **reach** (4-6) → **build** (7) → **run** (8-10). No arrows �
 | **6 · Payments & limits** | if it buys | if it buys |
 | **7 · Simple builder** | **yes** | **yes** |
 | **8 · Proves, controls & complies** | **yes** | **yes** |
-| **9 · Runs on a budget** | **yes** | **yes** |
-| **10 · Right-size the brain** | **yes** | **yes** |
-| **11 · Runs on the device** | voice only | **yes** |
-| **12 · Sees and acts** | browser use only | **yes** |
-| **13 · Simulation** | **yes** | **yes** |
+| **9 · Right-size the brain** | **yes** | **yes** |
+| **10 · Runs on the device** | voice only | **yes** |
+| **11 · Sees and acts** | browser use only | **yes** |
+| **12 · Simulation** | **yes** | **yes** |
 
 Ours if it is reused across every domain; the domain team's if it serves one domain only. Billing, pricing and sales are business, not R&D — only the plumbing that lets agents pay is ours (layer 6).
 
@@ -184,19 +200,19 @@ We compared our layers against the published agent stacks and enterprise platfor
 | Memory & vector DBs | **5 · Knows the business** | medium |
 | Protocols — MCP · A2A · AG-UI | **4 · Connect & interoperate** | standard — adopt, don't invent |
 | Tool integrations | **4 · Connect & interoperate** | **high moat** |
-| Browser / computer use | **12 · Sees and acts** | medium |
+| Browser / computer use | **11 · Sees and acts** | medium |
 | Observability & eval | **8 · Proves, controls & complies** | **high moat** |
 | Agent security / sandboxing | **3 · Contain & isolate** | **high — unsolved** |
 | Guardrails & safety | **8 · Proves, controls & complies** | high |
 | Governance & compliance (EU AI Act) | **8 · Proves, controls & complies** | **mandatory** |
-| AI FinOps / cost control | **9 · Runs on a budget** | **high — 73% blow budget** |
-| Model routing · cost-aware serving | **10 · Right-size the brain** | **emerging — ours** |
+| AI FinOps / cost control | **9 · Right-size the brain** | **high — 73% blow budget** |
+| Model routing · cost-aware serving | **9 · Right-size the brain** | **emerging — ours** |
 | Agentic commerce / payments | **6 · Payments & limits** | **emerging — whitespace** |
 | No-code / low-code builders | **7 · Simple builder** | medium |
 | Enterprise platforms / agent control plane | (product teams) | — |
 | AI clouds · inference hosting | (providers) | **commodity** |
 | Agent identity & access | **1 · Identity & access** | **underserved — whitespace** |
-| Simulation · world models · sim2real | **13 · Simulation** | niche — ours |
+| Simulation · world models · sim2real | **12 · Simulation** | niche — ours |
 
 *Sources (Oct 2026): O'Reilly "The AI Agents Stack (2026 Edition)"; Stack Archive "Agentic AI Stack 2026"; AWS / Microsoft / Google enterprise agent architectures (The New Stack, 2026); Agentic Commerce Atlas; OWASP MCP Top 10 and 2026 prompt-injection research; FinOps Foundation State of FinOps 2026; EU AI Act high-risk obligations.*
 
@@ -221,7 +237,6 @@ quadrantChart
   "Identity & access": [0.84, 0.42]
   "Sees and acts": [0.60, 0.46]
   "Runs on the device": [0.52, 0.38]
-  "Runs on a budget": [0.55, 0.44]
   "Simple builder": [0.30, 0.44]
   "Simulation": [0.42, 0.30]
 ```
@@ -231,7 +246,7 @@ quadrantChart
 | Top-right — earns money + hard to copy | Proves, controls & complies · Connect & interoperate · Payments & limits | **do it now** |
 | Top-left — earns money, but rivals can catch up | Runs on its own · Knows the business | **build, but expect rivals** |
 | Bottom-right — hard to copy, but earns indirectly | Identity & access · Contain & isolate · Sees and acts · Runs on the device | **keep it — that's our edge** |
-| Bottom-left — earns indirectly, easy to copy | Simple builder · Runs on a budget | **buy, don't build** |
+| Bottom-left — earns indirectly, easy to copy | Simple builder | **buy, don't build** |
 | Center | Simulation | **build a little** |
 
 ## Business lens
