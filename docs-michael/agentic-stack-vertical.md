@@ -75,44 +75,9 @@ Jiuwen = the brain; the body team builds the senses, the acting, and the real-ti
 
 ## 3 · The enabling stack — ours (R&D)
 
-These are the layers that turn Jiuwen into a real, deployable agent. Each is something we build: a service, a runtime, or code that sits around the agent.
+These are the layers that turn Jiuwen into a real, deployable agent. They come in **three groups**: what Jiuwen will probably do itself, what sits on top for **every agent**, and what only **bodies** need. Each is something we build: a service, a runtime, or code around the agent.
 
-```mermaid
-block-beta
-  columns 1
-  L13["13 · Simulation — rehearse in a fake world before the real one"]:1
-  L12["12 · Sees and acts — senses, actions, and computer use"]:1
-  L11["11 · Runs on the device — real time, always-on"]:1
-  L10["10 · Right-size the brain — pick the models, thinking, and cache to fit the cost"]:1
-  L9["9 · Runs on a budget — cap what the agent spends, and see where it goes"]:1
-  L8["8 · Proves, controls & complies — measure it, bound it, audit it"]:1
-  L7["7 · Make the agent — from blocks, or from a goal"]:1
-  L6["6 · Knows the business — bring in and keep the domain's knowledge"]:1
-  L5["5 · Connect & interoperate — reach systems, tools, and other agents"]:1
-  L4["4 · Payments & limits — spend within authority, prove who approved"]:1
-  L3["3 · Contain & isolate — sandbox the agent, keep secrets out of reach"]:1
-  L2["2 · Runs on its own — plan, recover, escalate"]:1
-  L1["1 · Identity & access — the agent acts as itself, with the right permissions"]:1
-  style L1 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style L2 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style L3 fill:#c8e6c9,stroke:#2e7d32,color:#000000
-  style L4 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L5 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L6 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L7 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L8 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L9 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L10 fill:#bbdefb,stroke:#0d47a1,color:#000000
-  style L11 fill:#ffe0b2,stroke:#e65100,color:#000000
-  style L12 fill:#ffe0b2,stroke:#e65100,color:#000000
-  style L13 fill:#ffe0b2,stroke:#e65100,color:#000000
-```
-
-The twelve layers are independent. **Green** = part of Jiuwen (inside the run). **Blue** = on top, for every agent. **Orange** = on top, for bodies only.
-
-### A · Might become part of Jiuwen
-
-These have to live **inside** the run — and Jiuwen owns the run. Build them now, but expect the framework to absorb them; bank only on the part it won't.
+### 1 · What Jiuwen will probably do itself
 
 | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|
@@ -120,23 +85,40 @@ These have to live **inside** the run — and Jiuwen owns the run. Build them no
 | **2 · Runs on its own** | planning and retries | extra reliability: recover on its own, then ask for help | where to stop and hand over | a step fails, the agent recovers; if it still can't, it asks a person |
 | **3 · Contain & isolate** | a basic sandbox | a hard sandbox: secrets hidden, network off by default | the allowed tools and data | a tricked agent still can't reach secrets or the network |
 
-### B · Stays on top of Jiuwen — never part of it
+### 2 · On top — for every agent
 
-None of these belong inside the framework — they sit on top. But agents can't work without them.
+```mermaid
+block-beta
+  columns 1
+  B4["4 · Connect & interoperate"]:1
+  B5["5 · Knows the business"]:1
+  B6["6 · Payments & limits"]:1
+  B7["7 · Simple builder"]:1
+  B8["8 · Proves, controls & complies"]:1
+  B9["9 · Runs on a budget"]:1
+  B10["10 · Right-size the brain"]:1
+  style B4 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B5 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B6 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B7 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B8 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B9 fill:#bbdefb,stroke:#0d47a1,color:#000000
+  style B10 fill:#bbdefb,stroke:#0d47a1,color:#000000
+```
 
-**For any agent — products and bodies:**
+Read top-down: **reach** (4-6) → **build** (7) → **run** (8-10). No arrows — that order is just how you'd take them on.
 
-| Layer | Jiuwen already does | We build | The domain team adds | Example |
-|---|---|---|---|---|
-| **4 · Payments & limits** | — | safe agent payments (signed approvals) | spend limits | the agent pays up to $200 with a signed approval; more goes to a person |
-| **5 · Connect & interoperate** | MCP (tool calling) | connectors to other systems, and agent-to-agent links | the links to their own systems | the agent updates the CRM and hands work to a partner's agent |
-| **6 · Knows the business** | memory and search | tools to load and clean knowledge | the knowledge itself | the claims agent looks up the policy |
-| **7 · Make the agent** | the runtime and tools | a no-code builder — drag blocks, or state a goal and get a draft agent | the tools, facts, and limits | a claims expert types "handle claims under $500, ask me above that" — the builder drafts the agent, and they approve it |
-| **8 · Proves, controls & complies** | guardrails that block bad actions, and tracing that records them | tests, records, and audit reports built on top — not more guardrails | what "good" means and who reviews | every refund is logged; the agent passes an EU audit |
-| **9 · Runs on a budget** | — | spending limits per agent and per task | the budget | one runaway agent can't use up everyone else's budget |
-| **10 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
+| Band | Layer | Jiuwen already does | We build | The domain team adds | Example |
+|---|---|---|---|---|---|
+| **Reach** | **4 · Connect & interoperate** | MCP (tool calling) | connectors to other systems, and agent-to-agent links | the links to their own systems | the agent updates the CRM and hands work to a partner's agent |
+|  | **5 · Knows the business** | memory and search | tools to load and clean knowledge | the knowledge itself | the claims agent looks up the policy |
+|  | **6 · Payments & limits** | — | safe agent payments (signed approvals) | spend limits | the agent pays up to $200 with a signed approval; more goes to a person |
+| **Build** | **7 · Simple builder** | an SDK — you build an agent by **writing code** | a simple surface over that SDK — build the same agent by **clicking, not coding** | the tools, facts, and limits | a claims expert who can't code builds the agent by clicking; Jiuwen's SDK runs underneath |
+| **Run** | **8 · Proves, controls & complies** | guardrails that block bad actions, and tracing that records them | tests, records, and audit reports built on top — not more guardrails | what "good" means and who reviews | every refund is logged; the agent passes an EU audit |
+|  | **9 · Runs on a budget** | per-session cost tracking and caps | governance across many agents (who may spend what) | the budget | one runaway agent can't use up everyone else's budget |
+|  | **10 · Right-size the brain** | a model router, a thinking dial, and a cost meter | the decision engine: pick the models, thinking depth, tools, memory and cache to hit a quality bar at the lowest cost | the quality bar and the usage budget | the claims agent uses a cheap model for lookups and only escalates to a big one for the tricky 5% |
 
-**For bodies only — on top of the above:**
+### 3 · On top — for bodies
 
 | Layer | Jiuwen already does | We build | The domain team adds | Example |
 |---|---|---|---|---|
@@ -151,10 +133,10 @@ None of these belong inside the framework — they sit on top. But agents can't 
 | **1 · Identity & access** | **yes** | **yes** |
 | **2 · Runs on its own** | **yes** | **yes** |
 | **3 · Contain & isolate** | **yes** | **yes** |
-| **4 · Payments & limits** | if it buys | if it buys |
-| **5 · Connect & interoperate** | **yes** | **yes** |
-| **6 · Knows the business** | **yes** | **yes** |
-| **7 · Make the agent** | **yes** | **yes** |
+| **4 · Connect & interoperate** | **yes** | **yes** |
+| **5 · Knows the business** | **yes** | **yes** |
+| **6 · Payments & limits** | if it buys | if it buys |
+| **7 · Simple builder** | **yes** | **yes** |
 | **8 · Proves, controls & complies** | **yes** | **yes** |
 | **9 · Runs on a budget** | **yes** | **yes** |
 | **10 · Right-size the brain** | **yes** | **yes** |
@@ -162,7 +144,7 @@ None of these belong inside the framework — they sit on top. But agents can't 
 | **12 · Sees and acts** | browser use only | **yes** |
 | **13 · Simulation** | **yes** | **yes** |
 
-Ours if it is reused across every domain; the domain team's if it serves one domain only. Billing, pricing and sales are business, not R&D — only the plumbing that lets agents pay is ours (layer 4).
+Ours if it is reused across every domain; the domain team's if it serves one domain only. Billing, pricing and sales are business, not R&D — only the plumbing that lets agents pay is ours (layer 6).
 
 ## What NOT to build — Jiuwen already gives it
 
@@ -189,8 +171,8 @@ Ours if it is reused across every domain; the domain team's if it serves one dom
 
 We compared our layers against the published agent stacks and enterprise platforms of late 2026 — O'Reilly's six-layer agent stack, the eleven-layer landscape maps, the AWS / Microsoft / Google agent reference architectures, the agentic-commerce protocol stack, and the 2026 security, FinOps and EU AI Act guidance. Five things stood out:
 
-- **Models are commodity; the moat moved up.** Foundation models and inference are low-defensibility. The durable value sits in **integrations**, **observability & eval**, and **memory/context** — our layers 5, 8, and 6.
-- **Agentic payments became a real layer** (AP2 · ACP · UCP · x402 · MPP) — our layer 4.
+- **Models are commodity; the moat moved up.** Foundation models and inference are low-defensibility. The durable value sits in **integrations**, **observability & eval**, and **memory/context** — our layers 4, 8, and 5.
+- **Agentic payments became a real layer** (AP2 · ACP · UCP · x402 · MPP) — our layer 6.
 - **A builder surface is now table stakes** (no-code / low-code assembly) — our layer 7.
 - **Security became its own discipline.** Prompt injection is *unsolved*; the industry answers with **containment** — sandboxes, per-task secrets, egress-deny, authorization outside the model. That is our layer 3.
 - **Cost and compliance turned mandatory.** 98% now track agent spend and 73% blow budget (our layer 9); EU AI Act high-risk rules bite from **2 Aug 2026** (our layer 8).
@@ -199,9 +181,9 @@ We compared our layers against the published agent stacks and enterprise platfor
 |---|---|---|
 | Foundation models · inference | (providers) | **commodity** |
 | Agent frameworks | (Jiuwen) | medium |
-| Memory & vector DBs | **6 · Knows the business** | medium |
-| Protocols — MCP · A2A · AG-UI | **5 · Connect & interoperate** | standard — adopt, don't invent |
-| Tool integrations | **5 · Connect & interoperate** | **high moat** |
+| Memory & vector DBs | **5 · Knows the business** | medium |
+| Protocols — MCP · A2A · AG-UI | **4 · Connect & interoperate** | standard — adopt, don't invent |
+| Tool integrations | **4 · Connect & interoperate** | **high moat** |
 | Browser / computer use | **12 · Sees and acts** | medium |
 | Observability & eval | **8 · Proves, controls & complies** | **high moat** |
 | Agent security / sandboxing | **3 · Contain & isolate** | **high — unsolved** |
@@ -209,8 +191,8 @@ We compared our layers against the published agent stacks and enterprise platfor
 | Governance & compliance (EU AI Act) | **8 · Proves, controls & complies** | **mandatory** |
 | AI FinOps / cost control | **9 · Runs on a budget** | **high — 73% blow budget** |
 | Model routing · cost-aware serving | **10 · Right-size the brain** | **emerging — ours** |
-| Agentic commerce / payments | **4 · Payments & limits** | **emerging — whitespace** |
-| No-code / low-code builders | **7 · Make the agent** | medium |
+| Agentic commerce / payments | **6 · Payments & limits** | **emerging — whitespace** |
+| No-code / low-code builders | **7 · Simple builder** | medium |
 | Enterprise platforms / agent control plane | (product teams) | — |
 | AI clouds · inference hosting | (providers) | **commodity** |
 | Agent identity & access | **1 · Identity & access** | **underserved — whitespace** |
@@ -240,7 +222,7 @@ quadrantChart
   "Sees and acts": [0.60, 0.46]
   "Runs on the device": [0.52, 0.38]
   "Runs on a budget": [0.55, 0.44]
-  "Make the agent": [0.30, 0.44]
+  "Simple builder": [0.30, 0.44]
   "Simulation": [0.42, 0.30]
 ```
 
@@ -249,7 +231,7 @@ quadrantChart
 | Top-right — earns money + hard to copy | Proves, controls & complies · Connect & interoperate · Payments & limits | **do it now** |
 | Top-left — earns money, but rivals can catch up | Runs on its own · Knows the business | **build, but expect rivals** |
 | Bottom-right — hard to copy, but earns indirectly | Identity & access · Contain & isolate · Sees and acts · Runs on the device | **keep it — that's our edge** |
-| Bottom-left — earns indirectly, easy to copy | Make the agent · Runs on a budget | **buy, don't build** |
+| Bottom-left — earns indirectly, easy to copy | Simple builder · Runs on a budget | **buy, don't build** |
 | Center | Simulation | **build a little** |
 
 ## Business lens
