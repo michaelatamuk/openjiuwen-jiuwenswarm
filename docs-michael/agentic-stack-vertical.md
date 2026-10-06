@@ -196,37 +196,37 @@ block-beta
 
 Jiuwen has **no counterpart** for these.
 
-| # | Group | Framework | Jiuwen has | We add | Example |
-|---|---|---|---|---|---|
-| 1 | Build it | **Right-size the brain** | a model router, a reasoning dial, a cost meter | a designer that fits the whole agent to its task, budget, data rules, risk, and deployment | a support team runs one agent that stays affordable |
-| 2 | Build it | **Simple builder** | the full runtime | a compact **backend** SDK — an agent running in a few lines | a small team shipping an agent in a day |
-| 3 | Build it | **Right context** | memory and retrieval | a layer that decides what the agent sees each step — assemble, compress, route | a long chat that stays sharp instead of drowning in its own history |
-| 4 | Run it | **On-device runtime** | a server-side runtime | running the agent on **a single device**, fast and offline | a voice helper answering in under 300 ms, offline |
-| 5 | Run it | **Device I/O** | vision and browser control | sensors and motion for hardware | a robot that reads a camera and moves its arm |
-| 6 | Run it | **Edge coordination** | a server-side runtime | many agents across many sites or devices — peer-to-peer, offline, data stays local (**not one device**) | 500 store agents that keep working when the cloud drops |
-| 7 | Prove it | **Simulation** | multi-rollout evaluation | a fake world — and **simulated users** — to test the agent before the real one | a support agent rehearsed against a thousand fake customers |
-| 8 | Prove it | **Red-teaming** | guardrails that defend at run time | a framework where **a malicious actor attacks** the agent — injection, jailbreak, tool misuse — and reports the holes | an agent is stress-tested before it touches real data |
-| 9 | Prove it | **Chaos testing** | tracing and evaluation | breaks the agent with **random faults, not an attacker** — API failures, corruption, timeouts — and checks recovery | an agent loses a tool mid-task and still finishes |
-| 10 | Govern it | **Agent identity** | user auth and credential injection | a distinct identity per agent and job, with keys that expire when the job ends | a claims bot signs into the CRM as itself, for one job |
-| 11 | Govern it | **Agent management** | pools and a manager | run many of **your own** agents — ownership, access, cost, failure, and a kill switch | an org runs 200 agents and knows what each does and costs |
-| 12 | Govern it | **Payments & limits** | — | a governed wallet for the **agent's own spending** (not customer billing) — signed approvals, spend ceilings | a procurement agent that buys up to $200 and escalates anything higher |
+| # | Group | Framework | Problem / Solution |
+|---|---|---|---|
+| 1 | Build it | **Right-size the brain** | **Problem:** An agent is configured once and reused, not sized to the customer or to the work it is meant to do.<br>**Solution:** Before the work starts, we fit the whole agent to that customer — the work it is intended to do in general, plus its models, tools, skills, memory, budget, and risk. |
+| 2 | Build it | **Simple builder** | **Problem:** Building an agent means wiring the full runtime before a developer gets anything working; other frameworks let you start in a few lines.<br>**Solution:** We give developers a compact SDK that builds a working agent in a few lines of code. |
+| 3 | Build it | **Right context** | **Problem:** Over a long run an agent's context fills with dead weight — failed attempts, less relevant tools, irrelevant skills — and its efficiency drops.<br>**Solution:** We provide a runtime framework the developer uses to keep that context lean, shedding stale and irrelevant items as the work proceeds. |
+| 4 | Run it | **On-device runtime** | **Problem:** A server-side runtime needs a network round-trip for every step, so the agent lags and stops working the moment the device goes offline.<br>**Solution:** We provide an on-device runtime framework — the agent executes locally, sub-second and offline. |
+| 5 | Run it | **Device I/O** | **Problem:** Agents on hardware can only read text; they cannot perceive the world or act on it.<br>**Solution:** We provide an I/O framework that connects the agent to sensors and motion, so a device can see its surroundings and move. |
+| 6 | Run it | **Edge coordination** | **Problem:** Agents tied to a central cloud go dark when the link drops, and cannot act on local data or coordinate with each other.<br>**Solution:** We provide a coordination framework that lets many agents across many sites work peer-to-peer and offline, keeping data local. |
+| 7 | Prove it | **Simulation** | **Problem:** Agents reach real customers tested only against a handful of scripted cases, so no one knows how they behave in the wild.<br>**Solution:** We provide a simulation framework — a fake world and simulated users — to rehearse the agent before it goes live. |
+| 8 | Prove it | **Red-teaming** | **Problem:** Guardrails defend the agent at run time, but no one has attacked it to find where it breaks.<br>**Solution:** We provide a red-teaming framework where a malicious actor attacks the agent — prompt injection, jailbreak, tool misuse — and reports the holes before launch. |
+| 9 | Prove it | **Chaos testing** | **Problem:** Agents fail in the field when a tool times out or returns garbage, and that path was never tested.<br>**Solution:** We provide a chaos framework that injects random faults — API failures, corruption, timeouts — and proves the agent recovers mid-task. |
+| 10 | Govern it | **Agent identity** | **Problem:** Agents act through a human's login, so nothing can tell what an agent did, and access cannot be revoked without touching the person.<br>**Solution:** We provide an identity framework that gives each agent and job its own identity, with keys that expire when the job ends. |
+| 11 | Govern it | **Agent management** | **Problem:** Once an org runs many agents, no one can say who owns each, what it can reach, what it costs, or how to stop it.<br>**Solution:** We provide a management framework for your own fleet — ownership, access, cost, failure, and a kill switch. |
+| 12 | Govern it | **Payments & limits** | **Problem:** An agent cannot be handed a payment method without risking unbounded spend.<br>**Solution:** We provide a payments framework — a governed wallet with signed approvals and spend ceilings — for the agent's own spending, not customer billing. |
 
 **Product layer — ship it as a business.** The frameworks below do not improve the agent. They remove the plumbing a startup must otherwise build before they have a product.
 
-| # | Group | Framework | Jiuwen has | We add | Example |
-|---|---|---|---|---|---|
-| 13 | Serve & isolate | **Multi-tenancy** | single-tenant runtime | many customers share one runtime, logically isolated — separate data, agent instances, config, and billing per customer | a B2B startup onboards 50 companies; each sees only its own agents and data |
-| 14 | Serve & isolate | **White-label packaging** | — | rebrand and deploy a **dedicated instance per enterprise client** (vs shared multi-tenant) — their SSO, their domain, their data residency | a startup wins an enterprise deal without building a custom deployment |
-| 15 | Charge | **Product billing** | cost metering (internal) | turns customer usage into invoices — define the pricing model (per task, per seat, per minute) and wire it to a payment processor | a startup charges per task processed; billing is automatic, not hand-built |
-| 16 | Charge | **Outcome-based billing** | cost metering (internal) | charges per verified outcome — defines what counts as a result, measures attribution, bills only when proof exists | a legal AI startup charges $4 per contract reviewed and signed off, not per token |
-| 17 | Acquire | **Customer onboarding** | — | guided first-mile setup **after purchase** — connect data sources, configure agent, run first task | a new customer goes from signup to working agent without calling support |
-| 18 | Acquire | **Trial & conversion** | — | bounded trial infrastructure **before purchase** — usage caps, time limits, instrumented conversion triggers | a startup runs a 14-day free trial with automatic upgrade prompts when limits are hit |
-| 19 | Engage | **Embeddable surfaces** | channels for own products | drop-in UI components — chat, task status, history, **approval-status screens** — for embedding in a third-party product | a startup ships an agent interface inside their existing web app in hours, not months |
-| 20 | Engage | **Product analytics** | agent eval and tracing | business-health metrics — activation, retention, feature adoption — built around agent interaction patterns | a startup sees which customers activated, which churned, and why |
-| 21 | Operate | **Cross-platform control plane** | agent management (Jiuwen-only) | a neutral governance layer over agents built on **other** frameworks — LangChain, CrewAI, Agentforce, Copilot — with unified inventory, policy, cost, and kill switch | an enterprise runs 300 agents across four frameworks and sees all of them in one place |
-| 22 | Verticalize | **Vertical domain packs** | — | pre-built knowledge, **industry rule structures**, industry connectors, and workflow blueprints for a specific vertical — a startup picks a pack and starts domain-ready | an insurance startup gets FNOL workflows, claims connectors, and state-rule structures on day one |
-| 23 | Human & regulator | **Escalation & handoff** | human-in-the-loop primitives | configurable escalation logic above the HITL mechanism — trigger conditions, context packaging, routing rules, SLA per escalation type, workflow resumption | a claims agent escalates when confidence drops below 0.7 or a decision exceeds $5,000, packages context, routes to the right queue, resumes on approval |
-| 24 | Human & regulator | **Regulatory compliance pack** | compliance evidence (raw traces) | a mapping layer that turns traces into regulation-specific evidence packages — EU AI Act Articles 9/13/14, GDPR Article 22/35, NIST AI RMF — **not runtime control, not domain content** | an EU-market agent auto-generates a conformity assessment and DPIA on every deployment, ready for a regulator |
+| # | Group | Framework | Problem / Solution |
+|---|---|---|---|
+| 13 | Serve & isolate | **Multi-tenancy** | **Problem:** Serving many customers from one deployment leaks data and mixes billing unless every tenant is hard-isolated.<br>**Solution:** We provide a multi-tenancy framework — separate agent instances, data, permissions, and billing per customer on one runtime. |
+| 14 | Serve & isolate | **White-label packaging** | **Problem:** Enterprise buyers demand their own instance — their SSO, domain, and data residency — which today means a bespoke deployment.<br>**Solution:** We provide a white-label framework to rebrand and deploy a dedicated instance per client as configuration, not a project. |
+| 15 | Charge | **Product billing** | **Problem:** Turning agent usage into customer invoices means building metering and payment plumbing from scratch.<br>**Solution:** We provide a billing framework that turns customer usage into invoices — you set the pricing model, it wires to a payment processor. |
+| 16 | Charge | **Outcome-based billing** | **Problem:** Per-use pricing charges customers for work done, not results delivered, which undercuts the value story.<br>**Solution:** We provide an outcome-billing framework that charges only for verified outcomes — measured, attributed, and billed when proof exists. |
+| 17 | Acquire | **Customer onboarding** | **Problem:** A new customer lands with nothing configured and needs engineering help before their first task.<br>**Solution:** We provide an onboarding framework — a guided first-mile flow to connect data, configure the agent, and run a first task. |
+| 18 | Acquire | **Trial & conversion** | **Problem:** A free trial that converts needs caps, gates, and instrumentation nobody wants to build.<br>**Solution:** We provide a trial framework — bounded limits and instrumented upgrade prompts, wired to billing. |
+| 19 | Engage | **Embeddable surfaces** | **Problem:** Every product that embeds an agent rebuilds the same chat, status, history, and approval UI.<br>**Solution:** We provide an embeddable-surface framework — drop-in UI components for any product. |
+| 20 | Engage | **Product analytics** | **Problem:** Agent traces show what the agent did, not whether the business is healthy.<br>**Solution:** We provide an analytics framework — business-health metrics built on agent behavior: activation, retention, and drop-off. |
+| 21 | Operate | **Cross-platform control plane** | **Problem:** Enterprises run agents on several frameworks and have no single place to govern them.<br>**Solution:** We provide a control-plane framework — one neutral console over agents built on any framework — inventory, policy, cost, and kill switch, without a closed stack. |
+| 22 | Verticalize | **Vertical domain packs** | **Problem:** Every startup entering a regulated vertical rebuilds the same domain knowledge, rules, and connectors.<br>**Solution:** We provide vertical domain packs — pre-built knowledge, rule structures, connectors, and workflow blueprints per industry. |
+| 23 | Human & regulator | **Escalation & handoff** | **Problem:** The approve/reject mechanism exists, but not the design of when to escalate, to whom, and how work resumes.<br>**Solution:** We provide an escalation framework that sits above it — trigger types, routing rules, SLA, context packets, and workflow resumption. |
+| 24 | Human & regulator | **Regulatory compliance pack** | **Problem:** Regulators want per-decision evidence that today must be assembled by hand from raw traces.<br>**Solution:** We provide a compliance framework that maps traces into regulator-ready evidence packages — EU AI Act, GDPR, NIST — with the right artifacts per decision. |
 
 **Which parts need which:**
 
@@ -382,7 +382,7 @@ quadrantChart
 
 **1 · Right-size the brain**
 - **Jiuwen today:** routes each request across models, exposes a reasoning-effort setting, and meters cost.
-- **New here:** a designer that fits the whole agent to its operating conditions — the kind of work, the budget, the data and provider rules, the acceptable error, the load, the deployment target, and the governing rules. It sets the models, how much the agent thinks, and what it may spend.
+- **New here:** a designer that sizes the whole agent to each customer before the work starts — the work it is intended to do in general, the data and provider rules, the acceptable error, the deployment target, and the governing rules — setting the models, tools, skills, memory, budget, and risk it runs with.
 - **Unlocks:** a support team runs one agent that stays affordable — light on simple questions, deeper on hard ones.
 
 **2 · Simple builder**
@@ -392,7 +392,7 @@ quadrantChart
 
 **3 · Right context**
 - **Jiuwen today:** memory and retrieval.
-- **New here:** a layer that decides what the agent sees each step — assembling, compressing, and routing context and memory.
+- **New here:** a runtime framework the developer uses to keep the working context lean — shedding stale attempts, less relevant tools, and irrelevant skills as the work proceeds instead of letting them accumulate.
 - **Unlocks:** a long chat that stays sharp instead of drowning in its own history.
 
 #### Run it
@@ -474,7 +474,7 @@ These frameworks do not touch the agent's quality, safety, or cost. They close t
 **16 · Outcome-based billing**
 - **Jiuwen today:** cost metering for internal use.
 - **New here:** charges per verified outcome rather than per usage event. Defines what counts as a result for a given agent type, measures whether it happened, attributes it to the agent's action within a time window, and only bills when proof exists. Intercom charges $0.99 per resolved ticket; Zendesk $1.50–$2.00 with a 72-hour attribution window; Sierra built a $15.8B business on it. The attribution logic — tamper-proof, auditable, contestable — is the hard part that no startup should build twice.
-- **Unlocks:** a startup aligns its pricing with customer value. Customers pay for problems solved, not for compute burned.
+- **Unlocks:** a startup aligns its pricing with customer value — a legal AI charges per contract reviewed and signed off, not per token; customers pay for problems solved, not for compute burned.
 - **Market signal:** Intercom Fin, Zendesk AI, Sierra, Salesforce Agentforce; Flexprice and Nevermined as standalone infrastructure for it (Oct 2026).
 
 #### Acquire
@@ -522,7 +522,7 @@ These frameworks do not touch the agent's quality, safety, or cost. They close t
 **23 · Escalation & handoff**
 - **Jiuwen today:** human-in-the-loop primitives — approve, reject, handoff.
 - **New here:** the configurable design layer above the HITL mechanism. Six trigger types are converging as industry standard: confidence threshold breach, irreversibility flag, action-risk-tier match, sentiment signal, SLA breach, and anomaly/injection detection. Each trigger needs its own routing rule, SLA expectation, context packet (current task state, trigger reason, recommended action, sentiment trend), and workflow resumption logic. A startup building a claims agent and one building an HR agent need completely different escalation designs — neither should build this from scratch.
-- **Unlocks:** a startup ships a production-grade human-in-the-loop product — with the right escalations firing at the right moments, the right context reaching the right human, and the workflow resuming without loss — without designing any of that logic themselves.
+- **Unlocks:** a startup ships a production-grade human-in-the-loop product — a claims agent escalates on low confidence or a decision over $5,000, routes to the right queue, and resumes on approval — without designing any of that logic themselves.
 - **Market signal:** Sierra, Intercom Fin, and Voiceflow each built their own escalation frameworks independently. Digital Applied "Human-in-the-Loop Escalation Design for AI Agents 2026"; BuildMVPFast "Agent Handoff Patterns 2026" — the pattern is documented but no platform owns it as a framework (Oct 2026).
 
 **24 · Regulatory compliance pack**
