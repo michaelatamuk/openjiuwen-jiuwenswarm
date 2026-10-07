@@ -1,106 +1,131 @@
-# Agent Mini-Products
+# Agent Mini-Products (multimodal)
 
 Small, same-vibe agent products — each one person, 2–3 days, on openjiuwen. An always-on agent that does real work for a person or team.
 
+**Multimodal by default.** Every idea below uses at least one of: images, voice, video, screen, or documents — not text alone. Modality tag format: `[in … → out …]`.
+
+Legend: 📷 image/photo/screenshot · 🖥️ screen/computer-use · 🎙️ voice/audio · 🎬 video · 📄 document/PDF/scan
+
 ## Personal & life
 
-- **Inbox Copilot** — watches your inbox, triages, drafts replies, flags what needs you, follows up. *(≈ Dots / Muse / Grok Bot)*
-- **Morning Brief** — one sourced readout each morning from Slack, email, calendar, and notes. *(≈ Grok Chief of Staff / Microsoft Scout)*
-- **Travel Concierge** — plans a trip, compares options, builds an itinerary, confirms before booking. *(≈ Muse / Grok Bot)*
-- **Bill Negotiator** — gets a bill lowered and finds subscriptions to cancel, with approval. *(≈ Muse)*
-- **Subscription Cleaner** — finds unused subscriptions and cancels them on approval. *(≈ Grok)*
-- **Apartment Scout** — filters listings, books tours, and applies. *(≈ Grok / Gemini + Zillow)*
-- **Family Ops** — watches school emails and deadlines, loads a cart, books the family dinner. *(≈ Muse)*
-- **Meal Planner** — recipe → grocery list → dinner-party menu that respects friends' diets. *(≈ Muse)*
-- **Personal Trainer** — builds a training plan and adjusts it as life shifts. *(≈ Muse)*
-- **Call Catcher** — an agent with its own phone number answers calls and leaves you summaries. *(≈ Manus Cue)*
-- **Browser Operator** — does your logged-in browser work (LinkedIn, Maps, applications). *(≈ Manus)*
-- **Personal CRM** — remembers everyone you meet; before a call it shows the last conversation and drafts the follow-up you keep forgetting. *(≈ Grok)*
-- **Deadline Catcher** — spots a time-sensitive item buried in email and alerts you. *(≈ Muse)*
-- **Study Coach** — turns material into an interactive study guide. *(≈ Muse)*
-- **Life Dashboard** — connects your bank and a sleep/activity app; each week it shows where the money went and how you slept, and flags the one thing to fix. *(≈ Muse)*
-- **Photos Organizer** — organizes and edits your photo library. *(≈ Gemini)*
+- **Inbox Copilot** — triages mail, reads attachments (PDFs, photos of forms, screenshots), drafts replies, and can reply by voice note. `[in 📷📄🎙️ → out 🎙️]` *(≈ Dots / Muse / Grok Bot)*
+- **Morning Brief** — a spoken, visual brief each morning from your messages, calendar, and a photo of your whiteboard or notes. `[in 📷🎙️📄 → out 🎙️📷]` *(≈ Grok Chief of Staff / Microsoft Scout)*
+- **Travel Concierge** — send a photo of a place or a screenshot of a booking; get an itinerary and voice confirmations. `[in 📷🎙️ → out 📷🎙️]` *(≈ Muse / Grok Bot)*
+- **Bill Negotiator** — photograph the bill, it calls to negotiate, and reads you the result. `[in 📷🎙️ → out 🎙️]` *(≈ Muse)*
+- **Subscription Cleaner** — screenshot your statements; it finds unused subscriptions and cancels them on approval. `[in 📷📄 → out 📄]` *(≈ Grok)*
+- **Apartment Scout** — send video/photos from a tour; it scores the place, flags issues, and compares options. `[in 🎬📷 → out 📷]` *(≈ Grok / Gemini + Zillow)*
+- **Family Ops** — photograph the school flyer or permission slip; it extracts dates, adds them to the calendar, and reminds you. `[in 📷📄 → out 📷]` *(≈ Muse)*
+- **Meal Planner** — photo your fridge and pantry; get meals, a grocery list, and images of the dishes. `[in 📷 → out 📷]` *(≈ Muse)*
+- **Personal Trainer** — video your set; it critiques your form, counts reps, and adjusts tomorrow. `[in 🎬🎙️ → out 🎙️📷]` *(≈ Muse)*
+- **Sport Form Coach** — record your table-tennis (or any racket-sport) session; it analyzes the video into form and footwork insights, an annotated clip, and drills. `[in 🎬 → out 🎬📷🎙️]` *(≈ SwingVision / HomeCourt)*
+- **Call Catcher** — answers your calls, takes messages, and returns audio summaries. `[in 🎙️ → out 🎙️]` *(≈ Manus Cue)*
+- **Browser Operator** — does your logged-in browser work by "seeing" the screen. `[in 🖥️📷 → out 🖥️]` *(≈ Manus)*
+- **Personal CRM** — voice-note a memory after meeting someone (and remember their photo); recall context before the next call. `[in 🎙️📷 → out 📷]` *(≈ Grok)*
+- **Deadline Catcher** — reads screenshots of emails and pages and alerts you by voice. `[in 📷🎙️ → out 🎙️]` *(≈ Muse)*
+- **Study Coach** — photo your notes or handwriting; get a guide, flashcards, a quiz, and an audio read-back. `[in 📷📄🎙️ → out 🎙️📷]` *(≈ Muse)*
+- **Life Dashboard** — snap receipts and health screenshots; it builds weekly visual charts. `[in 📷📄 → out 📷]` *(≈ Muse)*
+- **Photos Organizer** — organize, cull, and edit your photo library. `[in 📷 → out 📷]` *(≈ Gemini)*
 
 ## Communication & coordination
 
-- **Meeting Prep** — a prep pack before every calendar event, from notes, CRM, and prior calls. *(≈ Grok)*
-- **Meeting Scribe** — notes and action items from calls, then follows up. *(≈ Grok / Zoom)*
-- **Team Copilot** — a bot in your team chat that answers "what's our churn this month?" from the data and "how do we handle refunds?" from the docs, with sources linked. *(≈ Grok Team Bots)*
-- **Agent Team** — give one goal in a group chat; a manager agent splits it into roles and the specialists hand off until a finished deliverable is ready to review. *(≈ Cue / OPC)*
-- **Calendar Coordinator** — schedules meetings across time zones. *(≈ Grok)*
+- **Meeting Prep** — read the deck, docs, and past screenshots; produce a visual prep pack. `[in 📄📷 → out 📷]` *(≈ Grok)*
+- **Meeting Scribe** — record the call; get notes, action items, and a searchable transcript with speaker labels. `[in 🎙️🎬 → out 📄🎙️]` *(≈ Grok / Zoom)*
+- **Team Copilot** — answers with a chart or a spoken reply drawn from your team's data and docs. `[in 📄🎙️ → out 📷🎙️]` *(≈ Grok Team Bots)*
+- **Agent Team** — a manager agent plus specialists produce a finished deliverable (doc, deck, or image). `[in 📄🎙️ → out 📄📷]` *(≈ Cue / OPC)*
+- **Calendar Coordinator** — schedules across time zones by voice. `[in 🎙️ → out 🎙️]` *(≈ Grok)*
+- **Standup Recorder** — record a spoken update; it posts the transcript and a summary. *(new)* `[in 🎙️🎬 → out 📄]`
 
 ## Sales & marketing
 
-- **Outbound SDR** — researches accounts overnight, drafts personalized outreach in your voice, ready to approve. *(≈ Grok / Dots)*
-- **Account Researcher** — tiers accounts using CRM plus external signals. *(≈ Grok)*
-- **Competitive Intel Analyst** — monitors competitors and produces a digest. *(≈ Grok)*
-- **Pipeline Analyst** — a Monday scoreboard with stalls and commit risk. *(≈ Grok)*
-- **Newsletter Writer** — drafts a newsletter from developing stories. *(≈ Dots / Grok)*
-- **Social Media Manager** — plans and drafts posts on a calendar. *(≈ Grok)*
-- **CRM Hygienist** — every week it cleans your CRM: merges duplicates, updates stale stages, and flags deals that have gone quiet. *(≈ Grok)*
-- **Sales Call Coach** — reviews calls with timestamped coaching and a score. *(≈ Grok)*
-- **Paid Media Manager** — watches spend vs budget, recommends reallocation. *(≈ Grok)*
-- **Presentation Designer** — builds on-brand decks from a master template. *(≈ Grok)*
-- **Customer Review Analyst** — turns months of reviews into themes and actions. *(≈ Muse SMB)*
-- **Community Manager** — watches your community channel, answers routine questions, and drafts a weekly highlight post for approval. *(≈ Grok)*
-- **SEO / AEO Auditor** — audits and fixes content findability. *(≈ Grok)*
+- **Outbound SDR** — researches accounts and sends personalized video or voice messages with visual proof. `[in 📷🖥️ → out 🎬🎙️]` *(≈ Grok / Dots)*
+- **Account Researcher** — screen-captures and analyzes prospect and competitor sites into a visual teardown. `[in 🖥️📷 → out 📷]` *(≈ Grok)*
+- **Competitive Intel Analyst** — tracks competitor changes as before/after screenshots and short video. `[in 🖥️📷🎬 → out 📷🎬]` *(≈ Grok)*
+- **Pipeline Analyst** — a visual scoreboard with charts and drill-downs. `[in 📄 → out 📷]` *(≈ Grok)*
+- **Newsletter Writer** — drafts the newsletter with generated header images. `[in 📄 → out 📷📄]` *(≈ Dots / Grok)*
+- **Social Media Manager** — generates posts, carousels, and short clips from your assets. `[in 📷🎬🎙️ → out 📷🎬]` *(≈ Grok)*
+- **CRM Hygienist** — voice-log call notes into the CRM and clean up stale records. `[in 🎙️ → out 📄]` *(≈ Grok)*
+- **Sales Call Coach** — reviews call recordings and video with timestamped coaching. `[in 🎙️🎬 → out 📷📄]` *(≈ Grok)*
+- **Paid Media Manager** — analyzes spend and generates ad creatives (image/video). `[in 📄 → out 📷🎬]` *(≈ Grok)*
+- **Presentation Designer** — builds on-brand decks with charts, images, and your logo. `[in 📷📄 → out 📷📄]` *(≈ Grok)*
+- **Customer Review Analyst** — reads review screenshots and photos; produces themes and charts. `[in 📷📄 → out 📷]` *(≈ Muse SMB)*
+- **Community Manager** — answers with images and voice notes; drafts a weekly highlight post. `[in 🎙️📷 → out 📷🎙️]` *(≈ Grok)*
+- **SEO / AEO Auditor** — screenshots SERPs and content; shows visual diffs. `[in 🖥️📷 → out 📷]` *(≈ Grok)*
 
 ## Money & finance
 
-- **Invoice Desk** — finds and matches invoices, chases owners, sends on approval. *(≈ Dots / Grok)*
-- **Expense Manager** — reconciled receipts weekly, nudges owners. *(≈ Grok)*
-- **Contract Desk** — summarizes a week of contracts, key terms, blocked reviews. *(≈ Grok / Harvey)*
-- **Cash-Flow Watcher** — tracks cash flow and inventory in the background. *(≈ Muse SMB)*
-- **Close Assistant** — assembles a financial close package. *(≈ Microsoft Cowork)*
-- **Vendor Portal Operator** — handles no-API vendor portals (renewals, seats, procurement). *(≈ Grok)*
-- **Security Questionnaire Filler** — fills vendor security questionnaires, parks the submit. *(≈ Grok)*
+- **Invoice Desk** — OCRs invoices from photos and scans; matches and chases owners. `[in 📷📄 → out 📄]` *(≈ Dots / Grok)*
+- **Expense Manager** — snap receipts; auto-categorize, reconcile, and chart spending. `[in 📷📄 → out 📷]` *(≈ Grok)*
+- **Contract Desk** — reads scans and PDFs; marks key terms as annotated images. `[in 📄📷 → out 📷]` *(≈ Grok / Harvey)*
+- **Cash-Flow Watcher** — visual cash-flow and inventory charts in the background. `[in 📄 → out 📷]` *(≈ Muse SMB)*
+- **Close Assistant** — assembles a close package with charts and a summary deck. `[in 📄 → out 📷📄]` *(≈ Microsoft Cowork)*
+- **Vendor Portal Operator** — drives no-API vendor portals by seeing the screen. `[in 🖥️📷 → out 🖥️]` *(≈ Grok)*
+- **Security Questionnaire Filler** — reads policy docs and past answers; fills and parks the submit. `[in 📄 → out 📄]` *(≈ Grok)*
 
 ## People
 
-- **Talent Scout** — sources, reaches out, and schedules candidates. *(≈ Grok / Dots)*
-- **Onboarding Manager** — runs new-hire onboarding end to end. *(≈ Grok)*
-- **Hiring Screener** — screens applicants against the role. *(≈ Grok)*
+- **Talent Scout** — parses résumés (PDFs) and screens async video intros. `[in 📄🎬 → out 📄]` *(≈ Grok / Dots)*
+- **Onboarding Manager** — generates a welcome video and pack for each new hire. `[in 📄 → out 🎬📄]` *(≈ Grok)*
+- **Hiring Screener** — watches recorded video interviews and scores them. `[in 🎬🎙️ → out 📄📷]` *(≈ Grok)*
 
 ## Product & engineering
 
-- **Bug-to-PR** — watches feedback and CI, reproduces the bug, fixes it, opens a PR with a proof video. *(≈ Dots / Cursor Cloud Agent)*
-- **Cloud Agent Orchestrator** — kick off ten coding tasks overnight; by morning get one report of what each agent changed, which PRs are ready, and which failed and why. *(≈ Grok / Cursor)*
-- **Docs Auditor** — diffs docs against the shipped product. *(≈ Grok)*
-- **Prototype Builder** — prompt → a live prototype URL. *(≈ Grok / Manus)*
-- **Repository Maintainer** — triages issues and reviews PRs on a schedule. *(≈ GitHub / Cursor)*
-- **Feature Request Tracker** — mines chats and calls into a demand list. *(≈ Grok)*
+- **Bug-to-PR** — reproduces from a screen recording, fixes the bug, opens a PR with before/after video. `[in 🎬🖥️ → out 🎬📄]` *(≈ Dots / Cursor Cloud Agent)*
+- **Cloud Agent Orchestrator** — kicks off many coding tasks; by morning a report with screenshots of what changed. `[in 📄 → out 📷📄]` *(≈ Grok / Cursor)*
+- **Docs Auditor** — diffs docs against the product using screenshots. `[in 🖥️📷 → out 📷]` *(≈ Grok)*
+- **Prototype Builder** — prompt → a working app you can see and click. `[in 📄 → out 🖥️📷]` *(≈ Grok / Manus)*
+- **Repository Maintainer** — triages issues and reviews PRs (visual diffs) on a schedule. `[in 📄🖥️ → out 📄]` *(≈ GitHub / Cursor)*
+- **Feature Request Tracker** — transcribes support calls and mines them into a demand list. `[in 🎙️🎬 → out 📄]` *(≈ Grok)*
 
 ## Customer support
 
-- **Support Resolver** — resolves or deflects tickets, escalates to a human with full context. *(≈ Fin / Decagon / Sierra / Dots)*
-- **Account Health Watcher** — maintains a churn/expansion watchlist. *(≈ Grok)*
-- **Ticket Triage** — drafts replies only, holds them for approval. *(≈ Grok)*
-- **Renewal Desk** — a 90-day customer-success renewal pack. *(≈ Grok)*
-- **Live Assist** — a real-time co-pilot for human support reps. *(≈ Sierra)*
+- **Support Resolver** — handles voice and chat; customers send photos of the problem. `[in 🎙️📷 → out 🎙️📄]` *(≈ Fin / Decagon / Sierra / Dots)*
+- **Account Health Watcher** — visual churn and expansion charts. `[in 📄 → out 📷]` *(≈ Grok)*
+- **Ticket Triage** — reads attachments (screenshots, photos) and drafts replies for approval. `[in 📷📄 → out 📄]` *(≈ Grok)*
+- **Renewal Desk** — a 90-day renewal pack with usage charts. `[in 📄 → out 📷📄]` *(≈ Grok)*
+- **Live Assist** — a real-time co-pilot that listens to the call and sees the agent's screen. `[in 🎙️🖥️ → out 🎙️📷]` *(≈ Sierra)*
 
 ## Research & knowledge
 
-- **Literature Scout** — reads the papers on a topic, builds an evidence base, drafts a review. *(≈ Claude Science)*
-- **Data Analyst with proof** — reruns analyses and ships results with code, environment, and a reviewer's check. *(≈ Dots scientist / Claude Science)*
-- **Regulatory Monitor** — tracks and summarizes regulatory changes. *(≈ Harvey / Legora)*
-- **Paper Fact-checker** — a reviewer agent flags bad citations and untraceable numbers. *(≈ Claude Science)*
-- **Patent Search** — patents and prior-art agent. *(≈ Perplexity)*
-- **Protein Analyst** — paste a protein target; it predicts the structure and returns a shortlist of candidate binders with the plots to check. *(≈ Claude Science)*
-- **Lab Compute Manager** — describe an experiment; it drafts the plan, submits the GPU job, watches it, and brings back results (asking before spending more compute). *(≈ Claude Science)*
-- **Chem-Informatics Analyst** — ask about a compound; it pulls the data, compares molecules, and renders the structures with sources. *(≈ Claude Science)*
-- **Drug Target Scout** — give it a disease and criteria; it ranks candidate targets and explains why each made the list. *(≈ Claude Science)*
+- **Literature Scout** — reads papers including figures and tables; summarizes with extracted charts. `[in 📄📷 → out 📄📷]` *(≈ Claude Science)*
+- **Data Analyst with proof** — reruns analyses and ships plots with code and a reviewer's check. `[in 📄 → out 📷📄]` *(≈ Dots scientist / Claude Science)*
+- **Regulatory Monitor** — reads documents and PDFs; produces visual timelines. `[in 📄 → out 📷]` *(≈ Harvey / Legora)*
+- **Paper Fact-checker** — checks figures against code and flags mismatches visually. `[in 📄📷 → out 📷]` *(≈ Claude Science)*
+- **Patent Search** — reads patents and their figures; builds prior-art maps. `[in 📄📷 → out 📷]` *(≈ Perplexity)*
+- **Protein Analyst** — predicts structures and returns rendered images. `[in 📄 → out 📷]` *(≈ Claude Science)*
+- **Lab Compute Manager** — submits jobs and brings back plots. `[in 📄 → out 📷]` *(≈ Claude Science)*
+- **Chem-Informatics Analyst** — renders molecules and side-by-side comparisons. `[in 📄 → out 📷]` *(≈ Claude Science)*
+- **Drug Target Scout** — ranks targets with structural images. `[in 📄 → out 📷]` *(≈ Claude Science)*
 
 ## Creator & media
 
-- **Content Studio** — turns a transcript or recording into clips, show notes, and social posts. *(≈ Dots / Manus)*
-- **Video First-Cut** — raw footage → an editable first cut on a timeline. *(≈ Manus)*
-- **Game Builder** — prompt → a playable game published as a link. *(≈ Manus)*
+- **Content Studio** — transcript or recording → clips, show notes, social posts, and thumbnails. `[in 🎙️🎬 → out 🎬📷📄]` *(≈ Dots / Manus)*
+- **Video First-Cut** — raw footage → an editable first cut on a timeline. `[in 🎬 → out 🎬]` *(≈ Manus)*
+- **Game Builder** — prompt → a playable game published as a link. `[in 📄 → out 🖥️🎬]` *(≈ Manus)*
+- **Dubbing Studio** — any video → subtitled and dubbed versions in other languages. *(new)* `[in 🎬🎙️ → out 🎬🎙️]`
+- **Whiteboard to Diagram** — photo of a whiteboard → a clean, editable diagram. *(new)* `[in 📷 → out 📷]`
 
 ## Verticals
 
-- **Contract Review** — bulk-reviews contracts and drafts redlines. *(≈ Harvey / Legora)*
-- **Healthcare Paperwork** — removes paperwork from clinical and payer workflows. *(≈ Salesforce Health / Claude Science)*
-- **Real-Estate Closer** — automates closings and coordination. *(≈ HomeLight)*
-- **Classroom Assistant** — grading and lesson support for teachers. *(≈ Education agents)*
-- **Seller Assistant** — e-commerce seller operations. *(≈ Amazon)*
-- **Cloud Security Triage** — investigates security findings and writes them up. *(≈ Amazon GuardDuty Investigation Agent)*
+- **Contract Review** — reads scans and PDFs; drafts annotated redlines. `[in 📄📷 → out 📷📄]` *(≈ Harvey / Legora)*
+- **Healthcare Paperwork** — reads photos of forms and handwriting; fills, explains, and does voice intake. `[in 📷🎙️📄 → out 📄🎙️]` *(≈ Salesforce Health / Claude Science)*
+- **Real-Estate Closer** — handles closing docs and turns a virtual-tour video into a listing. `[in 📄🎬 → out 📄📷]` *(≈ HomeLight)*
+- **Classroom Assistant** — grades photos of handwritten work with feedback; draws lesson diagrams. `[in 📷📄 → out 📷📄]` *(≈ Education agents)*
+- **Seller Assistant** — product photos → listings, ad creatives, and a storefront. `[in 📷🎬 → out 📷📄]` *(≈ Amazon)*
+- **Cloud Security Triage** — investigates findings from logs and screenshots; writes the report. `[in 📄🖥️ → out 📄📷]` *(≈ Amazon GuardDuty Investigation Agent)*
+
+## Multimodal-first additions
+
+Built around a modality, not just given one.
+
+- **Voice Journal** — speak your day; it transcribes, tags mood, and shows a weekly trend. `[in 🎙️ → out 🎙️📷]`
+- **Document-to-Podcast** — any PDF → a spoken episode in your voice. `[in 📄 → out 🎙️]`
+- **Lecture-to-Notes** — record a lecture; get notes, a quiz, and an audio recap. `[in 🎙️🎬 → out 📄🎙️]`
+- **Screenshot-to-Guide** — a series of screenshots → a step-by-step how-to doc. `[in 📷 → out 📄📷]`
+- **Damage Assessor** — photo of damage (car, home, goods) → estimate and a claim draft. `[in 📷 → out 📄📷]`
+- **Design Critic** — screenshot of a UI → a visual critique with annotated overlays. `[in 📷 → out 📷]`
+- **Chart Maker** — paste data or a CSV → polished charts and a summary. `[in 📄 → out 📷]`
+- **Form Filler** — photo of a paper form → a filled PDF. `[in 📷📄 → out 📄]`
+- **Video Clipper** — a long video → the best short clips with captions. `[in 🎬 → out 🎬]`
+- **Talking Avatar Reply** — a task or text → a short lip-synced video reply. `[in 📄 → out 🎬🎙️]`
+- **Real-time Voice Translator** — speak → hear the translation in your voice. `[in 🎙️ → out 🎙️]`
+- **Screen Narration** — screenshots → a narrated walkthrough video. `[in 📷 → out 🎬🎙️]`
