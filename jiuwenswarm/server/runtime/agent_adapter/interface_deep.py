@@ -18372,7 +18372,7 @@ class JiuWenSwarmDeepAdapter:
                     yield AgentResponseChunk(
                         request_id=rid,
                         channel_id=cid,
-                        payload=note_chat_payload(forward),
+                        payload=await note_chat_payload(forward),
                         is_complete=False,
                     )
                     continue
