@@ -60,6 +60,7 @@ import {
   type SlashCommandContext,
 } from './slashCommands/registry';
 import {
+  canUseSlashCommand,
   getWebSlashCommandsForMode,
   hasUnfinishedGoal as isUnfinishedGoal,
   isSlashCommandDisabledByGoal,
@@ -107,6 +108,7 @@ import AttachmentIcon from '../../assets/agent-management/attachment.svg?react';
 import GoalIcon from '../../assets/agent-management/goal.svg?react';
 import PlanIcon from '../../assets/agent-management/planned-events.svg?react';
 import SkillIcon from '../../assets/agent-management/agent-skill.svg?react';
+import CommandIcon from '../../assets/chat/command.svg?react';
 import closeSvg from '../../assets/work-mode/close.svg?raw';
 import { insertPlainText } from '../../utils/textEditCommands';
 
@@ -132,6 +134,8 @@ function PersonalContextIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+import { TeamSelector } from './TeamSelector';
+import { useTeamOrganizationUiEnabled } from '../../features/teamOrganization/featureConfig';
 
 const MENU_GAP = 10;
 /** 智能体选择列表单行高度（与 ChatPanel.css 的 .chat-agent-picker__item min-height 一致） */
@@ -987,6 +991,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const isInterruptible = isProcessing || isPaused || isGoalActive;
   const isAgentMode = mode === 'agent';
   const isTeamMode = mode === 'team';
+  const organizationUiEnabled = useTeamOrganizationUiEnabled();
   const isAutoHarnessMode = mode === 'auto_harness';
   const existingTeamGroupSelectionDisabled = Boolean(
     isTeamMode && activeSessionId !== NEW_CONVERSATION_ID && !agentGroupBinding && !agentGroupBindingPending,
@@ -1065,7 +1070,12 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       composerSuggestion,
       mentionableMembers,
       getWebSlashCommandsForMode(slashCommands, mode)
-        .filter((command) => findSlashCommand(command.name))
+        .filter((command) =>
+          canUseSlashCommand(
+            findSlashCommand(command.name),
+            Boolean(activeSessionId && activeSessionId !== NEW_CONVERSATION_ID),
+          ),
+        )
         .map((command) => ({
           ...command,
           description: resolveSlashCommandDescription(command, commandDescriptionLanguage),
@@ -1081,6 +1091,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
           : item,
     );
   }, [
+    activeSessionId,
     commandDescriptionLanguage,
     composerSuggestion,
     hasUnfinishedGoal,
@@ -2139,6 +2150,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       const slashSid = useChatStore.getState().activeSessionId;
       const slashMode = useSessionStore.getState().getRuntime(slashSid)?.mode ?? mode;
       if (cmd && shouldExecuteRegisteredSlashCommand(name, args, slashMode)) {
+        if (!canUseSlashCommand(cmd, Boolean(slashSid && slashSid !== NEW_CONVERSATION_ID))) {
+          pushAttachmentAlert(t('chat.commandRequiresSession'));
+          return;
+        }
         if (cmd.name === 'goal' && parseGoalSlashArgs(args).action === 'set' && readyMediaItems.length > 0) {
           pushAttachmentAlert(t('chat.goalAttachmentsBlocked'));
           return;
@@ -2149,30 +2164,20 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
         setAttachmentAlerts([]);
         if (inputRef.current) inputRef.current.innerHTML = '';
         setComposerSuggestion(null);
-        // requiresSession=false 的命令（如 /plan 纯本地开关）无需真实会话，欢迎页也能用
-        if (cmd.requiresSession === false || (slashSid && slashSid !== NEW_CONVERSATION_ID)) {
-          void executeSlashCommand(
-            cmd,
-            {
-              sessionId: slashSid ?? NEW_CONVERSATION_ID,
-              mode: slashMode,
-              inputLine: trimmedBase,
-              addMessage: useChatStore.getState().addMessage,
-              submitMessage: onSubmit,
-              forkConversation: onForkSession,
-              runGoalAction: runGoalSlashAction,
-              confirmGoalOverwrite,
-            },
-            args,
-          );
-        } else {
-          useChatStore.getState().addMessage(slashSid ?? NEW_CONVERSATION_ID, {
-            id: `slash-sys-${Date.now()}`,
-            role: 'system',
-            content: '请先开始一个对话再使用该指令。',
-            timestamp: new Date().toISOString(),
-          });
-        }
+        void executeSlashCommand(
+          cmd,
+          {
+            sessionId: slashSid ?? NEW_CONVERSATION_ID,
+            mode: slashMode,
+            inputLine: trimmedBase,
+            addMessage: useChatStore.getState().addMessage,
+            submitMessage: onSubmit,
+            forkConversation: onForkSession,
+            runGoalAction: runGoalSlashAction,
+            confirmGoalOverwrite,
+          },
+          args,
+        );
         return;
       }
     }
@@ -2415,6 +2420,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
           setComposerSuggestion(null);
           return;
         }
+        if (!canUseSlashCommand(slashCmd, Boolean(slashSid && slashSid !== NEW_CONVERSATION_ID))) {
+          pushAttachmentAlert(t('chat.commandRequiresSession'));
+          return;
+        }
         // 无参命令（/fork、/plan、/compact）：选中即执行，不插入文本、不再等回车。
         // `/fork title`、`/plan hi` 这类手工输入不走此选中路径，提交时会被当作普通消息。
         // `/goal` 后端元数据是 takesArgs:true（要支持 `/goal <objective>` 一次性单发），但
@@ -2438,30 +2447,20 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
           }
           setComposerSuggestion(null);
           el.focus();
-          // requiresSession=false 的命令（如 /plan 纯本地开关）无需真实会话，欢迎页也能用
-          if (slashCmd.requiresSession === false || (slashSid && slashSid !== NEW_CONVERSATION_ID)) {
-            void executeSlashCommand(
-              slashCmd,
-              {
-                sessionId: slashSid ?? NEW_CONVERSATION_ID,
-                mode: slashMode,
-                inputLine: `/${value}`,
-                addMessage: useChatStore.getState().addMessage,
-                submitMessage: onSubmit,
-                forkConversation: onForkSession,
-                runGoalAction: runGoalSlashAction,
-                confirmGoalOverwrite,
-              },
-              '',
-            );
-          } else {
-            useChatStore.getState().addMessage(slashSid ?? NEW_CONVERSATION_ID, {
-              id: `slash-sys-${Date.now()}`,
-              role: 'system',
-              content: '请先开始一个对话再使用该指令。',
-              timestamp: new Date().toISOString(),
-            });
-          }
+          void executeSlashCommand(
+            slashCmd,
+            {
+              sessionId: slashSid ?? NEW_CONVERSATION_ID,
+              mode: slashMode,
+              inputLine: `/${value}`,
+              addMessage: useChatStore.getState().addMessage,
+              submitMessage: onSubmit,
+              forkConversation: onForkSession,
+              runGoalAction: runGoalSlashAction,
+              confirmGoalOverwrite,
+            },
+            '',
+          );
           return;
         }
         // 有参命令（如 /persist）：把 "/query" 替换成蓝色原子 chip。提取文本时再还原为
@@ -2595,6 +2594,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       onForkSession,
       onSubmit,
       runGoalSlashAction,
+      pushAttachmentAlert,
       setRangeStartByTextOffset,
       t,
     ],
@@ -2639,6 +2639,21 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
           if (isImeCompositionKey(e.nativeEvent, isComposingRef.current)) return;
           e.preventDefault();
           const item = composerSuggestionItems[composerSuggestionIndex];
+          if (e.key === 'Enter' && composerSuggestion.kind === 'slash') {
+            // 完整受限命令优先走提交守卫，避免过滤后误选名称/描述匹配的技能。
+            const { name, args } = parseSlashLine(extractRichContent());
+            const command = findSlashCommand(name);
+            const slashSid = useChatStore.getState().activeSessionId;
+            const slashMode = useSessionStore.getState().getRuntime(slashSid)?.mode ?? mode;
+            if (
+              command &&
+              shouldExecuteRegisteredSlashCommand(name, args, slashMode) &&
+              (!item || !canUseSlashCommand(command, Boolean(slashSid && slashSid !== NEW_CONVERSATION_ID)))
+            ) {
+              handleSubmit();
+              return;
+            }
+          }
           if (item && !item.disabled) {
             insertComposerToken(composerSuggestion.kind, item.id, item.label, item.itemKind, item.takesArgs);
           }
@@ -2655,8 +2670,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       composerSuggestion,
       composerSuggestionIndex,
       composerSuggestionItems,
+      extractRichContent,
       handleSubmit,
       insertComposerToken,
+      mode,
       moveComposerSuggestionHighlight,
       notifyKVCInputIntent,
     ],
@@ -3483,6 +3500,9 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
 
             <div className="chat-input-toolbar" data-testid="chat-panel-input-toolbar">
               <div className="chat-input-toolbar-left" data-testid="chat-panel-input-toolbar-left">
+                {isTeamMode && organizationUiEnabled && (
+                  <TeamSelector sessionId={activeSessionId} isProcessing={isProcessing} />
+                )}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -5167,12 +5187,19 @@ function ComposerSuggestionMenu({
                         )}
                         aria-hidden="true"
                       >
-                        {item.itemKind === 'command' ? '/' : null}
+                        {item.itemKind === 'command' ? <CommandIcon /> : null}
                       </span>
                       <span className="chat-composer-suggestion__text">
                         <span className="chat-composer-suggestion__label">{item.label}</span>
                         {item.description ? (
-                          <span className="chat-composer-suggestion__meta">{item.description}</span>
+                          <span
+                            className="chat-composer-suggestion__meta"
+                            title={item.description}
+                            data-testid="chat-panel-composer-suggestion-description"
+                            data-variant={item.id}
+                          >
+                            {item.description}
+                          </span>
                         ) : null}
                       </span>
                     </>
