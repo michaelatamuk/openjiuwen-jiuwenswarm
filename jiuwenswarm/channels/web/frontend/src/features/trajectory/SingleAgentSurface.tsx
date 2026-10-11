@@ -1,5 +1,3 @@
-// Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
-
 /** Stable host boundary for the Agent and Team chat / trajectory / analysis surfaces. */
 
 import type { ReactNode } from 'react';

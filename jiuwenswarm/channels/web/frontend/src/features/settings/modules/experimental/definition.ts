@@ -45,6 +45,17 @@ export const experimentalModule: SettingsModuleDefinition = {
       ],
     },
     {
+      id: 'skill-pack',
+      titleKey: 'settingsPanel.experimental.skillPack',
+      items: [
+        {
+          id: 'discover-skill-pack-enabled',
+          component: 'switch',
+          key: 'symphony_evolution_enabled',
+        },
+      ],
+    },
+    {
       id: 'kv-cache-affinity',
       titleKey: 'settingsPanel.experimental.kvCacheAffinity',
       items: [
@@ -54,6 +65,11 @@ export const experimentalModule: SettingsModuleDefinition = {
           key: 'kv_cache_affinity_enabled',
         },
       ],
+    },
+    {
+      id: 'team-organization',
+      titleKey: 'settingsPanel.experimental.teamOrganization',
+      items: [{ id: 'team-organization-ui-enabled', component: 'switch', key: 'team_organization_ui_enabled' }],
     },
     {
       id: 'proactive-recommendation',
