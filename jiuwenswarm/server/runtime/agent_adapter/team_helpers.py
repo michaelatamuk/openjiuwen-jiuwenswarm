@@ -4987,9 +4987,6 @@ def _workflow_updated_to_team_events(
                                 "old_status": old_status,
                                 "new_status": agent_status,
                                 "workflow_run_id": run_id,
-                                # Agent result (set at agent_completed) — shown on the
-                                # swarm-map lane once the worker finishes.
-                                "outcome": (agent.get("outcome") or "")[:80],
                             },
                         )
                     )
