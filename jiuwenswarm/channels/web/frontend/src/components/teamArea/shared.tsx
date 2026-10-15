@@ -24,6 +24,16 @@ export interface TeamMember {
   name?: string;
   execution_status?: string | null;
   mode?: string;
+  /** TeamRole 值：leader / teammate / human_agent / bridge_agent / worker */
+  role?: string;
+  /** 外部 CLI 后端名（claude / codex / ...），普通成员为空 */
+  cli_agent?: string | null;
+  /** 镜像的 swarmflow worker 带 run id；真实队友无此字段。 */
+  workflow_run_id?: string;
+  /** 专家节点引用的专家团成员名；普通 worker 与真实队友为空 */
+  agent_template?: string | null;
+  /** 专家的展示名（manifest i18n）；与 agent_template 一起作名册辅助行 */
+  display_name?: string | null;
 }
 
 export interface TeamTaskEvent {
@@ -184,6 +194,37 @@ export const getMemberDisplayName = (member: TeamMember | string): string => {
 export const getMemberPlainName = (member: TeamMember | string): string => {
   const { memberId, displayName } = resolveMemberIdentity(member);
   return displayName || memberId;
+};
+
+/**
+ * 成员头像 key：镜像的 swarmflow worker 按 agent.name 哈希（与树视图同源），
+ * 真实队友（无 workflow_run_id）保持 member_id，与旧行为一致。
+ */
+export const getMemberAvatarKey = (member: TeamMember): string => {
+  return member.workflow_run_id ? member.name || member.member_id : member.member_id;
+};
+
+/**
+ * 成员头像身份：镜像 worker 的 avatarKey 是名字而非 member_id，组件内的
+ * 名册查找必然落空——CLI 身份（品牌头像）与人类身份必须在这里显式给出，
+ * 否则树视图（传 identity）显示品牌脸、成员列表显示哈希插画，两边对不上。
+ */
+export const getMemberAvatarIdentity = (
+  member: TeamMember,
+): { cliAgent?: string; role?: string; mode?: string; agentTemplate?: string } => {
+  if (member.cli_agent) return { cliAgent: member.cli_agent };
+  if (member.role === 'human_agent' || member.mode === 'human') return { role: 'human_agent' };
+  if (member.agent_template) return { agentTemplate: member.agent_template };
+  return {};
+};
+
+/** 名册辅助行：专家显示"展示名（成员名）"；普通成员无。 */
+export const getMemberExpertHint = (member: TeamMember): string | null => {
+  if (!member.agent_template) return null;
+  const display = member.display_name?.trim();
+  return display && display !== member.agent_template
+    ? `${display}（${member.agent_template}）`
+    : member.agent_template;
 };
 
 const resolveMemberIdentity = (member: TeamMember | string): { memberId: string; displayName: string } => {
