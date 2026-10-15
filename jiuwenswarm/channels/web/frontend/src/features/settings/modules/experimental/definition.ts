@@ -5,8 +5,6 @@ import {
   ExternalCliSettingsItem,
   ProactiveLimitsSetting,
   RSISetting,
-  TaskAsrSetting,
-  TaskFullDuplexSetting,
   TrajectoryAnalysisSetting,
   TrajectoryUiSetting,
 } from './ExperimentalSettings';
