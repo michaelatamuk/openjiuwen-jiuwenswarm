@@ -1,4 +1,5 @@
-﻿import { useAssetPublication } from '../../hooks/useAssetPublication';
+import { assetSearchNames, matchesAssetName } from '../../features/assetNameSearch';
+import { useAssetPublication } from '../../hooks/useAssetPublication';
 import { publicationLabel, matchesPublicationFilter } from '../../features/assetPublication';
 import { CatalogCacheNotice } from '../marketplace/CatalogCacheNotice';
 /**
@@ -16,7 +17,7 @@ import MoreIcon from '../../assets/work-mode/more-rimless.svg?react';
 import NewConversationIcon from '../../assets/new_conversation.svg?react';
 import SourceManagerIcon from '../../assets/skill-panel/source-manager.svg?react';
 import RefreshIcon from '../../assets/skill-panel/refresh.svg?react';
-import { PageCard, PageHeader, PageToolbar, PageToolbarSearch, Tabs, LoadingSpinner } from '../ui';
+import { PageCard, PageHeader, PageToolbar, PageToolbarSearch, Tabs, LoadingSpinner, EmptyState } from '../ui';
 import { webRequest } from '../../services/webClient';
 import { SourceManagerModal } from '../../features/SourceManagerModal';
 import { SkillNetSearchModal } from '../../features/SkillNetSearchModal';
@@ -275,9 +276,6 @@ export function SkillPanel({
     graphReading,
     symphonyEnabledDraft,
     symphonySaving,
-    symphonySaveError,
-    graphActionError,
-    clearGraphActionError,
     updateSymphonyEnabled,
     updateGraphReading,
   } = useSymphonyGraph({ isConnected, symphonyEnabled, onSymphonyEnabledChange });
@@ -333,13 +331,15 @@ export function SkillPanel({
   }, [skills]);
 
   const filteredSkills = useMemo(() => {
-    let result = skills;
+    const result = skills;
     if (activeTab === 'my') {
       // 2026-08-21：抽成 utils/mySkills.ts 的 computeMySkills，跟"手动创建插件"的"添加技能"
       // 弹窗共用同一份"我的技能"判定规则，见该文件头注释。这里原本是"候选集过滤+排除内置未装"
       // 两步（第二步挪到了下面 visibleSkills 里），computeMySkills 已经把两步合并，语义不变
       // （排除条件不依赖搜索关键字，跟下面的关键字过滤谁先谁后结果一样）。
-      result = computeMySkills(result, installedSkillNames);
+      return computeMySkills(result, installedSkillNames).filter(skill =>
+        matchesAssetName(searchKeyword, assetSearchNames(skill.display_name, skill.name)),
+      );
     }
     const keyword = searchKeyword.toLowerCase();
     if (!keyword) return result;
@@ -1220,7 +1220,7 @@ export function SkillPanel({
       <PageHeader title={t('skills.title')} subtitle={t('skills.subtitle')}>
         <button
           onClick={() => setSourceModalOpen(true)}
-          className="flex items-center gap-2 py-1.5 rounded-lg text-sm text-text-weak hover:text-text hover:bg-secondary/50"
+          className="flex items-center gap-2 py-1.5 rounded-lg text-sm text-text-weak hover:text-text"
           data-testid="skill-panel-source-manager-btn"
         >
           <SourceManagerIcon className="w-4 h-4" />
@@ -1241,7 +1241,7 @@ export function SkillPanel({
           className={`flex items-center gap-2 py-1.5 rounded-lg text-sm text-text-weak ${
             activeTab === 'graph' && graphReading
               ? 'cursor-not-allowed opacity-70'
-              : 'hover:text-text hover:bg-secondary/50'
+              : 'hover:text-text'
           }`}
           disabled={activeTab === 'graph' && graphReading}
           data-testid="skill-panel-refresh-btn"
@@ -1315,7 +1315,7 @@ export function SkillPanel({
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               onClear={() => handleSearchChange('')}
-              placeholder={t('skills.searchPlaceholder')}
+              placeholder={t(activeTab === 'my' ? 'common.searchName' : 'skills.searchPlaceholder')}
               inputTestId="skill-panel-search-input"
               className="focus-visible:border-[color:var(--color-control-emphasis)]"
             />
@@ -1416,15 +1416,12 @@ export function SkillPanel({
   const renderGraphTab = () => (
     <SkillGraphTab
       isConnected={isConnected}
-      symphonySaveError={symphonySaveError}
       symphonySaving={symphonySaving}
       symphonyEnabledDraft={symphonyEnabledDraft}
       onUpdateSymphonyEnabled={(enabled) => void updateSymphonyEnabled(enabled)}
       skillGraphPanelRef={skillGraphPanelRef}
       onGraphReadingChange={updateGraphReading}
       onStartRetrievalIndexBuild={startRetrievalIndexBuild}
-      graphActionError={graphActionError}
-      onExternalErrorClear={clearGraphActionError}
     />
   );
 
@@ -1479,17 +1476,9 @@ export function SkillPanel({
       </>
     );
 
-  // 我的技能页签：错误提示条 / 已安装技能详情 / 技能列表（空态 + 内置分组）
+  // 我的技能页签：已安装技能详情 / 技能列表（空态 + 内置分组）
   const renderMySkills = () => (
     <>
-      {message && messageType === 'error' && (
-        <div
-          className="page-shell mt-3 px-3 py-2 rounded-md bg-secondary text-sm text-danger"
-          data-testid="skill-panel-my-error"
-        >
-          {message}
-        </div>
-      )}
       {selectedSkill ? (
         <SkillDetailView
           mode="installed"
@@ -1535,13 +1524,18 @@ export function SkillPanel({
       ) : (
         <>
           {listState === 'success' && mySkillsFiltered.length === 0 ? (
-            <div className="page-shell mt-4 text-sm text-text-muted">{t(MY_SKILLS_EMPTY_KEY[mySkillsSubTab])}</div>
+            <EmptyState id="skill-panel-my-list-empty" className="page-shell mt-4" text={t(MY_SKILLS_EMPTY_KEY[mySkillsSubTab])} />
           ) : null}
           {listState !== 'success' || mySkillsFiltered.length > 0 ? (
             <div className="page-scroll mt-0 flex-1 min-h-0 overflow-y-auto">
               {listState === 'loading' && (
-                <div className="text-sm text-text-muted" data-testid="skill-panel-my-list-loading">
-                  {t('common.loading')}
+                <div
+                  className="flex h-full items-center justify-center"
+                  role="status"
+                  aria-label={t('common.loading')}
+                  data-testid="skill-panel-my-list-loading"
+                >
+                  <LoadingSpinner size={28} />
                 </div>
               )}
               {listState === 'error' && (
