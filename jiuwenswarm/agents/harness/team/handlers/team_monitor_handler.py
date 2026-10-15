@@ -262,7 +262,7 @@ class TeamMonitorHandler(BaseMonitorHandler):
             result = await self._verification_rail.on_task_completed(inp)
             if result and result.get("event_type"):
                 event_dict = {
-                    "event_type": "team.task",
+                    "event_type": TeamEventCategory.TASK.value,
                     "session_id": self._session_id,
                     "event": result,
                 }
