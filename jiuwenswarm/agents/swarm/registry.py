@@ -45,6 +45,7 @@ from openjiuwen.agent_teams.rails.subagent_elements import (
 from openjiuwen.agent_teams.schema.build_context import register_build_context_factory
 
 from jiuwenswarm.agents.swarm.context import SwarmBuildContext
+from jiuwenswarm.agents.swarm import group_chat as _group_chat  # noqa: F401 -- registers tool providers
 from jiuwenswarm.agents.swarm.providers import (
     builtin_rails as _builtin_rails,
     code_rails as _code_rails,
@@ -68,8 +69,10 @@ VIDEO_GEN = _tools.VIDEO_GEN
 VISUAL_GEN = _tools.VISUAL_GEN
 XIAOYI_PHONE = _tools.XIAOYI_PHONE
 SYMPHONY_TOOLKIT = _tools.SYMPHONY_TOOLKIT
+A4P_INTENT_AUTHORIZATION = _tools.A4P_INTENT_AUTHORIZATION
 CRON_TOOLS = _runtime_tools.CRON_TOOLS
 SEND_FILE = _runtime_tools.SEND_FILE
+SESSION_MESSAGING_TOOLS = _runtime_tools.SESSION_MESSAGING_TOOLS
 MEMBER_SKILL_TOOLKIT = _skills.MEMBER_SKILL_TOOLKIT
 # Generic tools provided + registered by openjiuwen (referenced by bare name).
 WEB_SEARCH = _OJ_WEB_SEARCH
@@ -122,6 +125,7 @@ DEFAULT_STATUSLINE_SETUP_MAX_ITERATIONS = (
 )
 STATUSLINE_SETUP_AGENT = _code_subagents.STATUSLINE_SETUP_AGENT
 SWARM_BROWSER_AGENT = _code_subagents.SWARM_BROWSER_AGENT
+SWARM_CUA_AGENT = _code_subagents.SWARM_CUA_AGENT
 
 # Swarm-owned no-parameter class rails declared in ``builtin_rails``.
 RESPONSE_PROMPT = _builtin_rails.RESPONSE_PROMPT
@@ -135,6 +139,7 @@ TASK_PLANNING = _OJ_TASK_PLANNING
 SUBAGENT = _OJ_SUBAGENT
 SECURITY = _OJ_SECURITY
 HEARTBEAT = _member_rails.HEARTBEAT
+SESSION_MESSAGING_ROUTE = _member_rails.SESSION_MESSAGING_ROUTE
 CODE_LSP = _OJ_LSP
 CODE_CONFIRM_INTERRUPT = _OJ_CONFIRM_INTERRUPT
 CODE_WORKTREE = _OJ_WORKTREE
@@ -204,6 +209,7 @@ __all__ = [
     "AUDIO",
     "CRON_TOOLS",
     "SEND_FILE",
+    "SESSION_MESSAGING_TOOLS",
     "MEMBER_SKILL_TOOLKIT",
     "RUNTIME_PROMPT",
     "TEAM_SKILL_STORAGE_POLICY",
@@ -226,6 +232,7 @@ __all__ = [
     "TASK_PLANNING",
     "SECURITY",
     "HEARTBEAT",
+    "SESSION_MESSAGING_ROUTE",
     "AVATAR_PROMPT",
     "CODE_EXTRA_TOOLS",
     "CODE_RUNTIME_PROMPT",
@@ -249,5 +256,6 @@ __all__ = [
     "DEFAULT_STATUSLINE_SETUP_MAX_ITERATIONS",
     "STATUSLINE_SETUP_AGENT",
     "SWARM_BROWSER_AGENT",
+    "SWARM_CUA_AGENT",
     "BROWSER_AGENT",
 ]

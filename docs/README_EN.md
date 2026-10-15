@@ -66,6 +66,11 @@ This page collects common JiuwenSwarm usage instructions, feature documentation,
       <td width="50%">Web conversation entry point, supporting message sending, new sessions, and planning / performance / cluster mode switching.</td>
     </tr>
     <tr>
+      <td width="22%"><strong>Process CLI Session Queries</strong></td>
+      <td width="28%"><a href="en/ProcessCLISessionQueries.md">Process CLI Session Queries</a></td>
+      <td width="50%">Read full local session IDs, search and paginate, select the latest session, and resume a task in a new process.</td>
+    </tr>
+    <tr>
       <td width="22%"><strong>Agent</strong></td>
       <td width="28%"><a href="en/Agent.md">Agent</a></td>
       <td width="50%">Agents with different roles, workspace creation, and workspace management flows.</td>
@@ -101,6 +106,11 @@ This page collects common JiuwenSwarm usage instructions, feature documentation,
       <td width="50%">System parameters, LLM APIs, and runtime environment configuration.</td>
     </tr>
     <tr>
+      <td width="22%"><strong>Process CLI Model Configuration</strong></td>
+      <td width="28%"><a href="en/Process_CLI_Model.md">Model connection flags</a></td>
+      <td width="50%">Select a model, API base, key environment variable, and provider for one CMD invocation.</td>
+    </tr>
+    <tr>
       <td width="22%"><strong>IDE Plugins</strong></td>
       <td width="28%"><a href="en/ide/jetbrains/JetBrains.md">JetBrains</a> / <a href="en/ide/vscode/VSCode.md">VS Code</a> (<a href="en/ide/jetbrains/JetBrainsGuide.md">Guide</a> · <a href="en/ide/vscode/VSCodeGuide.md">Guide</a>)</td>
       <td width="50%">Embed the JiuwenSwarm agent in JetBrains IDEs and VS Code with a native chat panel.</td>
@@ -109,6 +119,11 @@ This page collects common JiuwenSwarm usage instructions, feature documentation,
       <td width="22%"><strong>Browser Service</strong></td>
       <td width="28%"><a href="en/Browser.md">Browser</a></td>
       <td width="50%">Web access, information retrieval, and browser tool invocation capabilities.</td>
+    </tr>
+    <tr>
+      <td width="22%"><strong>Desktop Automation</strong></td>
+      <td width="28%"><a href="en/DesktopAutomation.md">Desktop automation (cua_agent)</a></td>
+      <td width="50%">Operate native application windows through screenshots and real mouse/keyboard input.</td>
     </tr>
     <tr>
       <td width="22%"><strong>Browser Extension</strong></td>
