@@ -745,7 +745,6 @@ def _safe_rmtree_sync(path: Path) -> bool:
     if not path.exists():
         return True
 
-    import stat
     import time
 
     max_retries = 3
