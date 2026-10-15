@@ -4,11 +4,13 @@ import {
   A2UISetting,
   ExternalCliSettingsItem,
   ProactiveLimitsSetting,
+  RSISetting,
   TaskAsrSetting,
   TaskFullDuplexSetting,
   TrajectoryAnalysisSetting,
   TrajectoryUiSetting,
 } from './ExperimentalSettings';
+import { A4PSettings } from './A4PSettings';
 
 export const experimentalModule: SettingsModuleDefinition = {
   id: 'experimental',
@@ -17,24 +19,25 @@ export const experimentalModule: SettingsModuleDefinition = {
   source: 'config',
   sections: [
     {
-      id: 'asr',
-      titleKey: 'settingsPanel.experimental.taskAsr',
-      items: [{ id: 'task-asr-enabled', component: 'custom', render: TaskAsrSetting }],
-    },
-    {
-      id: 'task-full-duplex',
-      titleKey: 'settingsPanel.experimental.taskFullDuplex',
-      items: [{ id: 'task-full-duplex-enabled', component: 'custom', render: TaskFullDuplexSetting }],
-    },
-    {
       id: 'external-cli-agents',
       titleKey: 'settingsPanel.experimental.externalCliAgents',
       items: [{ id: 'external-cli-agents', component: 'custom', render: ExternalCliSettingsItem }],
     },
     {
+      id: 'rsi',
+      titleKey: 'settingsPanel.experimental.rsi',
+      items: [{ id: 'rsi-enabled', component: 'custom', render: RSISetting }],
+    },
+    {
       id: 'a2ui',
       titleKey: 'settingsPanel.experimental.a2ui',
       items: [{ id: 'a2ui', component: 'custom', render: A2UISetting }],
+    },
+    {
+      id: 'a4p',
+      titleKey: 'a4pSettings.title',
+      separatedRows: true,
+      items: [{ id: 'a4p-settings', component: 'custom', render: A4PSettings }],
     },
     {
       id: 'trajectory-ui',
@@ -70,6 +73,25 @@ export const experimentalModule: SettingsModuleDefinition = {
       id: 'team-organization',
       titleKey: 'settingsPanel.experimental.teamOrganization',
       items: [{ id: 'team-organization-ui-enabled', component: 'switch', key: 'team_organization_ui_enabled' }],
+    },
+    {
+      id: 'team-scheduled-dispatch',
+      titleKey: 'settingsPanel.experimental.teamScheduledDispatch',
+      items: [
+        {
+          id: 'team-scheduled-dispatch-enabled',
+          component: 'switch',
+          key: 'team_scheduled_dispatch_enabled',
+          subItems: {
+            show: 'always',
+            disabled: 'when-parent-unchecked',
+            uncheckWithParent: true,
+            items: [
+              { id: 'team-task-verification-enabled', component: 'switch', key: 'team_task_verification_enabled' },
+            ],
+          },
+        },
+      ],
     },
     {
       id: 'proactive-recommendation',
