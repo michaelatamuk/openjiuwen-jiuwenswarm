@@ -86,6 +86,11 @@
       <td width="50%">受控通道指令与命令行操作指南。</td>
     </tr>
     <tr>
+      <td width="22%"><strong>进程式 CLI 会话查询</strong></td>
+      <td width="28%"><a href="zh/进程式CLI会话查询.md">进程式 CLI 会话查询</a></td>
+      <td width="50%">普通终端只读查询完整会话 ID、搜索翻页、获取最近会话与跨进程续接。</td>
+    </tr>
+    <tr>
       <td width="22%"><strong>定时任务</strong></td>
       <td width="28%"><a href="zh/定时任务.md">定时任务</a></td>
       <td width="50%">定时触发任务的配置、运行与管理。</td>
@@ -93,7 +98,7 @@
     <tr>
       <td width="22%"><strong>技能</strong></td>
       <td width="28%"><a href="zh/技能.md">技能</a></td>
-      <td width="50%">智能体技能挂载、调用与扩展机制。</td>
+      <td width="50%">智能体技能挂载、调用与扩展机制；含 Server / Client 分离部署的技能同步接口。</td>
     </tr>
     <tr>
       <td width="22%"><strong>技能交响乐</strong></td>
@@ -111,6 +116,11 @@
       <td width="50%">系统参数、大模型 API、运行环境相关配置。</td>
     </tr>
     <tr>
+      <td width="22%"><strong>进程式 CLI 模型配置</strong></td>
+      <td width="28%"><a href="zh/Process_CLI_Model.md">非交互命令的模型连接配置</a></td>
+      <td width="50%">通过 CMD 指定本次任务的模型、API 地址、密钥环境变量与协议提供方。</td>
+    </tr>
+    <tr>
       <td width="22%"><strong>IDE 插件</strong></td>
       <td width="28%"><a href="zh/ide/jetbrains/JetBrains插件.md">JetBrains</a> / <a href="zh/ide/vscode/VSCode插件.md">VS Code</a>（<a href="zh/ide/jetbrains/JetBrains插件指南.md">指南</a> · <a href="zh/ide/vscode/VSCode插件指南.md">指南</a>）</td>
       <td width="50%">在 JetBrains IDE 与 VS Code 中嵌入 JiuwenSwarm 智能体，提供原生聊天面板。</td>
@@ -119,6 +129,11 @@
       <td width="22%"><strong>浏览器服务</strong></td>
       <td width="28%"><a href="zh/浏览器.md">浏览器</a></td>
       <td width="50%">网页访问、信息获取与浏览器工具调用能力。</td>
+    </tr>
+    <tr>
+      <td width="22%"><strong>桌面自动化</strong></td>
+      <td width="28%"><a href="zh/桌面自动化.md">桌面自动化（cua_agent）</a></td>
+      <td width="50%">通过截图与真实鼠标键盘输入操作本机原生应用窗口。</td>
     </tr>
     <tr>
       <td width="22%"><strong>浏览器扩展</strong></td>
