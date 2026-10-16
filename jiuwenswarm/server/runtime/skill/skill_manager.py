@@ -9871,7 +9871,7 @@ class SkillManager:
                 skipped: list[dict[str, Any]] = []
                 failed: list[dict[str, Any]] = []
                 for item in entries:
-                    result = self._install_imported_skill_dir(
+                    result = await self._install_imported_skill_dir(
                         item["src"],
                         force=overwrite,
                         origin=origin,
@@ -9966,7 +9966,7 @@ class SkillManager:
                         {"name": safe_name, "reason": skip_reason, "detail": detail}
                     )
                     continue
-                result = self._install_imported_skill_dir(
+                result = await self._install_imported_skill_dir(
                     item["src"],
                     force=overwrite,
                     origin=origin,
