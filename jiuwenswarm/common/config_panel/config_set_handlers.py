@@ -20,6 +20,7 @@ gateway 拆分：ConfigAdapter（AgentServer 进程）复用这些成熟实现�
 from __future__ import annotations
 
 import importlib.metadata
+import importlib.util
 import inspect
 import json
 import logging
@@ -47,6 +48,7 @@ from jiuwenswarm.common.config import (
     TEAM_TASK_VERIFICATION_CONFIG_PATH,
     get_config,
     get_config_raw,
+    resolve_env_vars,
     replace_teams_in_config,
     update_a2ui_in_config,
     update_context_engine_enabled_in_config,
@@ -82,6 +84,12 @@ from jiuwenswarm.common.config_panel.models_handlers import (
     build_models_defaults_from_frontend,
 )
 from jiuwenswarm.common.context_window import parse_positive_int
+from jiuwenswarm.common.moa_config import (
+    MOA_CONFIG_KEYS,
+    build_moa_config_from_frontend,
+    flatten_moa_for_config_panel,
+    save_moa_config_from_frontend,
+)
 from jiuwenswarm.common.kv_cache_affinity_config import (
     ASCEND_AFFINITY_PROVIDER,
     KVC_CONFIG_KEYS,
@@ -94,12 +102,8 @@ from jiuwenswarm.common.kv_cache_affinity_config import (
 )
 from jiuwenswarm.common.utils import get_env_file
 from jiuwenswarm.common.version import get_runtime_version
-from jiuwenswarm.server.runtime.a2ui.integration import (
-    get_a2ui_config_payload,
-    get_default_a2ui_config_payload,
-    validate_a2ui_config_update,
-)
-from jiuwenswarm.symphony.config import (
+from jiuwenswarm.common.external_providers import provider
+from jiuwenswarm.common.symphony_config import (
     DEFAULT_EVOLUTION_ENABLED,
     DEFAULT_SYMPHONY_ENABLED,
     resolve_symphony_enabled,
@@ -199,6 +203,10 @@ class ConfigChangeSet:
             scopes.add("search")
         for key in self.yaml_updated:
             key_text = str(key)
+            if key_text in MOA_CONFIG_KEYS:
+                # Refresh UI settings; execution adopts snapshots at the next turn.
+                scopes.add("web_ui")
+                continue
             if key_text in {"models.defaults"} or key_text.startswith("models."):
                 scopes.add("model")
             elif key_text in {"modes.team", "agents", "team", *TEAM_DISPATCH_CONFIG_KEYS}:
@@ -219,7 +227,10 @@ class ConfigChangeSet:
                 scopes.add("web_ui")
             else:
                 scopes.add("agent_runtime")
-        if self.force and not scopes:
+        if self.force and not scopes and not (
+            self.yaml_updated and not self.env_updates
+            and set(self.yaml_updated) <= MOA_CONFIG_KEYS
+        ):
             scopes.add("agent_runtime")
         return scopes
 
@@ -809,6 +820,39 @@ def external_cli_reference_version(cli_agent: str) -> str:
     return ""
 
 
+def external_cli_managed_cli_path(cli_agent: str) -> str:
+    """返回内置（托管安装）CLI 可执行文件路径；不可用时返回空串。
+
+    与 external_cli_runtime._validate_staged_runtime 的布局保持一致：
+    claude -> claude_agent_sdk/_bundled/claude(.exe)
+    codex  -> codex_cli_bin/bin/codex(.exe)
+    通过 importlib 定位 site-packages（冻结与非冻结环境均适用）。
+    """
+    relative = {
+        "claude": (
+            "claude_agent_sdk",
+            "_bundled",
+            "claude.exe" if os.name == "nt" else "claude",
+        ),
+        "codex": (
+            "codex_cli_bin",
+            "bin",
+            "codex.exe" if os.name == "nt" else "codex",
+        ),
+    }.get(cli_agent)
+    if relative is None:
+        return ""
+    try:
+        spec = importlib.util.find_spec(relative[0])
+    except Exception:  # noqa: BLE001
+        return ""
+    if spec is None or not spec.origin:
+        return ""
+    package_dir = Path(spec.origin).resolve().parent
+    candidate = package_dir.joinpath(*relative[1:])
+    return str(candidate) if candidate.is_file() else ""
+
+
 def resolve_external_cli_path(cli_agent: str, cli_path: str = "") -> tuple[str, str, str]:
     requested = cli_path.strip()
     if requested:
@@ -859,7 +903,9 @@ def run_external_cli_version_command(cli_agent: str, resolved_path: str) -> tupl
     return "", "; ".join(unique_errors)
 
 
-def detect_external_cli_agent(cli_agent: str, cli_path: str = "") -> dict[str, Any]:
+def detect_external_cli_agent(
+    cli_agent: str, cli_path: str = "", use_builtin: bool = False
+) -> dict[str, Any]:
     normalized_agent = cli_agent.strip().lower()
     if normalized_agent not in EXTERNAL_CLI_AGENT_KINDS and normalized_agent in external_cli_agent_kinds():
         return _detect_custom_agent_cli(normalized_agent, cli_path)
@@ -873,7 +919,7 @@ def detect_external_cli_agent(cli_agent: str, cli_path: str = "") -> dict[str, A
             "message": f"unsupported cli_agent: {cli_agent}",
         }
 
-    return _detect_cli_at(normalized_agent, cli_path)
+    return _detect_cli_at(normalized_agent, cli_path, use_builtin)
 
 
 def _detect_custom_agent_cli(cli_agent: str, cli_path: str) -> dict[str, Any]:
@@ -885,7 +931,7 @@ def _detect_custom_agent_cli(cli_agent: str, cli_path: str) -> dict[str, Any]:
     """
     requested = cli_path.strip() or _uploaded_cli_path(cli_agent)
     if requested:
-        return _detect_cli_at(cli_agent, requested)
+        return _detect_cli_at(cli_agent, requested, False)
     return {
         "cli_agent": cli_agent,
         "status": "ok",
@@ -897,8 +943,14 @@ def _detect_custom_agent_cli(cli_agent: str, cli_path: str) -> dict[str, Any]:
     }
 
 
-def _detect_cli_at(normalized_agent: str, cli_path: str) -> dict[str, Any]:
-    resolved_path, path_error, path_reason = resolve_external_cli_path(normalized_agent, cli_path)
+def _detect_cli_at(normalized_agent: str, cli_path: str, use_builtin: bool = False) -> dict[str, Any]:
+    # use_builtin 且未显式给路径时，优先解析内置托管 CLI；解析失败再回退 PATH 搜索。
+    effective_cli_path = cli_path.strip()
+    if not effective_cli_path and use_builtin:
+        effective_cli_path = external_cli_managed_cli_path(normalized_agent)
+    resolved_path, path_error, path_reason = resolve_external_cli_path(
+        normalized_agent, effective_cli_path
+    )
     reference_version = external_cli_reference_version(normalized_agent)
     if not resolved_path:
         return {
@@ -1057,14 +1109,36 @@ def external_cli_agent_effective_state(
     return enabled, False, str(params.get(cli_path_key, current[cli_path_key]) or "").strip()
 
 
-def external_cli_agents_from_switches(raw: dict[str, Any], params: dict[str, Any]) -> list[dict[str, str]]:
+def external_cli_agents_from_switches(raw: dict[str, Any], params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Rebuild the persisted external CLI agent list from switch params.
+
+    Only agents whose config keys are present in this save's params are
+    re-validated (path detection) and rebuilt; untouched agents keep their
+    persisted entries verbatim, so saving one card never re-detects, rewrites,
+    or blocks on the other agent.
+    """
     current = flatten_external_cli_agents_for_config_panel(raw)
-    agents: list[dict[str, str]] = []
+    persisted = get_nested_config_value(raw, EXTERNAL_CLI_AGENTS_CONFIG_PATH, [])
+    untouched_entries: dict[str, dict[str, Any]] = {}
+    if isinstance(persisted, list):
+        for item in persisted:
+            if isinstance(item, dict):
+                cli_agent = str(item.get("cli_agent") or "").strip()
+                if cli_agent:
+                    untouched_entries[cli_agent] = item
+            elif isinstance(item, str) and item.strip():
+                untouched_entries[item.strip()] = {"cli_agent": item.strip()}
+    agents: list[dict[str, Any]] = []
     for cli_agent in external_cli_agent_kinds():
+        if not any(key.startswith(f"external_cli_agent_{cli_agent}_") for key in params):
+            untouched = untouched_entries.get(cli_agent)
+            if untouched is not None:
+                agents.append(dict(untouched))
+            continue
         enabled, use_builtin, requested_path = external_cli_agent_effective_state(cli_agent, current, params)
         if not enabled:
             continue
-        entry = {"cli_agent": cli_agent}
+        entry: dict[str, Any] = {"cli_agent": cli_agent}
         uploaded_cli_path = _uploaded_cli_path(cli_agent)
         if use_builtin and uploaded_cli_path:
             entry["cli_path"] = uploaded_cli_path
@@ -1214,8 +1288,9 @@ def preserve_deleted_team_entities(params: dict[str, Any]) -> None:
         return
 
     from jiuwenswarm.common.team_template_config import list_team_template_summaries
-    from jiuwenswarm.server.runtime.team_binding_store import get_team_binding_store
-    from jiuwenswarm.server.runtime.team_entity_store import ensure_team_entity_for_binding
+
+    get_team_binding_store = provider("team_binding_store").get_team_binding_store
+    ensure_team_entity_for_binding = provider("team_entity_store").ensure_team_entity_for_binding
 
     config_base = get_config()
     current_template_ids = {
@@ -1257,7 +1332,15 @@ def apply_config_payload(
         raise ConfigPanelBadRequest(
             "permissions_profile and permissions_enabled are mutually exclusive"
         )
-    params = encrypt_config_params(params)
+    moa_params = {key: value for key, value in params.items() if key in MOA_CONFIG_KEYS}
+    if moa_params:
+        try:
+            # Reject invalid collaboration settings before any .env/YAML mutation.
+            build_moa_config_from_frontend(moa_params, get_config_raw(), resolve_value=resolve_env_vars)
+        except ValueError as exc:
+            raise ConfigPanelBadRequest(str(exc)) from exc
+    # The MoA section writer encrypts only newly entered, nonempty credentials.
+    params = encrypt_config_params({key: value for key, value in params.items() if key not in MOA_CONFIG_KEYS})
     env_updates: dict[str, str] = {}
     yaml_updated: list[str] = []
     codex_dependency_install: dict[str, Any] | None = None
@@ -1374,7 +1457,12 @@ def apply_config_payload(
                         external_cli_agents = external_cli_agents_from_switches(raw, params)
                     except ValueError as exc:
                         raise ConfigPanelBadRequest(str(exc)) from exc
-                    if any(item.get("cli_agent") == "codex" for item in external_cli_agents):
+                    # 每个卡片的“一键安装”独立触发：仅当本次保存显式携带了
+                    # 该 agent 的配置键时才检查/安装它的依赖，避免动到本次
+                    # 未触碰、但此前已启用过的另一个 agent。
+                    codex_touched = any(key.startswith("external_cli_agent_codex_") for key in params)
+                    claude_touched = any(key.startswith("external_cli_agent_claude_") for key in params)
+                    if codex_touched and any(item.get("cli_agent") == "codex" for item in external_cli_agents):
                         codex_dependency_install = (
                             ensure_codex_dependency() if ensure_codex_dependency else None
                         )
@@ -1383,7 +1471,7 @@ def apply_config_payload(
                             external_cli_agents = [
                                 item for item in external_cli_agents if item.get("cli_agent") != "codex"
                             ]
-                    if any(item.get("cli_agent") == "claude" for item in external_cli_agents):
+                    if claude_touched and any(item.get("cli_agent") == "claude" for item in external_cli_agents):
                         claude_install = (
                             ensure_claude_dependency() if ensure_claude_dependency else None
                         )
@@ -1403,7 +1491,8 @@ def apply_config_payload(
             elif param_key == "ttse_enabled":
                 update_ttse_enabled_in_config(parsed)
             elif param_key.startswith("a2ui_"):
-                ok, update, error = validate_a2ui_config_update(param_key, val)
+                a2ui = provider("a2ui")
+                ok, update, error = a2ui.validate_a2ui_config_update(param_key, val)
                 if not ok:
                     raise ConfigPanelBadRequest(error or "invalid A2UI config")
                 update_a2ui_in_config(update)
@@ -1463,6 +1552,19 @@ def apply_config_payload(
             yaml_updated.extend(k for k in SKILL_RETRIEVAL_CONFIG_KEYS if k in params)
         except Exception as e:
             logger.warning("[config.set] 写回 skill_retrieval 失败: %s", e)
+
+    if moa_params:
+        try:
+            crypto = _get_crypto_provider()
+            save_moa_config_from_frontend(
+                moa_params, encrypt_secret=crypto.encrypt if crypto is not None else None,
+            )
+            yaml_updated.extend(moa_params)
+        except ValueError as exc:
+            raise ConfigPanelBadRequest(str(exc)) from exc
+        except Exception:
+            # A crypto provider may include credentials in exception text.
+            raise ConfigPanelInternalError("failed to save MoA configuration") from None
 
     for env_key, value in env_updates.items():
         os.environ[env_key] = value
@@ -1590,6 +1692,7 @@ async def config_get_handler(
             for key, val in list(payload.items()):
                 if "api_key" in key.lower() or "token" in key.lower():
                     payload[key] = crypto_provider.decrypt(val)
+        payload.update(flatten_moa_for_config_panel(raw, resolve_value=resolve_env_vars))
         react_cfg = raw.get("react") or {}
         ctx_cfg = react_cfg.get("context_engine_config") or {}
         payload["context_engine_enabled"] = "true" if ctx_cfg.get("enabled", False) else "false"
@@ -1607,7 +1710,7 @@ async def config_get_handler(
         payload["memory_forbidden_enabled"] = "true" if memory_cfg.get("enabled", False) else "false"
         memory_desc = memory_cfg.get("description") or {}
         payload["memory_forbidden_description"] = memory_desc
-        payload.update(get_a2ui_config_payload(raw))
+        payload.update(provider("a2ui").get_a2ui_config_payload(raw))
         trajectory_cfg = raw.get("trajectory_ui") or {}
         payload["trajectory_ui_enabled"] = (
             "true" if trajectory_cfg.get("enabled", False) else "false"
@@ -1652,6 +1755,8 @@ async def config_get_handler(
         models_cfg = resolved.get("models") or {}
         payload["enable_free_models"] = "true" if models_cfg.get("enable_free_models", False) else "false"
     except Exception:  # noqa: BLE001
+        for key, value in flatten_moa_for_config_panel({}).items():
+            payload.setdefault(key, value)
         payload.setdefault("context_engine_enabled", "false")
         payload.setdefault("kv_cache_affinity_enabled", "false")
         payload.setdefault("permissions_enabled", "false")
@@ -1668,7 +1773,7 @@ async def config_get_handler(
             "team_task_verification_enabled",
             "true" if DEFAULT_TEAM_TASK_VERIFICATION_ENABLED else "false",
         )
-        for key, value in get_default_a2ui_config_payload().items():
+        for key, value in provider("a2ui").get_default_a2ui_config_payload().items():
             payload.setdefault(key, value)
         payload.setdefault("trajectory_ui_enabled", "false")
         payload.setdefault("task_full_duplex_enabled", "false")
