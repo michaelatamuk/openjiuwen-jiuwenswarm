@@ -5,10 +5,11 @@ config_version: ""
 # 前端显示语言：zh（中文）/ en（英文），与 Web 界面语言切换同步
 preferred_language: zh
 
-# Agent 模式是否启用渐进式工具暴露（tool_search + deferred 工具）
-# true：只向模型暴露 direct 工具和 tool_search，其他工具按需搜索；
+# Agent 模式与集群模式（Leader / Teammate）是否启用渐进式工具暴露（tool_search + deferred 工具）
+# true：只向模型暴露 direct 工具和 tool_search，其他工具按需搜索；集群成员的
+#       团队协作工具（send_message / create_task / spawn_* 等）始终 direct；
 # false：不挂载 ProgressiveToolRail，未显式声明 exposure 的工具按 direct 暴露。
-# ToolCard 自己显式声明的 exposure 优先级更高。
+# ToolCard 自己显式声明的 exposure 优先级更高。集群模式改后新建团队生效。
 progressive_tool_enabled: true
 
 # Web 首次模型配置引导；用户确认完成后会自动关闭，可通过侧栏问号再次打开
@@ -1169,6 +1170,19 @@ channels:
       ephemeral_key_type: "ssh-ed25519"
       # 过期清理间隔（秒）
       cleanup_interval_sec: 60
+
+  web_proxy:
+    # 3rd-agent Web UI。端口由注册中心决定（写入 etcd），Gateway 只读并监听，
+    # 不再本地分配。需要 gateway.agent_client.type == agentos_router。
+    # Gateway watch {A2X_REGISTRY_ETCD_NAMESPACE:-a2x-registry}/images/（无前导斜杠），
+    # 取每条 data.access_mode 里 name=web_svc_port 的 port 监听；浏览器访问
+    # http://<advertise_host>:<port>/?user_id=<uid>&token=<iam>（南向仍用 name=web 的口）。
+    enabled: false
+    auth_enabled: true
+    listen_host: "0.0.0.0"
+    advertise_host: ""
+    # 会话 Cookie 的 Max-Age（秒）；端口空闲回收已取消。
+    idle_timeout_sec: 900
 
 # ========== 细粒度权限管控（tiered_policy）==========
 #
