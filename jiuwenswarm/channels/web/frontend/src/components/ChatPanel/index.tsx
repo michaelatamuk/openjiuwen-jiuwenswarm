@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { useChatStore, useHarnessStore, useSessionStore, useTodoStore } from '../../stores';
+import { useChatStore, useHarnessStore, useSessionStore, useTodoStore, useWorkspaceStore } from '../../stores';
 import {
   AgentMode,
   MediaItem,
@@ -143,6 +143,8 @@ interface ChatPanelProps {
   ) => Promise<boolean>;
   onExportShare?: () => void | Promise<void>;
   isExportingShare?: boolean;
+  shareExportProgress?: string;
+  isWaitingShareExportTab?: boolean;
   canExportShare?: boolean;
   sessionTitle?: string;
   sessionProjectName?: string;
@@ -678,21 +680,16 @@ function getTeamMessageIdentity(message: Message): string {
 
 function WelcomeHeading() {
   const { i18n } = useTranslation();
+  const workMode = useWorkspaceStore((state) => state.workMode);
   const isZh = i18n.language.startsWith('zh');
-
-  if (isZh) {
-    return (
-      <>
-        <span className="chat-welcome__heading-highlight">WorkSwarm</span>
-        <span>轻松解决工作每个问题！</span>
-      </>
-    );
-  }
+  const suffix = workMode === 'design'
+    ? (isZh ? '轻松解决每个设计问题！' : 'solves every design problem!')
+    : (isZh ? '轻松解决工作每个问题！' : 'makes work easier!');
 
   return (
     <>
       <span className="chat-welcome__heading-highlight">WorkSwarm</span>
-      <span>makes work easier!</span>
+      <span>{suffix}</span>
     </>
   );
 }
@@ -1061,6 +1058,8 @@ export const ChatPanel = React.memo(function ChatPanel({
   onUserAnswer,
   onExportShare,
   isExportingShare = false,
+  shareExportProgress,
+  isWaitingShareExportTab = false,
   canExportShare = false,
   sessionTitle,
   sessionProjectName,
@@ -1212,7 +1211,8 @@ export const ChatPanel = React.memo(function ChatPanel({
       onComposerHeightChange(0);
     };
   }, [composerCollapsed, composerDockVisible, onComposerHeightChange]);
-  const shareExportTitle = getShareExportTitle(t, isExportingShare, canExportShare);
+  const shareExportTitle = isWaitingShareExportTab ? t('share.openExportTab') : isExportingShare && shareExportProgress
+    ? shareExportProgress : getShareExportTitle(t, isExportingShare, canExportShare);
   const shouldShowShareExport = Boolean(onExportShare);
   const shouldShowHumanShare = mode === 'team' && teamHumanShareCommands.length > 0;
   const shouldShowTrace = Boolean(onOpenTrace) && Boolean(activeSessionId) && activeSessionId !== NEW_CONVERSATION_ID;
@@ -1803,7 +1803,9 @@ export const ChatPanel = React.memo(function ChatPanel({
     [canAcceptDesktopFileDrag, markDesktopFileDropZoneActive],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    // Replace the consumer during the session commit, before pending native file
+    // reads can resolve. ChatPanel stays mounted when activeSessionId changes.
     // Durable bridge lives in localFilePicker; ChatPanel only registers a consumer.
     // Never delete window.__JIUWEN_INGEST_LOCAL_FILES__ — Python run_js requires it.
     const unregister = registerDesktopLocalFilesConsumer((detail, files) => {
@@ -1829,7 +1831,7 @@ export const ChatPanel = React.memo(function ChatPanel({
       window.removeEventListener(DESKTOP_LOCAL_FILES_EVENT, onDesktopLocalFiles as EventListener);
       window.removeEventListener(DESKTOP_FILE_DRAG_EVENT, onDesktopFileDrag as EventListener);
     };
-  }, [ingestDesktopLocalFiles, markDesktopFileDropZoneActive]);
+  }, [activeSessionId, ingestDesktopLocalFiles, markDesktopFileDropZoneActive]);
 
   return (
     <div
@@ -1907,20 +1909,20 @@ export const ChatPanel = React.memo(function ChatPanel({
                 type="button"
                 className={`chat-header-icon-btn icon-btn share-export-btn ${isExportingShare ? 'share-export-btn--loading' : ''}`}
                 data-testid="chat-panel-share-export"
-                data-variant={isExportingShare ? 'exporting' : 'ready'}
+                data-variant={isWaitingShareExportTab ? 'waiting' : isExportingShare ? 'exporting' : 'ready'}
                 title={shareExportTitle}
                 aria-label={shareExportTitle}
-                aria-busy={isExportingShare}
-                disabled={!canExportShare || isExportingShare}
+                aria-busy={isExportingShare && !isWaitingShareExportTab}
+                disabled={!isWaitingShareExportTab && (!canExportShare || isExportingShare)}
                 onClick={() => {
                   void onExportShare?.();
                 }}
               >
                 {isExportingShare ? (
                   <>
-                    <LoaderCircle className="share-export-btn__spinner" size={14} strokeWidth={2} />
-                    <span className="share-export-btn__label" data-testid="chat-panel-share-export-loading-label">
-                      {t('share.generating')}
+                    {!isWaitingShareExportTab && <LoaderCircle className="share-export-btn__spinner" size={14} strokeWidth={2} />}
+                    <span className="share-export-btn__label" aria-live="polite" data-testid="chat-panel-share-export-loading-label">
+                      {isWaitingShareExportTab ? t('share.openExportTab') : shareExportProgress || t('share.generating')}
                     </span>
                   </>
                 ) : (
