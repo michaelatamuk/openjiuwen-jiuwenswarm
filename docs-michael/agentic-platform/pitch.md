@@ -48,31 +48,31 @@ We are not building 50 apps. We are building the parts that all 50 apps need.
 
 ## Examples of building blocks
 
-These are the **21 blocks we start with**. Some already exist in the platform as primitives; the table shows what we add.
+These are the **21 blocks we start with**, grouped into six families.
 
-| Building block | Existing primitive | What we add |
-|---|---|---|
-| Media intake | Model endpoints and file upload | One intake for image, audio, video, PDF and screen; normalized frames, transcripts and pages |
-| Job runner | Agent turns and workflow steps | Durable jobs with progress, retries, cancellation, partial results and webhooks |
-| Evidence store | Object storage and run artifacts | Inputs, outputs and proof with lineage, signed URLs, TTL and export |
-| Structured result | Free-text model output | Typed results with confidence, timestamps, page references, validation and repair |
-| Model gateway | Model clients and text routing | Multimodal gateway with fallback, budgets, modality routing and cost visibility |
-| Golden-path starter | SDK and examples | One command from zero to a running, deployed app |
-| Metering and caps | Token and usage tracking | Per-run, per-tenant multimodal units, quotas, margins and hard spend caps |
-| Builder console | Traces and diagnostics | Runs, failures, cost per outcome, replay, alerts and support view |
-| Approval gate | Pause and approve hooks | Review inbox with roles, evidence diff, escalation, audit, mobile approval and SLA |
-| Evaluation | Text evaluation and judges | Multimodal golden sets, evidence-aware judges, recipe success rates and regression gates |
-| Consent receipt | Consent hooks | Versioned, provable consent for camera, voice, location and data use |
-| PII/PHI redaction | Text guardrails | Streaming redaction across text, audio and image |
-| Context compiler | Context window management | Token-budgeted, modality-aware packing, dedupe and salience ranking |
-| App contract and registry | Manifests and MCP tool registration | One manifest plus a versioned, signed registry of reusable blocks |
-| Outcome verifier | Evaluation and judges | Checks the real deliverable in a browser, camera or robot, with per-item evidence |
-| Embed widget | Web and messaging channels | Drop-in chat, voice and camera widget with theming and domain allowlist |
-| Workspace isolation | Tenant concepts | SaaS workspaces, roles, invites and scoped access |
-| Golden workloads | Test data and eval suites | Curated multimodal data, failure taxonomy and cost baselines for each recipe |
-| Camera capture | Device camera APIs | Consistent mobile/web capture with timestamps, stream modes and privacy controls |
-| Audio capture | Device microphone APIs | Echo cancellation, voice activity detection, resampling and duplex-safe frames |
-| Connector SDK | MCP and tool registration | Connector contracts with scopes, refresh, revocation, health checks and audit |
+| Family | Building block | Existing primitive | What we add |
+|---|---|---|---|
+| Work pipeline | Media intake | Model endpoints and file upload | One intake for image, audio, video, PDF and screen; normalized frames, transcripts and pages |
+| Work pipeline | Job runner | Agent turns and workflow steps | Durable jobs with progress, retries, cancellation, partial results and webhooks |
+| Work pipeline | Evidence store | Object storage and run artifacts | Inputs, outputs and proof with lineage, signed URLs, TTL and export |
+| Work pipeline | Structured result | Free-text model output | Typed results with confidence, timestamps, page references, validation and repair |
+| Agent core | Model gateway | Model clients and text routing | Multimodal gateway with fallback, budgets, modality routing and cost visibility |
+| Agent core | Context compiler | Context window management | Token-budgeted, modality-aware packing, dedupe and salience ranking |
+| Trust layer | Approval gate | Pause and approve hooks | Review inbox with roles, evidence diff, escalation, audit, mobile approval and SLA |
+| Trust layer | Evaluation | Text evaluation and judges | Multimodal golden sets, evidence-aware judges, recipe success rates and regression gates |
+| Trust layer | Consent receipt | Consent hooks | Versioned, provable consent for camera, voice, location and data use |
+| Trust layer | PII/PHI redaction | Text guardrails | Streaming redaction across text, audio and image |
+| Trust layer | Outcome verifier | Evaluation and judges | Checks the real deliverable in a browser, camera or robot, with per-item evidence |
+| Trust layer | Golden workloads | Test data and eval suites | Curated multimodal data, failure taxonomy and cost baselines for each recipe |
+| Builder layer | Golden-path starter | SDK and examples | One command from zero to a running, deployed app |
+| Builder layer | Metering and caps | Token and usage tracking | Per-run, per-tenant multimodal units, quotas, margins and hard spend caps |
+| Builder layer | Builder console | Traces and diagnostics | Runs, failures, cost per outcome, replay, alerts and support view |
+| Builder layer | App contract and registry | Manifests and MCP tool registration | One manifest plus a versioned, signed registry of reusable blocks |
+| Capture layer | Camera capture | Device camera APIs | Consistent mobile/web capture with timestamps, stream modes and privacy controls |
+| Capture layer | Audio capture | Device microphone APIs | Echo cancellation, voice activity detection, resampling and duplex-safe frames |
+| Delivery layer | Embed widget | Web and messaging channels | Drop-in chat, voice and camera widget with theming and domain allowlist |
+| Delivery layer | Workspace isolation | Tenant concepts | SaaS workspaces, roles, invites and scoped access |
+| Delivery layer | Connector SDK | MCP and tool registration | Connector contracts with scopes, refresh, revocation, health checks and audit |
 
 ## Starter recipes
 

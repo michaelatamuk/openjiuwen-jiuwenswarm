@@ -52,31 +52,40 @@ Two hard gates:
 
 ## 2. First 21 Blocks
 
-These are the spine. Build these before the long tail.
+These are the spine, grouped into six families.
 
-| # | ID | Block | Why first | Phase |
-|---|---|---|---|---|
-| 1 | A1 | Multimodal intake | Every app needs image, audio, video, PDF or screen input normalized once. | 30 days |
-| 2 | A2 | Durable job runner | Video, audio and multi-step work exceed chat-turn timeouts. | 30 days |
-| 3 | A3 | Artifact and evidence store | The output is the product: reports, clips, PDFs, annotations, audio. | 30 days |
-| 4 | A4 | Structured result contract | Typed output with evidence, confidence and validation turns a demo into a product. | 30 days |
-| 5 | B7 | Multimodal model gateway | One interface for LLM, VLM, ASR, TTS, image and video providers. | 30 days |
-| 6 | K2 | Golden-path starter | One command from zero to a deployed multimodal app. | 30 days |
-| 7 | L5 | Metering, quotas and spend caps | A one-person company must not lose money on one viral run. | 30 days |
-| 8 | K9 | Builder console | Builders cannot adopt what they cannot debug: runs, traces, cost, artifacts, replay. | 30 days |
-| 9 | F5 | Human approval gate | Grading, claims, inspections and publishing need approve/edit/reject. | 90 days |
-| 10 | J2 | Multimodal eval harness | A recipe is not a platform asset until it has a golden set and a regression gate. | 90 days |
-| 11 | I1 | Consent receipt service | Camera, voice, classroom and meeting apps need defensible consent. | 90 days |
-| 12 | I2 | PII/PHI redaction | Logs, prompts, exports and trainer data must be safe by default. | 90 days |
-| 13 | G4 | Context compiler | Keeps agents coherent and affordable as multimodal context grows. | 90 days |
-| 14 | K1+K7 | App contract and registry | One manifest plus versioned, signed capability registry makes blocks composable. | 90 days |
-| 15 | J10 | Outcome verifier | Checks the real deliverable in a browser, camera or robot, not just offline test data. | 90 days |
-| 16 | J1 | Golden workload library | Curated multimodal data, failure taxonomy and cost baselines for every recipe. | 90 days |
-| 17 | C1 | Camera capture SDK | Camera companion, inspection, coaching and acceptance all depend on it. | 90 days |
-| 18 | C2 | Audio capture SDK | Voice agents, meeting capture, coaching and translation depend on it. | 90 days |
-| 19 | H1 | Connector SDK and registry | Files, mail, calendar, chat and docs are the first integrations builders need. | 90 days |
-| 20 | L7 | Web embed widget | Fastest distribution surface for a one-person company. | 90 days |
-| 21 | L2 | Workspace tenancy and RBAC | Any B2B or agency use needs data boundaries and roles. | 90 days |
+| Family | Blocks | What it covers |
+|---|---:|---|
+| Work pipeline | 4 | Media in, long jobs, evidence, structured result |
+| Agent core | 2 | Model access and context assembly |
+| Trust layer | 6 | Consent, privacy, approval, evaluation, proof, golden data |
+| Builder layer | 4 | Contract, starter, metering, console |
+| Capture layer | 2 | Camera and microphone input |
+| Delivery layer | 3 | Connectors, embed, tenant isolation |
+
+| # | Family | ID | Block | Why first | Phase |
+|---|---|---|---|---|---|
+| 1 | Work pipeline | A1 | Multimodal intake | Every app needs image, audio, video, PDF or screen input normalized once. | 30 days |
+| 2 | Work pipeline | A2 | Durable job runner | Video, audio and multi-step work exceed chat-turn timeouts. | 30 days |
+| 3 | Work pipeline | A3 | Artifact and evidence store | The output is the product: reports, clips, PDFs, annotations, audio. | 30 days |
+| 4 | Work pipeline | A4 | Structured result contract | Typed output with evidence, confidence and validation turns a demo into a product. | 30 days |
+| 5 | Agent core | B7 | Multimodal model gateway | One interface for LLM, VLM, ASR, TTS, image and video providers. | 30 days |
+| 6 | Builder layer | K2 | Golden-path starter | One command from zero to a deployed multimodal app. | 30 days |
+| 7 | Builder layer | L5 | Metering, quotas and spend caps | A one-person company must not lose money on one viral run. | 30 days |
+| 8 | Builder layer | K9 | Builder console | Builders cannot adopt what they cannot debug: runs, traces, cost, artifacts, replay. | 30 days |
+| 9 | Trust layer | F5 | Human approval gate | Grading, claims, inspections and publishing need approve/edit/reject. | 90 days |
+| 10 | Trust layer | J2 | Multimodal eval harness | A recipe is not a platform asset until it has a golden set and a regression gate. | 90 days |
+| 11 | Trust layer | I1 | Consent receipt service | Camera, voice, classroom and meeting apps need defensible consent. | 90 days |
+| 12 | Trust layer | I2 | PII/PHI redaction | Logs, prompts, exports and trainer data must be safe by default. | 90 days |
+| 13 | Agent core | G4 | Context compiler | Keeps agents coherent and affordable as multimodal context grows. | 90 days |
+| 14 | Builder layer | K1+K7 | App contract and registry | One manifest plus versioned, signed capability registry makes blocks composable. | 90 days |
+| 15 | Trust layer | J10 | Outcome verifier | Checks the real deliverable in a browser, camera or robot, not just offline test data. | 90 days |
+| 16 | Trust layer | J1 | Golden workload library | Curated multimodal data, failure taxonomy and cost baselines for every recipe. | 90 days |
+| 17 | Capture layer | C1 | Camera capture SDK | Camera companion, inspection, coaching and acceptance all depend on it. | 90 days |
+| 18 | Capture layer | C2 | Audio capture SDK | Voice agents, meeting capture, coaching and translation depend on it. | 90 days |
+| 19 | Delivery layer | H1 | Connector SDK and registry | Files, mail, calendar, chat and docs are the first integrations builders need. | 90 days |
+| 20 | Delivery layer | L7 | Web embed widget | Fastest distribution surface for a one-person company. | 90 days |
+| 21 | Delivery layer | L2 | Workspace tenancy and RBAC | Any B2B or agency use needs data boundaries and roles. | 90 days |
 
 **Do not start with:** marketplace, generic memory, every connector, real-time AV, no-code builder, multi-agent default, on-device runtime.
 
