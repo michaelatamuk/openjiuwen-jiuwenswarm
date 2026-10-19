@@ -117,6 +117,40 @@ Default mode is `OBSERVE_ONLY` — the pipeline detects and logs overload events
 
 ---
 
+## Runtime & Isolation
+
+### MicroSwarm - Thin Agent Runtime
+*Design brief*
+
+MicroSwarm is a proposed footprint-first agent runtime: a thin Rust core with one
+container per agent and millisecond startup. It rebuilds only the functional
+surface of agent-core - the agent loop, MCP tool dispatch, permission evaluation,
+team primitives and typed event emission - and moves memory, evolution and
+evaluation to a host plane outside the container.
+
+Core properties:
+
+- **1:1 agent-to-container:** every agent gets its own process, mounts and blast radius; containers stay warm across turns.
+- **Supervisor-owned spawning:** a lead can request a child through a delegation tool call, but only the supervisor can create one.
+- **One message path:** lead-to-member messages cross the supervisor, with one writer per inbound/outbound queue and no peer-to-peer trust.
+- **In-container permissions:** every tool call is evaluated as `allow` / `ask` / `deny` inside the container that is meant to contain it.
+- **Protocol-bound extension:** tools are MCP servers, skills are mounted, models are HTTP providers and channels are external. Extensions do not link into the core.
+- **Host-plane cognition:** memory, evolution, evaluation and observability read the typed event stream on the host, never inside the agent container.
+
+The safety argument is architectural rather than prompt-based: a hijacked agent
+can reach only its own mounts, credentials are injected at the proxy rather than
+left in-process, and supply-chain code runs inside one wall. Containment is the
+floor; goal hijack, memory poisoning and behavioural drift still require the
+host-plane observability layer to detect.
+
+**Status:** v0.2 internal design brief, not implemented. It is an alternative
+runtime, not a rail or an add-on; adopting it would require a substrate adapter
+and a migration path from the Python `agent-core`/`DeepAgent` runtime. It is
+complementary to ATM (runtime containment versus safety rails), Agent-Core OTel
+and TraceHound (native event stream and post-session diagnostics), memtier and
+Thalamus (host-plane memory/context), and optmod/PerfRouter (external model
+routing).
+
 ## Agent Quality
 
 ### Stability, Session Initialisation & Scale
