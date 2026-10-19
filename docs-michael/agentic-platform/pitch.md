@@ -48,7 +48,7 @@ We are not building 50 apps. We are building the parts that all 50 apps need.
 
 ## Examples of building blocks
 
-These are the **18 blocks we start with**. Some already exist in the platform as primitives; the table shows what we add.
+These are the **21 blocks we start with**. Some already exist in the platform as primitives; the table shows what we add.
 
 | Building block | Existing primitive | What we add |
 |---|---|---|
@@ -70,6 +70,9 @@ These are the **18 blocks we start with**. Some already exist in the platform as
 | Embed widget | Web and messaging channels | Drop-in chat, voice and camera widget with theming and domain allowlist |
 | Workspace isolation | Tenant concepts | SaaS workspaces, roles, invites and scoped access |
 | Golden workloads | Test data and eval suites | Curated multimodal data, failure taxonomy and cost baselines for each recipe |
+| Camera capture | Device camera APIs | Consistent mobile/web capture with timestamps, stream modes and privacy controls |
+| Audio capture | Device microphone APIs | Echo cancellation, voice activity detection, resampling and duplex-safe frames |
+| Connector SDK | MCP and tool registration | Connector contracts with scopes, refresh, revocation, health checks and audit |
 
 ## Starter recipes
 

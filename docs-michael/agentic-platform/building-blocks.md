@@ -50,7 +50,7 @@ Two hard gates:
 
 ---
 
-## 2. First 18 Blocks
+## 2. First 21 Blocks
 
 These are the spine. Build these before the long tail.
 
@@ -69,11 +69,14 @@ These are the spine. Build these before the long tail.
 | 11 | I1 | Consent receipt service | Camera, voice, classroom and meeting apps need defensible consent. | 90 days |
 | 12 | I2 | PII/PHI redaction | Logs, prompts, exports and trainer data must be safe by default. | 90 days |
 | 13 | G4 | Context compiler | Keeps agents coherent and affordable as multimodal context grows. | 90 days |
-| 14 | L7 | Web embed widget | Fastest distribution surface for a one-person company. | 90 days |
-| 15 | L2 | Workspace tenancy and RBAC | Any B2B or agency use needs data boundaries and roles. | 90 days |
-| 16 | K1+K7 | App contract and registry | One manifest plus versioned, signed capability registry makes blocks composable. | 90 days |
-| 17 | J10 | Outcome verifier | Checks the real deliverable in a browser, camera or robot, not just offline test data. | 90 days |
-| 18 | J1 | Golden workload library | Curated multimodal data, failure taxonomy and cost baselines for every recipe. | 90 days |
+| 14 | K1+K7 | App contract and registry | One manifest plus versioned, signed capability registry makes blocks composable. | 90 days |
+| 15 | J10 | Outcome verifier | Checks the real deliverable in a browser, camera or robot, not just offline test data. | 90 days |
+| 16 | J1 | Golden workload library | Curated multimodal data, failure taxonomy and cost baselines for every recipe. | 90 days |
+| 17 | C1 | Camera capture SDK | Camera companion, inspection, coaching and acceptance all depend on it. | 90 days |
+| 18 | C2 | Audio capture SDK | Voice agents, meeting capture, coaching and translation depend on it. | 90 days |
+| 19 | H1 | Connector SDK and registry | Files, mail, calendar, chat and docs are the first integrations builders need. | 90 days |
+| 20 | L7 | Web embed widget | Fastest distribution surface for a one-person company. | 90 days |
+| 21 | L2 | Workspace tenancy and RBAC | Any B2B or agency use needs data boundaries and roles. | 90 days |
 
 **Do not start with:** marketplace, generic memory, every connector, real-time AV, no-code builder, multi-agent default, on-device runtime.
 
@@ -348,7 +351,7 @@ Do not rebuild these as generic platform blocks.
 
 ### 90 days: from demo to paid product
 
-**Ship:** F5, J2, I1, I2, G4, L7, L2, J1, J10, J7, J8, L4, L5, L11, K1, K7.
+**Ship:** F5, J2, I1, I2, G4, K1, K7, J10, J1, C1, C2, H1, L7, L2, J7, J8, L4, L11.
 
 **Exit criteria:**
 
