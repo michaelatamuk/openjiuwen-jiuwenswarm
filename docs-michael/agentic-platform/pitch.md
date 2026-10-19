@@ -65,11 +65,11 @@ These are the **18 blocks we start with**. Some already exist in the platform as
 | Consent receipt | Consent hooks | Versioned, provable consent for camera, voice, location and data use |
 | PII/PHI redaction | Text guardrails | Streaming redaction across text, audio and image |
 | Context compiler | Context window management | Token-budgeted, modality-aware packing, dedupe and salience ranking |
-| Camera capture | Device camera APIs | Consistent mobile/web capture with timestamps, stream modes and privacy controls |
-| Audio capture | Device microphone APIs | Echo cancellation, voice activity detection, resampling and duplex-safe frames |
+| App contract and registry | Manifests and MCP tool registration | One manifest plus a versioned, signed registry of reusable blocks |
+| Outcome verifier | Evaluation and judges | Checks the real deliverable in a browser, camera or robot, with per-item evidence |
 | Embed widget | Web and messaging channels | Drop-in chat, voice and camera widget with theming and domain allowlist |
 | Workspace isolation | Tenant concepts | SaaS workspaces, roles, invites and scoped access |
-| Connector SDK | MCP and tool registration | Connector contracts with scopes, refresh, revocation, health checks and audit |
+| Golden workloads | Test data and eval suites | Curated multimodal data, failure taxonomy and cost baselines for each recipe |
 
 ## Starter recipes
 
