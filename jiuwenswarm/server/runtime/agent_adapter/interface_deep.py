@@ -7143,7 +7143,7 @@ class JiuWenSwarmDeepAdapter:
         session_id: str | None,
     ) -> None:
         """Expose A4P only when this session has an interactive Web authorizer."""
-        from jiuwenswarm.agents.harness.common.a4p.runtime import is_a4p_enabled
+        from jiuwenswarm.agents.harness.common.a4p.runtime import is_a4p_preauthorization_active
         from jiuwenswarm.agents.harness.common.tools.a4p_tools import get_tools
 
         execution_context = AUTHORIZATION_EXECUTION_CONTEXTS.get(session_id)
@@ -7155,7 +7155,7 @@ class JiuWenSwarmDeepAdapter:
         self._a4p_tools, self._a4p_tools_registered = self._sync_tool_group(
             current_tools=self._a4p_tools,
             registered=self._a4p_tools_registered,
-            enabled=is_a4p_enabled(config_base) and authorizer_available,
+            enabled=is_a4p_preauthorization_active(config_base) and authorizer_available,
             create_fn=lambda: get_tools(session_id=session_id),
             warn_label="A4P intent authorization tool",
         )
@@ -11551,9 +11551,9 @@ class JiuWenSwarmDeepAdapter:
         """Cron uses ordinary permission rules only while A4P is enabled."""
         if not getattr(self, "_is_cron_execution", False):
             return False
-        from jiuwenswarm.agents.harness.common.a4p.runtime import is_a4p_enabled
+        from jiuwenswarm.agents.harness.common.a4p.runtime import is_a4p_preauthorization_active
 
-        return not is_a4p_enabled(config_base or {})
+        return not is_a4p_preauthorization_active(config_base or {})
 
     def _permission_interrupt_rail_infos(
         self, config_base: dict[str, Any],
@@ -11585,6 +11585,7 @@ class JiuWenSwarmDeepAdapter:
                     "permissions_changed_notifier": self._permissions_changed_notifier,
                     "browser_runtime_security_profile": self._browser_runtime_security_profile,
                     "trusted_search_urls": None,
+                    "channel_id": getattr(self, "_channel_id", ""),
                 },
             )
         ]
@@ -11801,8 +11802,7 @@ class JiuWenSwarmDeepAdapter:
             compose_host_effective_permissions,
         )
         from jiuwenswarm.agents.harness.common.rails.permissions.permissions_layers import (
-            load_session_permissions,
-            load_user_permissions,
+            permission_storage_lock, read_permission_layers_locked,
         )
 
         permission_config = config_base.get("permissions", {}) if config_base else {}
@@ -11818,15 +11818,27 @@ class JiuWenSwarmDeepAdapter:
             return
         if self._permission_rail is not None:
             replacer = getattr(self._permission_rail, "replace_installed_global_permissions", None)
-            if callable(replacer):
-                replacer(copy.deepcopy(permission_config))
-            effective = compose_host_effective_permissions(
-                global_permissions=permission_config,
-                user_permissions=load_user_permissions(),
-                session_permissions=load_session_permissions(session_id),
-                session_id=session_id,
+            previous_global = replacer(copy.deepcopy(permission_config)) if callable(replacer) else None
+            from jiuwenswarm.agents.harness.common.rails.permissions.auto_permission_rail import (
+                AutoPermissionInterruptRail,
             )
-            self._permission_rail.update_config(effective)
+            try:
+                with permission_storage_lock(session_id):
+                    _, user, session = read_permission_layers_locked(
+                        session_id, global_permissions=permission_config,
+                    )
+                    effective = compose_host_effective_permissions(
+                        global_permissions=permission_config,
+                        user_permissions=user,
+                        session_permissions=session,
+                        session_id=session_id,
+                        auto_mode=isinstance(self._permission_rail, AutoPermissionInterruptRail),
+                    )
+                self._permission_rail.update_config(effective)
+            except BaseException:
+                if callable(replacer):
+                    replacer(previous_global)
+                raise
             logger.info("[JiuWenSwarmDeepAdapter] _permission_rail config hot-updated")
         elif enabled:
             self._permission_rail = build_permission_rail(
@@ -11837,6 +11849,7 @@ class JiuWenSwarmDeepAdapter:
                 .get("model_client_config", {})
                 .get("model_name", "gpt-4"),
                 session_id=session_id,
+                channel_id=getattr(self, "_channel_id", ""),
             )
             if self._permission_rail is not None:
                 logger.info("[JiuWenSwarmDeepAdapter] _permission_rail newly created on hot-reload")
@@ -11903,6 +11916,7 @@ class JiuWenSwarmDeepAdapter:
                 "permissions_changed_notifier": self._permissions_changed_notifier,
                 "browser_runtime_security_profile": self._browser_runtime_security_profile,
                 "trusted_search_urls": self._trusted_search_urls if smart else None,
+                "channel_id": getattr(self, "_channel_id", ""),
             },
             queue=self._root_permission_queue, answer_claimed=self._permission_dispatch.close_claimed,
             sandboxed=getattr(self._sys_operation_card, "mode", None) == OperationMode.SANDBOX,
@@ -11921,7 +11935,7 @@ class JiuWenSwarmDeepAdapter:
         }
 
     def _capture_permission_version(self) -> tuple[str, dict[str, Any], dict[str, Any]]:
-        """Capture D from the storage owner, including overlay-only changes."""
+        """Capture graph authority; User/Session overlays refresh per tool call."""
         from jiuwenswarm.agents.harness.common.rails.permissions.permissions_layers import (
             capture_permission_layers,
         )
@@ -11935,6 +11949,7 @@ class JiuWenSwarmDeepAdapter:
         effective = compose_host_effective_permissions(
             global_permissions=layers[0], user_permissions=layers[1],
             session_permissions=layers[2], session_id=sid,
+            auto_mode=is_auto_permission_enabled(layers[0]),
         )
         epoch = self._stable_reload_fingerprint({
             "session_id": sid,
@@ -11943,7 +11958,7 @@ class JiuWenSwarmDeepAdapter:
                 if is_auto_permission_enabled(layers[0]) and self._auto_permission_capability_enabled()
                 else self._permission_workspace_root
             ),
-            "layers": layers,
+            "global": layers[0],
         })
         return epoch, layers[0], effective
 

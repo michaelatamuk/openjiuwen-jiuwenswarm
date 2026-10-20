@@ -2,7 +2,7 @@
 
 import { ExternalCliInstallProgress, useInstallStatusPolling } from './ExternalCliInstallProgress';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, CheckCircle2, Copy, FileSearch, FolderOpen, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, Download, FileSearch, FolderOpen, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { Button } from './ui/Button/Button';
 import { Select, type SelectOption } from './ui/Select/Select';
 import { Switch } from './ui/Switch/Switch';
@@ -450,6 +450,42 @@ export function ExternalCliAgentsSection({
     setResults({ ...initialResults });
   }, [initialResults]);
 
+  /**
+   * Record a built-in CLI's managed path into the MRU history. Built-in mode
+   * persists an empty cli_path, so the MRU effect never sees the actual path
+   * and the dropdown would lose it once the user switches to a custom path.
+   * Detection returns the managed path; keeping it in history lets the
+   * dropdown offer it for one-click switching back later.
+   */
+  const rememberBuiltinPath = useCallback(
+    (cliAgent: ExternalCliAgentKind, path: string) => {
+      setPathHistories((prev) => {
+        const list = prev[cliAgent] ?? [];
+        if (list[0] === path) return prev;
+        const next = {
+          ...prev,
+          [cliAgent]: [path, ...list.filter((item) => item !== path)].slice(0, PATH_HISTORY_LIMIT),
+        };
+        storePathHistories(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Drops one entry from the agent's MRU history (dropdown remove button).
+  // The active cli_path is never removed here: it is the persisted config,
+  // not a history entry.
+  const removePathHistory = useCallback((cliAgent: ExternalCliAgentKind, path: string) => {
+    setPathHistories((prev) => {
+      const list = prev[cliAgent] ?? [];
+      if (!list.includes(path)) return prev;
+      const next = { ...prev, [cliAgent]: list.filter((item) => item !== path) };
+      storePathHistories(next);
+      return next;
+    });
+  }, []);
+
   // Returns the detection result when it settles for the current request, so
   // manual callers can toast the outcome; undefined on races or failures.
   const detect = useCallback(
@@ -462,6 +498,7 @@ export function ExternalCliAgentsSection({
         const result = await onDetect(cliAgent, cliPath, useBuiltin);
         if (detectRequestIdsRef.current[cliAgent] !== requestId) return undefined;
         updateResults(cliAgent, result);
+        if (useBuiltin && result.path) rememberBuiltinPath(cliAgent, result.path);
         setAgentError(cliAgent, '');
         return result;
       } catch (error) {
@@ -475,7 +512,7 @@ export function ExternalCliAgentsSection({
         }
       }
     },
-    [onDetect, setAgentError, updateResults],
+    [onDetect, rememberBuiltinPath, setAgentError, updateResults],
   );
 
   // Manual "Detect" click: toasts the outcome like the models settings'
@@ -586,15 +623,35 @@ export function ExternalCliAgentsSection({
     [onCommitAgent, setAgentError],
   );
 
+  // One-click install/repair: commits the built-in choice with force so the
+  // backend re-runs its dependency repair even when nothing else changed
+  // (e.g. the managed CLI binary was deleted manually).
+  // Installs started by the user in this session. The initial status poll can
+  // return a historical 'succeeded' for a past install, which must not toast.
+  const userInitiatedInstallRef = useRef<Set<ExternalCliAgentKind>>(new Set());
+  // Per-install dedupe: a historical 'succeeded' consumed at mount (or a
+  // previous install) must not swallow the completion of a NEW install, so
+  // installNow resets the flag when the user kicks one off.
+  const postInstallDetectRanRef = useRef<Partial<Record<ExternalCliAgentKind, boolean>>>({});
   const installNow = useCallback(
     async (cliAgent: ExternalCliAgentKind) => {
       try {
         await commit(cliAgent, { enabled: true, useBuiltin: true, cliPath: '', force: true });
+        userInitiatedInstallRef.current.add(cliAgent);
+        postInstallDetectRanRef.current[cliAgent] = false;
+        // The commit only queues the install. When it finishes instantly (deps
+        // already present) or the backend skips it, no 'running' status ever
+        // shows up and the polling never starts, so the completion would be
+        // silent — probe the status once to land the final state and toast.
+        if (onInstallStatusGet && onInstallStatusChange) {
+          const status = await onInstallStatusGet(cliAgent);
+          onInstallStatusChange(cliAgent, status);
+        }
       } catch (error) {
         setAgentError(cliAgent, error instanceof Error ? error.message : String(error));
       }
     },
-    [commit, setAgentError],
+    [commit, onInstallStatusChange, onInstallStatusGet, setAgentError],
   );
 
   /**
@@ -791,19 +848,26 @@ export function ExternalCliAgentsSection({
   // that probe fails (or the page was reloaded mid-flow) the card's stale
   // result would otherwise never change and the progress bar would stay
   // mounted forever. One local detection per agent closes that gap.
-  const postInstallDetectRanRef = useRef<Partial<Record<ExternalCliAgentKind, boolean>>>({});
   useEffect(() => {
     for (const agent of EXTERNAL_CLI_AGENT_KINDS) {
       if (installStatuses?.[agent]?.status !== 'succeeded') continue;
       if (postInstallDetectRanRef.current[agent]) continue;
       postInstallDetectRanRef.current[agent] = true;
+      // The commit call only queues the install; the real completion only
+      // lands here, so the success toast fires once the backend confirms —
+      // but only for installs started in this session, never for a history
+      // 'succeeded' replayed by the initial status poll.
+      if (userInitiatedInstallRef.current.has(agent)) {
+        userInitiatedInstallRef.current.delete(agent);
+        showHint(t('config.externalCli.installSucceeded'));
+      }
       void detect(
         agent,
         (draftValues[externalCliKey(agent, 'cli_path')] ?? '').trim(),
         draftValues[externalCliKey(agent, 'use_builtin')] === 'true',
       );
     }
-  }, [installStatuses, detect, draftValues]);
+  }, [installStatuses, detect, draftValues, showHint, t]);
 
   const statusClass = (status?: ExternalCliDetectResult['status']) => {
     if (status === 'ok') return 'text-ok';
@@ -888,11 +952,13 @@ export function ExternalCliAgentsSection({
         // Dropdown choices: active path first, then the PATH-detected one, then
         // the agent's MRU history. Trigger, edit field and panel are capped at
         // max-w-[55rem] (880px); longer paths truncate with a tooltip.
+        // History entries carry a remove button; the active path and the
+        // detected PATH lookup are not history and cannot be dropped here.
         const pathOptions: SelectOption[] = [];
         {
           const seen = new Set<string>();
-          for (const path of [cliPath, detectedPath, ...(pathHistories[cliAgent] ?? [])]) {
-            if (!path || seen.has(path)) continue;
+          const pushPathOption = (path: string, removable: boolean) => {
+            if (!path || seen.has(path)) return;
             seen.add(path);
             pathOptions.push({
               value: path,
@@ -901,8 +967,27 @@ export function ExternalCliAgentsSection({
                   {path}
                 </span>
               ),
+              trailing: removable ? (
+                <span
+                  role="button"
+                  aria-label={t('config.externalCli.removePath')}
+                  title={t('config.externalCli.removePath')}
+                  data-testid="ui-select-option-remove"
+                  className="ml-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-text-muted opacity-40 hover:bg-secondary/40 hover:opacity-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removePathHistory(cliAgent, path);
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path strokeLinecap="round" d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </span>
+              ) : undefined,
             });
-          }
+          };
+          for (const path of [cliPath, detectedPath]) pushPathOption(path, false);
+          for (const path of pathHistories[cliAgent] ?? []) pushPathOption(path, true);
         }
         const detectingNow = detecting[cliAgent];
         // Keep the last detection result mounted while re-detecting: hiding
@@ -924,25 +1009,43 @@ export function ExternalCliAgentsSection({
         const installResultUpdated =
           installSucceeded && (result ?? null) !== postInstallBaselineRef.current[cliAgent];
 
-        // Detect button on the installed built-in card's path row. The
-        // one-click install entry lives solely in the not-installed hint
-        // block: an installed card has nothing left to install.
+        // Detect + one-click install pair, shown on the installed built-in
+        // card's path row. The two buttons disable independently: only the
+        // install button freezes while the agent's own install runs (a
+        // re-click would fire a duplicate force install); detect is a
+        // read-only probe and stays usable — the automatic post-install
+        // detection refreshes the card anyway.
         const actionButtons = (
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant="quiet"
               size="sm"
               loading={detectingNow}
-              disabled={disabled || !onDetect || agentInstalling}
+              disabled={disabled || !onDetect || editing[cliAgent]}
               onClick={() => void detectAndNotify(cliAgent, cliPath, useBuiltin)}
-              title={t('config.externalCli.detectHint')}
-              aria-label={t('config.externalCli.detectHint')}
+              title={t('config.externalCli.redetectHint')}
+              aria-label={t('config.externalCli.redetectHint')}
               icon={<RefreshCw className="h-3.5 w-3.5" />}
               className="!px-1"
               data-testid="settings-panel-external-cli-agent-detect-btn"
               data-variant={cliAgent}
             >
               {t('config.externalCli.detect')}
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
+              loading={committing[cliAgent]}
+              disabled={disabled || !onCommitAgent || agentInstalling || editing[cliAgent]}
+              onClick={() => void installNow(cliAgent)}
+              title={t('config.externalCli.installNow')}
+              aria-label={t('config.externalCli.installNow')}
+              icon={<Download className="h-3.5 w-3.5" />}
+              className="!px-1"
+              data-testid="settings-panel-external-cli-agent-install-btn"
+              data-variant={cliAgent}
+            >
+              {t('config.externalCli.installNow')}
             </Button>
           </div>
         );
@@ -1154,7 +1257,7 @@ export function ExternalCliAgentsSection({
                   <div className="flex flex-shrink-0 items-center gap-2">
                     <Switch
                       checked={enabled}
-                      disabled={disabled || committing[cliAgent] || !installed || agentInstalling}
+                      disabled={disabled || committing[cliAgent] || !installed || agentInstalling || editing[cliAgent]}
                       onChange={(next) => void toggleAgentEnabled(cliAgent, next, useBuiltin, cliPath)}
                       aria-label={t('config.externalCli.toggleEnable', { agent: label })}
                       data-testid="settings-panel-external-cli-agent-enable-switch"
@@ -1185,7 +1288,7 @@ export function ExternalCliAgentsSection({
                   ) : (
                     <Select
                       value={cliPath}
-                      disabled={disabled || committing[cliAgent] || detectingNow || useBuiltin || agentInstalling}
+                      disabled={disabled || committing[cliAgent] || detectingNow || agentInstalling}
                       options={pathOptions}
                       placeholder={
                         useBuiltin
@@ -1271,14 +1374,14 @@ export function ExternalCliAgentsSection({
                   (!installSucceeded || !installResultUpdated) &&
                   onInstallStatusGet &&
                   onInstallStatusChange ? (
-                  // An install is in flight for this agent: show live progress in
-                  // place of the hint block. After success the bar stays pinned at
-                  // 100% until a fresh detect result lands, then the card swaps
-                  // straight to the installed layout (no "not installed" flash).
+                  // An install is in flight for this agent: show live progress on
+                  // the card. After success the bar stays pinned at 100% until a
+                  // fresh detect result lands, then the card swaps straight to
+                  // the installed layout (no "not installed" flash).
                   // 'idle' is excluded: App.tsx restores install statuses after a
                   // reload/restart, and a restored idle state means no install has
                   // ever run in this process — the progress component renders
-                  // nothing for it, which would swallow the install hint below.
+                  // nothing for it, so the card would show no progress at all.
                   <ExternalCliInstallProgress
                     agent={cliAgent}
                     status={installStatus}
@@ -1286,7 +1389,11 @@ export function ExternalCliAgentsSection({
                     onStatusChange={onInstallStatusChange}
                     inline
                   />
-                ) : !installed ? (
+                ) : !installed && (!result || !detectingNow) ? (
+                  // One-click install entry: shown initially (no result yet)
+                  // and whenever a finished detect reports the agent missing.
+                  // While a detect is in flight with a result on screen the
+                  // banner hides, so a manual re-detect never flashes it.
                   <div
                     className="flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1.5"
                     data-testid="settings-panel-external-cli-agent-install-hint"
@@ -1302,7 +1409,7 @@ export function ExternalCliAgentsSection({
                       <button
                         type="button"
                         className="rounded font-medium text-accent outline-none hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={disabled || !onCommitAgent || detectingNow || committing[cliAgent]}
+                        disabled={disabled || !onCommitAgent || committing[cliAgent] || agentInstalling || editing[cliAgent]}
                         onClick={() => void installNow(cliAgent)}
                         title={t('config.externalCli.installNow')}
                         aria-label={t('config.externalCli.installNow')}
