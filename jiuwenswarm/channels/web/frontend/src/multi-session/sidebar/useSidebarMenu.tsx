@@ -1,5 +1,5 @@
 import { createElement, useRef, useState, type ReactNode } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { Archive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '../../components/ui';
@@ -298,6 +298,7 @@ export function useSidebarMenu(options: SidebarMenuOptions): {
     removeProject,
     archiveSession,
     removeSessionLocally,
+    workMode,
   } = useWorkspaceStore();
   const loadCronJobs = useCronStore((s) => s.loadJobs);
   const loadCronSessions = useCronStore((s) => s.loadCronSessions);
@@ -510,7 +511,10 @@ export function useSidebarMenu(options: SidebarMenuOptions): {
     }
   }
 
-  const dialogs: ReactNode = (
+  // 弹窗内联在行元素里时，:focus-within 触发的 z-index:10 会把 fixed 弹窗
+  // 封顶在行的堆叠上下文内，开启轨迹后被 z-index:19 的视图切换工具栏盖住；
+  // 挂到 body 才能真正全屏遮罩
+  const dialogs: ReactNode = createPortal(
     <>
       {renameTarget ? (
         <RenameDialog
@@ -570,7 +574,8 @@ export function useSidebarMenu(options: SidebarMenuOptions): {
           onDelete={() => { void submitDeleteSession(); }}
         />
       ) : null}
-    </>
+    </>,
+    document.body,
   );
 
   let items: SidebarMenuItem[] = [];
@@ -597,7 +602,7 @@ export function useSidebarMenu(options: SidebarMenuOptions): {
     };
     items = getSessionMenuItems(pinned, t, {
       scope,
-      archivable: !cron,
+      archivable: !cron && workMode !== 'design',
     }).map((def) => ({
       ...def,
       icon: menuIcon(def.key, pinned),
@@ -637,6 +642,7 @@ export function useSidebarMenu(options: SidebarMenuOptions): {
   items = getProjectMenuItems(pinned, t, {
     isDefault: isDefaultProject(project),
     archiveSessionsDisabled,
+    archivable: workMode !== 'design',
   }).map((def) => ({
     ...def,
     icon: menuIcon(def.key, pinned),
