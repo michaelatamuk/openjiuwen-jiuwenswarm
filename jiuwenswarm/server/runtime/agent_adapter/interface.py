@@ -100,8 +100,8 @@ from jiuwenswarm.common.context_keys import (
 from jiuwenswarm.extensions.registry import ExtensionRegistry
 from jiuwenswarm.common.schema.agent import AgentRequest, AgentResponse, AgentResponseChunk
 from jiuwenswarm.common.chat_final import ensure_final_mode_inplace
-from jiuwenswarm.extensions.hook_event import AgentServerHookEvents
-from jiuwenswarm.extensions.hooks_context import MemoryHookContext
+from jiuwenswarm.common.hook_event import AgentServerHookEvents
+from jiuwenswarm.common.hooks_context import MemoryHookContext
 from jiuwenswarm.common.schema.message import EventType, ReqMethod
 from jiuwenswarm.common.utils import (
     apply_free_search_runtime_defaults,
@@ -1366,7 +1366,6 @@ class JiuWenSwarm:
         if callable(refresher):
             await refresher()
 
-
     def set_permissions_changed_notifier(
         self,
         notifier: Callable[[], None] | None,
@@ -1533,6 +1532,12 @@ class JiuWenSwarm:
             await self._adapter.notify_permissions_changed(config, include_legacy=include_legacy)
         elif include_legacy:
             await self.reload_agent_config(config_base=config, env_overrides={})
+
+    async def prepare_kernel(self, *, mode: str) -> None:
+        adapter = self._ensure_adapter(mode="code" if mode.startswith("code") else "agent")
+        prepare = getattr(adapter, "prepare_kernel", None)
+        if callable(prepare):
+            await prepare()
 
     async def prepare_session(
         self,
@@ -2880,6 +2885,21 @@ class JiuWenSwarm:
         if intent in {"pause", "cancel"}:
             if intent == "pause":
                 paused = await team_manager.pause_session_runtime(session_id, reason=reason)
+                if paused:
+                    # The persistent foreground stream survives pause, so the
+                    # gateway's stream-exit fallback never fires.  Emit the
+                    # terminal frame explicitly; shape matches the old
+                    # gateway fallback exactly.
+                    await team_manager.broadcast_event(
+                        session_id,
+                        {
+                            "event_type": "chat.processing_status",
+                            "session_id": session_id,
+                            "is_processing": False,
+                            "is_complete": True,
+                        },
+                        channel_id=request.channel_id,
+                    )
                 await self._session_manager.cancel_session_task(
                     session_id,
                     reason,
@@ -3166,7 +3186,7 @@ class JiuWenSwarm:
         # empty clears selection when neither side contributes names.
         params = request.params if isinstance(request.params, dict) else {}
         try:
-            runtime_binding = self._resolve_runtime_binding_for_request(
+            runtime_binding = await self._resolve_runtime_binding_for_request(
                 adapter,
                 request,
                 session_id,
@@ -3192,6 +3212,7 @@ class JiuWenSwarm:
         moa_access = getattr(adapter, "moa_access_kwargs", None)
         if callable(moa_access):
             reconcile_kwargs.update(moa_access(request))
+        reconcile_kwargs["execution_request"] = request
         await self.reconcile_session_mcp(
             request.session_id,
             compute_chat_send_mcp_needed(params),
@@ -3356,6 +3377,7 @@ class JiuWenSwarm:
             compute_chat_send_mcp_needed(params),
             model_name=params.get("model_name"),
             history_before_request_id=request.request_id,
+            execution_request=request,
             retain_moa_snapshot=True,
             **({"model_selection": params["model_selection"]} if params.get("model_selection") is not None else {}),
             **({"moa_enabled": params["moa_enabled"]} if "moa_enabled" in params else {}),
@@ -3603,7 +3625,7 @@ class JiuWenSwarm:
         )
 
     async def process_message_stream(
-            self, request: AgentRequest
+        self, request: AgentRequest
     ) -> AsyncIterator[AgentResponseChunk]:
         """处理流式请求.
 
@@ -3788,7 +3810,7 @@ class JiuWenSwarm:
         # empty clears selection when neither side contributes names.
         params = request.params if isinstance(request.params, dict) else {}
         try:
-            runtime_binding = self._resolve_runtime_binding_for_request(
+            runtime_binding = await self._resolve_runtime_binding_for_request(
                 adapter,
                 request,
                 session_id,
@@ -3814,6 +3836,7 @@ class JiuWenSwarm:
         moa_access = getattr(adapter, "moa_access_kwargs", None)
         if callable(moa_access):
             reconcile_kwargs.update(moa_access(request))
+        reconcile_kwargs["execution_request"] = request
         await self.reconcile_session_mcp(
             request.session_id,
             compute_chat_send_mcp_needed(params),
@@ -5199,6 +5222,7 @@ class JiuWenSwarm:
         *,
         model_name: str | None = None,
         history_before_request_id: str | None = None,
+        execution_request: AgentRequest | None = None,
         runtime_binding: dict[str, Any] | None = None,
         moa_enabled: bool | None = None,
         model_selection: Any = None,
@@ -5243,6 +5267,8 @@ class JiuWenSwarm:
                 supported_kwargs["history_before_request_id"] = (
                     history_before_request_id
                 )
+            if execution_request is not None and "execution_request" in parameters:
+                supported_kwargs["execution_request"] = execution_request
             if "runtime_binding" in parameters or accepts_kwargs:
                 supported_kwargs["runtime_binding"] = runtime_binding
             if model_selection is not None and ("model_selection" in parameters or accepts_kwargs):
@@ -5256,7 +5282,7 @@ class JiuWenSwarm:
         await reconcile(session_id, needed, **supported_kwargs)
 
     @staticmethod
-    def _resolve_runtime_binding_for_request(
+    async def _resolve_runtime_binding_for_request(
         adapter: AgentAdapter,
         request: AgentRequest,
         session_id: str,
@@ -5269,6 +5295,8 @@ class JiuWenSwarm:
             return None
         params = request.params if isinstance(request.params, dict) else {}
         runtime_binding = resolver(session_id, params)
+        if inspect.isawaitable(runtime_binding):
+            runtime_binding = await runtime_binding
         request.trusted_runtime_binding = runtime_binding
         return runtime_binding
 
@@ -5325,8 +5353,7 @@ class JiuWenSwarm:
         operation: str,
         config_path: str,
     ) -> None:
-        """Propagate a harness package load/unload to all live session adapters.
-        """
+        """Propagate a harness package load/unload to all live session adapters."""
         adapter = self._adapter
         if adapter is None:
             return
