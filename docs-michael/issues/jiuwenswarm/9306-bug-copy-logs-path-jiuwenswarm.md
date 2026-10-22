@@ -1,9 +1,10 @@
-# [Bug][ide plugin]: Copy Logs Path stays disabled after a session interaction — jiuwenswarm
+# [Bug][ide plugin]: Copy Logs Path / Export stay disabled after a session interaction — jiuwenswarm
 
 ## Executive Summary
 
-After a session interaction, the menu's **Copy Logs Path** item remained greyed out and
-could not be clicked.
+After a session interaction, the menu's **Copy Logs Path** and **Export** items remained
+greyed out and could not be clicked (#8479 / #8478). Both are gated by the same
+`state.sessionHistoryPath`.
 
 Root cause: the webview refreshes `session.list` when the menu opens, but that is
 asynchronous. The path was first fetched at connect time, before the session's
@@ -14,8 +15,10 @@ The fix refreshes `session.list` after every completed turn, so the current
 `history_path` is already in `state.sessions` when the menu opens.
 
 Issue #8479 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8479<br>
+Issue #8478 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8478<br>
 PR #9306 https://github.com/openJiuwen-ai/jiuwenswarm/pull/9306<br>
-Paired: [GitCode #5315](https://gitcode.com/openJiuwen/jiuwenswarm/issues/5315)
+Paired: [GitCode #5315](https://gitcode.com/openJiuwen/jiuwenswarm/issues/5315) ·
+[GitCode #5314](https://gitcode.com/openJiuwen/jiuwenswarm/issues/5314)
 
 ## 🐞 Detailed Description of the Problem
 
@@ -65,8 +68,9 @@ is unchanged; only the enabled state is corrected.
 
 - `npm run build` (VS Code extension, copies `shared-webview/chat.html`) passes.
 - Generated `resources/chat.html` contains the post-final `list_sessions` refresh.
-- Expected runtime behaviour: after a turn, opening the menu shows Copy Logs Path
-  enabled; copying returns the current `history.jsonl` path.
+- Expected runtime behaviour: after a turn, opening the menu shows Copy Logs Path and
+  Export enabled; copying returns the current `history.jsonl` path and export produces
+  the Markdown file.
 - The JetBrains plugin copies the same webview at `processResources`, so both IDEs
   receive the fix.
 
@@ -87,6 +91,7 @@ available and Copy Logs Path / Export are enabled.
 
 **Which issue(s) this PR fixes**
 Fixes #8479
+Fixes #8478
 
 **Branch / commits**
 
