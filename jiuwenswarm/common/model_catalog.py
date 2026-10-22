@@ -23,6 +23,9 @@ _PUBLIC_GROUP_KEYS = (
     "routes",
     "request_config",
 )
+_PUBLIC_GROUP_TIMEOUT_KEYS = (
+    "timeout_seconds", "stream_first_chunk_timeout", "stream_idle_timeout",
+)
 
 
 def _read_session_selection(path: Path) -> dict[str, Any] | None:
@@ -127,18 +130,30 @@ class ModelCatalog:
                     result.append(self._safe_model(entry, source))
         return result
 
-    def get_public_model_detail(self, model_id: str) -> dict[str, Any]:
-        """Return an editable model DTO without write-only credentials.
+    def get_public_model_detail(self, model_id: str, *, include_api_key: bool = False) -> dict[str, Any]:
+        """Return model details, optionally including a user-configured API key.
 
         Updates are merge-based, so omitted write-only fields remain unchanged.
         AgentOS models are intentionally exposed as read-only catalog entries.
+        Editing may include the decrypted API key of a user-configured model.
         """
+        from jiuwenswarm.common.auth.model_catalog import is_login_model
+
         hit = self.get_model(model_id)
         entry = deepcopy(hit["entry"])
-        client = entry.get("model_client_config")
+        model_config = entry.get("model_config_obj")
+        if isinstance(model_config, dict) and isinstance(model_config.get("reasoning_level"), bool):
+            model_config["reasoning_level"] = "on" if model_config["reasoning_level"] else "off"
+        expose_api_key = include_api_key and hit["source"] == "defaults" and not is_login_model(entry)
+        client = entry.get("model_client_config") or {}
+        # The edit dialog requires these strings even for an empty YAML model.
+        # Normalize only the response; retain the original persisted values.
+        client["model_name"] = str(client.get("model_name") or "")
+        client["api_base"] = str(client.get("api_base") or "")
+        entry["model_client_config"] = client
         write_only_fields: list[str] = []
         if isinstance(client, dict):
-            if "api_key" in client:
+            if "api_key" in client and not expose_api_key:
                 client.pop("api_key", None)
                 write_only_fields.append("model_client_config.api_key")
             if "custom_headers" in client:
@@ -159,6 +174,15 @@ class ModelCatalog:
             for key in _PUBLIC_GROUP_KEYS:
                 value = deepcopy(group.get(key))
                 public[key] = value
+            routing = group.get("routing")
+            if isinstance(routing, dict):
+                timeouts = {
+                    key: deepcopy(routing[key])
+                    for key in _PUBLIC_GROUP_TIMEOUT_KEYS
+                    if key in routing
+                }
+                if timeouts:
+                    public["routing"] = timeouts
             result.append(public)
         return result
 
