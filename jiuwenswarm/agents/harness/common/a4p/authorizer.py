@@ -42,7 +42,7 @@ class WebAuthorizerBroker:
     def __init__(
         self,
         *,
-        timeout_seconds: float = 300,
+        timeout_seconds: float = 180,
     ) -> None:
         self.timeout_seconds = float(timeout_seconds)
         self._pending: dict[str, _PendingAuthorization] = {}
@@ -282,7 +282,7 @@ class WebAuthorizerBroker:
         event_type: str,
         terminal: dict[str, Any] | None = None,
     ) -> None:
-        from jiuwenswarm.runtime.host_services import send_runtime_push
+        from jiuwenswarm.common.host_services import send_runtime_push
 
         ui_context = dict(request.ui_context)
         route = request.route

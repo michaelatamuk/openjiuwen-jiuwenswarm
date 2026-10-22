@@ -406,10 +406,12 @@ def test_port_scan_range_matches() -> None:
 def test_shutdown_budget_is_the_documented_divergence() -> None:
     """已知且接受的分歧(评审结论 E: 强杀=崩溃等价, 系统按崩溃容忍设计)。
 
-    Python 统一 8s 预算; Electron SIGTERM 等待 5s + 强杀等待 1.5s。
+    Python 和 Electron 的应用最终退出使用 30s Runtime 预算。
+    Electron 单个传输进程 SIGTERM 等待 5s + 强杀等待 1.5s。
     钉住当前值: 任一侧改动都会红灯, 迫使重新评审该分歧。
     """
-    assert _python_shutdown_budget_seconds() == 8.0
+    assert _python_shutdown_budget_seconds() == 30.0
+    assert _js_number_const(_read(MAIN_CJS), "RUNTIME_SHUTDOWN_TIMEOUT_MS") == 30_000
     assert _js_number_const(_read(MAIN_CJS), "SERVICE_SHUTDOWN_TIMEOUT_MS") == 5_000
     assert _js_number_const(_read(MAIN_CJS), "SERVICE_KILL_TIMEOUT_MS") == 1_500
 
@@ -687,9 +689,12 @@ def test_windows_electron_signs_payload_installer_and_uninstaller() -> None:
         "RequireSigning",
     ):
         assert setting in source
-    rcedit_index = source.index("& $Rcedit $ShellExePath")
-    rcedit_end_index = source.index("if ($LASTEXITCODE -ne 0)", rcedit_index)
-    rcedit_command = source[rcedit_index:rcedit_end_index]
+    # Icon and version resources are applied in two rcedit passes on a temp copy
+    # (one-pass icon+version can corrupt the PE on Windows).
+    icon_index = source.index("& $Rcedit $RceditTemp --set-icon $LogoIco")
+    version_index = source.index("& $Rcedit $RceditTemp `", icon_index)
+    rcedit_end_index = source.index("if ($LASTEXITCODE -ne 0)", version_index)
+    rcedit_command = source[icon_index:rcedit_end_index]
     for argument in (
         "--set-icon $LogoIco",
         "--set-version-string FileDescription $BuildDisplayName",
@@ -700,10 +705,11 @@ def test_windows_electron_signs_payload_installer_and_uninstaller() -> None:
         "--set-product-version $BuildVersion",
     ):
         assert argument in rcedit_command
+    assert "Copy-Item -LiteralPath $RceditTemp -Destination $ShellExePath" in source
     payload_sign_index = source.index("Invoke-CodeSigning", rcedit_end_index)
     iscc_index = source.index("& $Iscc @IsccArguments")
     verify_index = source.index("Assert-ValidEmbeddedSignature", iscc_index)
-    assert rcedit_index < payload_sign_index < iscc_index < verify_index
+    assert icon_index < payload_sign_index < iscc_index < verify_index
     assert "$BatchSize = 20" in source
     assert "Invoke-SignToolBatchVerification" in source
     assert "-ForceResignPaths @($ShellExePath)" in source

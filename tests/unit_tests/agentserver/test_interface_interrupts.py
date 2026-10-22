@@ -38,6 +38,7 @@ class _FakeTeamManager:
         self.pause_calls: list[tuple[str, str]] = []
         self.cancel_calls: list[tuple[str, str]] = []
         self.cancel_dispositions: list[str | None] = []
+        self.broadcast_events: list[dict] = []
 
     async def pause_session_runtime(self, session_id: str, reason: str = "") -> bool:
         self.pause_calls.append((session_id, reason))
@@ -53,6 +54,16 @@ class _FakeTeamManager:
         self.cancel_calls.append((session_id, reason))
         self.cancel_dispositions.append(workflow_disposition)
         return self.cancel_result
+
+    async def broadcast_event(
+        self,
+        session_id: str,
+        event: dict,
+        *,
+        channel_id: str | None = None,
+    ) -> bool:
+        self.broadcast_events.append(event)
+        return True
 
 
 @pytest.mark.asyncio
@@ -211,6 +222,80 @@ async def test_team_interrupt_resume_is_ack_only(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_team_pause_success_broadcasts_terminal_processing_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pause park must emit an explicit terminal frame for frame-based consumers."""
+    claw = _InterruptHarness()
+    fake_manager = _FakeTeamManager(pause_result=True)
+
+    monkeypatch.setattr(
+        "jiuwenswarm.agents.harness.team.get_team_manager",
+        lambda channel_id=None: fake_manager,
+    )
+    monkeypatch.setattr(
+        claw.session_manager_for_test,
+        "cancel_session_task",
+        AsyncMock(),
+    )
+
+    await claw.process_interrupt_for_test(_build_team_interrupt_request("pause"))
+
+    assert len(fake_manager.broadcast_events) == 1
+    event = fake_manager.broadcast_events[0]
+    assert event["event_type"] == "chat.processing_status"
+    assert event["is_processing"] is False
+    assert event["is_complete"] is True
+    assert "paused" not in event
+
+
+@pytest.mark.asyncio
+async def test_team_pause_failure_does_not_broadcast_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed pause leaves state unchanged; no terminal frame may be emitted."""
+    claw = _InterruptHarness()
+    fake_manager = _FakeTeamManager(pause_result=False)
+
+    monkeypatch.setattr(
+        "jiuwenswarm.agents.harness.team.get_team_manager",
+        lambda channel_id=None: fake_manager,
+    )
+    monkeypatch.setattr(
+        claw.session_manager_for_test,
+        "cancel_session_task",
+        AsyncMock(),
+    )
+
+    await claw.process_interrupt_for_test(_build_team_interrupt_request("pause"))
+
+    assert fake_manager.broadcast_events == []
+
+
+@pytest.mark.asyncio
+async def test_team_cancel_does_not_broadcast_pause_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancel goes through its own teardown path; no pause terminal frame."""
+    claw = _InterruptHarness()
+    fake_manager = _FakeTeamManager(cancel_result=True)
+
+    monkeypatch.setattr(
+        "jiuwenswarm.agents.harness.team.get_team_manager",
+        lambda channel_id=None: fake_manager,
+    )
+    monkeypatch.setattr(
+        claw.session_manager_for_test,
+        "cancel_session_task",
+        AsyncMock(),
+    )
+
+    await claw.process_interrupt_for_test(_build_team_interrupt_request("cancel"))
+
+    assert fake_manager.broadcast_events == []
+
+
+@pytest.mark.asyncio
 async def test_code_team_interrupt_uses_team_manager_without_team_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -366,6 +451,7 @@ async def test_deliver_control_input_persists_ask_user_answer_with_original_requ
     # 替身 reconcile_session_mcp：no-op。
     async def _fake_reconcile(
         _sid, _mcp, *, model_name=None, history_before_request_id=None,
+        execution_request=None,
         retain_moa_snapshot=False, model_selection=None, moa_enabled=None, moa_can_access=None,
     ):
         assert retain_moa_snapshot is True
@@ -449,6 +535,7 @@ def _build_control_input_harness(claw: _InterruptHarness, monkeypatch: pytest.Mo
 
     async def _fake_reconcile(
         _sid, _mcp, *, model_name=None, history_before_request_id=None,
+        execution_request=None,
         retain_moa_snapshot=False, model_selection=None, moa_enabled=None, moa_can_access=None,
     ):
         assert retain_moa_snapshot is True

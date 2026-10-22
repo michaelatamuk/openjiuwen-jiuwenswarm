@@ -39,13 +39,14 @@ from jiuwenswarm.agents.harness.common.a4p.file_scope import (
 )
 from jiuwenswarm.agents.harness.common.a4p.token_expiry import token_expired
 from jiuwenswarm.common.config import get_config
+from jiuwenswarm.common.permission_mode import is_auto_permission_mode
 from jiuwenswarm.common.utils import get_config_dir, logger
 
 
 INTERNAL_A4P_USER_ID = "jiuwenswarm-local-user"
 DEFAULT_INTENT_VALIDITY_SECONDS = 3600
 DEFAULT_CRON_INTENT_VALIDITY_SECONDS = 30 * 24 * 60 * 60
-DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS = 300
+DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS = 180
 
 _QUOTED_SHELL_VALUE_RE = re.compile(r"(?P<quote>['\"])(?P<value>[^'\"]+)(?P=quote)")
 _SHELL_COMMAND_PARAM_KEYS = {
@@ -70,6 +71,18 @@ def get_a4p_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
 
 def is_a4p_enabled(config: dict[str, Any] | None = None) -> bool:
     return bool(get_a4p_config(config).get("enabled", False))
+
+
+def is_a4p_preauthorization_active(config: dict[str, Any] | None = None) -> bool:
+    """Enable preauthorization only for the default permission profile."""
+    cfg = config if isinstance(config, dict) else get_config()
+    permissions = cfg.get("permissions")
+    permissions = permissions if isinstance(permissions, dict) else {}
+    return (
+        is_a4p_enabled(cfg)
+        and permissions.get("enabled") is not False
+        and not is_auto_permission_mode(permissions)
+    )
 
 
 def resolve_a4p_identity(
@@ -501,6 +514,7 @@ __all__ = [
     "get_a4p_config",
     "get_a4p_runtime",
     "is_a4p_enabled",
+    "is_a4p_preauthorization_active",
     "disable_a4p_runtime",
     "reconfigure_a4p_runtime",
     "reset_a4p_runtime_for_tests",
