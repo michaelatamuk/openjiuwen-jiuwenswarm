@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
 import ctypes
 import http.client
@@ -164,6 +165,18 @@ DATA_URL_EXPORT_SPECS = {
         allowed_suffixes=frozenset({".json"}),
         allowed_parameters=frozenset({"charset=utf-8"}),
         file_types=("JSON Archive (*.json)",),
+    ),
+    # Trajectory panel exports (.trajectory.zip / .trajectory.jsonl). Keep in
+    # sync with BLOB_EXPORT_SPECS in electron/main.cjs (contract test).
+    "application/zip": _DataUrlExportSpec(
+        allowed_suffixes=frozenset({".zip"}),
+        allowed_parameters=frozenset(),
+        file_types=("ZIP Archive (*.zip)",),
+    ),
+    "application/jsonl": _DataUrlExportSpec(
+        allowed_suffixes=frozenset({".jsonl"}),
+        allowed_parameters=frozenset({"charset=utf-8"}),
+        file_types=("JSONL Archive (*.jsonl)",),
     ),
 }
 DesktopSaveResult = dict[str, bool]
@@ -1918,6 +1931,21 @@ class DesktopRuntime:
             self.window.minimize()
         return False
 
+    @staticmethod
+    def _bytes_from_download_data_url(url: str) -> bytes:
+        """Decode a FileReader-style data URL used by file-preview text downloads."""
+        if not isinstance(url, str) or not url.startswith("data:"):
+            raise ValueError("not_data_url")
+        _header, separator, payload = url.partition(",")
+        if not separator:
+            raise ValueError("invalid_data_url")
+        metadata = _header[5:].split(";")
+        if metadata and metadata[-1].lower() == "base64":
+            return base64.b64decode(payload, validate=True)
+        from urllib.parse import unquote_to_bytes
+
+        return unquote_to_bytes(payload)
+
     def download_file(self, url: str, filename: str) -> DesktopSaveResult:
         """选择保存位置并在实际写入完成后返回结果。"""
         try:
@@ -1941,7 +1969,11 @@ class DesktopRuntime:
             )
             os.close(temp_fd)
             temp_path = Path(temp_name)
-            urllib.request.urlretrieve(url, temp_path)
+            # File-preview text downloads (e.g. manifest.json) pass a data: URL.
+            if isinstance(url, str) and url.startswith("data:"):
+                temp_path.write_bytes(self._bytes_from_download_data_url(url))
+            else:
+                urllib.request.urlretrieve(url, temp_path)
             os.replace(temp_path, target_path)
             temp_path = None
             logger.info("[desktop] file downloaded to: %s", target_path)
@@ -3128,12 +3160,21 @@ nohup {q_executable} >/dev/null 2>&1 &
             processes = list(self.processes.values())
 
         self._abort_all_blob_saves()
-        deadline = time.monotonic() + 8.0
+        deadline = time.monotonic() + 30.0
         logger.info("[desktop] shutting down child processes")
 
         for process in processes:
             if process.poll() is None:
                 _terminate_process_tree(process)
+
+        if processes:
+            # Front restarts detach. The desktop application owns final exit
+            # and upgrade, so it explicitly drains the resident Worker here.
+            from jiuwenswarm.server.supervisor.shutdown import shutdown_resident_worker
+            try:
+                asyncio.run(shutdown_resident_worker(timeout=max(.001, deadline - time.monotonic())))
+            except Exception:
+                logger.exception("[desktop] resident Worker final shutdown incomplete")
 
         while time.monotonic() < deadline:
             if all(process.poll() is not None for process in processes):
@@ -3556,9 +3597,32 @@ def _psutil_terminate(pid: int, force: bool = False) -> None:
         parent = psutil.Process(pid)
         # 获取所有子孙进程（在杀父进程之前先拿到完整列表）
         children = parent.children(recursive=True)
+        # Runtime lives in a separate process session on POSIX. On Windows a
+        # recursive psutil termination must similarly preserve that subtree
+        # during Front/Gateway restart; final exit uses explicit Worker IPC.
+        retained = set()
+        by_pid = {child.pid: child for child in children}
+        for child in children:
+            try:
+                argv = child.cmdline()
+                if "-m" in argv and argv[argv.index("-m") + 1] == "jiuwenswarm.server.worker.main":
+                    retained.add(child.pid)
+            except psutil.NoSuchProcess:
+                pass
+        for child in children:
+            try:
+                ancestor = child.ppid()
+                while ancestor in by_pid and ancestor not in retained:
+                    ancestor = by_pid[ancestor].ppid()
+                if ancestor in retained:
+                    retained.add(child.pid)
+            except psutil.NoSuchProcess:
+                pass
         kill_fn = (lambda p: p.kill()) if force else (lambda p: p.terminate())
         # 先杀子孙，再杀父进程，避免子孙变成孤儿
         for child in reversed(children):
+            if child.pid in retained:
+                continue
             try:
                 kill_fn(child)
             except psutil.NoSuchProcess:
