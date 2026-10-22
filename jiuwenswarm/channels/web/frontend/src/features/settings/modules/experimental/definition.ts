@@ -6,6 +6,7 @@ import {
   ProactiveLimitsSetting,
   RSISetting,
   TrajectoryAnalysisSetting,
+  TrajectoryDiagnosisSetting,
   TrajectoryUiSetting,
 } from './ExperimentalSettings';
 import { MultiModelVerificationSettings } from './MultiModelCollaborationSettings';
@@ -44,6 +45,7 @@ export const experimentalModule: SettingsModuleDefinition = {
       items: [
         { id: 'trajectory-ui-enabled', component: 'custom', render: TrajectoryUiSetting },
         { id: 'trajectory-analysis-enabled', component: 'custom', render: TrajectoryAnalysisSetting },
+        { id: 'trajectory-diagnosis-enabled', component: 'custom', render: TrajectoryDiagnosisSetting },
       ],
     },
     {
@@ -87,6 +89,7 @@ export const experimentalModule: SettingsModuleDefinition = {
             uncheckWithParent: true,
             items: [
               { id: 'team-task-verification-enabled', component: 'switch', key: 'team_task_verification_enabled' },
+              { id: 'team-member-messaging-enabled', component: 'switch', key: 'team_member_messaging_enabled' },
             ],
           },
         },
