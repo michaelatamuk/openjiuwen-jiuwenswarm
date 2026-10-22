@@ -380,8 +380,6 @@ class ChatPanel(
                         }
                     }
                 }
-                    }
-                }
                 "list_sessions" -> ApplicationManager.getApplication().executeOnPooledThread {
                     try {
                         debug("ACTION→ list_sessions")
