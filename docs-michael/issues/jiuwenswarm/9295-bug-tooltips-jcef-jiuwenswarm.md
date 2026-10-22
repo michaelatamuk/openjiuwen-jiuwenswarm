@@ -16,6 +16,7 @@ tooltip, converting `title` to `data-tooltip` on first hover and re-syncing when
 app updates `title` dynamically.
 
 Issue #8894 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8894<br>
+Issue #8745 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8745<br>
 PR #9295 https://github.com/openJiuwen-ai/jiuwenswarm/pull/9295<br>
 Paired: [GitCode #5518](https://gitcode.com/openJiuwen/jiuwenswarm/issues/5518)
 
@@ -116,6 +117,17 @@ No DOM structure changes to the controls; only hover behavior. Controls that
 already had `data-tooltip` keep working. VS Code switches from the native tooltip
 to the same styled tooltip, making the two plugins consistent.
 
+### Session delete tooltip (#8745)
+
+The session delete `×` is a two-step action: the first click changes its title from
+`Delete session` to `Click again to confirm`. Native `title=` never rendered in
+JCEF, so the delete looked like a broken single click.
+
+Besides the generic title migration above, a `MutationObserver` now watches `title`
+changes and, when the changed element is the one whose tooltip is currently visible,
+re-renders it immediately. So after the first click the open tooltip flips to
+`Click again to confirm` without moving the pointer.
+
 ## Verification
 
 - `npm run build` (VS Code extension, copies `shared-webview/chat.html`) completes
@@ -144,10 +156,13 @@ existing custom tooltip so hover hints appear in PyCharm's JCEF webview.
 
 **Which issue(s) this PR fixes**
 Fixes #8894
+Fixes #8745
 
 **Verification**
-`npm run build` passes and the generated webview contains `findTooltipTarget`.
-Titles are converted to `data-tooltip` on hover and re-synced when updated.
+`npm run build` passes and the generated webview contains `findTooltipTarget` and the
+title-change `MutationObserver`. Titles are converted to `data-tooltip` on hover and
+re-synced when updated; the visible session-delete tooltip flips to
+`Click again to confirm` after the first click.
 
 **Branch / commits**
 
@@ -155,4 +170,5 @@ Titles are converted to `data-tooltip` on hover and re-synced when updated.
 |---|---|
 | Branch | `fix/ide-tooltips-jcef` |
 | Commit | `da8187a37` `fix(ide): show tooltips for all titled controls in JCEF` |
-| Merged into | `New-Features-Integration` (`126cb8ca8`) |
+| Commit | `7266852c7` `fix(ide): refresh visible tooltip when title changes` |
+| Merged into | `New-Features-Integration` (`c521a6728`) |
