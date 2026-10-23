@@ -308,17 +308,45 @@
     padding: 8px 10px;
     border-radius: var(--radius);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     border: 1px solid transparent;
     background: var(--bg3);
     transition: border-color 0.1s;
+    min-width: 0;
+    box-sizing: border-box;
   }
   .skill-item:hover { border-color: var(--border); }
-  .skill-info { flex: 1; min-width: 0; }
-  .skill-name { font-size: 12px; font-weight: 600; color: var(--text); }
-  .skill-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .skill-trigger { font-size: 10px; color: var(--accent); font-family: monospace; margin-top: 2px; }
+  .skill-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .skill-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .skill-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .skill-trigger {
+    font-size: 10px;
+    color: var(--accent);
+    font-family: monospace;
+    margin-top: 2px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .skill-toggle-btn {
     font-size: 10px;
     padding: 3px 8px;
@@ -921,6 +949,13 @@
     flex-wrap: wrap;
   }
   #attachment-preview.has-items { display: flex; }
+  #attachment-error {
+    display: none;
+    padding: 0 0 6px 0;
+    font-size: 11px;
+    color: var(--error-text);
+  }
+  #attachment-error.visible { display: block; }
   .attachment-thumb {
     position: relative;
     width: 48px;
@@ -1128,7 +1163,7 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
   #skill-popup.hidden { display: none; }
-  .skill-item {
+  #skill-popup .skill-item {
     padding: 5px 10px;
     cursor: pointer;
     font-size: 12px;
@@ -1137,9 +1172,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .skill-item:hover, .skill-item.active { background: var(--accent); color: #fff; }
-  .skill-item .sk-desc { color: var(--text-muted); font-size: 11px; margin-left: 6px; }
-  .skill-item.active .sk-desc { color: rgba(255,255,255,0.7); }
+  #skill-popup .skill-item:hover, #skill-popup .skill-item.active { background: var(--accent); color: #fff; }
+  #skill-popup .skill-item .sk-desc { color: var(--text-muted); font-size: 11px; margin-left: 6px; }
+  #skill-popup .skill-item.active .sk-desc { color: rgba(255,255,255,0.7); }
   /* ── Preset prompt picker popup (!) ── */
   #prompt-popup {
     position: absolute;
@@ -1609,6 +1644,7 @@
 
 <div id="input-area">
   <div id="attachment-preview"></div>
+  <div id="attachment-error" role="status" aria-live="polite"></div>
   <div id="input-row">
     <div id="mention-popup" class="hidden"></div>
     <div id="skill-popup" class="hidden"></div>
@@ -1624,7 +1660,7 @@
   <input type="file" id="image-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none">
   <div id="input-meta">
     <!-- Attach button — leftmost -->
-    <button id="attach-btn" disabled title="Add Image" onclick="document.getElementById('image-input').click()">+</button>
+    <button id="attach-btn" disabled title="Images: up to 10 MB each" onclick="document.getElementById('image-input').click()">+</button>
     <!-- Mode selector -->
     <div id="mode-wrap">
       <button id="mode-btn" onclick="toggleModeDropdown()" title="Coding mode — choose how the agent works">
@@ -1692,6 +1728,7 @@ let state = {
   skills: [],
   showDebug: false,
   streaming: false,
+  stopRequested: false, // set when the user clicks ■; final turn is classified as stopped
   models: [],
   activeModel: null,
   turns: [],
@@ -1862,6 +1899,11 @@ function handleHostMessage(msg) {
       if (msg.models) { state.models = msg.models; }
       updateModelDisplay(state.models, state.activeModel);
       break;
+    case 'models_updated':
+      if (msg.models) { state.models = msg.models; }
+      if (msg.activeModel) { state.activeModel = msg.activeModel; }
+      updateModelDisplay(state.models, state.activeModel);
+      break;
     case 'memory':
       renderMemoryChip(msg);
       break;
@@ -1978,7 +2020,11 @@ function updateModelDisplay(models, activeModel) {
 function toggleModelDropdown() {
   var dd = document.getElementById('model-dropdown');
   if (!dd) return;
+  var opening = !dd.classList.contains('visible');
   dd.classList.toggle('visible');
+  // Models are configured outside the IDE. Re-fetch when the picker opens so a
+  // session created before the model was configured does not keep the placeholder.
+  if (opening) send({ type: 'refresh_models' });
 }
 
 function closeModelDropdown() {
@@ -1995,11 +2041,11 @@ function handleImageInput(files) {
   const maxSize = 10 * 1024 * 1024; // 10 MB
   Array.from(files).forEach(function(file) {
     if (!validTypes.includes(file.type)) {
-      console.warn('[webview] Unsupported image type:', file.type);
+      showAttachmentError('Unsupported image type: ' + (file.type || file.name) + '. Use PNG, JPEG, WebP or GIF.');
       return;
     }
     if (file.size > maxSize) {
-      console.warn('[webview] Image too large:', file.name, file.size);
+      showAttachmentError('"' + file.name + '" is ' + fmtBytes(file.size) + ', above the 10 MB image limit.');
       return;
     }
     // Create a blob URL immediately for preview (avoids embedding large base64 in DOM)
@@ -2016,6 +2062,24 @@ function handleImageInput(files) {
   });
 }
 
+var attachmentErrorTimer = null;
+
+function showAttachmentError(message) {
+  var el = document.getElementById('attachment-error');
+  if (!el) {
+    console.warn('[webview] ' + message);
+    return;
+  }
+  el.textContent = message;
+  el.classList.add('visible');
+  if (attachmentErrorTimer) clearTimeout(attachmentErrorTimer);
+  attachmentErrorTimer = setTimeout(function() {
+    el.classList.remove('visible');
+    el.textContent = '';
+    attachmentErrorTimer = null;
+  }, 5000);
+}
+
 function readFileAsBase64(file, callback) {
   var reader = new FileReader();
   reader.onload = function(e) {
@@ -2024,7 +2088,7 @@ function readFileAsBase64(file, callback) {
     callback(base64);
   };
   reader.onerror = function() {
-    console.warn('[webview] Failed to read file:', file.name);
+    showAttachmentError('Failed to read image: ' + file.name);
   };
   reader.readAsDataURL(file);
 }
@@ -2504,20 +2568,24 @@ function startRenameSession() {
   htEl.parentNode.insertBefore(inp, htEl);
   inp.focus();
   inp.select();
-  function save() {
+  var finished = false;
+  function finish(commit) {
+    if (finished) return;
+    finished = true;
     var val = inp.value.trim();
-    if (val && val !== current) {
+    if (commit && val && val !== current) {
       state.sessionTitle = val;
       send({ type: 'rename_session', title: val });
     }
-    htEl.textContent = val || current;
+    // Escape restores the original title; Enter/click commits the edited value.
+    htEl.textContent = commit ? (val || current) : current;
     htEl.style.display = '';
     inp.remove();
   }
-  inp.addEventListener('blur', save);
+  inp.addEventListener('blur', function() { finish(true); });
   inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { htEl.style.display = ''; inp.remove(); }
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
   });
 }
 
@@ -2729,6 +2797,7 @@ function handleJiuwenEvent(evt) {
 // Called when we send a message — create a user turn and an empty assistant turn
 function beginTurn(requestId, userContent) {
   const msgs = document.getElementById('messages');
+  state.stopRequested = false;
 
   // User message
   const userEl = document.createElement('div');
@@ -3151,13 +3220,26 @@ function renderAskUserQuestion(rid, payload) {
     btn.addEventListener('click', function() {
       card.querySelectorAll('.question-btn').forEach(function(b) { b.disabled = true; });
       card.classList.add('answered');
-      sendAnswerForInterrupt(pt, rid, source, btn.dataset.value);
+      sendAnswerForInterrupt(pt, rid, source, mapInterruptAnswerValue(pt, btn.dataset.value));
     });
   });
 
   pt.streamEl.appendChild(card);
   pt.pendingQuestion = card;
+  pt.planApprovalKind = payload.plan_approval_kind || payload.planApprovalKind || null;
   scrollToBottom();
+}
+
+// The WebUI sends plan_execute / plan_skip / plan_revise for plan approval.
+// The generic ask-user card only has approve/reject options, and a plain
+// "reject" keeps the agent in plan mode instead of finishing the turn (the
+// source of the stuck stop-button state). Map the two generic values.
+function mapInterruptAnswerValue(pt, value) {
+  if (pt && pt.planApprovalKind === 'plan_approval') {
+    if (value === 'reject') return 'plan_skip';
+    if (value === 'approve') return 'plan_execute';
+  }
+  return value;
 }
 
 function sendAnswerForInterrupt(pt, rid, source, optionValue) {
@@ -3632,7 +3714,9 @@ function finalizeTurn(rid, payload) {
 
     // ── Live metrics ──
     pt.hasFinal = true;
-    if (payload.stopped) pt.stopped = true;
+    // The local stop click may race the server's final; the flag makes sure the
+    // turn is still classified as stopped if the final arrives afterwards.
+    if (payload.stopped || state.stopRequested) pt.stopped = true;
 
     // Record the final response text as a 'final' event so the trajectory
     // shows the turn's response as its own entry. Live streaming never emits a
@@ -3640,7 +3724,7 @@ function finalizeTurn(rid, payload) {
     // timeline has no response entry to display. Intermediate calls stream no
     // text deltas, so fall back to the chat.final payload content.
     const finalText = (pt.textContent ? pt.textContent.trim() : '')
-      || (payload && payload.content ? String(payload.content).trim() : '')
+      || finalPayloadText.trim()
       || '';
     if (finalText) {
       const lastE = pt.events[pt.events.length - 1];
@@ -4114,13 +4198,18 @@ inputEl.addEventListener('input', function() {
 
 sendBtn.addEventListener('click', function() {
   if (state.streaming) {
+    state.stopRequested = true;
     send({ type: 'stop' });
     // Finalize all pending turns immediately — Gateway handles backend cancellation.
-    // Without this, the UI stays stuck in streaming mode because the Gateway's
-    // interrupt_result event is not handled by the webview.
+    // A turn waiting on an interrupt would otherwise keep the early-return path in
+    // finalizeTurn and leave the UI stuck in streaming mode.
     Object.keys(state.pendingTurns).forEach(function(rid) {
+      var pt = state.pendingTurns[rid];
+      if (pt) pt.questionAnswered = true;
       finalizeTurn(rid, { stopped: true });
     });
+    // No live turn (e.g. it was already finalized server-side) — still release UI.
+    if (state.streaming) setStreaming(false);
   } else {
     submitMessage();
   }
@@ -4724,6 +4813,7 @@ function clearMessages() {
   msgs.innerHTML = '';
   state.pendingTurns = {};
   state.streaming = false;
+  state.stopRequested = false;
   state.rewindable = false;
   _historyPendingAssistant = null;
   document.getElementById('input').disabled = false;
@@ -4778,9 +4868,11 @@ function scrollToBottom() {
 // Custom hover tooltips (native title= is unreliable in JetBrains' JCEF)
 // ─────────────────────────────────────────────
 var _tipEl = null;
+var _tipTarget = null;
 function showHoverTooltip(target) {
   var text = target.getAttribute('data-tooltip');
   if (!text) return;
+  _tipTarget = target;
   if (!_tipEl) {
     _tipEl = document.createElement('div');
     _tipEl.className = 'custom-tooltip';
@@ -4798,20 +4890,58 @@ function showHoverTooltip(target) {
   _tipEl.style.top = Math.round(y) + 'px';
 }
 function hideHoverTooltip() {
+  _tipTarget = null;
   if (_tipEl) _tipEl.style.display = 'none';
 }
+// Native `title=` tooltips are unreliable in JetBrains' JCEF, so route every
+// titled element (header icons, menus, delete/refresh, attach, etc.) through the
+// same custom tooltip used by stat chips. The title is migrated to data-tooltip
+// on first hover and re-synced if the app updates it afterwards.
+function findTooltipTarget(node) {
+  if (!node || !node.closest) return null;
+  var t = node.closest('[data-tooltip], [title]');
+  if (!t) return null;
+  // The copy button already renders its tooltip via CSS.
+  if (t.classList && t.classList.contains('copy-btn')) return null;
+  var title = t.getAttribute('title');
+  if (title !== null) {
+    if (t.getAttribute('data-tooltip') !== title) {
+      t.setAttribute('data-tooltip', title);
+    }
+    t.removeAttribute('title');
+  }
+  return t;
+}
 document.addEventListener('mouseover', function(e) {
-  var t = (e.target && e.target.closest)
-    ? e.target.closest('.stat-badge[data-tooltip], .stat-chip[data-tooltip], .traj-toggle[data-tooltip]')
-    : null;
+  var t = findTooltipTarget(e.target);
   if (t) showHoverTooltip(t);
 });
 document.addEventListener('mouseout', function(e) {
-  var t = (e.target && e.target.closest)
-    ? e.target.closest('.stat-badge[data-tooltip], .stat-chip[data-tooltip], .traj-toggle[data-tooltip]')
-    : null;
+  var t = findTooltipTarget(e.target);
   if (t) hideHoverTooltip();
 });
+
+// Keep the visible tooltip in sync when the app changes an element's title while
+// the pointer is still over it (e.g. session delete flips to "Click again to
+// confirm" after the first click).
+var _tooltipObserver = new MutationObserver(function(mutations) {
+  for (var i = 0; i < mutations.length; i++) {
+    var el = mutations[i].target;
+    if (!el || !el.getAttribute) continue;
+    var title = el.getAttribute('title');
+    if (title === null) continue;
+    el.setAttribute('data-tooltip', title);
+    el.removeAttribute('title');
+    if (_tipTarget === el) showHoverTooltip(el);
+  }
+});
+if (document.body) {
+  _tooltipObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['title'],
+    subtree: true,
+  });
+}
 
 function generateId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
