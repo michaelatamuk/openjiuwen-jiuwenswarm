@@ -697,14 +697,22 @@ export function ExternalCliAgentsSection({
   );
 
   /**
-   * Validates a requested CLI path with a throwaway detect call (the result is
-   * NOT written into the card state, so the card never flips while editing),
-   * then commits the path. Returns true when the commit succeeded.
+   * Validates a requested CLI path with a detect probe, then commits the
+   * path. Two failure modes are handled distinctly:
+   *  - probe returned a result but status is not ok/warning (e.g. path
+   *    missing): restore the previous result so the badge keeps its last
+   *    known state, and surface the probe's failure message.
+   *  - probe is undefined (detect() threw — network/timeout — and already
+   *    wrote an 'unavailable' result in its catch, or was superseded by a
+   *    newer probe): do NOT overwrite that result; add a generic failure
+   *    message so the user gets feedback instead of a silent no-op.
    */
   const validateAndCommitPath = useCallback(
     async (cliAgent: ExternalCliAgentKind, requestedPath: string): Promise<boolean> => {
       if (onDetect) {
         try {
+          // Snapshot the previous result before detect() overwrites it.
+          const previousResult = resultsRef.current[cliAgent];
           // Use `detect` (not raw `onDetect`) so the card's result object is
           // refreshed alongside the validation probe — otherwise enabling
           // after a page reload leaves the card showing "not installed" until
@@ -712,7 +720,24 @@ export function ExternalCliAgentsSection({
           const probe = await detect(cliAgent, requestedPath, false);
           if (!probe || (probe.status !== 'ok' && probe.status !== 'warning')) {
             if (probe) {
+              // Got a result but validation failed: restore the previous
+              // result so the badge doesn't flip to "not installed".
+              if (previousResult) {
+                updateResults(cliAgent, previousResult);
+              } else {
+                clearDetectResult(cliAgent);
+              }
               setAgentError(cliAgent, detectFailureMessage(probe, requestedPath, cliAgent, t));
+            } else {
+              // probe === undefined: detect() threw (it already wrote an
+              // 'unavailable' result in its catch) or was superseded by a
+              // newer probe. Don't overwrite the result — let detect's
+              // unavailable status show. Add a generic failure message so
+              // the user gets feedback instead of a silent no-op.
+              setAgentError(cliAgent, t('config.externalCli.unavailableCli', {
+                agent: externalCliAgentDisplayName(cliAgent),
+                reason: '',
+              }));
             }
             return false;
           }
@@ -730,7 +755,7 @@ export function ExternalCliAgentsSection({
       showHint(t('config.externalCli.savedHint'));
       return true;
     },
-    [commit, detect, onDetect, setAgentError, showHint, t],
+    [commit, detect, onDetect, resultsRef, setAgentError, showHint, t],
   );
 
   /**
@@ -1117,6 +1142,18 @@ export function ExternalCliAgentsSection({
           >
             <Loader2 className="settings-spinner h-3.5 w-3.5" />
             {t('config.externalCli.detecting')}
+          </span>
+        ) : agentInstalling ? (
+          // One-click install is running: the progress panel below grows the
+          // card (scrollbar appears), so reflect it here too instead of the
+          // stale pre-install badge.
+          <span
+            className="inline-flex items-center gap-1 text-xs text-text-muted"
+            data-testid="settings-panel-external-cli-agent-status"
+            data-variant={cliAgent}
+          >
+            <Loader2 className="settings-spinner h-3.5 w-3.5" />
+            {t('config.externalCli.installPhase.running')}
           </span>
         ) : !enabled ? (
           <span
