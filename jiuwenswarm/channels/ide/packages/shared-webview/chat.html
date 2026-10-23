@@ -3113,18 +3113,20 @@ function renderAskUserQuestion(rid, payload) {
 }
 
 // The WebUI sends plan_execute / plan_skip / plan_revise for plan approval.
-// The generic ask-user card only has approve/reject options, and a plain
-// "reject" keeps the agent in plan mode instead of finishing the turn (the
-// source of the stuck stop-button state). Map the two generic values.
+// The generic ask-user card only has approve/reject options. A plain "reject"
+// keeps the agent in plan mode instead of finishing the turn (the source of the
+// stuck stop-button state), so map only reject. Keep "approve" unchanged: the
+// IDE has no follow-up "execute" message step, whereas the WebUI does.
 function mapInterruptAnswerValue(pt, value) {
-  if (pt && pt.planApprovalKind === 'plan_approval') {
-    if (value === 'reject') return 'plan_skip';
-    if (value === 'approve') return 'plan_execute';
+  if (pt && pt.planApprovalKind === 'plan_approval' && value === 'reject') {
+    return 'plan_skip';
   }
   return value;
 }
 
 function sendAnswerForInterrupt(pt, rid, source, optionValue) {
+  // Ignore clicks from a card whose turn was already stopped/finalized.
+  if (!pt || state.pendingTurns[rid] !== pt) return;
   pt.questionAnswered = true;
   const statusEl = pt.pendingQuestion ? pt.pendingQuestion.querySelector('.question-status') : null;
   if (statusEl) statusEl.textContent = 'Answer sent — waiting for the agent to continue…';
@@ -4001,7 +4003,15 @@ sendBtn.addEventListener('click', function() {
     // finalizeTurn and leave the UI stuck in streaming mode.
     Object.keys(state.pendingTurns).forEach(function(rid) {
       var pt = state.pendingTurns[rid];
-      if (pt) pt.questionAnswered = true;
+      if (pt) {
+        pt.questionAnswered = true;
+        if (pt.pendingQuestion) {
+          pt.pendingQuestion.querySelectorAll('.question-btn').forEach(function(b) { b.disabled = true; });
+          pt.pendingQuestion.classList.add('answered');
+          var qStatus = pt.pendingQuestion.querySelector('.question-status');
+          if (qStatus) qStatus.textContent = 'Stopped';
+        }
+      }
       finalizeTurn(rid, { stopped: true });
     });
     // No live turn (e.g. it was already finalized server-side) — still release UI.
