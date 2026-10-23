@@ -114,6 +114,9 @@ argument strings fall back to `{}` and do not throw. PyCharm is unaffected.
   `file_text` body on the proposed side. Rejecting leaves the file absent; accepting
   creates it.
 - No behaviour change for object-form arguments or non-edit tools.
+- Review follow-up: argument parsing is shared with the rewind path, reads
+  `payload.arguments`, rejects `null`/array JSON results instead of crashing, and logs
+  malformed JSON. `tsc --noEmit` passes.
 
 ## Version Information
 
@@ -143,4 +146,5 @@ Fixes #8978
 | Branch | `fix/ide-vscode-rewind-snapshot` |
 | Commit | `c12621728` `fix(ide): parse JSON tool args before taking rewind snapshot` |
 | Commit | `35fb61bdf` `fix(ide): show created file content in diff viewer` |
-| Merged into | `New-Features-Integration` (`3d3a70cbd`) |
+| Commit | `3feaeb37a` `fix(ide): harden tool argument parsing` |
+| Merged into | `New-Features-Integration` (`3d3a70cbd`, `3b3d0dcf2`) |

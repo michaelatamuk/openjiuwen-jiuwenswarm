@@ -73,6 +73,11 @@ if (typeof rawArgs === 'string') {
 No API/backend change. Malformed JSON falls back to `{}` and does not throw. Object
 arguments behave exactly as before. PyCharm is unaffected.
 
+Review follow-up: tool-argument parsing now goes through one shared helper that also
+reads `payload.arguments`, rejects `JSON.parse` results that are `null`/arrays, and
+logs parse failures. Snapshots are captured before the agent edits files, so undo
+restores the actual pre-turn content instead of the already-modified file.
+
 ## Verification
 
 - `npx tsc --noEmit` → exit 0.
@@ -104,5 +109,5 @@ Fixes #8701
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-vscode-rewind-snapshot` |
-| Commit | `c12621728` `fix(ide): parse JSON tool args before taking rewind snapshot` |
-| Merged into | `New-Features-Integration` (`2c195a10c`) |
+| Commit | `c12621728` `fix(ide): parse JSON tool args before taking rewind snapshot`<br>`c8a21af5e` `fix(ide): capture rewind snapshots before agent edits`<br>`3feaeb37a` `fix(ide): harden tool argument parsing` |
+| Merged into | `New-Features-Integration` (`2c195a10c`, `ca18de68b`, `3b3d0dcf2`) |
