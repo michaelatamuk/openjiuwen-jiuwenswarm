@@ -53,6 +53,11 @@ Actual: nothing happens.
   returns the response `JsonObject`.
 - Hosts check `success === false` and post `skills_error` with the backend detail
   instead of reporting a successful toggle.
+- Review follow-up: removed the two stray closing braces in the JetBrains
+  `toggle_skill` branch that broke `compileKotlin`.
+- Review follow-up: replaced the inline `onclick` with an escaped
+  `data-skill-key` attribute and delegated click handling on `#skills-list`,
+  avoiding HTML-attribute injection through skill names.
 
 ### Compatibility
 
@@ -63,10 +68,14 @@ non-empty `skill_id` keep working; empty-id skills now toggle by name.
 
 - VS Code: `npx tsc --noEmit` → exit 0; `npm run build` → build complete.
 - JetBrains: the same Kotlin changes compiled and packaged with
-  `./gradlew buildPlugin` → `BUILD SUCCESSFUL`.
+  `./gradlew buildPlugin` → `BUILD SUCCESSFUL`; the review-blocking brace error is
+  fixed and `compileKotlin` passes.
+- Webview: a regression test with a skill name containing quotes verifies the
+  toggle is delegated correctly and no extra HTML attribute is injected.
 - Expected runtime behaviour: clicking ON/OFF persists the state and the list reflects
   the server-confirmed value; backend failures surface as an error.
-- NFI merge was clean.
+- NFI merge was clean after resolving the `updateSkills` conflict in favour of the
+  delegated data-attribute handler.
 
 ## Version Information
 
@@ -91,5 +100,5 @@ Fixes #8476
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-skill-toggle` |
-| Commit | `d0c3b2fa3` `fix(ide): toggle skills by name` |
-| Merged into | `New-Features-Integration` (`07844e702`) |
+| Commit | `d0c3b2fa3` `fix(ide): toggle skills by name`<br>`c2c68ab8c` `fix(ide): fix skill toggle braces and DOM injection` |
+| Merged into | `New-Features-Integration` (`07844e702`, `40b3e8a08`) |
