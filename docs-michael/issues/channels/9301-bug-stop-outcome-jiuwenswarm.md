@@ -12,8 +12,10 @@ finalized first (or arrives without a `stopped` field), `classifyOutcome()` sees
 `hasFinal` and no stop marker and reports `completed`. The stop marker existed only
 in the synthetic local finalize payload, so a racing server final lost it.
 
-The fix keeps an explicit `state.stopRequested` flag and classifies any turn
-finalized after a stop click as `stopped`.
+The fix records the stop intent on the specific turn (`pt.stopRequested`) and
+classifies that turn as `stopped` even if the server final races the click. The
+intent is cleared if the user answers a pending interrupt and resumes the turn, so a
+completed turn is not misclassified.
 
 Issue #8742 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8742<br>
 PR #9301 https://github.com/openJiuwen-ai/jiuwenswarm/pull/9301<br>
@@ -55,25 +57,25 @@ click and finalized the turn without `stopped`, the badge became `completed`.
 
 ## Solution
 
-- Add `state.stopRequested`, set when the user clicks `■` before sending
-  `{ type: 'stop' }`.
-- In `finalizeTurn()`: `if (payload.stopped || state.stopRequested) pt.stopped = true;`
-- Reset the flag in `beginTurn()` and `clearMessages()` so it cannot leak into the
-  next turn.
+- Store `stopRequested` on the pending turn object when the user clicks `■`.
+- In `finalizeTurn()`: `if (payload.stopped || pt.stopRequested) pt.stopped = true;`
+- Clear `pt.stopRequested`/`pt.stopped` in `sendAnswerForInterrupt()` when the user
+  chooses to resume a pending question, so that turn can finish as `completed`.
 - Streamed text is untouched; only the outcome classification changes.
 
 ### Compatibility
 
-No API/backend change. Non-stopped turns are unaffected because the flag is cleared
-when a new turn begins.
+No API/backend change. Non-stopped turns are unaffected because the stop intent is
+per-turn and only set by the stop button.
 
 ## Verification
 
 - `npm run build` (VS Code extension, copies `shared-webview/chat.html`) passes.
-- Generated `resources/chat.html` contains `state.stopRequested` and the
-  `payload.stopped || state.stopRequested` guard.
+- Generated `resources/chat.html` contains the per-turn `stopRequested` flag and the
+  `payload.stopped || pt.stopRequested` guard.
 - Expected runtime behaviour: stopping mid-stream yields a gray `stopped` badge even
-  if the server final races the local stop; partial text remains visible.
+  if the server final races the local stop; partial text remains visible. A turn
+  resumed via an interrupt answer remains `completed`.
 - The JetBrains plugin copies the same webview at `processResources`, so both IDEs
   receive the fix.
 
@@ -100,5 +102,5 @@ Fixes #8742
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-stop-outcome` |
-| Commit | `38a5b0ee7` `fix(ide): classify stopped turns correctly on stop click` |
-| Merged into | `New-Features-Integration` (`352c6e790`) |
+| Commit | `38a5b0ee7` `fix(ide): classify stopped turns correctly on stop click`<br>`e31cc7e8f` `fix(ide): scope stop intent to the stopped turn` |
+| Merged into | `New-Features-Integration` (`352c6e790`, `fa0ddeefd`) |
