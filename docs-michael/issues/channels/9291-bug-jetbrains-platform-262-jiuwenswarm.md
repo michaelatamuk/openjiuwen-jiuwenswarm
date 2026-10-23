@@ -11,8 +11,9 @@ The fix ports the JetBrains **2026.1 / build 262** platform upgrade into the plu
 that ships from this repository (`jiuwenswarm/channels/ide/packages/jetbrains-plugin`),
 so current builds consistently target the newest platform line, declare the JCEF
 dependency required by 2026.1, and build with the current Gradle/Kotlin toolchain.
-Builds from this branch require **build 262 or newer**; users still on build 253
-(e.g. PyCharm 2025.3.3) must upgrade their IDE to 2026.1+.
+The plugin is compiled against the reproducible `intellijIdea("2026.1")` platform
+coordinate, but its install floor is `sinceBuild = 253`, so it installs on PyCharm
+2025.3.3 (build 253) and newer, including 2026.1 (build 262).
 
 Issue #8460 https://github.com/openJiuwen-ai/jiuwenswarm/issues/8460<br>
 PR #9291 https://github.com/openJiuwen-ai/jiuwenswarm/pull/9291<br>
@@ -67,10 +68,10 @@ PR #9291 applies the 2026.1 platform upgrade to the plugin shipped by `jiuwenswa
 |---|---|---|
 | Kotlin | `1.9.25` | `2.4.0` |
 | IntelliJ Platform Gradle plugin | `2.1.0` | `2.19.0` |
-| Platform SDK | `intellijIdeaCommunity("2024.1")` | local JetBrains 2026.1 (build 262) |
+| Platform SDK | `intellijIdeaCommunity("2024.1")` | `intellijIdea("2026.1")` (optional local override) |
 | Gradle wrapper | `8.7` | `9.6.0` |
 | JVM toolchain | `17` | `21` |
-| `sinceBuild` | `231` | `262` |
+| `sinceBuild` | `231` | `253` |
 | Bundled plugins | terminal only | terminal + `com.intellij.modules.jcef` |
 
 Files changed:
@@ -115,34 +116,45 @@ flowchart LR
 
 ### Compatibility note
 
-This build intentionally targets **build 262 and newer** (the newest JetBrains
-platform line). It will **not** install on build 253 or older, including PyCharm
-2025.3.3. Users on those builds must upgrade the IDE to 2026.1+ to install the
-plugin. The previous 2024.1 / `231` target is no longer published as IntelliJ IDEA
-Community and is intentionally dropped.
+The plugin declares `sinceBuild = 253` with an open upper bound. It installs on
+PyCharm 2025.3.3 (build 253) and newer, including JetBrains 2026.1 (build 262),
+while being compiled against the 2026.1 platform. This addresses the original
+installation failure instead of narrowing the supported range.
 
-### Known limitation
+### Reproducible platform build
 
-The build pins the platform SDK to a locally installed IDE:
+The default SDK is the versioned, downloadable coordinate:
 
 ```kotlin
-local("C:\\Program Files\\JetBrains\\WebStorm 2026.1")
+intellijIdea("2026.1")
 ```
 
-This keeps the build offline and matched to the local 2026.1 platform, but the path
-is machine-specific. CI or other developers must either install JetBrains 2026.1 at
-that path or adjust the path (a versioned `intellijIdea("2026.1")` target is the
-portable alternative, at the cost of downloading the platform).
+Developers can opt into a locally installed IDE without committing a
+machine-specific path:
+
+```bash
+./gradlew buildPlugin -PjetbrainsIdePath="/opt/idea"
+# or
+export JETBRAINS_IDE_PATH="/opt/idea"
+./gradlew buildPlugin
+```
+
+The publishing guide (`channels/ide/publishing/jetbrains/PUBLISHING.md`) uses the
+same reproducible defaults, JDK 21, Gradle 9.6, and the `253` install floor. The
+previous hardcoded `C:\Program Files\JetBrains\WebStorm 2026.1` path is removed.
 
 ## Verification
 
-- `./gradlew buildPlugin` on Windows with JDK 21 against JetBrains 2026.1 (build 262):
-  **BUILD SUCCESSFUL in 1m 11s**.
-- Artifact produced: `build/distributions/jiuwenswarm-plugin-0.1.0.zip` (1.77 MB).
-- Generated manifest carries `sinceBuild = 262`, an open `untilBuild`, and the JCEF
-  dependency, matching the 2026.1 platform.
+- `./gradlew buildPlugin` with JDK 21 using the default `intellijIdea("2026.1")`
+  coordinate: **BUILD SUCCESSFUL**.
+- Artifact produced: `build/distributions/jiuwenswarm-plugin-0.1.0.zip`.
+- Generated manifest carries `sinceBuild = 253`, an open `untilBuild`, and the JCEF
+  dependency, so the plugin installs on 2025.3+ while targeting the 2026.1 platform.
+- The same build succeeds on a machine without WebStorm installed at the old
+  hardcoded path; a local SDK can still be selected via `-PjetbrainsIdePath` or
+  `JETBRAINS_IDE_PATH`.
 - The Kotlin sources compile and the plugin zip is packaged successfully with the
-  upgraded toolchain.
+  updated toolchain.
 
 ## Version Information
 
@@ -158,9 +170,10 @@ portable alternative, at the cost of downloading the platform).
 **What does this PR do / why do we need it**
 Aligns the JiuwenSwarm JetBrains plugin with the newest JetBrains platform line
 (2026.1, build 262): upgrades Kotlin, the IntelliJ Platform Gradle plugin, Gradle and
-the JVM toolchain, raises `sinceBuild` to `262`, and declares the JCEF dependency.
-This makes the in-repo build definition match the 262 platform and removes the stale
-2024.1 target.
+the JVM toolchain, declares the JCEF dependency, and sets `sinceBuild = 253` so the
+plugin remains installable on PyCharm 2025.3.3 and newer. Uses the reproducible
+`intellijIdea("2026.1")` coordinate by default with an optional local-SDK override,
+removing the committed machine-specific path.
 
 **Which issue(s) this PR fixes**
 Fixes #8460
@@ -174,5 +187,5 @@ Fixes #8460
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-jetbrains-platform-2026-1` |
-| Commit | `c6ee040d5` `fix(ide): support JetBrains platform 2026.1 (build 262)` |
-| Merged into | `New-Features-Integration` (`50d868a54`) |
+| Commit | `c6ee040d5` `fix(ide): support JetBrains platform 2026.1 (build 262)`<br>`b6532e78d` `fix(ide): make JetBrains platform build reproducible` |
+| Merged into | `New-Features-Integration` (`50d868a54`, `1371bbc58`) |
