@@ -25,6 +25,9 @@ from jiuwenswarm.agents.harness.common.rails.permissions.auto_permission_rail im
 from jiuwenswarm.agents.harness.common.rails.permissions.root_permission_queue_rail import (
     RootPermissionQueueRail,
 )
+from jiuwenswarm.agents.harness.common.recommendation.prompt_suggestion import (
+    PromptSuggestionForkRail,
+)
 from jiuwenswarm.server.runtime.agent_adapter import interface_deep, permission_rail_group
 from jiuwenswarm.server.runtime.agent_adapter.interface_deep import (
     JiuWenSwarmDeepAdapter,
@@ -139,9 +142,10 @@ def test_parent_composition_preserves_order_and_wiring(
         for attr in attrs
         if getattr(adapter, attr, None) is not None
     ]
-    # The adapter appends the observability rail and the task-loop budget rail
-    # after the profile rails; only the profile portion is order-locked here.
-    assert rails[:-2] == expected_profile_rails
+    # The adapter appends the suggestion fork, observability, then the task-loop
+    # budget rail after the profile rails; only the profile portion is order-locked here.
+    assert rails[:-3] == expected_profile_rails
+    assert isinstance(rails[-3], PromptSuggestionForkRail)
     assert isinstance(rails[-2], AgentObservabilityRail)
     assert isinstance(rails[-1], TaskCompletionRail)
     queue_rail = required["queue_rail"]
