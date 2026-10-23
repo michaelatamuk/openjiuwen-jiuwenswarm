@@ -78,6 +78,11 @@ excluded. Absolute paths behave as before.
 - Review follow-up: the filename-index fallback now runs off the EDT under a read
   action and is guarded by try/catch; relative Windows-style paths are normalized,
   and VS Code glob metacharacters in basenames are escaped.
+- Underscore filenames such as `check_model_cfg.py:12` keep their literal path:
+  emphasis formatting is applied outside code spans/file links, so `_` is not turned
+  into `<em>`.
+- Regression test exercises all four issue forms and clicking the first link sends the
+  correct `open_file` path and line.
 - Expected runtime behaviour: clicking a reference opens the file at the line;
   relative/bare names resolve against the workspace/project root with a basename
   fallback.
@@ -105,5 +110,5 @@ Fixes #8627
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-file-links` |
-| Commit | `c78b9589b` `fix(ide): make file references in replies clickable`<br>`53207be72` `fix(ide): harden file link fallback lookups` |
-| Merged into | `New-Features-Integration` (`a436bd7ff`, `4e611a0e7`) |
+| Commit | `c78b9589b` `fix(ide): make file references in replies clickable`<br>`53207be72` `fix(ide): harden file link fallback lookups`<br>`17d593337` `fix(ide): preserve underscores in file links` |
+| Merged into | `New-Features-Integration` (`a436bd7ff`, `4e611a0e7`, `ae3f71474`) |
