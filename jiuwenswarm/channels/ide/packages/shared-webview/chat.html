@@ -1736,7 +1736,6 @@ let state = {
   skills: [],
   showDebug: false,
   streaming: false,
-  stopRequested: false, // set when the user clicks ■; final turn is classified as stopped
   models: [],
   activeModel: null,
   turns: [],
@@ -1922,7 +1921,6 @@ function handleHostMessage(msg) {
       }
       break;
     }
-
     case 'memory':
       renderMemoryChip(msg);
       break;
@@ -2864,7 +2862,6 @@ function handleJiuwenEvent(evt) {
 // Called when we send a message — create a user turn and an empty assistant turn
 function beginTurn(requestId, userContent) {
   const msgs = document.getElementById('messages');
-  state.stopRequested = false;
 
   // User message
   const userEl = document.createElement('div');
@@ -4273,7 +4270,6 @@ inputEl.addEventListener('input', function() {
 
 sendBtn.addEventListener('click', function() {
   if (state.streaming) {
-    state.stopRequested = true;
     send({ type: 'stop' });
     // Finalize all pending turns immediately — Gateway handles backend cancellation.
     // A turn waiting on an interrupt would otherwise keep the early-return path in
@@ -4897,7 +4893,6 @@ function clearMessages() {
   msgs.innerHTML = '';
   state.pendingTurns = {};
   state.streaming = false;
-  state.stopRequested = false;
   state.rewindable = false;
   _historyPendingAssistant = null;
   document.getElementById('input').disabled = false;
