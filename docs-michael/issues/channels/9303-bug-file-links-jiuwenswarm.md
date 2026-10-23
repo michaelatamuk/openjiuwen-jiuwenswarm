@@ -59,9 +59,10 @@ even when a link was rendered.
   Windows paths, unicode and spaces, and skips URLs (`://`).
 - VS Code `ChatPanel.ts`: relative paths resolve against the workspace root; if the
   file does not exist there, fall back to
-  `vscode.workspace.findFiles('**/<basename>')`.
-- JetBrains `ChatToolWindow.kt`: relative paths resolve against `project.basePath`;
-  fall back to `FilenameIndex.getFilesByName(...)`.
+  `vscode.workspace.findFiles('**/<basename>')` with glob metacharacters escaped.
+- JetBrains `ChatToolWindow.kt`: relative paths resolve against `project.basePath`
+  (Windows separators normalized); fall back to `FilenameIndex.getFilesByName(...)`
+  inside a read action on a pooled thread, with lookup errors handled.
 
 ### Compatibility
 
@@ -74,6 +75,9 @@ excluded. Absolute paths behave as before.
 - VS Code: `npx tsc --noEmit` → exit 0; `npm run build` → build complete.
 - JetBrains: the same `ChatToolWindow.kt` change compiled and packaged with
   `./gradlew buildPlugin` → `BUILD SUCCESSFUL`.
+- Review follow-up: the filename-index fallback now runs off the EDT under a read
+  action and is guarded by try/catch; relative Windows-style paths are normalized,
+  and VS Code glob metacharacters in basenames are escaped.
 - Expected runtime behaviour: clicking a reference opens the file at the line;
   relative/bare names resolve against the workspace/project root with a basename
   fallback.
@@ -101,5 +105,5 @@ Fixes #8627
 | Item | Value |
 |---|---|
 | Branch | `fix/ide-file-links` |
-| Commit | `c78b9589b` `fix(ide): make file references in replies clickable` |
-| Merged into | `New-Features-Integration` (`a436bd7ff`) |
+| Commit | `c78b9589b` `fix(ide): make file references in replies clickable`<br>`53207be72` `fix(ide): harden file link fallback lookups` |
+| Merged into | `New-Features-Integration` (`a436bd7ff`, `4e611a0e7`) |
