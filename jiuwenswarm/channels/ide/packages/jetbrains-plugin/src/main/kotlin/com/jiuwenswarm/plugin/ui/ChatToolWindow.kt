@@ -431,8 +431,6 @@ class ChatPanel(
                         }
                     }
                 }
-                    }
-                }
                 "switch_model" -> {
                     val model = msg.get("model")?.asString ?: ""
                     activeModel = model
