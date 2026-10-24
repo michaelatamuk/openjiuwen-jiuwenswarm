@@ -1,4 +1,4 @@
-# TakeTwo — technical architecture (mirrors `topspin-review`)
+# TakeTwo — technical architecture (mirrors `coachme`)
 
 This is the engineering counterpart to `build-video-to-fix-bug-bot.md`. It copies the
 **structural DNA** of `C:\Workspace\openjiuwendemos\topspin-review` exactly, so the two projects
