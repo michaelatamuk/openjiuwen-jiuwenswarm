@@ -1014,6 +1014,8 @@ def _run_command_background(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         **popen_kw,
     )
     try:
