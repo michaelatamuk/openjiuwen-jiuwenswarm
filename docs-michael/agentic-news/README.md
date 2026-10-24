@@ -28,7 +28,10 @@ that term.
 **Global products and platforms.** Consumer and enterprise agents, devices, operating systems,
 commerce, distribution and adoption.
 
-**Global safety and policy.** Incidents, containment, liability, regulation and standards.
+**Global safety and policy.** Incidents, containment, liability, regulation and standards. Also
+record what labs and platforms **stopped** doing — paused training, withdrawn internet access,
+delayed launches, blocked integrations — because a retreat is a decision, not an incident, and the
+other lenses do not see it.
 
 **Global money.** Funding, M&A, IPOs, market structure and major enterprise deals.
 
@@ -119,6 +122,20 @@ month — not the recall list — and ask it to find important stories missing f
 monthly recaps, newsletters and primary sources. If it finds something, add it. That audit, not the
 list, is the test of coverage.
 
+**Final sweep — do not skip.** The lenses are framed by topic, so they miss anything that is a
+*decision* rather than an *event*: a lab withdrawing access, a platform closing a door, a launch
+delayed, a policy paused. After the merge, read the month's front page directly — two general tech
+outlets, one business wire, one security outlet and one Chinese outlet — and list every headline not
+already covered.
+
+This is not optional. September's sweep found nothing the lenses had missed; October's found the
+month's lead story (Anthropic and OpenAI both cutting their agents off the live internet), plus
+OpenAI's decision model and the US order to remove DeepSeek. All five lenses had missed them,
+because none of the two retreats was an incident — they were operational decisions.
+
+Tooling note: in this environment a site's section pages (an outlet's AI category, pages one and two)
+are more reliable than search queries. Fetch them directly and work down the list.
+
 - **Decision models:** Jev/TypeSafe, OpenAI Decisions API, Microsoft-Decision, Cloudflare Clef,
   Snowflake Decision, AWS Strands Decider.
 - **Personal agents:** Dots, Muse, Duet, Manus/Cue, Xiaodou, Yuanbao Assistant.
@@ -177,8 +194,8 @@ reconsider. A cut item is not the same as an unimportant item.
 7. **Cut log** — what was left out and why.
 8. **Sources and caveats.**
 
-Run the **plain-language pass** before the cut log, so the cut log describes real content rather
-than sentences that were never readable.
+Run the **final sweep** and the **plain-language pass** before the cut log, so the cut log describes
+real content rather than sentences that were never readable.
 
 Length follows the month: a normal month is around 900–1,200 words, and a heavy month like
 October 2026 can run longer.
