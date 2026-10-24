@@ -519,6 +519,7 @@
       "customModels": "Custom models",
       "tabsLabel": "Model settings categories",
       "modelsTab": "Models",
+      "jevTab": "Jev",
       "modelGroups": "Model groups",
       "modelGroupsManagement": "Model group management",
       "empty": "No models configured",
@@ -783,6 +784,8 @@
       "providerTypesafe": "TypeSafe",
       "providerCustom": "Custom",
       "jevConfig": "Jev Model Configuration",
+      "jevKeyMissing": "Jev API key is not configured. Configure it under Models > Jev first.",
+      "clearSharedJevConfirm": "Clear this provider's Jev key? Browser decisions will return to LLM only, and JEV decision for multi-model collaboration will be disabled.",
       "jevBaseInvalid": "Enter an HTTPS API base URL without credentials, query parameters or fragments",
       "jevModelInvalid": "Enter a valid OpenRouter Jev model, such as typesafe/jev-1.13"
     },
@@ -860,7 +863,7 @@
       },
       "decision_mode": {
         "title": "Browser decisions",
-        "description": "Choose who decides each browser step. Jev modes need the Jev API key below."
+        "description": "Choose who decides each browser step. Jev modes use the shared configuration under Models > Jev."
       },
       "decision_provider": {
         "title": "Jev provider",
@@ -1057,7 +1060,7 @@
       },
       "moa_jev_enabled": {
         "title": "JEV decision",
-        "description": "Use JEV to verify execution progress. When off, use the selected model group’s default model."
+        "description": "Use JEV configured under Models > Jev to verify execution progress. When off, use the selected model group’s default model."
       },
       "moa_verifier_interval": {
         "title": "Verification interval (rounds)",
@@ -1781,6 +1784,7 @@
     "agentGroupRuntimeDisabledTitle": "Enable external agents first",
     "agentGroupRuntimeDisabledConfirm": "Got it",
     "agentGroupBinding": "This conversation is bound to an Expert Team and cannot be changed",
+    "agentGroupNoDescription": "No description available for this expert team",
     "agentGroupFirstBuildOnly": "Expert Teams can only be selected when a Team is first created",
     "agentOnlyInSingleAgentMode": "Experts can only be selected in single-Agent mode",
     "externalAgentRequiresNewSession": "External experts require a new conversation. Start a new session to use one.",
@@ -3751,6 +3755,7 @@
       "connectionUnavailable": "Required connectors are not connected yet. Connect them before use.",
       "connectorUnavailableNamed": "This Expert requires the connector “{{connector}}”, which is not connected. Connect it and try again.",
       "uploadSuccess": "Expert package {{id}} was imported. Review it in My Experts.",
+      "uploadImportedInstallFailed": "Expert package {{id}} was imported, but installation failed. Try installing it again in My Experts.",
       "uploadError": "Unable to upload and import the Expert package. Check the file and try again.",
       "uploadMissingManifest": "The Expert package is missing manifest.json, or the file is corrupt.",
       "uploadMissingReadme": "The Expert package is missing README.md.",
