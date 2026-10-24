@@ -133,8 +133,7 @@ def test_parent_composition_preserves_order_and_wiring(
         "_circuit_breaker_rail _avatar_rail "
         "_memory_forbidden_rail _subagent_rail _permission_rail "
         "_root_permission_completion_rail _context_processor_rail _eternal_conversation_rail "
-        "_autonomous_mode_rail _ask_user_rail _work_agent_mode_rail _work_plan_approval_rail"
-        "_budget_notice_rail "
+        "_autonomous_mode_rail _budget_notice_rail "
         "_ask_user_rail _work_agent_mode_rail _work_plan_approval_rail"
     ).split()
     expected_profile_rails = [
@@ -142,9 +141,12 @@ def test_parent_composition_preserves_order_and_wiring(
         for attr in attrs
         if getattr(adapter, attr, None) is not None
     ]
-    # The adapter appends the suggestion fork, observability, then the task-loop
-    # budget rail after the profile rails; only the profile portion is order-locked here.
+    # The adapter appends the suggestion fork, observability and the task-loop
+    # completion rail after the profile rails; only the profile portion is
+    # order-locked here.
     assert rails[:-3] == expected_profile_rails
+    # The suggestion fork snapshots each turn's last main call; observability
+    # follows it so it sees every call, and the completion rail stays last.
     assert isinstance(rails[-3], PromptSuggestionForkRail)
     assert isinstance(rails[-2], AgentObservabilityRail)
     assert isinstance(rails[-1], TaskCompletionRail)
