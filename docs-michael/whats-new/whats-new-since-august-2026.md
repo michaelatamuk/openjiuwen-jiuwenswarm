@@ -1,7 +1,9 @@
 # What's New in JiuwenSwarm — Since August 2026
 
 A short, plain-English guide for people who already know the product and just want to
-catch up on what changed in the last ~2.5 months.
+catch up on what changed in the last ~3 months.
+
+*Last updated: 2026-10-24.*
 
 Everything here is tagged with one of two labels:
 
@@ -49,6 +51,13 @@ Two things make it much bigger than "run a few teams and merge the output":
 It also ships with governance built in: an independent review before a result is accepted,
 and a distinct summary role.
 
+The organization can also staff itself. The team leader can browse the catalog of installed
+experts and **spawn one as a member**, and a scheduled task can declare inline members the
+same way — including members that run on an external CLI. In a scheduled team, members can
+also message each other directly instead of routing every exchange through the leader, so a
+team can unblock itself. Hiring a new expert is now closer to choosing a capability than
+wiring an integration.
+
 How the three levels relate:
 
 | Level | Think of it as… | What it gives you | Where it stops → and who picks it up |
@@ -64,6 +73,11 @@ be wired in by hand (Claude Code and Codex worked that way); the new "harness pr
 protocol lets any external agent — including the DeepSeek Harness — plug in through one
 standard interface and act like a normal teammate. Sign-in and switching a member's model
 or reasoning effort are handled for you.
+
+Third-party agents that bring their own web UI can now be proxied on registry-assigned
+ports, so the agent's interface comes with it. In scheduled work, an inline member can run
+on an external CLI, and the separate external-CLI spawn path has been folded into the normal
+teammate path, so an external agent is registered like any other member.
 
 ```mermaid
 flowchart LR
@@ -115,6 +129,13 @@ of only from human editing.
 own prompts, tools and skills from experience; RSI goes one level up and improves the
 harness itself, and can recursively improve how it does that.*
 
+**New since October: diagnosis and attribution.** RSI's "find the weak spot" step is now a
+visible feature. The trajectory viewer has a diagnosis panel: pick a run, or a slice of it,
+and it attributes the outcome to root causes instead of only showing what happened. It also
+adds **Reward scoring** — the deliverable is checked against the user's own words, claims are
+judged against evidence gathered by actually running the deliverable, and the score is
+computed in code rather than guessed by the model. Diagnosis is opt-in and experimental.
+
 ```mermaid
 flowchart LR
     A([Agent does real work]) --> B[Spots its own weak spots]
@@ -143,6 +164,10 @@ be dispatched on a timer to read-only reviewers, and a verification step checks 
 result before it is accepted. This targets autonomous runs where you want a safety check
 without a human approving every single step.
 
+Scheduled teams also show their handoffs and task flow in the group chat, so you can watch
+work move between members instead of seeing only the final result. Member-to-member messaging
+inside a scheduled run is an opt-in sub-switch.
+
 ## Getting smarter
 
 ### 7. Symphony — [UPGRADE]
@@ -160,6 +185,9 @@ in collections that you can browse and query, and the system gives clearer expla
 how and why context was compacted. This builds on the context-evolution machinery that
 already existed.
 
+Memory is pluggable too: a Jiuwen memory rail can mount the built-in memory variant, or an
+external AgentMemory service, alongside the existing context machinery.
+
 ### 9. LLM layer — thinking modes and model groups — [UPGRADE]
 
 The model layer now supports explicit thinking and reasoning-intensity modes, model-group
@@ -176,9 +204,17 @@ and a **verifier scores progress on an interval** — either a hosted JEV scorer
 LLM verifier taken from the group — so the answer is judged as it is built, not only at the
 end. It is single-agent only (not used for team or scheduled runs) and off by default.
 
+### 11. Topic and prompt recommendations — [NEW]
+
+The chat can now suggest what to ask next. With the recommendation switches on, it proposes
+**topics** worth exploring and **prompts** you can send with one click, drawn from your history
+and the current conversation. It is off by default, keeps topic history behind an explicit
+consent boundary, and records feedback and an audit trail so you can see why a topic was
+suggested.
+
 ## Control, safety and operations
 
-### 11. Smart approval + permission modes — [NEW]
+### 12. Smart approval + permission modes — [NEW]
 
 The permission system became much smarter. There are now three clear modes — Full
 Access, Auto, and Strict — and permissions are tracked in layers (global, per-user, and
@@ -186,14 +222,18 @@ per-session). On top of that, a "smart approval" feature lets the model judge wh
 action is safe and approve it automatically, so users see far fewer prompts while still
 staying protected.
 
-### 12. A4P — intent authorization — [NEW]
+### 13. A4P — intent authorization — [NEW]
 
 A4P is an intent-authorization protocol. It lets a user pre-approve what an agent is
 allowed to do for a session or a scheduled job, so the agent does not stop and ask for
 permission on every action. Approvals are tied to a clearly stated intent, which makes
 automation smoother while still keeping a record of exactly what was authorized.
 
-### 13. Heartbeat (re-worked) — [UPGRADE]
+Since October, a preflight step filters out requests that would not need a new authorization
+anyway, smart-approval mode no longer turns A4P on by mistake, and the approval wait was
+shortened from five minutes to three.
+
+### 14. Heartbeat (re-worked) — [UPGRADE]
 
 Heartbeat existed before as a lightweight keep-alive. It was re-worked into a Rail-based
 heartbeat managed by the AgentServer, and it now has a web panel so you can see and manage
@@ -201,7 +241,7 @@ heartbeat tasks directly instead of treating them as an internal mechanism.
 
 ## Build, observe and ecosystem
 
-### 14. Headless agent runtime (Process CLI + SDKs) — [NEW]
+### 15. Headless agent runtime (Process CLI + SDKs) — [NEW]
 
 Previously the agent mostly ran inside the web app. Now it can run headless too: a new
 "Process CLI" executes a single agent one-shot over standard input/output, and Python and
@@ -209,15 +249,19 @@ TypeScript SDKs let any program drive an agent directly. The runtime itself also
 into a resident worker process, which makes startup faster and keeps the "listen for
 requests" step separate from the heavier "load the runtime" step.
 
-### 15. Trajectory viewer — [NEW]
+Deployment became more controllable too: agent and tool sandbox settings can now be managed
+centrally through the etcd data plane.
+
+### 16. Trajectory viewer — [NEW]
 
 There is a brand-new way to look at what an agent did: a trajectory viewer. Every run is
 saved with one consistent structure and stored by content, so you can replay it, page
 through it turn by turn, and export it as an archive. It also surfaces timing such as
 time-to-first-token, how context was compacted, and how a tool result looked to the model
-versus what it actually returned.
+versus what it actually returned. The diagnosis panel described under RSI sits on top of this
+view.
 
-### 16. Trajectory v2 — one consistent span-level schema — [UPGRADE]
+### 17. Trajectory v2 — one consistent span-level schema — [UPGRADE]
 
 Trajectory tracing already existed, but it was rebuilt around a single span-level schema
 used across the whole system. Now every step of a run — model calls, tool calls, context
@@ -225,12 +269,15 @@ compaction — is recorded in exactly the same shape, so the viewer, the analysi
 the backend all agree. It is technically an upgrade, but the data model and the new
 viewer together amount to a next generation of the feature.
 
-### 17. Marketplace / SkillHub — [NEW]
+### 18. Marketplace / SkillHub — [NEW]
 
 The marketplace grew into a hub for many kinds of assets, not just skills. There is now a
 single search across skills, experts, plugins, and more, plus a web marketplace for
 installing plugins and MCP servers. This makes it much easier to find and add new
 capabilities to the product.
+
+Skills themselves got easier to browse and safer to ship: each skill can carry a Chinese and
+English display page, and built-in skills can be limited through a whitelist.
 
 ---
 
