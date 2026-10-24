@@ -2573,6 +2573,24 @@ def _build_agent_group_card(
     return card
 
 
+def disabled_agent_group_runtimes(package: Any) -> list[str]:
+    """Read current switches before selecting an expert team."""
+    from openjiuwen.agent_teams.external import external_cli_agent_spec_from_template
+    from jiuwenswarm.common.config import get_config
+    from jiuwenswarm.common.config_panel.external_cli_read import flatten_external_cli_agents_for_config_panel
+
+    switches = flatten_external_cli_agents_for_config_panel(get_config())
+    disabled: list[str] = []
+    for template in package.templates.values():
+        external = external_cli_agent_spec_from_template(template)
+        if external is None:
+            continue
+        name = external.cli_agent
+        if switches.get(f"external_cli_agent_{name}_enabled") != "true" and name not in disabled:
+            disabled.append(name)
+    return disabled
+
+
 def show_agent_group(name: str) -> dict | None:
     """Return one valid AgentGroup detail card, or ``None`` when absent."""
     from openjiuwen.agent_teams.experts import load_agent_group_package
@@ -2584,13 +2602,20 @@ def show_agent_group(name: str) -> dict | None:
     market = _marketplace_index(read_agent_group_marketplace_entries())
     # Keep show as strict as Team assembly and list: a corrupt/unloadable group
     # must never be presented as selectable detail data.
-    return _build_agent_group_card(
+    card = _build_agent_group_card(
         package_dir,
         source=source,
         marketplace=market.get(package_dir.name),
         load_package=load_agent_group_package,
         include_details=True,
     )
+
+    if card is not None:
+        from openjiuwen.agent_teams.experts import load_agent_group_package_bundle
+
+        package = load_agent_group_package_bundle(package_dir)
+        card["disabledRuntimes"] = disabled_agent_group_runtimes(package)
+    return card
 
 
 async def show_agent_group_with_hub(
@@ -4098,6 +4123,22 @@ def _validate_agent_template_import_layout(pkg_root: Path, manifest: dict) -> No
         )
 
 
+def _validate_agent_group_import_skill_paths(manifest: dict) -> None:
+    """Reject host-specific skill paths before the core package loader runs."""
+    skills = manifest.get("skills", [])
+    if not isinstance(skills, list):
+        return
+    for skill in skills:
+        raw_dir = skill.get("dir") if isinstance(skill, dict) else skill
+        if not isinstance(raw_dir, str):
+            continue
+        if Path(raw_dir).expanduser().is_absolute():
+            raise ValueError("agent_group skill dir must be package-relative")
+        windows_path = PureWindowsPath(raw_dir)
+        if windows_path.drive or windows_path.root:
+            raise ValueError("agent_group skill dir must be package-relative")
+
+
 def _commit_imported_package(
     pkg_root: Path, *, kind: str, kind_label: str, package_type: str
 ) -> dict:
@@ -4127,6 +4168,7 @@ def _commit_imported_package(
                 "agent_group manifest name must match its package directory"
             )
         _assert_no_symlinks(pkg_root)
+        _validate_agent_group_import_skill_paths(manifest)
         load_agent_group_package(pkg_root)
     local_root = _local_root(kind)
     _assert_package_id_available(
