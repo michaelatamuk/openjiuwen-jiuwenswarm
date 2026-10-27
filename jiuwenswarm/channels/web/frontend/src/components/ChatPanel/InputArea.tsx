@@ -1,4 +1,4 @@
-﻿import {
+import {
   useState,
   useRef,
   useCallback,
@@ -20,7 +20,7 @@
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { AtSign, ChevronRight, CircleX, ListChecks, Loader2, Lock, Mic, Pencil, Plus, Settings, Square, SquarePlay, Workflow, X } from 'lucide-react';
+import { AtSign, ChevronRight, CircleX, Infinity as InfinityIcon, ListChecks, Loader2, Lock, Mic, Pencil, Plus, Settings, Square, SquarePlay, Workflow, X } from 'lucide-react';
 
 // import { stopAllTts } from '../../utils';
 import {
@@ -62,7 +62,6 @@ import {
   validateAssetName,
 } from '../../features/sessionAssets/assetReferences';
 import { useSessionArtifacts } from '../ArtifactsPanel';
-import { WorktreeProjectGuide } from './WorktreeProjectGuide';
 import {
   parseSlashLine,
   parseGoalSlashArgs,
@@ -72,6 +71,7 @@ import {
   type SlashCommand,
   type SlashCommandContext,
 } from './slashCommands/registry';
+import { splitComposerSlashChip } from './composerDraftHydrate';
 import {
   canUseSlashCommand,
   getWebSlashCommandsForMode,
@@ -80,6 +80,12 @@ import {
   resolveSlashCommandDescription,
   shouldExecuteRegisteredSlashCommand,
 } from './slashCommands/semantics';
+import {
+  getSkillArgumentSuggestion,
+  getSkillArgumentReplacement,
+  filterSkillSuggestions,
+  type SkillSuggestion,
+} from './slashCommands/skillArgumentCompletion';
 import { withUploadDocumentBlock } from '../../utils/documentMessage';
 import { planUnsentImageDiscard, type UnsentImageDraft } from './unsentImageDiscard';
 import { ExtensionPickerPanel } from './ExtensionPickerPanel';
@@ -150,6 +156,7 @@ import { TeamSelector } from './TeamSelector';
 import { resolveOrganizationTeamIdentity } from '../../features/teamOrganization/teamIdentity';
 import { useTeamSelectorStore } from '../../stores/teamSelectorStore';
 import { useTeamOrganizationUiEnabled } from '../../features/teamOrganization/featureConfig';
+import { useOrganizationProcessing } from '../../features/teamOrganization/processing';
 import { useOrganizationConversationKey } from '../../features/teamOrganization/conversation';
 import { resolveTeamGroupDisplayName } from '../../features/teamGroupIdentity';
 import { resolveTeamDispatchMode, useTeamScheduledDispatchEnabled } from '../../features/teamDispatch/featureConfig';
@@ -246,13 +253,15 @@ type InputAreaTeamMember = {
   status?: string;
 };
 
-type ComposerSuggestionKind = 'member' | 'role' | 'slash';
+type ComposerSuggestionKind = 'member' | 'role' | 'slash' | 'skill';
 type WorkIconName = 'add' | 'arrow' | 'check' | 'close' | 'collapse' | 'expand' | 'folder' | 'search';
 
-type ComposerSuggestionState = {
-  kind: ComposerSuggestionKind;
-  query: string;
-};
+type ComposerSuggestionState =
+  | {
+      kind: Exclude<ComposerSuggestionKind, 'skill'>;
+      query: string;
+    }
+  | SkillSuggestion;
 
 type ComposerSuggestionItem = {
   id: string;
@@ -279,9 +288,9 @@ function getComposerSuggestionItems(
   isTeamMode: boolean,
 ): ComposerSuggestionItem[] {
   if (!suggestion) return [];
-  if (suggestion.kind === 'slash') {
+  if (suggestion.kind === 'slash' || suggestion.kind === 'skill') {
     const query = suggestion.query.trim().toLowerCase();
-    const commands = slashCommands
+    const commands = (suggestion.kind === 'skill' ? [] : slashCommands)
       .filter((command) => !query || command.name.toLowerCase().includes(query))
       .map((command) => ({
         id: command.name,
@@ -290,21 +299,7 @@ function getComposerSuggestionItems(
         itemKind: 'command' as const,
         takesArgs: command.takesArgs,
       }));
-    const skills = slashSkills
-      .filter((skill) =>
-        // 单 agent：普通 skill + skillpack（技能包可当普通技能选用）；集群：swarm_skill。
-        isTeamMode
-          ? skill.skill_type === 'swarm_skill'
-          : !skill.skill_type || skill.skill_type === 'skill' || skill.skill_type === 'skillpack',
-      )
-      .filter((skill) => {
-        if (!query) return true;
-        return [skill.name, skill.display_name, skill.description]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(query);
-      })
+    const skills = filterSkillSuggestions(slashSkills, query, isTeamMode, suggestion.kind === 'skill')
       .map((skill) => ({
         id: skill.name,
         label: skill.display_name || skill.name,
@@ -898,6 +893,12 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const attachmentMenuOpenedByLongPressRef = useRef(false);
   const isComposingRef = useRef(false);
   const { t, i18n } = useTranslation();
+  const organizationEnabled = useTeamOrganizationUiEnabled();
+  const organizationTeamUnavailable = useTeamSelectorStore((s) => {
+    if (!organizationEnabled || !activeSessionId) return false;
+    const runtime = s.runtimes[activeSessionId];
+    return runtime?.teams.find((team) => team.team_id === runtime.selectedTeamId)?.available === false;
+  });
   const agentGroupUnavailable = useChatStore(
     (s) => s.runtimes[activeSessionId ?? '']?.agentGroupUnavailable ?? false,
   );
@@ -916,6 +917,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const designLandingSubmitting = isDesignLanding && isProcessing;
   const composerDisabled =
     agentGroupUnavailable ||
+    organizationTeamUnavailable ||
     isCompactRunning ||
     (hasPendingQuestion && !hasRunningAgent) ||
     designLandingSubmitting;
@@ -1083,14 +1085,17 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     setAgentPickerQuery('');
     setPickerTab('agent');
   }, [attachMenuOpen]);
-  const isPaused = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.isPaused ?? false);
+  const conversationIsPaused = useChatStore((s) => s.runtimes[conversationId]?.isPaused ?? false);
+  const organizationIsProcessing = useOrganizationProcessing(activeSessionId);
+  const isPaused = conversationIsPaused;
+  const ownerOrganizationIsProcessing = conversationId === activeSessionId && organizationIsProcessing;
   const queuePaused = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.queuePaused ?? false);
   const isLoadingHistory = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.isLoadingHistory ?? false);
   const inputValue = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.inputValue ?? '');
   const evolutionStatus = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.evolutionStatus ?? null);
   const selectedSkills = useSessionStore((s) => s.runtimes[activeSessionId ?? '']?.selectedSkills ?? []);
   const teamMembers = useSessionStore(
-    (s) => s.runtimes[activeSessionId ?? '']?.teamMembers ?? [],
+    (s) => s.runtimes[conversationId]?.teamMembers ?? [],
   ) as InputAreaTeamMember[];
   const currentSession = useSessionStore((s) => s.currentSession);
   const activeSession = useSessionStore((s) => {
@@ -1186,6 +1191,14 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const teamDispatchToggleDisabled = swarmflowToggleDisabled;
   const canUsePlanMenu = supportsPlanMode(mode);
   const planTagVisible = canUsePlanMenu && planActive;
+  // 永续会话标记：只对真实会话展示（/persist 创建或后端会话列表带 persist_session 的会话），
+  // 欢迎页在 session.create 之前没有可展示的持久化状态。
+  const persistSessionActive = useSessionStore(
+    (s) => s.runtimes[activeSessionId ?? '']?.persistSession ?? false,
+  );
+  const persistTagVisible = Boolean(
+    activeSessionId && activeSessionId !== NEW_CONVERSATION_ID && persistSessionActive,
+  );
 
   const mentionableMembers = useMemo(() => {
     return teamMembers
@@ -1340,7 +1353,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       isTeamMode,
     );
     return items.map((item) =>
-      item.itemKind === 'skill' && teamGroupSelectionActive
+      item.itemKind === 'skill' && composerSuggestion?.kind !== 'skill' && teamGroupSelectionActive
         ? { ...item, disabled: true, disabledReason: t('chat.teamSkillsGroupLocked') }
         : item.itemKind === 'command' && isSlashCommandDisabledByGoal(item.id, hasUnfinishedGoal)
           ? { ...item, disabled: true, disabledReason: t('plan.toolbarUnavailableGoal') }
@@ -1370,7 +1383,13 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   );
 
   useEffect(() => {
-    if (composerSuggestion?.kind !== 'slash' || slashCatalogLoaded || slashCatalogLoading) return;
+    if (
+      !composerSuggestion ||
+      (composerSuggestion.kind !== 'slash' && composerSuggestion.kind !== 'skill') ||
+      slashCatalogLoaded || slashCatalogLoading
+    ) {
+      return;
+    }
     setSlashCatalogLoading(true);
     void Promise.all([
       webRequest<{ commands?: SlashCommandMeta[] }>('commands.list', {
@@ -1466,49 +1485,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     }
     return selectedProject && !isDefaultInputProject(selectedProject) ? selectedProject : null;
   }, [activeSession, projects, selectedProject, t, workMode]);
-
-  // Worktree 隔离开关的显示默认值：全局 config（团队模板的 worktree.enabled），
-  // 仅在会话未显式拨过（swarmflowWorktree === undefined）时用于展示。
-  // 挂载时读一次，配置面板每次打开时刷新；会话自身的值存 sessionStore。
-  const [swarmflowWorktreeDefault, setSwarmflowWorktreeDefault] = useState<boolean | null>(null);
-  const refreshSwarmflowWorktreeDefault = useCallback(() => {
-    webRequest<Record<string, unknown>>('config.get')
-      .then((config) => {
-        const raw = (config as { swarmflow_worktree?: unknown } | undefined)?.swarmflow_worktree;
-        setSwarmflowWorktreeDefault(raw === true || String(raw ?? '').trim().toLowerCase() === 'true');
-      })
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    refreshSwarmflowWorktreeDefault();
-  }, [refreshSwarmflowWorktreeDefault]);
-  // 会话级 worktree 值（undefined=未拨过）；有效值 = 会话值 ?? 全局默认
-  const swarmflowWorktreeValue = useSessionStore(
-    (s) => s.runtimes[activeSessionId ?? '']?.swarmflowWorktree,
-  );
-  const swarmflowWorktreeEffective = swarmflowWorktreeValue ?? (swarmflowWorktreeDefault ?? false);
-  // Worktree 无项目目录的聚光灯引导。动态工作流的"+"菜单/配置面板还开着时会挡住
-  // 项目下拉，先挂起，等它们全部关闭后再弹；弹出后选好项目自动消失。
-  const [worktreeGuideOpen, setWorktreeGuideOpen] = useState(false);
-  const [worktreeGuidePending, setWorktreeGuidePending] = useState(false);
-  useEffect(() => {
-    if (worktreeGuideOpen && displayedProject) setWorktreeGuideOpen(false);
-  }, [worktreeGuideOpen, displayedProject]);
-  useEffect(() => {
-    if (!worktreeGuidePending || attachMenuOpen || swarmflowConfigPanelOpen) return;
-    setWorktreeGuidePending(false);
-    if (!displayedProject && swarmflowWorktreeEffective) setWorktreeGuideOpen(true);
-  }, [worktreeGuidePending, attachMenuOpen, swarmflowConfigPanelOpen, displayedProject, swarmflowWorktreeEffective]);
-  const toggleSwarmflowWorktree = useCallback(
-    (next: boolean) => {
-      if (!activeSessionId || swarmflowToggleDisabled) return;
-      useSessionStore.getState().setSwarmflowWorktree(activeSessionId, next);
-      if (next && !displayedProject) {
-        setWorktreeGuidePending(true);
-      }
-    },
-    [activeSessionId, swarmflowToggleDisabled, displayedProject],
-  );
 
   const appendTaskAsrTranscript = useCallback(
     (transcript: string) => {
@@ -2360,15 +2336,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     }
   }, [autoFocusKey]);
 
-  // 切会话时用 inputValue 填充 contenteditable（chip 位置丢失，仅恢复纯文本）
-  useEffect(() => {
-    if (!inputRef.current) return;
-    const sid = useChatStore.getState().activeSessionId;
-    if (!sid) return;
-    const text = useChatStore.getState().runtimes[sid]?.inputValue ?? '';
-    inputRef.current.textContent = text;
-  }, [activeSessionId]);
-
   // 监听外部设置 inputValue 的事件（如编辑排队任务）
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2414,6 +2381,84 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     });
     return text.replace(/\u200B/g, '');
   }, []);
+
+  // 切会话时用 inputValue 填充 contenteditable。技能 chip 由 selectedSkills 同步效果重建；
+  // 有参斜杠 chip（如 /persist）写在纯文本里，这里还原成蓝色标签，避免切回后"标签消失"（#5771）。
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const sid = useChatStore.getState().activeSessionId;
+    if (!sid) return;
+    const text = useChatStore.getState().runtimes[sid]?.inputValue ?? '';
+    el.replaceChildren();
+    const { command, rest } = splitComposerSlashChip(text);
+    if (command) {
+      const chip = document.createElement('span');
+      chip.className = 'chat-input-chip-inline chat-input-chip-inline--slash-command';
+      chip.setAttribute('contenteditable', 'false');
+      chip.dataset.slashCommand = command;
+
+      const prefix = document.createElement('span');
+      prefix.className = 'chat-input-chip-inline__prefix';
+      prefix.textContent = '/';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'chat-input-chip-inline__label';
+      labelEl.textContent = command;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'chat-input-chip-inline__remove';
+      removeBtn.setAttribute('aria-label', 'remove slash command');
+      removeBtn.innerHTML = closeSvg;
+      removeBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const next = chip.nextSibling;
+        if (next && next.nodeType === Node.TEXT_NODE) {
+          const nextText = next.textContent || '';
+          if (nextText.startsWith(' ')) {
+            next.textContent = nextText.slice(1);
+          }
+        }
+        chip.remove();
+        const activeSid = useChatStore.getState().activeSessionId;
+        if (activeSid) useChatStore.getState().setInputValue(activeSid, extractPlainText());
+      });
+
+      chip.append(prefix, labelEl, removeBtn);
+      el.append(chip);
+      el.append(document.createTextNode(rest || '\u200B'));
+    } else {
+      el.textContent = text;
+    }
+    const selection = window.getSelection();
+    if (selection) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, [activeSessionId, extractPlainText]);
+
+  const composerConversationRef = useRef(conversationId);
+  useEffect(() => {
+    if (composerConversationRef.current === conversationId) return;
+    composerConversationRef.current = conversationId;
+    setComposerSuggestion(null);
+    // Member IDs are scoped to a Team, even when two Teams use the same ID.
+    // Preserve the draft but remove the old Team's member addressing tokens.
+    const editor = inputRef.current;
+    if (!editor) return;
+    const tokens = editor.querySelectorAll<HTMLElement>(
+      '[data-composer-token="member"]:not([data-composer-item-kind="asset"])',
+    );
+    if (!tokens.length) return;
+    tokens.forEach((token) => token.remove());
+    const sid = useChatStore.getState().activeSessionId;
+    if (sid) useChatStore.getState().setInputValue(sid, extractPlainText());
+  }, [conversationId, extractPlainText]);
 
   /** 从 contenteditable 提取富文本（chip 转成 {{skill:名称}} 标记，保留位置用于气泡交织渲染） */
   const extractRichContent = useCallback((): string => {
@@ -2679,8 +2724,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   // preparing a follow-up. A pending approval keeps Stop available and blocks Send.
   const hasDraft = hasTextDraft || attachments.length > 0 || isListening || isTranscribing;
   const isImageInterruptBlocked = isInterruptible && !isTeamMode && !isAgentMode && readyMediaItems.length > 0;
-  const showStop =
-    !designLandingSubmitting && isProcessing && !isPaused && (!hasDraft || hasPendingQuestion);
+  const hasRunningWork = (isProcessing && !isPaused) || ownerOrganizationIsProcessing;
+  const showStop = !designLandingSubmitting && hasRunningWork && (!hasDraft || hasPendingQuestion);
   const hasReadyMedia = readyMediaItems.length > 0;
   const canSubmit =
     showStop ||
@@ -2723,6 +2768,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
     beforeRange.selectNodeContents(el);
     beforeRange.setEnd(range.endContainer, range.endOffset);
     const beforeText = beforeRange.toString().replace(/\u200B/g, '');
+    const skillSuggestion = getSkillArgumentSuggestion(beforeText);
+    if (skillSuggestion) return skillSuggestion;
     const slashMatch = beforeText.match(/(?:^|\s)(\/)([a-zA-Z][\w-]*)?$/);
     if (slashMatch) {
       return { kind: 'slash', query: slashMatch[2] ?? '' };
@@ -2743,7 +2790,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       return;
     }
     // slash 指令不依赖团队成员，即便没有可 @ 的成员也照常弹出
-    if (trigger.kind !== 'slash' && mentionCandidates.length === 0) {
+    if (trigger.kind !== 'slash' && trigger.kind !== 'skill' && mentionCandidates.length === 0) {
       setComposerSuggestion(null);
       return;
     }
@@ -2781,6 +2828,32 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       if (!el || !selection || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
       if (!el.contains(range.commonAncestorContainer)) return;
+
+      if (kind === 'skill') {
+        const trigger = getCurrentComposerTrigger();
+        if (trigger?.kind !== 'skill') return;
+        const beforeRange = range.cloneRange();
+        beforeRange.selectNodeContents(el);
+        beforeRange.setEnd(range.endContainer, range.endOffset);
+        const caret = beforeRange.toString().replace(/\u200B/g, '').length;
+        const edit = getSkillArgumentReplacement(extractPlainText(), caret, trigger, value);
+        const endRange = range.cloneRange();
+        setRangeStartByTextOffset(endRange, el, edit.end);
+        range.setEnd(endRange.startContainer, endRange.startOffset);
+        setRangeStartByTextOffset(range, el, edit.start);
+        range.deleteContents();
+        const text = document.createTextNode(edit.text);
+        range.insertNode(text);
+        range.setStartAfter(text);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const sid = useChatStore.getState().activeSessionId;
+        if (sid) useChatStore.getState().setInputValue(sid, extractPlainText());
+        setComposerSuggestion(null);
+        el.focus();
+        return;
+      }
 
       // slash 选中
       if (kind === 'slash') {
@@ -2940,7 +3013,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
       chip.className = `chat-input-chip-inline chat-input-chip-inline--${kind}`;
       chip.setAttribute('contenteditable', 'false');
       chip.dataset.composerToken = kind;
+      chip.dataset.composerItemKind = slashItemKind ?? kind;
       chip.dataset.value = value;
+      chip.setAttribute('data-testid', 'chat-panel-composer-token');
+      chip.dataset.variant = value;
 
       const prefix = document.createElement('span');
       prefix.className = 'chat-input-chip-inline__prefix';
@@ -3039,8 +3115,16 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
 
         if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
           if (isImeCompositionKey(e.nativeEvent, isComposingRef.current)) return;
-          e.preventDefault();
           const item = composerSuggestionItems[composerSuggestionIndex];
+          if (composerSuggestion.kind === 'skill' && !item) {
+            setComposerSuggestion(null);
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSubmit();
+            }
+            return;
+          }
+          e.preventDefault();
           if (e.key === 'Enter' && composerSuggestion.kind === 'slash') {
             // 完整受限命令优先走提交守卫，避免过滤后误选名称/描述匹配的技能。
             const { name, args } = parseSlashLine(extractRichContent());
@@ -3646,7 +3730,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
   const currentMode = AGENT_MODE_OPTIONS.find((item) => item.value === mode) ?? AGENT_MODE_OPTIONS[0];
   const evolutionLabel = getEvolutionPillLabel(mode, evolutionStatus, t);
   const attachmentAlertPortalTarget = inputRef.current?.closest<HTMLElement>('.chat-panel-shell');
-  const showSlashSuggestionBelow = showWorkContextRow && composerSuggestion?.kind === 'slash';
+  const showSlashSuggestionBelow =
+    showWorkContextRow && (composerSuggestion?.kind === 'slash' || composerSuggestion?.kind === 'skill');
 
   return (
     <>
@@ -3941,7 +4026,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                 }}
                 onPick={insertComposerToken}
                 loading={slashCatalogLoading}
-                slashSkillsOnly={isTeamMode}
+                slashSkillsOnly={isTeamMode || composerSuggestion.kind === 'skill'}
               />
             )}
             <div
@@ -3964,7 +4049,9 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
               onBlur={saveSelection}
               onPaste={handlePaste}
               data-placeholder={
-                agentGroupUnavailable
+                organizationTeamUnavailable
+                  ? t('chat.teamSelect.unavailableHint')
+                  : agentGroupUnavailable
                   ? t('chat.placeholderAgentGroupDeleted')
                   : isCompactRunning
                   ? t('chat.placeholderCompacting')
@@ -3975,7 +4062,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                       : designLandingSubmitting
                         ? t('chat.placeholder')
                         : isTeamMode
-                          ? isInterruptible && !isPaused
+                          ? (isInterruptible || ownerOrganizationIsProcessing) && !isPaused
                             ? t('chat.placeholderTeamModeProcessing')
                             : t('chat.placeholderTeamMode')
                         : isAutoHarnessMode
@@ -4306,7 +4393,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                                             ? t('chat.teamSkillsGroupLocked')
                                             : existingTeamGroupSelectionDisabled
                                             ? t('chat.agentGroupFirstBuildOnly')
-                                            : item.description || t('chat.agentGroupBinding')
+                                            : item.description || t('chat.agentGroupNoDescription')
                                       }
                                       {...agentTooltipHandlers}
                                       onClick={async () => {
@@ -4569,10 +4656,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                                 usePlanStore.getState().setActive(activeSessionId, false);
                               }
                               useSessionStore.getState().setSwarmflowActive(activeSessionId, next);
-                              // worktree 有效开启且未选项目目录时，等菜单关闭后再弹聚光灯引导
-                              if (next && swarmflowWorktreeEffective && !displayedProject) {
-                                setWorktreeGuidePending(true);
-                              }
                             };
                             return (
                               <div
@@ -4612,7 +4695,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                                       e.stopPropagation();
                                       if (!swarmflowActive) return;
                                       if (!swarmflowConfigPanelOpen) {
-                                        refreshSwarmflowWorktreeDefault();
                                         if (swarmflowConfigBtnRef.current) {
                                           setSwarmflowConfigAnchor(
                                             swarmflowConfigBtnRef.current.getBoundingClientRect(),
@@ -5012,6 +5094,40 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                   </div>
                 )}
 
+                {persistTagVisible && (
+                  // 永续会话标记：persist_session 是 session.create 的一次性参数，会话存续期间
+                  // 后端没有关闭入口。会话还没有任何消息时展示 ×、点击仅本地隐藏（切走再切回
+                  // 会随会话记录回灌回来），hover 沿用 agent-tag「图标换 ×」的交换交互；一旦
+                  // 发过消息（hasHistory）直接不渲染 ×，并加 --static 修饰让图标 hover 常显，
+                  // 避免悬停时图标消失又没有 × 补位、标签视觉上缺一块。
+                  <div
+                    className={hasHistory ? 'chat-agent-tag chat-agent-tag--static' : 'chat-agent-tag'}
+                    data-testid="chat-panel-persist-tag"
+                  >
+                    <span className="chat-agent-tag__avatar chat-agent-tag__avatar--plain" aria-hidden="true">
+                      <InfinityIcon size={16} aria-hidden="true" />
+                    </span>
+                    <span className="chat-agent-tag__label" data-testid="chat-panel-persist-tag-label">
+                      {t('persistSession.toolbarTag')}
+                    </span>
+                    {!hasHistory && (
+                      <button
+                        type="button"
+                        className="chat-agent-tag__close"
+                        data-testid="chat-panel-persist-tag-close"
+                        aria-label={t('persistSession.closeTag')}
+                        title={t('persistSession.closeTag')}
+                        onClick={() => {
+                          if (!activeSessionId) return;
+                          useSessionStore.getState().setPersistSession(activeSessionId, false);
+                        }}
+                      >
+                        <WorkIcon name="close" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {swarmflowActive && (
                   <div className="chat-goal-tag" data-testid="chat-panel-swarmflow-tag">
                     <button
@@ -5198,7 +5314,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                   }}
                   onPick={insertComposerToken}
                   loading={slashCatalogLoading}
-                  slashSkillsOnly={isTeamMode}
+                  slashSkillsOnly={isTeamMode || composerSuggestion.kind === 'skill'}
                   placement="below"
                 />
               )}
@@ -5583,21 +5699,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                       );
                     })()}
                   </div>
-                  <div className="chat-swarmflow-config-panel__field">
-                    <div
-                      className="chat-swarmflow-config-panel__worktree-row"
-                      data-testid="chat-panel-swarmflow-worktree-row"
-                    >
-                      <label className="chat-swarmflow-config-panel__label">
-                        {t('swarmflow.worktreeToggleLabel')}
-                      </label>
-                      <Switch
-                        checked={swarmflowWorktreeEffective}
-                        disabled={swarmflowToggleDisabled}
-                        onChange={toggleSwarmflowWorktree}
-                      />
-                    </div>
-                  </div>
                   {swarmflowToggleDisabled && (
                     <span className="chat-swarmflow-config-panel__readonly-hint">
                       {t('swarmflow.configReadonlyHint')}
@@ -5607,9 +5708,6 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function In
                 document.body,
               );
             })()}
-          {worktreeGuideOpen && (
-            <WorktreeProjectGuide onAcknowledge={() => setWorktreeGuideOpen(false)} />
-          )}
         </div>
       </div>
 
@@ -5771,7 +5869,7 @@ function ComposerSuggestionMenu({
   slashSkillsOnly: boolean;
   placement?: 'above' | 'below';
 }) {
-  const isSlash = suggestion.kind === 'slash';
+  const isSlash = suggestion.kind === 'slash' || suggestion.kind === 'skill';
   const tokenPrefix = suggestion.kind === 'role' ? '$' : '@';
   const { t } = useTranslation();
   const commandCount = items.filter((item) => item.itemKind === 'command').length;

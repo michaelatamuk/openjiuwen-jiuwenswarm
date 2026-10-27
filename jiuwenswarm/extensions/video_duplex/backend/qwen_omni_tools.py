@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 from typing import Any
 
 
@@ -21,6 +22,26 @@ _TASK_TOOLS = {
 _DELEGATE_ARGUMENT_NAMES = ("task", "query", "instruction", "request")
 
 
+def delegate_matches_input(question: str, task: str) -> bool:
+    """Reject a new task with no recognizable subject from a full voice turn.
+
+    Short answers such as "十九点" depend on earlier conversation and remain valid.
+    This check only catches clear drift; it is not a semantic classifier.
+    """
+    source = re.sub(r"[^\u4e00-\u9fff]", "", question)
+    target = re.sub(r"[^\u4e00-\u9fff]", "", task)
+    if len(source) >= 6 and len(target) >= 4:
+        source_pairs = {source[index:index + 2] for index in range(len(source) - 1)}
+        target_pairs = {target[index:index + 2] for index in range(len(target) - 1)}
+        if source_pairs & target_pairs:
+            return True
+        # A Latin product, path, or name may be the shared subject.
+        source_words = set(re.findall(r"[a-z0-9]{3,}", question.casefold()))
+        target_words = set(re.findall(r"[a-z0-9]{3,}", task.casefold()))
+        return bool(source_words & target_words)
+    return True
+
+
 @dataclass(frozen=True)
 class QwenOmniToolCall:
     name: str
@@ -34,9 +55,11 @@ class QwenOmniToolCall:
         return self.task
 
 
-def qwen_omni_tools() -> list[dict[str, Any]]:
+def qwen_omni_tools(*, queue_manager: bool = False) -> list[dict[str, Any]]:
     """Return fresh Qwen-compatible tool definitions for each session."""
-    return task_management_tools() + [
+    return ([queue_management_tool(), next(
+        tool for tool in task_management_tools() if tool["function"]["name"] == "jiuwen_task_answer"
+    )] if queue_manager else task_management_tools()) + [
         {
             "type": "function",
             "function": {
@@ -108,7 +131,7 @@ def parse_qwen_omni_tool_call(value: Any) -> QwenOmniToolCall:
     if (
         name
         not in {QWEN_OMNI_DELEGATE_TOOL_NAME, QWEN_OMNI_RESEARCH_TOOL_NAME}
-        | _TASK_TOOLS
+        | _TASK_TOOLS | {"jiuwen_queue_manage"}
     ):
         raise ValueError(f"unsupported Qwen tool: {name or '<empty>'}")
 
@@ -128,7 +151,27 @@ def parse_qwen_omni_tool_call(value: Any) -> QwenOmniToolCall:
         raise ValueError("arguments must be a JSON object")
     if not isinstance(arguments, dict):
         raise ValueError("arguments must be a JSON object")
+    if name == "jiuwen_queue_manage":
+        instruction = arguments.get("instruction")
+        if set(arguments) != {"instruction"} or not isinstance(instruction, str) or not 1 <= len(instruction.strip()) <= 16000:
+            raise ValueError("Queue management requires a nonempty instruction")
+        return QwenOmniToolCall(name, call_id, {"instruction": instruction.strip()}, instruction.strip())
+    if "title" in arguments:
+        title = arguments["title"]
+        if not isinstance(title, str) or not title.strip() or len(title) > 80 or "\n" in title or "\r" in title:
+            raise ValueError("Invalid title")
+        arguments["title"] = title.strip()
     if name in _TASK_TOOLS:
+        if name == "jiuwen_task_reorder" and "queue_version" in arguments:
+            version = arguments["queue_version"]
+            if isinstance(version, str) and (
+                version == "0" or (version.isascii() and version.isdecimal() and not version.startswith("0"))
+            ) and len(version) <= 16:
+                version = int(version)
+            if type(version) is not int or not 0 <= version <= 2**53 - 1:
+                # The model may miscopy this large internal token. Let the
+                # server read the current version instead of rejecting the action.
+                arguments.pop("queue_version")
         schema = next(
             t["function"]["parameters"]
             for t in task_management_tools()
@@ -143,8 +186,20 @@ def parse_qwen_omni_tool_call(value: Any) -> QwenOmniToolCall:
                 if not isinstance(item, list) or not 1 <= len(item) <= 32:
                     raise ValueError("Invalid answers")
             elif key in {"revision", "offset", "queue_version"}:
+                # Some providers quote JSON integers despite the integer schema.
+                # Normalize only canonical decimal queue tokens; never coerce
+                # booleans, fractions, signs, exponents or arbitrary text.
+                if key == "queue_version" and isinstance(item, str) and (
+                    item == "0" or (item.isascii() and item.isdecimal() and not item.startswith("0"))
+                ) and len(item) <= 16:
+                    item = int(item)
+                    arguments[key] = item
                 if type(item) is not int or item < (1 if key == "revision" else 0):
                     raise ValueError(f"Invalid {key}")
+                if key == "queue_version" and item > 2**53 - 1:
+                    raise ValueError("Invalid queue_version: exceeds JavaScript safe integer range")
+            elif name == "jiuwen_task_answer" and key == "job_id" and item == "":
+                continue  # A typed-chat approval card has no job; it is answered with job_id "".
             elif (
                 not isinstance(item, str)
                 or not item.strip()
@@ -202,6 +257,25 @@ def parse_qwen_omni_tool_call(value: Any) -> QwenOmniToolCall:
     )
 
 
+def queue_management_tool():
+    return {
+        "type": "function",
+        "function": {
+            "name": "jiuwen_queue_manage",
+            "description": (
+                "Send any existing task queue query, reorder, cancellation, modification or information answer "
+                "to the dedicated text queue manager. Include the full user request and resolved references. "
+                "For 'first X, then Y' involving existing tasks, call this before speaking. "
+                "The manager queries real tasks and executes controls; report only its returned receipts."
+            ),
+            "parameters": {
+                "type": "object", "properties": {"instruction": {"type": "string", "maxLength": 16000}},
+                "required": ["instruction"], "additionalProperties": False,
+            },
+        },
+    }
+
+
 def task_management_tools():
     specs = [
         (
@@ -215,21 +289,24 @@ def task_management_tools():
             ),
             {
                 "job_id": {"type": "string"},
-                "queue_version": {"type": "integer", "minimum": 0},
+                "queue_version": {"type": "integer", "minimum": 0,
+                                  "description": "Optional legacy concurrency token. Omit it; the server reads the current queue version."},
                 "action": {"type": "string", "enum": ["next", "before"]},
                 "before_job_id": {"type": "string"},
             },
-            ["job_id", "queue_version", "action"],
+            ["job_id", "action"],
         ),
         (
             "jiuwen_task_answer",
             (
-                "Answer an observed pending Agent information question so the original task continues."
-                " Query exact job_id, interaction.id and questions first; pass interaction.id as "
-                "interaction_id. Clarify which task if ambiguous. Never use this for permission "
-                "approvals or create a new task for an answer; requires_click approval cards are "
-                "answered only by the user clicking on screen, so ask them to click and never say an "
-                "approval was granted unless a later query shows the task resumed. answers is an array of plain text "
+                "Answer an observed pending Agent information question or approval card so the original task "
+                "continues. Query exact job_id, interaction.id and questions first; pass interaction.id as "
+                "interaction_id. Clarify which task if ambiguous. Never create a new task for an answer, and "
+                "never use a new request (e.g. 打开微信) as an answer. Approval cards: choose the allow option "
+                "only when the user clearly says 同意/允许/可以/批准, the reject option when they clearly say "
+                "拒绝/不要/取消这个操作, the session option (会话内记住) only for 本会话保持同意/本会话同意/这个会话都允许; the permanent option (永久记住) only for an explicit 永久同意/永久允许/以后都允许; "
+                "if unclear or several cards are pending, ask first and do not submit. Say 已批准 only after "
+                "the receipt or a later query shows the task resumed. answers is an array of plain text "
                 "strings, one per observed question in the SAME order, e.g. [\"5000元\", \"2人\"]. "
                 "Use only explicit user answers; ask for missing answers instead of inventing them. "
                 "Accepted is not completed."
@@ -253,7 +330,8 @@ def task_management_tools():
         (
             "jiuwen_task_query",
             (
-                "Find Core invocations and their results in this conversation. Query before selecting an "
+                "Find Core invocations and their results in this conversation, plus the user's scheduled "
+                "tasks (定时任务) from all conversations in scheduled_jobs. Query before selecting an "
                 "ambiguous task; use exact returned job_id and revision for controls. "
                 "query is a literal substring of the task title or original task text, not a question or "
                 "a list of keywords. Prefer a known job_id. If no task matches, shorten query "
