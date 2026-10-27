@@ -15,7 +15,6 @@ import {
   type DiagnosisSelectionState,
 } from './diagnosis/diagnosisSelection';
 import { canSubmitDiagnosis, highlightKeysOf } from './diagnosis/diagnosisState';
-import type { RootCause } from './diagnosis/diagnosisTypes';
 import { DiagnosisRecordSelect } from './diagnosis/DiagnosisRecordSelect';
 import { DiagnosisSelectionBar } from './diagnosis/DiagnosisSelectionBar';
 import { DiagnosisSubpage } from './diagnosis/DiagnosisSubpage';
@@ -115,10 +114,15 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
     setNote('');
     setEmptyNodesHint(false);
   }, []);
+  const replayActive = archiveActions?.replayActive === true;
   // A hidden page is not a place to keep an unsent pick.
   useEffect(() => {
     if (!active) exitSelection();
   }, [active, exitSelection]);
+  // Imported archives are read-only replays; leave selection mode as soon as one opens.
+  useEffect(() => {
+    if (replayActive) exitSelection();
+  }, [exitSelection, replayActive]);
   useEffect(() => {
     if (!selecting) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -185,17 +189,18 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
     });
   }, [exitSelection, fullScope, nodeLimitExceeded, note, selectedNodes, selectionState, start, subjectChoices]);
 
-  const focusCause = useCallback((cause: RootCause | null) => {
-    if (cause === null) {
+  const focusCause = useCallback((findingId: string | null) => {
+    if (findingId === null) {
       setFocused(null);
       return;
     }
-    setFocused({ causeId: cause.id, keys: highlightKeysOf(record, [cause.id]) });
+    setFocused({ causeId: findingId, keys: highlightKeysOf(record, [findingId]) });
     setSubpage('trajectory');
   }, [record]);
 
   let diagnoseBlockedReason: string | null = null;
-  if (session.running) diagnoseBlockedReason = t('trajectory.analysis.selection.running');
+  if (replayActive) diagnoseBlockedReason = t('trajectory.analysis.selection.replay');
+  else if (session.running) diagnoseBlockedReason = t('trajectory.analysis.selection.running');
   else if (!timelineAvailable) diagnoseBlockedReason = t('trajectory.analysis.selection.noData');
 
   const tabs: ReadonlyArray<{ id: TrajectoryAnalysisSubpage; label: string }> = [
@@ -226,7 +231,7 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
         <h2 className={css.title}>{t('trajectory.diagnosis.entry')}</h2>
         {summary === null ? null : (
           <span className={css.summary} data-testid="trajectory-analysis-summary">
-            {t('trajectory.analysis.summary', { traces: summary.traces, spans: summary.spans })}
+            {t('trajectory.analysis.summary', { agents: summary.agents, spans: summary.spans })}
           </span>
         )}
         <span className={css.spacer} />
@@ -309,7 +314,13 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
           onDiagnosisNodesChange={setDiagnosisLanes}
           onTimelineAvailableChange={setTimelineAvailable}
           {...(focused === null ? {} : { highlightStepKeys: focused.keys })}
-          {...(selecting ? { selection: { state: selectionState, onChange: setSelectionState } } : {})}
+          {...(selecting
+            ? {
+              selection: { state: selectionState, onChange: setSelectionState },
+              fullScopeSelection: fullScope,
+              onFullScopeChange: setFullScope,
+            }
+            : {})}
         />
       </div>
       <div
@@ -321,8 +332,8 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
         <DiagnosisSubpage
           session={session}
           subjectLabels={subjectLabels}
-          focusedCauseId={focused?.causeId ?? null}
-          onFocusCause={focusCause}
+          focusedFindingId={focused?.causeId ?? null}
+          onFocusFinding={focusCause}
         />
       </div>
       {selecting ? (
@@ -331,16 +342,11 @@ export const TrajectoryAnalysisPage = memo(function TrajectoryAnalysisPage({
           fullScopeBlocked={busy}
           onFullScopeChange={(value) => {
             setFullScope(value);
-            if (value) {
-              setSelectionState(current => ({
-                ...EMPTY_DIAGNOSIS_SELECTION,
-                excluded: current.excluded,
-              }));
-            }
+            if (value) setSelectionState(EMPTY_DIAGNOSIS_SELECTION);
           }}
           note={note}
           onNoteChange={setNote}
-          pickedAgents={pickedAgents}
+          pickedAgents={fullScope ? subjectChoices.length : pickedAgents}
           pickedNodes={selectedNodes}
           lastTurnNotice={coversMainLastTurn ? t('trajectory.analysis.selection.lastTurn') : null}
           nodeLimitNotice={nodeLimitExceeded
