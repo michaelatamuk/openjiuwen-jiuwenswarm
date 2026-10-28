@@ -90,6 +90,7 @@ import { useDesktopLocalFilePickerReady, useWelcomeBubblePosition } from '../../
 import { ApplicationPluginTaskRuntimes, flushApplicationConversationHistory } from '../../applicationPlugins/ApplicationPluginOutlet';
 import { generateUuidV4 } from '../../utils/uuid';
 import { useOrganizationConversationKey } from '../../features/teamOrganization/conversation';
+import { useOrganizationProcessing } from '../../features/teamOrganization/processing';
 import { requestLogin, useAuthStore } from '../../stores/authStore';
 import type { PromptSuggestionBox } from '../../hooks/usePromptSuggestionBox';
 import { webClient, webRequest } from '../../services/webClient';
@@ -219,6 +220,8 @@ interface ChatPanelProps {
   composerCollapsed?: boolean;
   /** 切换停靠模式下的输入区收起状态；缺省时不渲染收起按钮。 */
   onToggleComposerCollapsed?: () => void;
+  /** 诊断选区或诊断页打开时，输入区保持收起且不能点开。 */
+  composerToggleDisabled?: boolean;
   /**
    * 上报输入区实测高度，供轨迹视图留出底部空白，避免末尾记录被输入区遮住。
    * 仅在停靠模式下回调；收起时上报 0。
@@ -1233,6 +1236,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   composerDocked = false,
   composerCollapsed = false,
   onToggleComposerCollapsed,
+  composerToggleDisabled = false,
   onComposerHeightChange,
   diagnosisEntryAvailable = false,
   diagnosisActive = false,
@@ -1242,7 +1246,10 @@ export const ChatPanel = React.memo(function ChatPanel({
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const conversationId = useOrganizationConversationKey(activeSessionId);
   const expertIsProcessing = useChatStore((s) => s.runtimes[conversationId]?.isProcessing ?? false);
-  const isProcessing = conversationId === activeSessionId ? sessionIsProcessing : expertIsProcessing;
+  const organizationIsProcessing = useOrganizationProcessing(activeSessionId);
+  const isProcessing = conversationId === activeSessionId
+    ? sessionIsProcessing || organizationIsProcessing
+    : expertIsProcessing;
   const agentGroupUnavailable = useChatStore(
     (s) => s.runtimes[activeSessionId ?? '']?.agentGroupUnavailable ?? false,
   );
@@ -2662,8 +2669,13 @@ export const ChatPanel = React.memo(function ChatPanel({
                 data-testid="chat-panel-header-composer-toggle"
                 data-variant={composerCollapsed ? 'expand' : 'collapse'}
                 aria-expanded={!composerCollapsed}
-                title={composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
-                aria-label={composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                title={composerToggleDisabled
+                  ? t('trajectory.composer.unavailable')
+                  : composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                aria-label={composerToggleDisabled
+                  ? t('trajectory.composer.unavailable')
+                  : composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                disabled={composerToggleDisabled}
                 onClick={onToggleComposerCollapsed}
               >
                 {composerCollapsed
@@ -2817,10 +2829,10 @@ export const ChatPanel = React.memo(function ChatPanel({
                   data-testid="chat-panel-welcome-group-banner"
                 />
               )}
-              <div className="chat-welcome__header" data-testid="chat-panel-welcome-header">
-                <h2 className="chat-welcome__heading" data-testid="chat-panel-welcome-heading">
-                  {isGroupCreateWelcome ? <GroupCreateWelcomeHeading /> : <WelcomeHeading />}
-                </h2>
+              <h2 className="chat-welcome__heading" data-testid="chat-panel-welcome-heading">
+                {isGroupCreateWelcome ? <GroupCreateWelcomeHeading /> : <WelcomeHeading />}
+              </h2>
+              <div className="chat-welcome__composer" data-testid="chat-panel-welcome-composer">
                 {!isGroupCreateWelcome && (
                   <>
                     <div
@@ -2869,6 +2881,35 @@ export const ChatPanel = React.memo(function ChatPanel({
                     />
                   </>
                 )}
+                <ActiveTeamGroupEntry isProcessing={isProcessing} teamAreaExpanded={teamAreaExpanded} />
+                <AgentActivityCard isProcessing={isProcessing} onSendTask={handleSendMessage} onContinueQueuedSessionMessages={onContinueQueuedSessionMessages} />
+                <InterruptResultBubble />
+                <InteractionSlot onSubmit={onUserAnswer} />
+                <InputArea
+                  ref={inputAreaRef}
+                  onSubmit={handleSendMessage}
+                  onEnsureSession={onEnsureSession}
+                  onForkSession={onForkSession}
+                  onInputIntent={handleInputIntent}
+                  onPersistMedia={onPersistMedia}
+                  onPersistDocuments={onPersistDocuments}
+                  onDiscardMedia={onDiscardMedia}
+                  onInterrupt={onInterrupt}
+                  onCancel={onCancel}
+                  onSwitchMode={onSwitchMode}
+                  isProcessing={isProcessing}
+                  autoFocusKey={autoFocusKey}
+                  onNavigateToSkills={onNavigateToSkills}
+                  onNavigateToAgents={onNavigateToAgents}
+                  onAgentGroupIdentityChange={handleTeamGroupIdentityChange}
+                  permissionProfile={permissionProfile}
+                  onSavePermission={onSavePermission}
+                  onSetGoal={onSetGoal}
+                  onPauseGoal={onPauseGoal}
+                  onResumeGoal={onResumeGoal}
+                  onRefreshGoal={onRefreshGoal}
+                  onClearGoal={onClearGoal}
+                />
               </div>
               <div className="chat-suggestions" data-testid="chat-panel-welcome-suggestions">
                 <p className="chat-suggestions__label" data-testid="chat-panel-welcome-recommendation-label">
@@ -2928,37 +2969,6 @@ export const ChatPanel = React.memo(function ChatPanel({
                     />
                   );
                 })}
-              </div>
-              <div className="chat-welcome__composer" data-testid="chat-panel-welcome-composer">
-                <ActiveTeamGroupEntry isProcessing={isProcessing} teamAreaExpanded={teamAreaExpanded} />
-                <AgentActivityCard isProcessing={isProcessing} onSendTask={handleSendMessage} onContinueQueuedSessionMessages={onContinueQueuedSessionMessages} />
-                <InterruptResultBubble />
-                <InteractionSlot onSubmit={onUserAnswer} />
-                <InputArea
-                  ref={inputAreaRef}
-                  onSubmit={handleSendMessage}
-                  onEnsureSession={onEnsureSession}
-                  onForkSession={onForkSession}
-                  onInputIntent={handleInputIntent}
-                  onPersistMedia={onPersistMedia}
-                  onPersistDocuments={onPersistDocuments}
-                  onDiscardMedia={onDiscardMedia}
-                  onInterrupt={onInterrupt}
-                  onCancel={onCancel}
-                  onSwitchMode={onSwitchMode}
-                  isProcessing={isProcessing}
-                  autoFocusKey={autoFocusKey}
-                  onNavigateToSkills={onNavigateToSkills}
-                  onNavigateToAgents={onNavigateToAgents}
-                  onAgentGroupIdentityChange={handleTeamGroupIdentityChange}
-                  permissionProfile={permissionProfile}
-                  onSavePermission={onSavePermission}
-                  onSetGoal={onSetGoal}
-                  onPauseGoal={onPauseGoal}
-                  onResumeGoal={onResumeGoal}
-                  onRefreshGoal={onRefreshGoal}
-                  onClearGoal={onClearGoal}
-                />
               </div>
               {isGroupCreateWelcome && (
                 <div className="chat-welcome__capabilities" data-testid="chat-panel-welcome-capabilities">
