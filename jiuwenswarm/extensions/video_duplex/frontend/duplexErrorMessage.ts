@@ -2,8 +2,10 @@ type FailureScope = 'session' | 'task';
 
 /** Keep the service's actual error while explaining its effect and a useful next step. */
 export function describeDuplexError(raw: string, scope: FailureScope = 'session'): string {
-  const detail = raw.trim() || '服务未提供具体原因';
-  if (detail.startsWith('原因：') && detail.includes('结果：') && detail.includes('解决方式：')) return detail;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('原因：') && trimmed.includes('结果：') && trimmed.includes('解决方式：')) return trimmed;
+  // Drop trailing sentence punctuation so the template below does not print "。。".
+  const detail = trimmed.replace(/[。.！!]+$/u, '') || '服务未提供具体原因';
 
   const task = scope === 'task';
   let result = task ? '本次任务未完成，无法使用任务结果' : '本次语音交互可能未完成';
@@ -17,7 +19,15 @@ export function describeDuplexError(raw: string, scope: FailureScope = 'session'
   } else if (/\b(401|403)\b|unauthorized|forbidden|invalid.?api.?key|鉴权|认证失败/i.test(detail)) {
     action = '请检查对应服务的 API Key、访问权限及模型授权，然后重试';
   } else if (/\b429\b|quota|rate.?limit|限流|额度|配额/i.test(detail)) {
-    action = '请检查服务额度和限流状态，额度恢复后重试';
+    if (/joyai/i.test(detail)) {
+      result = '模型供应商额度已耗尽，本次请求被拒';
+      action = 'JoyAI 服务商限流（429，每分钟 token 额度已用完），请稍后重试或提高供应商额度';
+    } else {
+      action = '请检查服务额度和限流状态，额度恢复后重试';
+    }
+  } else if (/选屏框.*未选择屏幕/.test(detail)) {
+    result = '屏幕共享未开启';
+    action = '请重新开启，并在系统弹出的选屏框中点选要共享的屏幕';
   } else if (/not.?supported|不支持/i.test(detail)) {
     // A runtime capability gap (#5283): the service logs hold nothing useful.
     result = '当前运行环境不支持该功能';

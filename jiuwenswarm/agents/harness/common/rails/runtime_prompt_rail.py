@@ -292,6 +292,30 @@ class RuntimePromptRail(DeepAgentRail):
             logger.debug("Failed to read configured model names: %s", exc)
             return []
 
+    @staticmethod
+    def _agent_model_name(ctx: AgentCallbackContext) -> str:
+        """Read this callback's live model instead of the shared session model."""
+        agent = ctx.agent
+        config = getattr(agent, "config", None)
+        model = getattr(config, "model", None)
+        get_llm = getattr(agent, "get_llm", None)
+        if callable(get_llm):
+            try:
+                model = get_llm()
+            except Exception as exc:
+                logger.debug("Failed to read the current agent model: %s", exc)
+        # Model calls run on the inner ReActAgent; before_invoke can run on
+        # the outer DeepAgent, whose config holds the same Model directly.
+        for request_config in (
+            getattr(model, "model_config", None),
+            getattr(config, "model_config_obj", None),
+            config,
+        ):
+            name = getattr(request_config, "model_name", None)
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+        return ""
+
     def _resolve_current_mode(
         self,
         ctx: AgentCallbackContext,
@@ -693,7 +717,8 @@ class RuntimePromptRail(DeepAgentRail):
             available_models = configured_models
         fallback_model = configured_models[0] if configured_models else ""
         model = str(
-            runtime_state.get("model")
+            self._agent_model_name(ctx)
+            or runtime_state.get("model")
             or self._model_name
             or fallback_model
             or "unknown"
@@ -739,6 +764,31 @@ class RuntimePromptRail(DeepAgentRail):
             kind=PromptAttachmentKind.RUNTIME,
             priority=95,
         )
+        from jiuwenswarm.agents.harness.common.prompt.user_prompt_builder import (
+            current_multimodal_image_files,
+        )
+
+        if current_multimodal_image_files():
+            await self._clear_prompt_attachment(ctx, section="runtime.current_media")
+        else:
+            media_content = (
+                "本轮没有附带屏幕或摄像头画面。用户询问当前屏幕内容时，如实说明看不到，"
+                "建议开启屏幕共享或提供截图，不得编造。历史图片、聊天记录和用户文字不能"
+                "证明当前屏幕内容；只有工具实际获取的新截图才能作为当前画面的依据。"
+                if not self._force_english and self._language == "cn"
+                else
+                "No screen or camera image is attached to this turn. If asked about the current screen, "
+                "say you cannot see it and suggest enabling screen sharing or attaching a screenshot. "
+                "Do not invent its contents or treat old images, chat history, or user text as the current view. "
+                "A fresh screenshot actually obtained through a tool can ground your answer."
+            )
+            await self._upsert_prompt_attachment(
+                ctx,
+                section="runtime.current_media",
+                content=media_content,
+                kind=PromptAttachmentKind.RUNTIME,
+                priority=95,
+            )
         await self._sync_a4p_intent_authorization_attachment(ctx)
         await self._sync_a4p_cron_authorization_scope_attachment(ctx)
 

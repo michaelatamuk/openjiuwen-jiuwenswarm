@@ -3248,3 +3248,72 @@ class TestCanonicalModeBoundary:
         meta = get_session_metadata("s_code_team")
         assert meta["mode"] == "team.code.normal"
         assert "wire_mode" not in meta
+
+
+class TestGetAllSessionsMetadataLifecycleVisibility:
+    """Archive/delete are accepted before their directory changes, so the flat
+    active list must already hide them (otherwise a slow or abandoned cleanup
+    keeps a deleted Session visible forever)."""
+
+    @staticmethod
+    def test_hides_logically_deleted_and_archived(sessions_dir, monkeypatch):
+        from jiuwenswarm.server.runtime.session import lifecycle as lc
+        from jiuwenswarm.server.runtime.session.session_metadata import (
+            get_all_sessions_metadata,
+            init_session_metadata,
+        )
+
+        for sid in ("live", "gone", "archived", "archiving"):
+            init_session_metadata(session_id=sid, channel_id="web")
+
+        def fake_state(kind, resource_id):
+            if kind != "session":
+                return {}
+            if resource_id == "gone":
+                return {"deleted": True}
+            if resource_id == "archived":
+                return {
+                    "operation": {"kind": "archive", "status": "completed"},
+                }
+            if resource_id == "archiving":
+                return {
+                    "operation": {"kind": "archive", "status": "running"},
+                }
+            return {}
+
+        monkeypatch.setattr(lc, "state", fake_state)
+        # A completed archive lives in sessions_archived; the existing path
+        # check hides it.  Keep the pending one only in the active area.
+        (sessions_dir.parent / "sessions_archived" / "archived").mkdir(parents=True)
+        monkeypatch.setattr(
+            lc,
+            "session_paths",
+            lambda sid, sessions_root=None: (
+                sessions_dir / sid,
+                sessions_dir.parent / "sessions_archived" / sid,
+            ),
+        )
+
+        sessions, total = get_all_sessions_metadata()
+        assert total == 1
+        assert [item["session_id"] for item in sessions] == ["live"]
+
+
+def test_owner_stop_persists_without_changing_session_activity_or_other_metadata(sessions_dir):
+    from jiuwenswarm.server.runtime.session import session_metadata as sm
+    from jiuwenswarm.server.runtime.organization_execution import owner_is_stopped, set_owner_stopped
+
+    sm.update_session_metadata(
+        session_id="owner-stop", mode="team", team_name="owner", title="original", sync_write=True,
+    )
+    original = sm.get_session_metadata("owner-stop")
+    set_owner_stopped("owner-stop", True)
+    assert sm.get_session_metadata("owner-stop", cache_bust=True)["organization_owner_stopped"] is True
+    assert owner_is_stopped("owner-stop", "owner")
+    assert not owner_is_stopped("owner-stop", "child")
+    stored = sm.get_session_metadata("owner-stop")
+    assert stored["last_message_at"] == original["last_message_at"]
+    assert stored["title"] == "original"
+    set_owner_stopped("owner-stop", False)
+    assert not owner_is_stopped("owner-stop", "owner")
+

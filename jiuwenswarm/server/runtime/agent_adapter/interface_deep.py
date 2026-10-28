@@ -50,7 +50,13 @@ from openjiuwen.core.foundation.llm import (
 )
 from openjiuwen.core.foundation.llm.utils.provider_utils import is_openai_account_provider
 from openjiuwen.core.foundation.store.base_embedding import EmbeddingConfig
-from openjiuwen.core.foundation.tool import ToolCard, McpServerConfig, ToolExposure, ToolInfo
+from openjiuwen.core.foundation.tool import (
+    McpServerConfig,
+    McpToolCard,
+    ToolCard,
+    ToolExposure,
+    ToolInfo,
+)
 from openjiuwen.core.common.logging import server_logger
 from openjiuwen.core.runner import Runner
 from openjiuwen.core.session.checkpointer import CheckpointerFactory
@@ -142,7 +148,7 @@ from jiuwenswarm.server.runtime.agent_adapter.permission_rail_group import (
 )
 from jiuwenswarm.server.runtime.agent_adapter.permission_continuation import (
     discard_pending_permission_interrupt_for_target,
-    discard_permission_continuation, validate_manual_resume,
+    discard_permission_continuation, has_live_pending_interrupt, validate_manual_resume,
 )
 from jiuwenswarm.server.runtime.agent_adapter.permission_dispatch import (
     ROOT_PERMISSION_ANSWER_KEY as _ROOT_PERMISSION_ANSWER_KEY,
@@ -375,6 +381,9 @@ from jiuwenswarm.agents.harness.common.tools.todo_compat import (
 from jiuwenswarm.agents.harness.common.tools.subagent_compat import (
     install_subagent_control_compat_patch,
 )
+from jiuwenswarm.agents.harness.common.tools.tool_discovery_catalog import (
+    apply_discovery_metadata,
+)
 from jiuwenswarm.agents.harness.common.tools.command_execution_context import (  # noqa: E402
     bind_command_execution,
     reset_command_execution,
@@ -507,6 +516,7 @@ from jiuwenswarm.agents.harness.common.tools.multimodal_config import (
 from jiuwenswarm.agents.harness.common.tools.video_tools import video_understanding
 from jiuwenswarm.agents.harness.common.tools.file_delivery_policy import is_send_file_enabled
 from jiuwenswarm.agents.harness.common.tools.heartbeat_policy import is_heartbeat_supported
+from jiuwenswarm.common.scheduled_task_policy import is_scheduled_task_supported
 from jiuwenswarm.agents.harness.common.tools.image_tools import generate_image
 from jiuwenswarm.agents.harness.common.tools.video_gen_tools import (
     generate_video,
@@ -588,6 +598,7 @@ from jiuwenswarm.common.config import (
     get_ttse_enabled,
     resolve_env_vars,
 )
+from jiuwenswarm.common.cua_config import is_cua_agent_enabled
 from jiuwenswarm.common.mcp_config import (
     build_mcp_credential_resolver,
     build_mcp_server_config,
@@ -1097,6 +1108,7 @@ _CRON_TOOL_NAMES = frozenset(
         "cron_delete_job",
         "cron_toggle_job",
         "cron_preview_job",
+        "cron_run_now",
     }
 )
 
@@ -2305,6 +2317,23 @@ class JiuWenSwarmDeepAdapter:
         ]
         return any(
             not is_heartbeat_supported(candidate)
+            for candidate in candidates
+            if candidate
+        )
+
+    def _scheduled_task_unsupported_for_current_request(
+        self, session_id: str | None = None
+    ) -> bool:
+        """Detect Xiaoyi from request context or the channel-qualified session ID."""
+        context = getattr(self, "_runtime_cron_tool_context", None)
+        candidates = [
+            str(getattr(context, "channel_id", "") or "").strip(),
+            str(session_id or getattr(self, "_parent_session_id", "") or "")
+            .strip()
+            .split("_", 1)[0],
+        ]
+        return any(
+            not is_scheduled_task_supported(candidate)
             for candidate in candidates
             if candidate
         )
@@ -3565,6 +3594,53 @@ class JiuWenSwarmDeepAdapter:
         waiters = getattr(lock, "_waiters", None)
         return any(not waiter.cancelled() for waiter in list(waiters or ()))
 
+    @classmethod
+    def _is_managed_voice_task_input(cls, request: AgentRequest) -> bool:
+        """Return whether this is a new full-duplex managed task, not an answer.
+
+        Its prompt is Host-authored (``source``, ``log_as_user: false``), so it
+        is not an external user dispatch and must not cut over Permission.
+        """
+        params = request.params if isinstance(request.params, dict) else {}
+        return (
+            request.channel_id == "video_tool"
+            and request.req_method == ReqMethod.CHAT_SEND
+            and bool(params.get("managed_task_binding"))
+            and not cls._is_interrupt_resume_dispatch(params)
+        )
+
+    def session_has_pending_interrupt(self, session_id: str) -> bool:
+        """Read-only: whether Core still waits for an answer in *session_id*."""
+        if not self._is_session_scoped_adapter:
+            child = self._session_adapters.get(self._session_adapter_key(session_id))
+            return bool(child is not None and child.session_has_pending_interrupt(session_id))
+        sid = self._resolve_interrupt_session_id(session_id)
+        return has_live_pending_interrupt(
+            self._instance, sid, self._deep_agent_loop_session_id()
+        )
+
+    async def _clear_stale_interrupt_before_managed_voice_task(
+        self, request: AgentRequest
+    ) -> None:
+        """Start a managed voice task as a new turn without answering a card (#5486).
+
+        Fed to a pending interrupt, Core reads the task prompt as the answer,
+        re-asks the old approval and replays its tool. Leftover state whose
+        tool results all exist, or that no longer matches the context, is
+        cleared. A question the user still has to
+        answer is neither answered nor cleared; the task is refused and the
+        full-duplex queue holds it until that question settles.
+        """
+        sid = self._resolve_interrupt_session_id(request.session_id)
+        loop_sid = self._deep_agent_loop_session_id()
+        if has_live_pending_interrupt(self._instance, sid, loop_sid):
+            raise RuntimeError("会话里有待回答的审批，语音任务需等待审批处理后再执行。")
+        await discard_pending_permission_interrupt_for_target(
+            self._instance, sid, loop_sid,
+            cancel_reason="managed_voice_task_drops_stale_interrupt", only_stale=True,
+            drop_unproven=True,
+        )
+
     @staticmethod
     def _is_host_permission_update_input(request: AgentRequest) -> bool:
         """Return whether this request may consume a pending Permission version."""
@@ -3792,6 +3868,14 @@ class JiuWenSwarmDeepAdapter:
                 )
                 if busy:
                     installed_selection = getattr(existing, "_collaboration_model_selection", None)
+                    if selection is not None and not getattr(existing, "_moa_enabled", False):
+                        # Ordinary routing can apply a stable model after the child
+                        # was built. Compare with that actual model, not its initial selection.
+                        suffix = f":{selection.route_id}" if selection.route_id else ""
+                        reference = f"{selection.type}:{selection.id}{suffix}"
+                        cached = getattr(existing, "_stable_selection_cache", {}).get(reference)
+                        if cached is not None and cached[1] is getattr(existing, "_last_resolved_model", None):
+                            installed_selection = selection
                     explicit_switch = model_selection is not None or bool(model_name)
                     if not retain_moa_snapshot and explicit_switch and selection != installed_selection:
                         raise RuntimeError("Model selection cannot change while the session is executing")
@@ -4383,6 +4467,9 @@ class JiuWenSwarmDeepAdapter:
                 return False
         if not stale_interactive_input:
             if self._should_inject_into_existing_interaction(request.params):
+                return False
+            if self._is_managed_voice_task_input(request):
+                await self._clear_stale_interrupt_before_managed_voice_task(request)
                 return False
             if not self._is_host_permission_update_input(request):
                 return False
@@ -5340,12 +5427,13 @@ class JiuWenSwarmDeepAdapter:
         cua_agent_cfg = (
             subagents_cfg.get("cua_agent") if isinstance(subagents_cfg, dict) else None
         )
-        if self._is_subagent_enabled(cua_agent_cfg) and cua_model_rejects_images(model):
+        cua_agent_cfg = cua_agent_cfg if isinstance(cua_agent_cfg, dict) else {}
+        if is_cua_agent_enabled(cua_agent_cfg) and cua_model_rejects_images(model):
             logger.warning(
                 "[JiuWenSwarmDeepAdapter] cua_agent skipped: the model rejects image input "
                 "and cua_agent sees the screen only through screenshots"
             )
-        elif self._is_subagent_enabled(cua_agent_cfg):
+        elif is_cua_agent_enabled(cua_agent_cfg):
             subagents.append(
                 build_cua_agent_config(
                     model,
@@ -5397,7 +5485,10 @@ class JiuWenSwarmDeepAdapter:
         """
         name = str(entry.get("name", "")).strip()
         resolver = build_mcp_credential_resolver(name)
-        return build_mcp_server_config(entry, server_id_scope="jiuwenswarm", credential_resolver=resolver)
+        return build_mcp_server_config(
+            entry, server_id_scope="jiuwenswarm", credential_resolver=resolver,
+            resolve_node_launcher=True,
+        )
 
     @staticmethod
     def _extract_enabled_mcp_server_entries(config_base: dict[str, Any]) -> list[dict[str, Any]]:
@@ -6611,14 +6702,25 @@ class JiuWenSwarmDeepAdapter:
                 continue
             if getattr(card, "exposure", None) is not ToolExposure.DEFERRED:
                 continue
-            parameters = getattr(card, "input_params", None)
-            infos.append(
-                ToolInfo(
-                    name=name,
-                    description=str(getattr(card, "description", "") or ""),
-                    parameters=parameters if isinstance(parameters, dict) else {},
+            try:
+                apply_discovery_metadata(card)
+                if isinstance(card, McpToolCard):
+                    info = card.tool_info()
+                else:
+                    parameters = getattr(card, "input_params", None)
+                    info = ToolInfo(
+                        name=name,
+                        description=str(getattr(card, "description", "") or ""),
+                        parameters=parameters if isinstance(parameters, dict) else {},
+                    )
+            except Exception:
+                logger.warning(
+                    "[JiuWenSwarmDeepAdapter] deferred tool card projection failed for %s",
+                    name,
+                    exc_info=True,
                 )
-            )
+                continue
+            infos.append(info)
         return infos
 
     def _drop_pending_progressive_tool_rail(self) -> None:
@@ -6733,7 +6835,8 @@ class JiuWenSwarmDeepAdapter:
         )
 
         toolkit = self._tool_retrieval_toolkit
-        if toolkit is not None:
+        language = self._resolve_runtime_language()
+        if toolkit is not None and getattr(toolkit, "language", None) == language:
             return toolkit
         # The provider reads from the agent's AbilityManager live (not a frozen
         # card snapshot) so tools registered after _get_tool_cards — cron/
@@ -6745,6 +6848,7 @@ class JiuWenSwarmDeepAdapter:
             session_scope=self._skill_retrieval_session_scope(),
             config_base=self._config_base_cache,
             mcp_servers_provider=self._mcp_server_descriptions,
+            language=language,
         )
         self._tool_retrieval_toolkit = toolkit
         return toolkit
@@ -9803,8 +9907,9 @@ class JiuWenSwarmDeepAdapter:
             subagents_cfg = ((config_base or {}).get("react") or {}).get("subagents")
             subagent_rail = BrowserTaskPromptRail(
                 enable_subagent_runtime=enable_runtime,
-                cua_agent_enabled=isinstance(subagents_cfg, dict)
-                and self._is_subagent_enabled(subagents_cfg.get("cua_agent")),
+                cua_agent_enabled=is_cua_agent_enabled(
+                    subagents_cfg.get("cua_agent") if isinstance(subagents_cfg, dict) else None
+                ),
             )
             logger.info(
                 "[JiuWenSwarmDeepAdapter] SubagentRail create success "
@@ -10727,6 +10832,9 @@ class JiuWenSwarmDeepAdapter:
         normalized_tool_cards = [
             tool.card if hasattr(tool, "card") else tool for tool in (tool_cards or [])
         ]
+        normalized_tool_cards = [
+            apply_discovery_metadata(card) for card in normalized_tool_cards
+        ]
         configured_subagents = self._build_subagents_with_general_purpose(
             model=model,
             config=config,
@@ -11457,6 +11565,7 @@ class JiuWenSwarmDeepAdapter:
         Args:
             tool: Tool instance to share process-wide.
         """
+        apply_discovery_metadata(tool.card)
         mark_stateless([tool])
         register_tool(tool, None)
 
@@ -11478,6 +11587,7 @@ class JiuWenSwarmDeepAdapter:
             tool: Per-agent tool instance to register.
             owner_id: Owner id that this adapter's agent registers under.
         """
+        apply_discovery_metadata(tool.card)
         if getattr(tool.card, "stateless", False):
             logger.debug(
                 "[JiuWenSwarmDeepAdapter] tool %s is declared shared; registering it as shared"
@@ -13195,7 +13305,6 @@ class JiuWenSwarmDeepAdapter:
         方法注册，send_file 首次注册后改走 ``update_runtime_context``。
         这里每次请求只做幂等检查和运行时上下文更新。
         """
-        self._ensure_cron_tools_registered(session_id)
         self._ensure_session_messaging_tools_registered(session_id, channel_id)
 
         # send_file 工具：由 channels.<channel>.send_file_allowed 控制。工具实例只建一次，
@@ -13213,6 +13322,13 @@ class JiuWenSwarmDeepAdapter:
             cron_channel = str(_CRON_TOOL_CHANNEL_ID.get() or "").strip()
             if cron_channel:
                 channel = cron_channel
+        if (
+            is_scheduled_task_supported(channel)
+            and not self._scheduled_task_unsupported_for_current_request(session_id)
+        ):
+            self._ensure_cron_tools_registered(session_id)
+        else:
+            self._drop_cron_tools(channel)
         # 心跳工具按渠道能力下发：小艺渠道不下发（见 heartbeat_policy）。
         # 工具由 HeartbeatRail 在 agent 组装期注册，这里每请求兜一次摘除，
         # 覆盖 rail 已被缓存、首次构建时渠道尚未确定的情况。
@@ -13252,6 +13368,38 @@ class JiuWenSwarmDeepAdapter:
                     project_dir=self._project_dir,
                     require_execution_authorization=require_send_authorization,
                 )
+
+    def _drop_cron_tools(self, channel: str) -> None:
+        """Remove cron tools from a channel that does not support scheduled tasks."""
+        ability_manager = getattr(self._instance, "ability_manager", None)
+        removed: list[str] = []
+        if ability_manager is not None:
+            remover = getattr(ability_manager, "remove_ability", None) or getattr(
+                ability_manager, "remove", None
+            )
+            for existing in list(ability_manager.list() or []):
+                name = getattr(existing, "name", "")
+                if name not in _CRON_TOOL_NAMES or remover is None:
+                    continue
+                try:
+                    remover(name)
+                    removed.append(name)
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "[JiuWenSwarmDeepAdapter] cron tool remove skipped name=%s",
+                        name,
+                        exc_info=True,
+                    )
+        if removed:
+            self._prune_tool_cards(set(removed))
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] cron tools removed for channel=%s: %s",
+                channel,
+                sorted(removed),
+            )
+        self._cron_tools_registered_language = None
+        self._cron_tools_registered_allow_create = None
+        self._cron_tools_registered_allow_update = None
 
     def _drop_heartbeat_tools(self, channel: str) -> None:
         """把已注册的心跳工具从模型可见工具集里摘掉（渠道不支持心跳）。
@@ -14704,9 +14852,13 @@ class JiuWenSwarmDeepAdapter:
             request.params
         ):
             return
-        if self._should_inject_into_existing_interaction(
-            request.params
-        ) or not self._is_host_permission_update_input(request):
+        if self._should_inject_into_existing_interaction(request.params):
+            return
+        if self._is_managed_voice_task_input(request):
+            # No cutover or cancel_round: a voice task never supersedes a card.
+            await self._clear_stale_interrupt_before_managed_voice_task(request)
+            return
+        if not self._is_host_permission_update_input(request):
             return
         if not self._permission_dispatch.publish_cutover(handoff):
             # Queue empty but Core may still hold INTERRUPTION_KEY — clear it.
@@ -14971,6 +15123,41 @@ class JiuWenSwarmDeepAdapter:
             self._active_loop_session(),
             continues_turn=self._continues_current_turn(params),
         )
+
+    async def _commit_round_state(self, session_id: str) -> None:
+        """Persist the loop Session once a request's round output has closed.
+
+        The only other commit is ``SessionTurnTracker.sync`` at dispatch,
+        before the round runs; the DeepAgent loop never commits at round end.
+        A rebuilt adapter (restart, idle eviction) would restore that earlier
+        state, for example an interrupt this round already answered, and take
+        the next message as the answer to it.
+
+        Only the request that held the round's output lease calls this; a
+        request accepted into another reader's round has no round to end.
+
+        Args:
+            session_id: Session the request ran in, for the log line.
+        """
+        session = self._active_loop_session()
+        if session is None:
+            return
+        try:
+            # A second cancel must not cut the commit short, nor skip the
+            # cleanup that follows this call in the caller's ``finally``.
+            await asyncio.shield(session.commit())
+        except asyncio.CancelledError:
+            logger.info(
+                "[JiuWenSwarmDeepAdapter] round state commit continues after cancel: "
+                "session_id=%s",
+                session_id,
+            )
+        except Exception:
+            logger.warning(
+                "[JiuWenSwarmDeepAdapter] round state commit failed: session_id=%s",
+                session_id,
+                exc_info=True,
+            )
 
     def _active_loop_session(self) -> Any | None:
         """Return the session the DeepAgent loop is bound to, when there is one.
@@ -15338,7 +15525,9 @@ class JiuWenSwarmDeepAdapter:
         managed_task_request = str(
             (request.params or {}).get("managed_task_request") or ""
         ).strip() if request.channel_id == "video_tool" else ""
-        from .managed_subagent_control import has_active_cua
+        from .managed_subagent_control import (
+            active_cua_executions, cancel_cua_execution, has_active_cua,
+        )
 
         cua_active = bool(managed_task_request) and has_active_cua(managed_task_request)
         if request.channel_id == "video_tool" and intent == "cancel":
@@ -15401,8 +15590,20 @@ class JiuWenSwarmDeepAdapter:
         # otherwise block behind that child work and never return an
         # interrupt_result to the TUI.  This does not cancel the registered
         # session stream producer -- cancel_round still owns that lifecycle.
-        if not cua_active:
-            self._cancel_scheduler_running_tasks()
+        cua_cancel_requested = False
+        if cua_active:
+            from jiuwenswarm.extensions.video_duplex.backend.tasks.execution import capture_task_execution
+            from jiuwenswarm.extensions.video_duplex.backend.tasks.diagnostics import trace_task
+
+            executions = active_cua_executions(managed_task_request)
+            for execution in executions:
+                capture_task_execution(self._voice_agent_task_rail, request, execution.task)
+            cua_cancel_requested = cancel_cua_execution(managed_task_request)
+            trace_task("agent_cancel_target_resolved", request_id=managed_task_request,
+                       cancel_request_id=request.request_id, core_session_id=request.session_id,
+                       cua_active=True, execution_count=len(executions),
+                       cua_cancel_requested=cua_cancel_requested)
+        self._cancel_scheduler_running_tasks()
         # Collect in-flight tools without cancelling the stream producer task —
         # interaction cancel must keep round ownership in cancel_round().
         cancelled_tool_results = self._collect_cancelled_tools_for_session(
@@ -15433,17 +15634,7 @@ class JiuWenSwarmDeepAdapter:
         finally:
             # A scheduler task may be installed while cancel_round is
             # unwinding; repeat the targeted cancellation as a safety net.
-            if not cua_active:
-                self._cancel_scheduler_running_tasks()
-        cua_cancel_requested = False
-        if cua_active:
-            if cancelled:
-                cua_cancel_requested = True
-            else:
-                # cancel_round did not stop the round; cancel the registered CUA directly.
-                from .managed_subagent_control import cancel_cua_execution
-
-                cua_cancel_requested = cancel_cua_execution(managed_task_request)
+            self._cancel_scheduler_running_tasks()
         continuation_discarded = True
         if cutover_handoff is not None:
             try:
@@ -15498,7 +15689,7 @@ class JiuWenSwarmDeepAdapter:
             metadata=request.metadata,
         )
 
-    def _cancel_scheduler_running_tasks(self) -> None:
+    def _cancel_scheduler_running_tasks(self, execution_task: asyncio.Task | None = None) -> None:
         """Cancel in-flight asyncio.Tasks in the Controller's TaskScheduler.
 
         Cooperative abort (rail.abort + instance.abort) only stops at checkpoints,
@@ -15507,17 +15698,16 @@ class JiuWenSwarmDeepAdapter:
         """
         try:
             controller = getattr(self._instance, '_loop_controller', None)
-            if controller is None:
-                return
             scheduler = getattr(controller, '_task_scheduler', None)
-            if scheduler is None:
-                return
-            running = getattr(scheduler, '_running_tasks', None)
-            if not running:
-                return
+            running = getattr(scheduler, '_running_tasks', None) or {}
+            executions = {entry[1] for entry in list(running.values()) if entry[1] is not None}
+            # Permission continuations can run task_tool directly, outside the
+            # scheduler map. Use the exact registered execution in that case.
+            if execution_task is not None:
+                executions.add(execution_task)
             cancelled_count = 0
-            for _task_id, (_executor, exec_task) in list(running.items()):
-                if exec_task is not None and not exec_task.done():
+            for exec_task in executions:
+                if exec_task is not asyncio.current_task() and not exec_task.done() and not exec_task.cancelling():
                     exec_task.cancel()
                     cancelled_count += 1
             if cancelled_count > 0:
@@ -17328,6 +17518,8 @@ class JiuWenSwarmDeepAdapter:
                     )
                 except Exception:
                     logger.debug("[Goal] interaction stream close failed", exc_info=True)
+                if not _is_attach_only_subscription(request.params):
+                    await self._commit_round_state(session_id)
             close_agent_run_span(
                 _run_span,
                 session_id=session_id,
@@ -18251,6 +18443,9 @@ class JiuWenSwarmDeepAdapter:
         _debug_logger = None
         _debug_trace_token = None  # reset token for the ContextVar-bound logger
         interaction_stream = None
+        moa_stream = None
+        moa_progress = None
+        moa_mailbox = None
         interaction_stream_abort = True
         # 提前 import 观测 span 工具（同 7382 处理由）：原 import 在 try 内
         # _sync_prompt_attachments 之后，该处异常会让 finally 的
@@ -18463,6 +18658,9 @@ class JiuWenSwarmDeepAdapter:
                 )
 
             inputs = await self._prepare_root_input_dispatch(request, inputs)
+            moa_progress = getattr(self._moa_runtime, "progress", None)
+            if moa_progress is not None:
+                moa_mailbox = moa_progress.open()
 
             if pending_goal_op is not None:
                 self._permission_dispatch.release(inputs)
@@ -18725,7 +18923,23 @@ class JiuWenSwarmDeepAdapter:
             from jiuwenswarm.extensions.video_duplex.backend.tasks.execution import bind_task_output
 
             await bind_task_output(self._voice_agent_task_rail, request, interaction_stream)
-            async for chunk in interaction_stream:
+            runner_stream = interaction_stream
+            if moa_progress is not None:
+                moa_stream = moa_progress.stream(interaction_stream)
+                runner_stream = moa_stream
+            async for chunk in runner_stream:
+                chunk_type = (
+                    chunk.get("event_type", chunk.get("type"))
+                    if isinstance(chunk, dict) else getattr(chunk, "type", None)
+                )
+                if chunk_type == "chat.moa_status":
+                    # A notice is not evidence of model output or a new round.
+                    parsed = parse_common_stream_chunk(chunk)
+                    if parsed is not None:
+                        yield AgentResponseChunk(
+                            request_id=rid, channel_id=cid, payload=parsed, is_complete=False,
+                        )
+                    continue
                 first_chunk_seen, run_failure = observe_runner_stream_chunk(
                     chunk,
                     stream_started_at=runner_stream_started_at,
@@ -19186,43 +19400,64 @@ class JiuWenSwarmDeepAdapter:
                 )
 
                 reset_current_multimodal_image_files(image_files_token)
-            if interaction_stream is not None:
-                try:
-                    await interaction_stream.close(
-                        abort_active_round=interaction_stream_abort,
-                    )
-                except Exception:
-                    logger.debug("[Goal] interaction stream close failed", exc_info=True)
-            close_agent_run_span(
-                _run_span,
-                session_id=session_id,
-                output=_assemble_run_answer(run_answer_deltas, run_answer_final),
-                exception=_run_exception,
-                error_type=run_failure[0] if run_failure is not None else "",
-                error_message=run_failure[1] if run_failure is not None else "",
-            )
-            self._permission_dispatch.finalize(inputs)
-            self._unregister_session_agent_task(session_id)
-            cleanup_permission_context(token_perm)
-            AUTHORIZATION_EXECUTION_CONTEXTS.release(
-                authorization_context.session_id,
-                authorization_context.request_id,
-            )
-            if not stream_consumer_cancelled:
-                self._reset_runtime_cron_context(cron_context_tokens)
-                reset_session_messaging_route(session_message_context_token)
-            # Always clean up rail state — process_interrupt's
-            # _stop_session_interrupt_work sets abort flags but does NOT
-            # call cleanup_session(), so skipping cleanup here would leak
-            # _abort_requested / _pause_events entries on long-lived adapters.
-            # Attach subscriptions never marked the session active; skipping
-            # symmetrically avoids popping another stream's counter entry and
-            # wiping its rail state.
-            if not attach_subscription:
-                self._unmark_session_active(
-                    session_id,
-                    cleanup_rail=True,
+            moa_close_cancellation = None
+            try:
+                if moa_stream is not None:
+                    await moa_stream.aclose()
+                elif moa_progress is not None and moa_progress.mailbox is moa_mailbox:
+                    # A failed dispatch has no consumer to close its mailbox. An
+                    # injected request must leave the existing output owner alone.
+                    if interaction_stream is not None or not self._instance.has_output_stream():
+                        moa_progress.close()
+            except asyncio.CancelledError as exc:
+                # Defer cancellation until the existing owner cleanup has run.
+                moa_close_cancellation = exc
+                stream_consumer_cancelled = True
+                _run_exception = exc
+            except Exception:
+                logger.debug("[MoA] progress stream close failed", exc_info=True)
+            finally:
+                if interaction_stream is not None:
+                    try:
+                        await interaction_stream.close(
+                            abort_active_round=interaction_stream_abort,
+                        )
+                    except Exception:
+                        logger.debug("[Goal] interaction stream close failed", exc_info=True)
+                    if not attach_subscription:
+                        await self._commit_round_state(session_id)
+                close_agent_run_span(
+                    _run_span,
+                    session_id=session_id,
+                    output=_assemble_run_answer(run_answer_deltas, run_answer_final),
+                    exception=_run_exception,
+                    error_type=run_failure[0] if run_failure is not None else "",
+                    error_message=run_failure[1] if run_failure is not None else "",
                 )
+                self._permission_dispatch.finalize(inputs)
+                self._unregister_session_agent_task(session_id)
+                cleanup_permission_context(token_perm)
+                AUTHORIZATION_EXECUTION_CONTEXTS.release(
+                    authorization_context.session_id,
+                    authorization_context.request_id,
+                )
+                if not stream_consumer_cancelled:
+                    self._reset_runtime_cron_context(cron_context_tokens)
+                    reset_session_messaging_route(session_message_context_token)
+                # Always clean up rail state — process_interrupt's
+                # _stop_session_interrupt_work sets abort flags but does NOT
+                # call cleanup_session(), so skipping cleanup here would leak
+                # _abort_requested / _pause_events entries on long-lived adapters.
+                # Attach subscriptions never marked the session active; skipping
+                # symmetrically avoids popping another stream's counter entry and
+                # wiping its rail state.
+                if not attach_subscription:
+                    self._unmark_session_active(
+                        session_id,
+                        cleanup_rail=True,
+                    )
+            if moa_close_cancellation is not None:
+                raise moa_close_cancellation
 
         summary = {
             "input_tokens": usage_accumulator["input_tokens"],
@@ -19492,6 +19727,10 @@ class JiuWenSwarmDeepAdapter:
             **projection,
             "task_id": subagent_id,
             "description": description,
+            # Parent-stream history persist uses payload.content; without it the
+            # empty-shell filter drops roster frames and refresh loses the panel
+            # (GitCode #4887). Mirror description so parent history rediscovers ids.
+            "content": description,
             "legacy_status": legacy_status,
             "index": index,
             "total": total,
@@ -19659,6 +19898,9 @@ class JiuWenSwarmDeepAdapter:
             if hasattr(chunk, "type") and hasattr(chunk, "payload"):
                 chunk_type = chunk.type
                 payload = chunk.payload
+
+                if chunk_type == "chat.moa_status":
+                    return parse_common_stream_chunk(chunk)
 
                 if chunk_type == "__interaction__" and contains_permission_interaction(
                     chunk
@@ -20039,6 +20281,8 @@ class JiuWenSwarmDeepAdapter:
                 )
 
             if isinstance(chunk, dict):
+                if chunk.get("event_type") == "chat.moa_status" or chunk.get("type") == "chat.moa_status":
+                    return parse_common_stream_chunk(chunk)
                 if "traceId" in chunk or "invokeId" in chunk:
                     return None
                 # Interaction loop lifecycle events emitted by DeepAgent

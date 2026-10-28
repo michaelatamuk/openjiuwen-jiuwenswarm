@@ -46,6 +46,7 @@ import type { AgentGroupIdentity } from '../../features/agentManagement';
 import { useAgentGroupVisualIdentity } from '../../features/agentManagement/useAgentGroupAvatars';
 import { MessageList } from './MessageList';
 import { ContextCompressionLines } from './MessageItem';
+import { activeMoaPhase, MoaProgress } from './MoaProgress';
 import { InputArea, type InputAreaHandle } from './InputArea';
 import ChatOverviewIcon from '../../assets/chat-overview.svg?react';
 import PanelCollapseIcon from '../../assets/panel-collapse.svg?react';
@@ -90,6 +91,7 @@ import {
 import { useDesktopLocalFilePickerReady, useWelcomeBubblePosition } from '../../hooks';
 import { flushApplicationConversationHistory } from '../../applicationPlugins/ApplicationPluginOutlet';
 import { useOrganizationConversationKey } from '../../features/teamOrganization/conversation';
+import { useOrganizationProcessing } from '../../features/teamOrganization/processing';
 import { requestLogin, useAuthStore } from '../../stores/authStore';
 
 export interface ChatHistoryPagerProps {
@@ -189,6 +191,8 @@ interface ChatPanelProps {
   composerCollapsed?: boolean;
   /** 切换停靠模式下的输入区收起状态；缺省时不渲染收起按钮。 */
   onToggleComposerCollapsed?: () => void;
+  /** 诊断选区或诊断页打开时，输入区保持收起且不能点开。 */
+  composerToggleDisabled?: boolean;
   /**
    * 上报输入区实测高度，供轨迹视图留出底部空白，避免末尾记录被输入区遮住。
    * 仅在停靠模式下回调；收起时上报 0。
@@ -1090,6 +1094,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   composerDocked = false,
   composerCollapsed = false,
   onToggleComposerCollapsed,
+  composerToggleDisabled = false,
   onComposerHeightChange,
   diagnosisEntryAvailable = false,
   diagnosisActive = false,
@@ -1099,7 +1104,10 @@ export const ChatPanel = React.memo(function ChatPanel({
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const conversationId = useOrganizationConversationKey(activeSessionId);
   const expertIsProcessing = useChatStore((s) => s.runtimes[conversationId]?.isProcessing ?? false);
-  const isProcessing = conversationId === activeSessionId ? sessionIsProcessing : expertIsProcessing;
+  const organizationIsProcessing = useOrganizationProcessing(activeSessionId);
+  const isProcessing = conversationId === activeSessionId
+    ? sessionIsProcessing || organizationIsProcessing
+    : expertIsProcessing;
   const agentGroupUnavailable = useChatStore(
     (s) => s.runtimes[activeSessionId ?? '']?.agentGroupUnavailable ?? false,
   );
@@ -1108,6 +1116,7 @@ export const ChatPanel = React.memo(function ChatPanel({
   const toolExecutionOrder = useChatStore((s) => s.runtimes[conversationId]?.toolExecutionOrder ?? []);
   const contextCompressionRuntime = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.contextCompressionRuntime);
   const contextCompressionSummary = useChatStore((s) => s.runtimes[activeSessionId ?? '']?.contextCompressionSummary);
+  const moaPhase = useChatStore((s) => activeMoaPhase(s.runtimes[activeSessionId ?? '']?.moaOperations));
   const mode = useSessionStore((s) => s.runtimes[activeSessionId ?? '']?.mode ?? 'agent');
   const storedTeamGroupIdentity = useSessionStore(
     (s) => s.runtimes[conversationId]?.teamGroupIdentity ?? null,
@@ -1589,6 +1598,7 @@ export const ChatPanel = React.memo(function ChatPanel({
     isThinking,
     contextCompressionRuntime,
     contextCompressionSummary,
+    moaPhase,
     historyPublishedBatchSeq,
     historyLoadingMore,
     historyPrepending,
@@ -1802,8 +1812,13 @@ export const ChatPanel = React.memo(function ChatPanel({
                 data-testid="chat-panel-header-composer-toggle"
                 data-variant={composerCollapsed ? 'expand' : 'collapse'}
                 aria-expanded={!composerCollapsed}
-                title={composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
-                aria-label={composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                title={composerToggleDisabled
+                  ? t('trajectory.composer.unavailable')
+                  : composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                aria-label={composerToggleDisabled
+                  ? t('trajectory.composer.unavailable')
+                  : composerCollapsed ? t('trajectory.composer.expand') : t('trajectory.composer.collapse')}
+                disabled={composerToggleDisabled}
                 onClick={onToggleComposerCollapsed}
               >
                 {composerCollapsed
@@ -1931,6 +1946,7 @@ export const ChatPanel = React.memo(function ChatPanel({
                   {/* 内联审批卡片（演进审批 & 权限审批共用） */}
                   <InlineQuestionCard onSubmit={onUserAnswer} />
                   <ContextCompressionLines runtime={contextCompressionRuntime} summary={contextCompressionSummary} />
+                  <MoaProgress phase={moaPhase} />
                 </>
               ) : isHistoryRestoring ? (
                 <div

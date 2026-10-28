@@ -1,4 +1,4 @@
-import { TASK_ACCEPTED_INSTRUCTIONS } from './taskPrompts';
+import { APPROVAL_SOURCES, TASK_ACCEPTED_INSTRUCTIONS, type ApprovalInteraction } from './taskPrompts';
 import { informationInteraction } from './taskInteraction';
 import { toast } from '../../../../channels/web/frontend/src/components/ui/Toast/toastStore';
 import {
@@ -35,6 +35,7 @@ import { JoyAIProvider } from './joyaiProvider';
 import { captureVideoFrame, FrameEncoder } from './frameEncoding';
 import { setDuplexVoicePhase } from '../duplexAudioMeter';
 import { describeDuplexError } from '../duplexErrorMessage';
+import { reportedRuntimeState } from './runtimeState';
 import {
   mergeSearchProgressJob,
   searchAwareToolStatus,
@@ -80,13 +81,15 @@ function isUsefulTranscript(text: string): boolean {
 }
 
 export interface VideoLivePanelHandle {
-  startScreenDuplex: (searchSessionId?: string, shareScreen?: boolean, visualSource?: 'screen' | 'camera') => Promise<boolean>;
+  startScreenDuplex: (searchSessionId?: string, shareScreen?: boolean) => Promise<boolean>;
   stop: () => void;
   setMicrophoneMuted: (muted: boolean) => void;
   setSpeakerMuted: (muted: boolean) => void;
   stopScreenSharing: () => void;
   deliverToolResult: (payload: SearchJobPayload) => void;
   deliverQuestion: (payload: SearchJobPayload) => void;
+  /** A typed-chat approval card in this conversation; it has no job, so job_id is "". */
+  deliverChatApproval: (interaction: { request_id: string; state: string; source?: string; questions?: unknown[] }) => void;
   deliverTaskInteraction: (payload: SearchJobPayload) => void;
 }
 
@@ -101,6 +104,22 @@ interface VideoLivePanelProps {
 }
 
 export const SCREEN_SHARE_UNSUPPORTED_NOTICE = '当前环境不支持屏幕共享，已仅开启语音';
+export const SCREEN_SHARE_NO_PERMISSION_NOTICE =
+  '没有屏幕录制权限，已仅开启语音。请在“系统设置 > 隐私与安全性 > 屏幕与系统录音”中允许本应用后重试';
+export const SCREEN_PICKER_TIMEOUT_ERROR = '系统选屏框 60 秒内未选择屏幕，已自动关闭';
+// WebKit closes its system picker after 60 s and rejects with NotAllowedError,
+// the same error as a user cancel; elapsed time is the only difference.
+const SCREEN_PICKER_TIMEOUT_MS = 55_000;
+
+/** The macOS desktop shell sets this to false when WKWebView has no screen picker (macOS < 14). */
+function isDesktopScreenCaptureUnavailable(): boolean {
+  return (window as { __JIUWEN_DESKTOP_SCREEN_CAPTURE__?: boolean }).__JIUWEN_DESKTOP_SCREEN_CAPTURE__ === false;
+}
+
+/** Chromium/Electron reject with "Permission denied by system" when macOS screen recording is off. */
+function isScreenCaptureDeniedBySystem(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'NotAllowedError' && /system/i.test(error.message);
+}
 
 function isScreenCaptureUnsupported(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'NotSupportedError') return true;
@@ -124,6 +143,9 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
   const framesRef = useRef<CapturedFrame[]>([]);
   const duplexRef = useRef<RealtimeDuplexSession | null>(null);
   const joyaiProviderRef = useRef<JoyAIProvider | null>(null);
+  // Approval cards forwarded by the task runtime. The runtime binds the conversation and sends its
+  // open cards before the JoyAI provider exists, so they are kept here and handed over once it does.
+  const approvalCardsRef = useRef(new Map<string, { jobId: string; interaction: ApprovalInteraction }>());
   const startingRealtimeRef = useRef<Promise<void> | null>(null);
   const chatSequenceRef = useRef(0);
   const pendingTranscriptionsRef = useRef(0);
@@ -168,6 +190,7 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
       {
         event,
         client_time: new Date().toISOString(),
+        search_session_id: searchSessionRef.current,
         ...details,
       },
       { timeoutMs: 5_000 },
@@ -193,6 +216,7 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
     duplexRef.current = null;
     joyaiProviderRef.current?.stop();
     joyaiProviderRef.current = null;
+    if (!renewing) approvalCardsRef.current.clear();
     if (!renewing) {
       microphoneMutedRef.current = false;
       speakerMutedRef.current = false;
@@ -308,6 +332,8 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
     };
     if (!joyaiProviderRef.current) {
       joyaiProviderRef.current = new JoyAIProvider(callbacks, replyLanguage);
+      for (const card of approvalCardsRef.current.values())
+        joyaiProviderRef.current.enqueueQuestion(card.jobId, card.interaction);
     } else {
       joyaiProviderRef.current.updateCallbacks(callbacks);
       if (replyLanguage) joyaiProviderRef.current.setPreferredLanguage(replyLanguage);
@@ -434,6 +460,17 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
       toolCallId: callId,
     });
     setSearchStatus(`${payload.engine || '九问搜索 Agent'}失败：${error}`);
+  };
+
+  // JoyAI answers approval cards by voice only (information forms stay on screen), like Qwen's enqueueQuestion.
+  const deliverJoyAIApproval = (jobId: string, interaction: ApprovalInteraction) => {
+    const cards = approvalCardsRef.current;
+    if (interaction.state !== 'pending') {
+      for (const [key, card] of cards) if (card.jobId === jobId) cards.delete(key);
+    } else if (interaction.source && APPROVAL_SOURCES.has(interaction.source)) {
+      cards.set(`${jobId}:${interaction.id || interaction.request_id}`, { jobId, interaction });
+    }
+    joyaiProviderRef.current?.enqueueQuestion(jobId, interaction);
   };
 
   const deliverTaskInteraction = (payload: SearchJobPayload) => {
@@ -772,18 +809,21 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
    * Windows desktop WebView rejects getDisplayMedia with "Not supported", #5283).
    * With `allowUnsupported` the caller handles that case instead of an error.
    */
+  const screenFallbackNoticeRef = useRef(SCREEN_SHARE_UNSUPPORTED_NOTICE);
   const startScreen = async (allowUnsupported = false): Promise<boolean | 'unsupported'> => {
+    screenFallbackNoticeRef.current = SCREEN_SHARE_UNSUPPORTED_NOTICE;
     if (screens.length >= MAX_SCREENS) {
       setError(`最多同时读取 ${MAX_SCREENS} 个屏幕。`);
       return false;
     }
-    if (!navigator.mediaDevices?.getDisplayMedia) {
+    if (!navigator.mediaDevices?.getDisplayMedia || isDesktopScreenCaptureUnavailable()) {
       if (allowUnsupported) return 'unsupported';
       setError('当前运行环境不支持屏幕共享。');
       return false;
     }
 
     setError('');
+    const pickerStartedAt = Date.now();
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -822,10 +862,16 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
       });
       return true;
     } catch (screenError) {
-      // Browsers reject a cancelled picker with NotAllowedError; Electron's
-      // display-media handler denies with AbortError.
-      if (screenError instanceof DOMException && (screenError.name === 'NotAllowedError' || screenError.name === 'AbortError')) {
-        setError('已取消选择屏幕。');
+      if (isScreenCaptureDeniedBySystem(screenError)) {
+        if (allowUnsupported) {
+          screenFallbackNoticeRef.current = SCREEN_SHARE_NO_PERMISSION_NOTICE;
+          return 'unsupported';
+        }
+        setError(SCREEN_SHARE_NO_PERMISSION_NOTICE);
+      } else if (screenError instanceof DOMException && (screenError.name === 'NotAllowedError' || screenError.name === 'AbortError')) {
+        // Browsers reject a cancelled picker with NotAllowedError; Electron's
+        // display-media handler denies with AbortError.
+        setError(Date.now() - pickerStartedAt >= SCREEN_PICKER_TIMEOUT_MS ? SCREEN_PICKER_TIMEOUT_ERROR : '已取消选择屏幕');
       } else if (allowUnsupported && isScreenCaptureUnsupported(screenError)) {
         return 'unsupported';
       } else {
@@ -891,9 +937,8 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
           provider: config.provider || 'realtime',
         });
         setModel(config.model);
-        if (config.provider === 'joyai') {
-          await getJoyAIProvider(config.reply_language).start(config.context_restore?.token);
-          return;
+        if (config.provider !== 'qwen_omni') {
+          throw new Error(t('videoLive.qwenOnly'));
         }
         const videoFrames = new RealtimeVideoFrameScheduler(1_000);
         const session = createRealtimeDuplexSession(
@@ -911,6 +956,9 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
             },
             onAssistantText: (text, final, toolJobId, responseId) => {
               const visibleText = text.trim();
+              if (final && visibleText) reportRealtimeEvent('task_trace_assistant_final', {
+                text: visibleText, job_id: toolJobId, response_id: responseId,
+              });
               if (final && toolJobId) {
                 searchJobsRef.current.delete(toolJobId);
                 setSearchStatus('');
@@ -942,6 +990,7 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
             },
             onUserText: (text, final) => {
               if (final) {
+                reportRealtimeEvent('task_trace_user_transcript', { text });
                 handleFinalRealtimeUserText(text);
               } else {
                 const partialTranscript = text.trim();
@@ -1013,9 +1062,12 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
               const searchSessionId = searchSessionRef.current;
               const latestInstruction = {text: call.originalInstruction || call.task, turnId: call.inputId || ''};
               const originalInstruction = latestInstruction.text.trim();
+              const toolArguments = JSON.parse(call.arguments) as { job_id?: string };
               reportRealtimeEvent('qwen_tool_call_forwarding', {
                 name: call.name,
                 call_id: call.callId,
+                job_id: toolArguments.job_id,
+                search_session_id: searchSessionId,
                 question: originalInstruction,
                 task: call.task,
                 turn_id: latestInstruction.turnId,
@@ -1031,7 +1083,7 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
                   search_session_id: searchSessionId,
                   frame_data_url: framesRef.current.at(-1)?.data_url || '',
                 },
-                { timeoutMs: 10_000 },
+                { timeoutMs: call.name === 'jiuwen_queue_manage' ? 0 : 10_000 },
               )
                 .then((action) => {
                   reportRealtimeEvent('qwen_tool_call_receipt', {
@@ -1073,7 +1125,9 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
                 });
             },
             onDiagnostic: (event) => {
-              void webRequest('video.realtime.telemetry', event, {
+              void webRequest('video.realtime.telemetry', {
+                ...event, search_session_id: searchSessionRef.current,
+              }, {
                 timeoutMs: 5_000,
               }).catch(() => undefined);
             },
@@ -1135,14 +1189,16 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
 
   useEffect(() => {
     const running = isRealtimeStarting || isRecording;
-    if (headless && wasDuplexRunningRef.current && !running) {
+    const wasRunning = wasDuplexRunningRef.current;
+    if (headless && wasRunning && !running) {
       releaseScreens();
       releaseSource();
       setSource(null);
       setSourceName('');
     }
     wasDuplexRunningRef.current = running;
-    onRuntimeState?.(isRealtimeStarting ? 'starting' : isRecording ? 'active' : 'idle');
+    const runtimeState = reportedRuntimeState(wasRunning, isRealtimeStarting, isRecording);
+    if (runtimeState) onRuntimeState?.(runtimeState);
   }, [headless, isRealtimeStarting, isRecording, onRuntimeState, releaseScreens, releaseSource]);
 
   useEffect(() => {
@@ -1154,18 +1210,18 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
   }, [screens.length, source, onScreenSharingChange]);
 
   useImperativeHandle(ref, () => ({
-    startScreenDuplex: async (searchSessionId, shareScreen = true, visualSource = 'screen') => {
+    startScreenDuplex: async (searchSessionId, shareScreen = true) => {
       conversationSearchSessionRef.current = searchSessionId || '';
       if (!shareScreen) {
         await startRealtime();
         return Boolean(duplexRef.current || joyaiProviderRef.current?.active);
       }
-      const result = visualSource === 'camera' ? await startCamera() : await startScreen(true);
+      const result = await startScreen(true);
       if (result === 'unsupported') {
         // Fallback, not a root-cause fix: keep voice duplex usable when the
         // runtime cannot share the screen (#5283).
         pendingScreenAutostartRef.current = false;
-        toast.open({ content: SCREEN_SHARE_UNSUPPORTED_NOTICE, variant: 'warning' });
+        toast.open({ content: screenFallbackNoticeRef.current, variant: 'warning' });
         await startRealtime();
         return Boolean(duplexRef.current || joyaiProviderRef.current?.active);
       }
@@ -1232,6 +1288,11 @@ export const VideoLivePanel = forwardRef<VideoLivePanelHandle, VideoLivePanelPro
       // pending questions and approval cards for the model to raise.
       if (!searchSessionRef.current || payload.search_session_id !== searchSessionRef.current) return;
       if (payload.job_id && payload.interaction) duplexRef.current?.enqueueQuestion(payload.job_id, payload.interaction);
+      if (payload.job_id && payload.interaction) deliverJoyAIApproval(payload.job_id, payload.interaction);
+    },
+    deliverChatApproval: (interaction) => {
+      duplexRef.current?.enqueueQuestion('', { ...interaction, id: interaction.request_id } as never);
+      deliverJoyAIApproval('', { ...interaction, id: interaction.request_id } as ApprovalInteraction);
     },
   }));
 

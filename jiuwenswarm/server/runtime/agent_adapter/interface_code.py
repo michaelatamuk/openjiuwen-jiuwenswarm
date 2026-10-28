@@ -72,6 +72,9 @@ from jiuwenswarm.server.runtime.agent_adapter.interface_deep import (
     _deep_agent_kv_cache_affinity_config,
     parse_int,
 )
+from jiuwenswarm.agents.harness.common.tools.tool_discovery_catalog import (
+    apply_discovery_metadata,
+)
 from jiuwenswarm.common.agentos_runtime import is_agentos_runtime
 from jiuwenswarm.server.runtime.agent_adapter.code_graph_flags import (
     CodeGraphFlags, parse_source_volume_to_bytes, resolve_code_graph_flags,
@@ -122,6 +125,7 @@ from jiuwenswarm.agents.harness.common.tools import (
 from jiuwenswarm.agents.harness.common.tools.acp_chat import acp_chat
 from jiuwenswarm.agents.harness.common.tools.video_tools import video_understanding
 from jiuwenswarm.common.config import get_config
+from jiuwenswarm.common.cua_config import is_cua_agent_enabled
 from jiuwenswarm.common.tool_ownership import (
     mark_stateless,
     register_tool,
@@ -882,13 +886,15 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         """Collect tools materialized by either Code or standard providers."""
         context = self._code_build_context
         if isinstance(context, code_agent_spec.CodeBuildContext):
-            return [
+            cards = [
                 tool.card
                 for tool in context.artifacts.tools
                 if getattr(tool, "card", None) is not None
             ]
-        deep_config = getattr(self._instance, "deep_config", None)
-        return list(getattr(deep_config, "tools", None) or [])
+        else:
+            deep_config = getattr(self._instance, "deep_config", None)
+            cards = list(getattr(deep_config, "tools", None) or [])
+        return [apply_discovery_metadata(card) for card in cards]
 
     def _build_code_spec_snapshot(
         self,
@@ -1216,8 +1222,11 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
         # 主事件循环 await 这个 future 时保持响应，期间能读取并处理 esc 的 cancel。
         # 跑完后回主 loop 继续后续代码，时序与语义不变；唯一变化是初始化期间主 loop 活。
         #
-        # 安全性：ensure_initialized 操作的是 self._pending_rails、workspace 文件等实例自己的资源，
-        # 不碰全局 asyncio 原语，不跨 loop 访问主 loop 对象，不会死锁。
+        # This initialization also registers rails in Runner's shared callback
+        # framework. The resident Worker forwards registry access to its business
+        # loop; filesystem and rail init work remain in this thread. That guard
+        # is installed only by Worker startup. Standalone Runtime/SDK callers
+        # must provide a consistent loop owner for shared async resources.
         if agent_definition is not None and agent_definition.get("tools") != "*":
             from jiuwenswarm.runtime.tool_allowlist import install_tool_allowlist
 
@@ -2749,12 +2758,13 @@ class JiuwenSwarmCodeAdapter(JiuWenSwarmDeepAdapter):
 
             # cua_agent (desktop automation via screenshots + real input) — 按配置启用
             cua_agent_cfg = subagents_cfg.get("cua_agent")
-            if self._is_subagent_enabled(cua_agent_cfg) and cua_model_rejects_images(model):
+            cua_agent_cfg = cua_agent_cfg if isinstance(cua_agent_cfg, dict) else {}
+            if is_cua_agent_enabled(cua_agent_cfg) and cua_model_rejects_images(model):
                 logger.warning(
                     "[JiuwenSwarmCodeAdapter] cua_agent skipped: the model rejects image input "
                     "and cua_agent sees the screen only through screenshots"
                 )
-            elif self._is_subagent_enabled(cua_agent_cfg):
+            elif is_cua_agent_enabled(cua_agent_cfg):
                 cua_spec = build_cua_agent_config(
                     model,
                     card=build_cua_agent_card(resolved_language),
