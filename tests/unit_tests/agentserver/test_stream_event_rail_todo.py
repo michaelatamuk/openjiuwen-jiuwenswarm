@@ -209,7 +209,10 @@ async def test_after_model_call_persists_cumulative_usage_without_emitting_an_ev
     rail.init(SimpleNamespace(_build_context=SimpleNamespace(role="leader", session_id="sess_usage")))
     await rail.after_model_call(ctx)
 
-    assert session.outputs == []
+    # after_model_call always emits the llm_call_end "thinking" marker; the
+    # cumulative usage is persisted, not streamed as a separate event, and the
+    # legacy context.usage frame stays suppressed because core reported it.
+    assert [getattr(o, "type", "") for o in session.outputs] == ["llm_call_end"]
     assert get_session_token_usage("sess_usage")["main"] == {
         "input_tokens": 100,
         "output_tokens": 20,
@@ -219,12 +222,13 @@ async def test_after_model_call_persists_cumulative_usage_without_emitting_an_ev
     }
     from jiuwenswarm.agents.harness.common.rails.session_token_usage_rail import SessionTokenUsageRail
 
+    outputs_before_child_usage = list(session.outputs)
     ctx.inputs.context_usage_request_id = "call-child"
     ctx.inputs.context_usage_attribution["product_session_id"] = "sess_usage"
     await SessionTokenUsageRail().after_model_call(ctx)
     assert get_session_token_usage("sess_usage")["main"]["input_tokens"] == 100
     assert get_session_token_usage("sess_usage")["others"]["input_tokens"] == 100
-    assert session.outputs == []
+    assert session.outputs == outputs_before_child_usage
 
 
 @pytest.mark.asyncio
