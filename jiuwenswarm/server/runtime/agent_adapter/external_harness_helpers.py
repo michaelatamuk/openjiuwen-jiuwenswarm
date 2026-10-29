@@ -42,6 +42,7 @@ from jiuwenswarm.server.runtime.session.session_metadata import (
     get_session_metadata,
     update_session_metadata,
 )
+from jiuwenswarm.server.runtime.session.history_io import run_stream_parser
 
 logger = logging.getLogger(__name__)
 _BINDING_LOCK = threading.RLock()
@@ -346,6 +347,19 @@ def _merge_host_external_cli_config(
     if provider_name == "codex":
         merged.setdefault("bypass_approvals_and_sandbox", True)
         merged.setdefault("system_prompt_mode", "replace")
+        turn_idle_timeout_s = 300.0
+        raw_idle = entry.get("codex_turn_idle_timeout_s")
+        if raw_idle is not None:
+            try:
+                parsed_idle = float(raw_idle)
+                if parsed_idle > 0:
+                    turn_idle_timeout_s = parsed_idle
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid codex_turn_idle_timeout_s=%r in external_cli_agents; using 300s",
+                    raw_idle,
+                )
+        merged.setdefault("turn_idle_timeout_s", turn_idle_timeout_s)
     elif provider_name == "claudecode":
         from openjiuwen.harness_providers.claudecode.config import (
             DEFAULT_CLAUDE_MAX_BUFFER_SIZE,
@@ -748,7 +762,7 @@ def _project_external_user_input(chunk: OutputSchema) -> dict[str, Any] | None:
     }
 
 
-def _parse_external_chunk(chunk: OutputSchema, *, has_streamed_answer: bool) -> dict[str, Any] | None:
+async def _parse_external_chunk(chunk: OutputSchema, *, has_streamed_answer: bool) -> dict[str, Any] | None:
     projected = _project_external_user_input(chunk)
     if projected is not None:
         return projected
@@ -756,7 +770,8 @@ def _parse_external_chunk(chunk: OutputSchema, *, has_streamed_answer: bool) -> 
         JiuWenSwarmDeepAdapter,
     )
 
-    return JiuWenSwarmDeepAdapter.parse_stream_chunk(
+    return await run_stream_parser(
+        JiuWenSwarmDeepAdapter.parse_stream_chunk,
         chunk,
         has_streamed_content=has_streamed_answer,
     )
@@ -890,7 +905,7 @@ async def process_external_harness_stream(
                     )
                 return
 
-            parsed = _parse_external_chunk(
+            parsed = await _parse_external_chunk(
                 chunk,
                 has_streamed_answer=has_streamed_answer,
             )

@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+import threading
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -67,6 +68,19 @@ def test_preserved_cli_paths_work_for_host_and_manifest_configuration(tmp_path, 
     assert native_custom["codex_bin"] == str(custom)
 
 
+def test_merge_host_codex_turn_idle_invalid_host_config_falls_back(monkeypatch):
+    from jiuwenswarm.common import external_cli_runtime
+
+    monkeypatch.setattr(external_cli_runtime, "activate_external_cli_runtime_paths", lambda: None)
+    monkeypatch.setattr(
+        external_harness_helpers,
+        "_host_cli_agent_entry",
+        lambda _: {"cli_agent": "codex", "codex_turn_idle_timeout_s": "5min"},
+    )
+    merged = external_harness_helpers._merge_host_external_cli_config("codex", {})
+    assert merged["turn_idle_timeout_s"] == 300.0
+
+
 @pytest.fixture(autouse=True)
 def enable_host_external_cli_agents(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -74,6 +88,63 @@ def enable_host_external_cli_agents(monkeypatch: pytest.MonkeyPatch) -> None:
         "_host_external_cli_agents",
         lambda: [{"cli_agent": "claude"}, {"cli_agent": "codex"}],
     )
+
+
+@pytest.mark.asyncio
+async def test_external_subagent_usage_snapshot_read_is_offloaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from jiuwenswarm.server.runtime.session import session_token_usage
+
+    loop_thread = threading.get_ident()
+    read_threads: list[int] = []
+    session_id = "external-parent-session"
+
+    def _read_usage(session: str) -> dict[str, Any]:
+        read_threads.append(threading.get_ident())
+        return {
+            "schema_version": 1,
+            "revision": 1,
+            "session_id": session,
+            "main": {
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "input_calls": 1,
+                "output_calls": 1,
+                "calls_total": 1,
+            },
+            "others": {
+                "input_tokens": 5,
+                "output_tokens": 1,
+                "input_calls": 1,
+                "output_calls": 1,
+                "calls_total": 1,
+            },
+        }
+
+    monkeypatch.setattr(session_token_usage, "get_session_token_usage", _read_usage)
+    monkeypatch.setattr(interface_deep, "append_history_record", lambda **_kwargs: None)
+    chunk = OutputSchema(
+        type="subagent_updated",
+        index=1,
+        payload={
+            "subagent_updated": {
+                "parent_session_id": session_id,
+                "subagent_id": "external-child",
+                "status": "running",
+                "task_description": "Review the requested changes",
+            }
+        },
+    )
+
+    payload = await external_harness_helpers._parse_external_chunk(
+        chunk,
+        has_streamed_answer=False,
+    )
+
+    assert payload is not None
+    assert payload["session_usage"]["session_id"] == session_id
+    assert read_threads and all(thread_id != loop_thread for thread_id in read_threads)
 
 
 @pytest.fixture

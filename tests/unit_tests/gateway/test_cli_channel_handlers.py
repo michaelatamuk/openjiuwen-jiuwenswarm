@@ -3,20 +3,21 @@
 import asyncio
 
 import pytest
+from openjiuwen_protocol.e2a.agent_models import AgentResponse
+from openjiuwen_protocol.message import ReqMethod
 
 from tests.unit_tests.gateway.config_routing_harness import make_config_routing_client
-from jiuwenswarm.common.schema.agent import AgentResponse
-from jiuwenswarm.common.schema.message import ReqMethod
-from jiuwenswarm.common.config_panel import tui_models_handlers
-from jiuwenswarm.gateway.channel_manager.tui import tui_connect as tui_connect_module
-from jiuwenswarm.gateway.channel_manager.tui.tui_connect import (
+from gateway.common.config_panel import tui_models_handlers
+from jiuwenswarm.common.config_panel import tui_models_handlers as _server_tui_models_handlers
+from gateway.channel_manager.tui import tui_connect as tui_connect_module
+from gateway.channel_manager.tui.tui_connect import (
     CliHandlersBindParams,
     CliRouteBindParams,
     build_cli_route_binding,
     register_cli_handlers,
 )
-from jiuwenswarm.gateway.routing.agent_client import WebSocketAgentServerClient
-from jiuwenswarm.gateway.heartbeat import HeartbeatServiceUnavailableError
+from gateway.routing.agent_client import WebSocketAgentServerClient
+from gateway.heartbeat import HeartbeatServiceUnavailableError
 
 
 class FakeGatewayServer:
@@ -222,7 +223,7 @@ async def test_memory_list_forwards_to_agentserver_with_routing_user(monkeypatch
         return True
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.proxy_unary_request",
+        "gateway.routing.e2a_proxy.proxy_unary_request",
         fake_proxy_unary_request,
     )
     register_cli_handlers(
@@ -444,7 +445,7 @@ async def test_harmonyos_dev_init_legacy_client_falls_back_to_local(monkeypatch)
     server = FakeGatewayServer()
     _install_failing_dev_init_send(monkeypatch)
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
+        "gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
         lambda client: True,
     )
 
@@ -455,7 +456,7 @@ async def test_harmonyos_dev_init_legacy_client_falls_back_to_local(monkeypatch)
         return {"ok": True, "source": "local-fallback"}
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
+        "gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
         fake_local_init,
     )
 
@@ -494,7 +495,7 @@ async def test_harmonyos_dev_init_remote_client_error_without_fallback(monkeypat
     server = FakeGatewayServer()
     _install_failing_dev_init_send(monkeypatch)
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
+        "gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
         lambda client: False,
     )
 
@@ -505,7 +506,7 @@ async def test_harmonyos_dev_init_remote_client_error_without_fallback(monkeypat
         return {"ok": True}
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
+        "gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
         fake_local_init,
     )
 
@@ -554,7 +555,7 @@ async def test_harmonyos_dev_init_business_failure_does_not_rerun_locally(monkey
         business_failure_send,
     )
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
+        "gateway.routing.e2a_proxy.is_legacy_shared_directory_client",
         lambda client: True,
     )
 
@@ -565,7 +566,7 @@ async def test_harmonyos_dev_init_business_failure_does_not_rerun_locally(monkey
         return {"ok": True}
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
+        "gateway.channel_manager.tui.harmonyos.harmonyos_dev.run_harmonyos_dev_init",
         fake_local_init,
     )
 
@@ -909,7 +910,7 @@ async def test_config_validate_model_retries_failed_probe_with_more_tokens(
                 return {"content": "", "reasoning_content": ""}
             return {"content": "hello"}
 
-    monkeypatch.setattr(tui_models_handlers, "Model", FakeModel)
+    monkeypatch.setattr(_server_tui_models_handlers, "Model", FakeModel)
 
     await server.local_handlers["/tui"]["config.validate_model"](
         object(),
@@ -1242,7 +1243,7 @@ async def test_session_list_returns_agent_timeout_before_tui_request_timeout(mon
             await asyncio.Event().wait()
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.agent_request_timeout._TUI_DEFAULT_UNARY_TIMEOUT_SECONDS",
+        "gateway.routing.agent_request_timeout._TUI_DEFAULT_UNARY_TIMEOUT_SECONDS",
         0.01,
         raising=False,
     )
@@ -1684,7 +1685,7 @@ async def test_agentos_cron_update_project_fields_with_dict_job(monkeypatch) -> 
         )
     )
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.is_agentos_routing_client",
+        "gateway.routing.e2a_proxy.is_agentos_routing_client",
         lambda _client: True,
     )
 
@@ -1694,7 +1695,7 @@ async def test_agentos_cron_update_project_fields_with_dict_job(monkeypatch) -> 
         return True, {"project_id": "user-proj-1", "work_mode": "code"}
 
     monkeypatch.setattr(
-        "jiuwenswarm.gateway.routing.e2a_proxy.resolve_agent_cron_project_binding",
+        "gateway.routing.e2a_proxy.resolve_agent_cron_project_binding",
         _fake_resolve_agent_cron_project_binding,
     )
 
@@ -1736,8 +1737,8 @@ async def test_models_list_builds_the_list_off_the_event_loop(monkeypatch):
             seen["on_event_loop"] = False
         return [{"model_client_config": {"model_name": "m", "api_key": "k"}}]
 
-    monkeypatch.setattr(tui_models_handlers, "get_config", lambda: {})
-    monkeypatch.setattr(tui_models_handlers, "get_available_models", fake_available)
+    monkeypatch.setattr(_server_tui_models_handlers, "get_config", lambda: {})
+    monkeypatch.setattr(_server_tui_models_handlers, "get_available_models", fake_available)
 
     await server.local_handlers["/tui"]["models.list"](object(), "req-models", {}, "sess-1")
 

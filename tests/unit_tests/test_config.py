@@ -30,11 +30,13 @@ from jiuwenswarm.common.config import (
     get_ttse_embedding_config,
     get_ttse_enabled,
     migrate_config_from_template,
+    prune_external_cli_path_histories_in_config,
     replace_teams_in_config,
     reset_external_cli_agents_in_config,
     resolve_sandbox_enabled,
     resolve_env_vars,
     update_external_cli_agents_in_config,
+    update_external_cli_path_histories_in_config,
     update_sandbox_runtime,
     update_permissions_profile_in_config,
     update_skill_retrieval_in_config,
@@ -42,6 +44,31 @@ from jiuwenswarm.common.config import (
     update_xiaoyi_runtime_in_config,
 )
 from jiuwenswarm.common import symphony_config as symphony_config_module
+
+
+def test_config_refreshes_same_version_build_date_and_preserves_user_values(tmp_path, monkeypatch):
+    from jiuwenswarm.common import version
+
+    monkeypatch.setattr(version, "get_runtime_version", lambda: "0.2.8.dev20261026")
+    monkeypatch.setattr(version, "get_runtime_build_date", lambda: "2026-10-26")
+    template = tmp_path / "template.yaml"
+    config = tmp_path / "config.yaml"
+    template.write_text('config_version: ""\nsetting: default\nnew_option: true\n', encoding="utf-8")
+    config.write_text('# Keep this comment\nconfig_version: "0.2.8.dev20261026 · 2026-10-20"\nsetting: custom\n', encoding="utf-8")
+
+    assert migrate_config_from_template(template, config) is True
+    migrated = yaml.safe_load(config.read_text(encoding="utf-8"))
+    assert migrated["config_version"] == "0.2.8.dev20261026 · 2026-10-26"
+    assert migrated["new_option"] is True
+    assert migrated["setting"] == "custom"
+    assert "app_version" not in migrated
+    assert "build_date" not in migrated
+    assert "# Keep this comment" in config.read_text(encoding="utf-8")
+    assert migrate_config_from_template(template, config) is False
+
+    monkeypatch.setattr(version, "get_runtime_build_date", lambda: "")
+    assert migrate_config_from_template(template, config) is True
+    assert yaml.safe_load(config.read_text(encoding="utf-8"))["config_version"] == "0.2.8.dev20261026"
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -300,6 +327,82 @@ def test_external_cli_builtin_models_are_normalized_and_validated(
         )
     with pytest.raises(ValueError, match="name must be a non-empty string"):
         update_external_cli_agents_in_config([{"cli_agent": "claude", "builtin_models": [{"efforts": ["low"]}]}])
+
+
+def test_external_cli_path_histories_keep_the_latest_window(
+    monkeypatch: pytest.MonkeyPatch,
+    temp_config_file: Path,
+) -> None:
+    """The capacity window must keep the tail: recent paths beat old ones."""
+    full_history = [f"/history/codex-{index}" for index in range(10)]
+    _write_team_config(temp_config_file, [])
+    monkeypatch.setattr(config_module, "CONFIG_YAML_PATH", temp_config_file)
+
+    update_external_cli_path_histories_in_config({"codex": [*full_history, "/just-replaced/codex"]})
+
+    saved = yaml.safe_load(temp_config_file.read_text(encoding="utf-8"))
+    histories = saved["modes"]["team"]["jiuwen_team"]["external_cli_path_histories"]
+    # The replaced path joined at the tail and must survive the cap.
+    assert histories["codex"] == [*full_history[1:], "/just-replaced/codex"]
+
+
+def test_prune_external_cli_path_histories_removes_only_the_intersection(
+    monkeypatch: pytest.MonkeyPatch,
+    temp_config_file: Path,
+) -> None:
+    """The prune drops only entries present in both the request and the disk."""
+    _write_team_config(temp_config_file, [])
+    monkeypatch.setattr(config_module, "CONFIG_YAML_PATH", temp_config_file)
+    update_external_cli_path_histories_in_config(
+        {
+            "codex": ["/gone/codex", "/kept/codex"],
+            "claude": ["/gone/codex", "/kept/claude"],
+        }
+    )
+
+    surviving = prune_external_cli_path_histories_in_config("codex", ["/gone/codex", "/unknown/codex"])
+
+    assert surviving == ["/kept/codex"]
+    saved = yaml.safe_load(temp_config_file.read_text(encoding="utf-8"))
+    histories = saved["modes"]["team"]["jiuwen_team"]["external_cli_path_histories"]
+    assert histories["codex"] == ["/kept/codex"]
+    # Other kinds keep their entries untouched.
+    assert histories["claude"] == ["/gone/codex", "/kept/claude"]
+
+
+def test_prune_external_cli_path_histories_survives_entries_appended_after_the_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    temp_config_file: Path,
+) -> None:
+    """A stale frontend snapshot must not roll back a concurrent save's append."""
+    _write_team_config(temp_config_file, [])
+    monkeypatch.setattr(config_module, "CONFIG_YAML_PATH", temp_config_file)
+
+    # What the frontend snapshot saw when it was taken.
+    update_external_cli_path_histories_in_config({"codex": ["/stale/codex"]})
+    # A concurrent save (e.g. a replaced cli_path) appends before the prune lands.
+    update_external_cli_path_histories_in_config({"codex": ["/stale/codex", "/just-replaced/codex"]})
+
+    surviving = prune_external_cli_path_histories_in_config("codex", ["/stale/codex"])
+
+    assert surviving == ["/just-replaced/codex"]
+    saved = yaml.safe_load(temp_config_file.read_text(encoding="utf-8"))
+    histories = saved["modes"]["team"]["jiuwen_team"]["external_cli_path_histories"]
+    assert histories["codex"] == ["/just-replaced/codex"]
+
+
+def test_prune_external_cli_path_histories_leaves_the_file_untouched_without_a_match(
+    monkeypatch: pytest.MonkeyPatch,
+    temp_config_file: Path,
+) -> None:
+    _write_team_config(temp_config_file, [])
+    monkeypatch.setattr(config_module, "CONFIG_YAML_PATH", temp_config_file)
+
+    surviving = prune_external_cli_path_histories_in_config("codex", ["/gone/codex"])
+
+    assert surviving == []
+    saved = yaml.safe_load(temp_config_file.read_text(encoding="utf-8"))
+    assert "external_cli_path_histories" not in saved["modes"]["team"]["jiuwen_team"]
 
 
 def test_config_migration_preserves_explicit_image_policy(tmp_path: Path) -> None:
@@ -1074,6 +1177,8 @@ symphony:
     ):
         monkeypatch.delenv("EVOLUTION_AUTO_SCAN", raising=False)
         monkeypatch.delenv("EVOLUTION_AUTO_SAVE", raising=False)
+        monkeypatch.setattr("jiuwenswarm.common.version.get_runtime_version", lambda: "0.2.8b1")
+        monkeypatch.setattr("jiuwenswarm.common.version.get_runtime_build_date", lambda: "2026-10-26")
         template_path = tmp_path / "template.yaml"
         user_config_path = tmp_path / "config.yaml"
         template_path.write_text(
@@ -1107,9 +1212,7 @@ react:
             "auto_save": True,
         }
         # config_version is always stamped on a write-back path.
-        from jiuwenswarm.common._build_config import VERSION
-
-        assert migrated.get("config_version") == VERSION
+        assert migrated.get("config_version") == "0.2.8b1 · 2026-10-26"
         # A second migration now that the version stamp is present is a true
         # no-op: no structural changes, no version to write -> returns False.
         assert migrate_config_from_template(template_path, user_config_path) is False
@@ -1262,9 +1365,10 @@ react:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        from jiuwenswarm.common._build_config import VERSION
         from jiuwenswarm.common.utils import ensure_config_migrated_from_template
 
+        monkeypatch.setattr("jiuwenswarm.common.version.get_runtime_version", lambda: "0.2.8b1")
+        monkeypatch.setattr("jiuwenswarm.common.version.get_runtime_build_date", lambda: "2026-10-26")
         template_path = tmp_path / "template.yaml"
         template_path.write_text(
             "react:\n  answer_chunk_size: 500\n  new_option: true\n",
@@ -1274,7 +1378,7 @@ react:
         config_path = workspace_dir / "config" / "config.yaml"
         config_path.parent.mkdir(parents=True)
         config_path.write_text(
-            f"config_version: {VERSION}\nreact:\n  answer_chunk_size: 300\n",
+            'config_version: "0.2.8b1 · 2026-10-26"\nreact:\n  answer_chunk_size: 300\n',
             encoding="utf-8",
         )
         monkeypatch.setattr(
@@ -1285,7 +1389,7 @@ react:
         assert ensure_config_migrated_from_template(workspace_dir) is True
         migrated = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         assert migrated["react"] == {"answer_chunk_size": 300, "new_option": True}
-        assert migrated["config_version"] == VERSION
+        assert migrated["config_version"] == "0.2.8b1 · 2026-10-26"
         assert ensure_config_migrated_from_template(workspace_dir) is False
 
     @staticmethod
@@ -1965,6 +2069,27 @@ modes:
         saved = raw["modes"]["team"]["alpha_team"]
         assert saved["external_cli_agents"] == [{"cli_agent": "claude"}]
         assert "external_transport" not in saved
+
+    @staticmethod
+    def test_replace_teams_in_config_carries_over_path_histories(
+        monkeypatch: pytest.MonkeyPatch,
+        temp_config_file: Path,
+    ):
+        """The team-editor payload must not drop the default team's path histories."""
+        monkeypatch.setattr("jiuwenswarm.common.config.CONFIG_YAML_PATH", temp_config_file)
+        _write_team_config(temp_config_file, [{"cli_agent": "codex", "cli_path": "/opt/codex"}])
+        update_external_cli_path_histories_in_config({"codex": ["/old/codex", "/opt/codex"]})
+
+        payload = TestTeamModesConfig._front_payload(["jiuwen_team"])
+        payload["team"][0]["external_cli_agents"] = [{"cli_agent": "codex", "cli_path": "/opt/codex"}]
+        payload["team"][0]["external_cli_publish_url"] = "ws://127.0.0.1:19000/ws"
+        replace_teams_in_config(payload)
+
+        raw = yaml.safe_load(temp_config_file.read_text(encoding="utf-8"))
+        saved = raw["modes"]["team"]["jiuwen_team"]
+        assert saved["external_cli_agents"] == [{"cli_agent": "codex", "cli_path": "/opt/codex"}]
+        # The payload carries no histories key; the current value must survive.
+        assert saved["external_cli_path_histories"] == {"codex": ["/old/codex", "/opt/codex"]}
 
     @staticmethod
     def test_update_external_cli_agents_in_config_updates_default_team(
